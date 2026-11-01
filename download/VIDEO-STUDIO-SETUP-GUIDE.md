@@ -17,22 +17,31 @@ Renders your complete YouTube script — **"Why Does Everyone Feel Broke When th
 You only need **Node.js** and **Chrome or Edge**. Nothing else.
 
 1. Install **Node.js LTS** from <https://nodejs.org> (just click Next through the installer).
-2. Copy this project folder anywhere, e.g. `C:\k-video-studio`.
-3. Open **Command Prompt** in that folder (type `cmd` in the folder's address bar and press Enter) and run:
+2. Extract the downloaded `workspace-….tar` file:
+   - **Windows 11:** right-click the `.tar` → *Extract All…*, or open it in File Explorer and extract.
+   - **Any Windows:** open Command Prompt where the file is and run `tar -xf workspace-….tar` (Windows 10/11 ships `tar` built in).
+   - You get a project folder — find the one that contains `package.json` (e.g. `my-project` or `workspace-…`). Rename/move it anywhere, e.g. `C:\k-video-studio`.
+3. Check that a file named `.env` exists in that folder (hidden file — enable *View → Hidden items* in File Explorer). If it's missing, create it with Notepad containing this one line and save it as `.env`:
+   ```
+   DATABASE_URL=file:./db/custom.db
+   ```
+4. Open **Command Prompt** in that folder (type `cmd` in the folder's address bar and press Enter) and run:
 
    ```
    npm install
    ```
 
-   *(This takes a few minutes, once. If Windows Firewall asks about Node.js, allow it — it's only talking to your own machine.)*
+   *(This takes 5–10 minutes, once. If Windows Firewall asks about Node.js, allow it — it's only talking to your own machine.)*
 
-4. Start the studio:
+5. Start the studio:
 
    ```
    npm run dev
    ```
 
-5. Open **http://localhost:3000** in **Chrome or Edge** (WebCodecs video encoding needs a Chromium browser — both are preinstalled on your Dell).
+   *(If that prints an error about `tee` — your copy has an older `package.json` — run this instead, it's identical: `npx next dev -p 3000`)*
+
+6. Open **http://localhost:3000** in **Chrome or Edge** (WebCodecs video encoding needs a Chromium browser — both are preinstalled on your Dell).
 
 > ⚡ If your network blocks the voice service (some office firewalls do), run it from a home / phone-hotspot network for the voice step. Once generated, the voice lines are cached on disk — the video itself renders 100% offline.
 
