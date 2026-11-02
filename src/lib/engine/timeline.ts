@@ -38,6 +38,12 @@ export interface Timeline {
   chapters: { index: number; title: string; startMs: number; endMs: number }[];
   captionLines: CaptionLine[];
   voIntervals: { start: number; end: number }[];
+  /** v2 (PATCH 7/8): ms of every hard cut = start of each scene group.
+   *  Used by the mixer to place whoosh transitions. */
+  cutTimes: number[];
+  /** v2 (PATCH 7/8): ms 1.4s after each data scene starts — when counters
+   *  finish easing. Used by the mixer to place confirmation dings. */
+  dataDingTimes: number[];
 }
 
 export interface AudioManifestEntry {
@@ -52,7 +58,10 @@ export interface AudioManifest {
 
 const SENTENCE_GAP = 110;
 const BEAT_LEAD_IN = 70;
-const CHAPTER_CARD_DUR = 1250;
+// v2 (PATCH 8): 1250ms hid the host while the next VO had already started —
+// words with no face. 900ms + the built-in 380ms fade keeps the pace up and
+// the presenter visible sooner.
+const CHAPTER_CARD_DUR = 900;
 const END_SCREEN_HOLD = 6500;
 
 export function buildTimeline(manifest: AudioManifest, fps: number): Timeline {
@@ -140,6 +149,25 @@ export function buildTimeline(manifest: AudioManifest, fps: number): Timeline {
   });
 
   const durationMs = Math.ceil(now + 400); // breathing room
+
+  // ── v2 (PATCH 8): export hard-cut + data-moment times for the mixer ──
+  // hard cuts = the start of every scene GROUP (consecutive beats sharing a
+  // sceneKey are one continuous scene — no cut inside them)
+  const cutTimes: number[] = [];
+  for (let i = 0; i < beats.length; i++) {
+    const prevKey = i > 0 ? beats[i - 1].beat.scene.sceneKey : null;
+    if (beats[i].beat.scene.sceneKey !== prevKey && beats[i].startMs > 0) {
+      cutTimes.push(beats[i].startMs);
+    }
+  }
+  // data moments = 1.4s after each counting scene starts (counters settle)
+  const dataDingTimes: number[] = [];
+  for (const b of beats) {
+    if (['statCards', 'recessionGauge', 'barsCompare'].includes(b.beat.scene.type)) {
+      dataDingTimes.push(b.startMs + 1400);
+    }
+  }
+
   return {
     durationMs,
     fps,
@@ -149,6 +177,8 @@ export function buildTimeline(manifest: AudioManifest, fps: number): Timeline {
     chapters,
     captionLines,
     voIntervals,
+    cutTimes,
+    dataDingTimes,
   };
 }
 

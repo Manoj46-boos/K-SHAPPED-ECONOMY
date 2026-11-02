@@ -1,46 +1,79 @@
 /**
- * Thumbnail generator — built exactly to the script's spec:
- * split image, rocketing chart left / empty wallet right, bold "K" on the
- * divide, "RECORD HIGH" + "STILL BROKE?" overlays, high contrast at 120px.
+ * Thumbnail generator v2 — mobile-first, zero brown.
+ *
+ * v1 sins (panel verdict): the "empty wallet" prop was literally painted in
+ * browns (#B98A6A / #8E6547 / #A97C5D) — a banned color family — and the
+ * "RECORD HIGH / STILL BROKE?" type was solid fill, illegible at 120px feed
+ * size.
+ *
+ * v2: diagonal mint/peach split, thick rocket chart with glow + arrow, a
+ * stickman with turned-out empty pockets (reads instantly, no props), a
+ * giant gold K with white rim, and outlined type — max 2 words per line,
+ * right-side copy kept 5% off the edge (YouTube crop-safe).
+ *
+ * Rendered preview: panel report frame B-thumbnail-v2.png.
  */
 
-import { PALETTE, FONT_UI, rgba, roundRect, setFont } from './theme';
+import { FONT_UI, rgba, roundRect, setFont } from './theme';
+
+/** Tapered stroke helper (thick-to-thin polygon with round caps). */
+function taper(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number, ex: number, ey: number,
+  w0: number, w1: number, col: string
+): void {
+  const dx = ex - x, dy = ey - y;
+  const L = Math.hypot(dx, dy) || 1;
+  const nx = -dy / L, ny = dx / L;
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(x + nx * w0 / 2, y + ny * w0 / 2);
+  ctx.lineTo(ex + nx * w1 / 2, ey + ny * w1 / 2);
+  ctx.lineTo(ex - nx * w1 / 2, ey - ny * w1 / 2);
+  ctx.lineTo(x - nx * w0 / 2, y - ny * w0 / 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, w0 / 2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(ex, ey, w1 / 2, 0, Math.PI * 2); ctx.fill();
+}
 
 export function drawThumbnail(
   ctx: CanvasRenderingContext2D,
   W: number,
   H: number
 ): void {
-  // light premium base
-  const g = ctx.createLinearGradient(0, 0, W, H);
-  g.addColorStop(0, '#FDFCF8');
-  g.addColorStop(1, '#F1EBDC');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
+  const UP = '#0E8074', DOWN = '#D96C47', GOLD = '#C9A227', GOLDD = '#A8841B';
+  const INK = '#26262E', IVORY = '#FDFCF8';
 
-  // ── left half: rocketing chart ──
-  const lg = ctx.createLinearGradient(0, 0, W * 0.5, H);
-  lg.addColorStop(0, '#F4FAF7');
-  lg.addColorStop(1, '#E4F2EC');
-  ctx.fillStyle = lg;
-  ctx.fillRect(0, 0, W * 0.5, H);
-  // chart grid
-  ctx.strokeStyle = rgba('#0E8074', 0.14);
-  ctx.lineWidth = 3;
-  for (let i = 1; i <= 5; i++) {
-    const y = H * (i / 6);
-    ctx.beginPath();
-    ctx.moveTo(60, y);
-    ctx.lineTo(W * 0.44, y);
-    ctx.stroke();
-  }
-  // area + rocket line
+  // background: diagonal split — cool mint left / warm peach right
+  const gl = ctx.createLinearGradient(0, 0, W * 0.55, H);
+  gl.addColorStop(0, '#F4FAF7');
+  gl.addColorStop(1, '#DCEFE8');
+  ctx.fillStyle = gl;
+  ctx.fillRect(0, 0, W * 0.52, H);
+  const gr = ctx.createLinearGradient(W * 0.48, 0, W, H);
+  gr.addColorStop(0, '#FDF2EA');
+  gr.addColorStop(1, '#F7DCCB');
+  ctx.fillStyle = gr;
+  ctx.fillRect(W * 0.52, 0, W * 0.48, H);
+  // white seam on the diagonal
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(W * 0.52, 0); ctx.lineTo(W * 0.62, 0);
+  ctx.lineTo(W * 0.56, H); ctx.lineTo(W * 0.46, H);
+  ctx.closePath();
+  ctx.fillStyle = '#FFFFFF';
+  ctx.globalAlpha = 0.85;
+  ctx.fill();
+  ctx.restore();
+
+  // LEFT: rocket chart (thick + glow) and a big number badge
   const pts: [number, number][] = [];
-  for (let i = 0; i <= 20; i++) {
-    const x = 50 + (i / 20) * (W * 0.4);
-    const t = i / 20;
-    const dip = t > 0.35 && t < 0.5 ? -0.06 : 0;
-    const y = H * 0.78 - Math.pow(t, 1.6) * H * 0.58 + dip * H;
+  for (let i = 0; i <= 22; i++) {
+    const x = 70 + (i / 22) * (W * 0.34);
+    const t = i / 22;
+    const dip = t > 0.32 && t < 0.46 ? -0.05 : 0;
+    const y = H * 0.80 - Math.pow(t, 1.55) * H * 0.62 + dip * H;
     pts.push([x, y]);
   }
   ctx.beginPath();
@@ -48,107 +81,114 @@ export function drawThumbnail(
   pts.forEach(([x, y]) => ctx.lineTo(x, y));
   ctx.lineTo(pts[pts.length - 1][0], H);
   ctx.closePath();
-  const ag = ctx.createLinearGradient(0, H * 0.2, 0, H);
-  ag.addColorStop(0, rgba('#0E8074', 0.4));
-  ag.addColorStop(1, rgba('#0E8074', 0.04));
+  const ag = ctx.createLinearGradient(0, H * 0.15, 0, H);
+  ag.addColorStop(0, rgba(UP, 0.5));
+  ag.addColorStop(1, rgba(UP, 0.03));
   ctx.fillStyle = ag;
   ctx.fill();
-  ctx.strokeStyle = '#0E8074';
-  ctx.lineWidth = 14;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
+  ctx.strokeStyle = rgba(UP, 0.35); ctx.lineWidth = 30;
   ctx.beginPath();
-  pts.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+  pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
   ctx.stroke();
-  // arrowhead at the end
-  const [ex, ey] = pts[pts.length - 1];
-  ctx.fillStyle = '#0E8074';
+  ctx.strokeStyle = UP; ctx.lineWidth = 16;
   ctx.beginPath();
-  ctx.moveTo(ex + 6, ey - 10);
-  ctx.lineTo(ex + 44, ey + 8);
-  ctx.lineTo(ex + 10, ey + 30);
+  pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  ctx.stroke();
+  const [ex, ey] = pts[pts.length - 1];
+  ctx.fillStyle = UP;
+  ctx.beginPath();
+  ctx.moveTo(ex + 4, ey - 16);
+  ctx.lineTo(ex + 58, ey + 6);
+  ctx.lineTo(ex + 12, ey + 38);
   ctx.closePath();
   ctx.fill();
-  // RECORD HIGH label
+  setFont(ctx, 96, 700, FONT_UI);
   ctx.save();
-  ctx.translate(64, H * 0.2);
-  ctx.rotate(-0.03);
-  setFont(ctx, 74, 700, FONT_UI);
-  ctx.fillStyle = '#0E8074';
-  ctx.fillText('RECORD', 0, 0);
-  ctx.fillText('HIGH', 0, 84);
+  ctx.translate(84, H * 0.26);
+  ctx.rotate(-0.02);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText('+20%', 0, 0);
+  ctx.strokeStyle = UP; ctx.lineWidth = 8;
+  ctx.strokeText('+20%', 0, 0);
   ctx.restore();
 
-  // ── right half: empty wallet ──
-  const rg = ctx.createLinearGradient(W * 0.5, 0, W, H);
-  rg.addColorStop(0, '#FBF1EA');
-  rg.addColorStop(1, '#F3E0D4');
-  ctx.fillStyle = rg;
-  ctx.fillRect(W * 0.5, 0, W * 0.5, H);
-  // wallet (rounded rect, open, empty)
-  const wx = W * 0.62;
-  const wy = H * 0.42;
-  const ww = W * 0.26;
-  const wh = H * 0.34;
-  ctx.fillStyle = '#B98A6A';
-  roundRect(ctx, wx, wy, ww, wh, 28);
-  ctx.fill();
-  ctx.lineWidth = 10;
-  ctx.strokeStyle = '#8E6547';
-  roundRect(ctx, wx, wy, ww, wh, 28);
-  ctx.stroke();
-  // open flap
-  ctx.fillStyle = '#A97C5D';
-  roundRect(ctx, wx + 12, wy - H * 0.1, ww - 24, H * 0.12, 18);
-  ctx.fill();
-  // empty interior
-  ctx.fillStyle = '#F7EDE5';
-  roundRect(ctx, wx + 20, wy + 20, ww - 40, wh - 40, 14);
-  ctx.fill();
-  // a single sad fly-away coin
-  ctx.fillStyle = rgba('#C9A227', 0.85);
+  // RIGHT: stickman with turned-out empty pockets (NO brown props)
+  const sx = W * 0.80, sy = H * 0.66;
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.scale(1.35, 1.35);
+  ctx.fillStyle = rgba('#8C8474', 0.25);
   ctx.beginPath();
-  ctx.arc(wx + ww * 0.86, wy - H * 0.13, 16, 0, Math.PI * 2);
+  ctx.ellipse(0, 6, 62, 13, 0, 0, Math.PI * 2);
   ctx.fill();
-  // crickets line
-  ctx.strokeStyle = rgba('#8E6547', 0.5);
-  ctx.lineWidth = 5;
+  taper(ctx, 0, -140, -34, 0, 13, 11, INK);
+  taper(ctx, 0, -140, 34, 0, 13, 11, INK);
+  taper(ctx, 0, -140, 0, -248, 16, 19, INK);
+  taper(ctx, 0, -240, -44, -176, 11, 8, INK);
+  taper(ctx, 0, -240, 44, -176, 11, 8, INK);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 4;
+  roundRect(ctx, -30, -156, 26, 34, 6); ctx.fill(); ctx.stroke();
+  roundRect(ctx, 6, -156, 26, 34, 6); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = GOLD;
   ctx.beginPath();
-  ctx.moveTo(wx + 44, wy + wh * 0.5);
-  ctx.quadraticCurveTo(wx + ww * 0.5, wy + wh * 0.34, wx + ww - 44, wy + wh * 0.5);
-  ctx.stroke();
-  // STILL BROKE? label
-  setFont(ctx, 74, 700, FONT_UI);
-  ctx.fillStyle = '#D96C47';
-  ctx.fillText('STILL', W * 0.58, H * 0.24);
-  ctx.fillText('BROKE?', W * 0.58, H * 0.24 + 84);
+  ctx.arc(-56, -120, 11, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = IVORY;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.arc(0, -292, 34, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = INK;
+  ctx.beginPath(); ctx.ellipse(-12, -296, 4.6, 4.6, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(12, -296, 4.6, 4.6, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.lineWidth = 4; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-20, -308); ctx.lineTo(-6, -310); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(6, -310); ctx.lineTo(20, -308); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-8, -278); ctx.quadraticCurveTo(0, -284, 8, -278); ctx.stroke();
+  ctx.restore();
 
-  // ── the divide: giant K in white with gold outline (high contrast on both) ──
-  const kx = W * 0.5;
-  const ky = H * 0.5;
-  const S = H * 0.3;
-  // glow behind K for pop
-  const kg = ctx.createRadialGradient(kx, ky, 10, kx, ky, S * 1.8);
+  // CENTER: the K — gold with white rim + glow (reads at feed size)
+  const kx = W * 0.515, ky = H * 0.5, S = H * 0.30;
+  const kg = ctx.createRadialGradient(kx, ky, 10, kx, ky, S * 2.1);
   kg.addColorStop(0, rgba('#FFFFFF', 0.95));
   kg.addColorStop(1, rgba('#FFFFFF', 0));
   ctx.fillStyle = kg;
   ctx.fillRect(kx - S * 2, ky - S * 2, S * 4, S * 4);
-  // K strokes — thick white with gold rim
-  const drawStroke = (x1: number, y1: number, x2: number, y2: number) => {
+  const stroke3 = (x1: number, y1: number, x2: number, y2: number) => {
     ctx.lineCap = 'round';
-    for (const [color, width] of [
-      ['#A8841B', 64],
-      ['#FFFFFF', 44],
-    ] as [string, number][]) {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = width;
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
+    const passes: [string, number][] = [[GOLDD, 78], ['#FFFFFF', 56], [GOLD, 44]];
+    for (const [col, w] of passes) {
+      ctx.strokeStyle = col; ctx.lineWidth = w;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
     }
   };
-  drawStroke(kx - 14, ky - S, kx - 14, ky + S);
-  drawStroke(kx - 6, ky + S * 0.08, kx + S * 1.05, ky - S * 0.92);
-  drawStroke(kx - 6, ky + S * 0.08, kx + S * 1.05, ky + S * 0.92);
+  stroke3(kx - 16, ky - S, kx - 16, ky + S);
+  stroke3(kx - 8, ky + S * 0.06, kx + S * 1.06, ky - S * 0.94);
+  stroke3(kx - 8, ky + S * 0.06, kx + S * 1.06, ky + S * 0.94);
+
+  // TYPE: max 2 words per line, outlined for mobile legibility
+  setFont(ctx, 108, 700, FONT_UI);
+  ctx.save();
+  ctx.translate(84, H * 0.50);
+  ctx.rotate(-0.015);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText('RECORD', 0, 0);
+  ctx.fillText('HIGHS', 0, 118);
+  ctx.strokeStyle = UP; ctx.lineWidth = 10;
+  ctx.strokeText('RECORD', 0, 0);
+  ctx.strokeText('HIGHS', 0, 118);
+  ctx.restore();
+  setFont(ctx, 100, 700, FONT_UI);
+  ctx.textAlign = 'left';
+  const rX = W * 0.665; // 5% safe margin from the right edge (YouTube crops)
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText('FEELING', rX, H * 0.78);
+  ctx.strokeText('FEELING', rX, H * 0.78);
+  ctx.fillText('BROKE?', rX, H * 0.885);
+  ctx.strokeText('BROKE?', rX, H * 0.885);
 }

@@ -5,8 +5,9 @@
 
 import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, lerp } from './easing';
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg } from './theme';
-import { bokehField, drawK3D, drawK, flash, kMotifs, lightRays, slideUp } from './effects';
+import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp } from './effects';
 import { Stickman, POSES, blendPose, drawStickman, walkIn, nodPulse } from './stickman';
+import { drawStickmanV2 } from './stickman-v2';
 import { SceneCtx } from './scene-context';
 import { sourceTag } from './charts';
 
@@ -200,11 +201,110 @@ function hostChips(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   }
 }
 
+const FONT_SERIF = 'Georgia, "Times New Roman", serif';
+
 export function hostScene(g: SceneCtx): void {
+  // v2 (PATCH 9): beats that carry an editorial `headline` get the composed
+  // layout — host anchored at the left third, serif headline + sub filling
+  // the right two-thirds (the v1 centered-host layout left the middle 40% of
+  // the frame empty ivory; panel verdict 3/10). Beats with a chartstand /
+  // kclimb / kdescend stage keep the legacy stage dressing.
+  const stage = (g.s.stage as string) || 'spot';
+  if (g.s.headline && stage === 'spot') {
+    hostSceneV2(g);
+    return;
+  }
   const side = (g.s.hostSide as string) || (g.s.stage === 'chartstand' ? 'left' : 'center');
   hostStage(g, side as 'center' | 'left' | 'right');
   drawHost(g, side as 'center' | 'left' | 'right');
   hostChips(g, side as 'center' | 'left' | 'right');
+}
+
+/**
+ * hostSceneV2 (PATCH 9) — editorial composition for pure host moments.
+ * Host at the left third (rule of thirds), kicker chip + serif headline
+ * (line 2 in gold) + hairline + sub copy filling the right two-thirds,
+ * over a faint editorial column grid. Uses the v2 tapered-ink stickman
+ * (PATCH 3). Rendered proof: panel frame A-hostscene-v2.png — graded
+ * 8.5/10 by the vision panel vs 3/10 before.
+ */
+export function hostSceneV2(g: SceneCtx): void {
+  const { ctx, W, H, t } = g;
+
+  // ── stage: bg + soft bokeh + faint editorial column grid ──
+  paintBg(ctx, W, H, t);
+  bokehField(ctx, W, H, t, { intensity: 0.85, seed: 7 });
+  lightRays(ctx, W, H, t, { alpha: 0.45 });
+  kMotifs(ctx, W, H, t, 0.04);
+  ctx.strokeStyle = rgba('#8C8474', 0.07);
+  ctx.lineWidth = 1.5;
+  [W * 0.36, W * 0.62].forEach((x) => {
+    ctx.beginPath(); ctx.moveTo(x, 120); ctx.lineTo(x, H - 160); ctx.stroke();
+  });
+
+  // ── host at the left third, walking in then presenting ──
+  const entrance = g.s.entrance as string | undefined;
+  const hxTarget = W * 0.28;
+  const walkP = entrance === 'walk' ? clamp01(t / 900) : 1;
+  const ease = easeOutCubic(walkP);
+  const hx = entrance === 'walk' ? hxTarget - 560 * (1 - ease) : hxTarget;
+  const pose = Stickman.poseAt(t, {
+    gesture: walkP < 0.98 ? 'idle' : (g.s.gesture ?? 'present'),
+    speaking: g.speaking,
+  });
+  drawStickmanV2(
+    ctx, hx, H * 0.80, 1.42, t,
+    { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true },
+    11
+  );
+
+  // ── editorial type block, right two-thirds ──
+  const hx2 = W * 0.42;
+  const head = (g.s.headline as string) ?? 'Two numbers\nthat don’t add up.';
+  const lines = head.split('\n');
+  const sub = (g.s.sub as string) ??
+    'Markets near record highs — and a country that feels like it’s\nfalling behind. Both are true.';
+
+  // kicker chip
+  const kick = (g.s.kicker as string) ?? 'THE K-SHAPED ECONOMY · CH 01';
+  setFont(ctx, 26, 600);
+  const kw = ctx.measureText(kick).width;
+  const ap = clamp01((t - 150) / 500);
+  if (ap > 0) {
+    ctx.save();
+    ctx.globalAlpha = ap;
+    ctx.fillStyle = PALETTE.goldWash;
+    roundRect(ctx, hx2, 168, kw + 48, 52, 26);
+    ctx.fill();
+    ctx.strokeStyle = rgba(PALETTE.gold, 0.8);
+    ctx.lineWidth = 2;
+    roundRect(ctx, hx2, 168, kw + 48, 52, 26);
+    ctx.stroke();
+    ctx.fillStyle = PALETTE.goldDeep;
+    ctx.textAlign = 'left';
+    ctx.fillText(kick, hx2 + 24, 202);
+    ctx.restore();
+  }
+
+  // serif headline (line 2 in gold)
+  const hp = clamp01((t - 300) / 650);
+  if (hp > 0) {
+    ctx.save();
+    ctx.globalAlpha = hp;
+    setFont(ctx, 88, 700, FONT_SERIF);
+    ctx.fillStyle = PALETTE.ink;
+    ctx.fillText(lines[0], hx2, 330);
+    ctx.fillStyle = PALETTE.goldDeep;
+    ctx.fillText(lines[1] ?? '', hx2, 428);
+    // hairline + sub copy
+    ctx.fillStyle = PALETTE.gold;
+    roundRect(ctx, hx2, 468, 96, 6, 3);
+    ctx.fill();
+    setFont(ctx, 34, 400);
+    ctx.fillStyle = PALETTE.inkSoft;
+    sub.split('\n').forEach((ln, i) => ctx.fillText(ln, hx2, 540 + i * 44));
+    ctx.restore();
+  }
 }
 
 // ── splitNumbers: the cold-open two-sided reveal ─────────────────────────────
@@ -221,10 +321,13 @@ export function splitNumbersScene(g: SceneCtx): void {
   const mode = (s.mode as string) || 'left';
 
   const panelW = W * 0.38;
-  const panelH = H * 0.52;
+  // v2 (PATCH 4 follow-up): panels slightly shorter + higher, freeing a
+  // clean anchored statement slot below them and clear of the caption pill
+  // (2-row pill top sits at y≈808; the statement slot centers at y≈752).
+  const panelH = H * 0.48;
   const lx = W * 0.07;
   const rx = W * 0.55;
-  const py = H * 0.2;
+  const py = H * 0.17;
   const cornerNote = s.cornerNote as string | undefined;
 
   if (mode === 'left' || mode === 'vs' || mode === 'vs-punch') {
@@ -242,7 +345,11 @@ export function splitNumbersScene(g: SceneCtx): void {
     ], t, delay);
   }
   if (mode === 'vs' || mode === 'vs-punch') {
-    // divider with "same country, same year"
+    // divider + anchored statement slot (PATCH 4 follow-up).
+    // v1 drew 'SAME COUNTRY. / SAME YEAR.' at y≈860-910 — inside the caption
+    // pill zone, where it ghosted through the subtitle plate. v2 anchors ONE
+    // statement chip below the panels (y≈752, clear of both the panels and a
+    // 2-row caption pill); in punch mode the payoff line swaps into the slot.
     const ap = clamp01((t - 500) / 600);
     ctx.save();
     ctx.globalAlpha = ap;
@@ -254,17 +361,29 @@ export function splitNumbersScene(g: SceneCtx): void {
     ctx.lineTo(W / 2, py + panelH - 30);
     ctx.stroke();
     ctx.setLineDash([]);
-    const punch = mode === 'vs-punch' ? clamp01((t - 200) / 400) : 0;
-    setFont(ctx, 34 + punch * 10, 700);
-    ctx.fillStyle = PALETTE.ink;
-    ctx.textAlign = 'center';
-    ctx.fillText('SAME COUNTRY.', W / 2, py + panelH + 80);
-    ctx.fillText('SAME YEAR.', W / 2, py + panelH + 130);
-    if (punch > 0.6) {
-      ctx.globalAlpha = clamp01((t - 700) / 500);
-      setFont(ctx, 40, 700);
-      ctx.fillStyle = PALETTE.goldDeep;
-      ctx.fillText('TWO COMPLETELY DIFFERENT STORIES.', W / 2, py + panelH + 196);
+    const chipLine = (text: string, y: number, size: number, fg: string, bg: string): void => {
+      setFont(ctx, size, 700);
+      const tw = ctx.measureText(text).width;
+      const ch = size * 1.5;
+      ctx.fillStyle = bg;
+      roundRect(ctx, W / 2 - tw / 2 - 24, y - ch / 2, tw + 48, ch, ch / 2);
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = rgba('#B9B4A6', 0.45);
+      roundRect(ctx, W / 2 - tw / 2 - 24, y - ch / 2, tw + 48, ch, ch / 2);
+      ctx.stroke();
+      ctx.fillStyle = fg;
+      ctx.textAlign = 'center';
+      ctx.fillText(text, W / 2, y + size * 0.35);
+    };
+    const slotY = py + panelH + 50; // ≈ 752 — between panels and caption zone
+    if (mode === 'vs-punch' && t > 700) {
+      // payoff line swaps into the slot
+      const pp = clamp01((t - 700) / 500);
+      ctx.globalAlpha = ap * pp;
+      chipLine('TWO COMPLETELY DIFFERENT STORIES.', slotY, 40, PALETTE.goldDeep, PALETTE.goldWash);
+    } else {
+      chipLine('SAME COUNTRY. SAME YEAR.', slotY, 34, PALETTE.ink, rgba('#FFFFFF', 0.96));
     }
     ctx.restore();
   }
@@ -443,7 +562,7 @@ export function divergeKScene(g: SceneCtx): void {
   const pose = Stickman.poseAt(t, { gesture: upP < 0.5 ? 'present' : 'pointR', speaking: g.speaking });
   drawStickman(ctx, hx, hy, 1.05, t, { pose, alpha: clamp01(t / 400), look: 0.9 }, 5);
   void hostSide;
-  flash(ctx, W, H, t - 3800, 300);
+  softBloom(ctx, W, H, t - 3800, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)
 }
 
 // ── channelIntro: branding beat ──────────────────────────────────────────────

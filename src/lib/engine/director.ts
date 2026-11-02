@@ -7,7 +7,7 @@
 
 import { clamp01, easeInOutSine, easeOutCubic } from './easing';
 import { PALETTE, paintBg, rgba } from './theme';
-import { drawGrain, lightVignette, bokehField } from './effects';
+import { drawGrain, lightVignette, bokehField, scalePunch } from './effects';
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
 import { Timeline, beatAt } from './timeline';
 import { SceneCtx, SceneDrawer } from './scene-context';
@@ -109,6 +109,35 @@ function groupAt(tl: Timeline, tMs: number): Group | null {
   return gs.length ? gs[Math.min(gs.length - 1, Math.max(0, lo))] : null;
 }
 
+/**
+ * Camera v2 (PATCH 5). The v1 drift used `Math.sin(gt / 5200 + beatIndex *
+ * 2.3)` — the drift direction flipped with beat-index parity, so
+ * consecutive scenes wobbled in opposite directions like a bad handheld
+ * shot. v2 derives intent from the scene itself: single-subject scenes push
+ * in, comparison scenes pull back, and the drift is slow and always
+ * screen-left-to-right — a camera operator, not a wobble.
+ */
+function cameraV2(
+  ctx: CanvasRenderingContext2D,
+  gt: number,
+  groupDur: number,
+  sceneType: string
+): void {
+  const p = clamp01(gt / Math.max(1, groupDur));
+  // scenes that present a single subject push in; comparison scenes pull out
+  const isComparison =
+    sceneType.includes('split') || sceneType.includes('Compare') ||
+    sceneType === 'ownerWorker' || sceneType === 'trioConverge';
+  const target = isComparison ? -0.012 : 0.028; // pull back vs push in
+  const camScale = 1 + target * easeInOutSine(p);
+  // slow consistent drift, always screen-left-to-right (no beatIndex term)
+  const camX = Math.sin(gt / 7300) * 6;
+  const camY = Math.cos(gt / 9100) * 4;
+  ctx.translate(960 + camX, 540 + camY);
+  ctx.scale(camScale, camScale);
+  ctx.translate(-960, -540);
+}
+
 /** Draw one complete frame of the video at absolute time tMs. */
 export function drawFrame(
   ctx: CanvasRenderingContext2D,
@@ -170,13 +199,15 @@ export function drawFrame(
   const sy = H / 1080;
   ctx.save();
   ctx.scale(sx, sy);
-  // camera: gentle Ken Burns push + drift
-  const camScale = 1 + 0.022 * easeInOutSine(clamp01(gt / groupDur));
-  const camX = Math.sin(gt / 5200 + beat.beatIndex * 2.3) * 7;
-  const camY = Math.cos(gt / 6100 + beat.beatIndex * 1.7) * 5;
-  ctx.translate(960 + camX, 540 + camY);
-  ctx.scale(camScale, camScale);
-  ctx.translate(-960, -540);
+  // camera v2: scene-aware push/pull + consistent drift (PATCH 5)
+  cameraV2(ctx, gt, groupDur, beat.beat.scene.type);
+  // 1-2% scale punch that decays over 160ms right after each hard cut
+  const punch = scalePunch(gt);
+  if (punch !== 1) {
+    ctx.translate(960, 540);
+    ctx.scale(punch, punch);
+    ctx.translate(-960, -540);
+  }
 
   const drawer = SCENES[beat.beat.scene.type] ?? hostScene;
   try {
@@ -192,7 +223,7 @@ export function drawFrame(
     if (t >= cc.startMs && t < cc.endMs) {
       const cct = t - cc.startMs;
       const overall = clamp01(t / tl.durationMs);
-      drawChapterCard(ctx, W, H, cct, cc.endMs - cc.startMs, cc.index + 1, cc.title, overall);
+      drawChapterCard(ctx, W, H, cct, cc.endMs - cc.startMs, cc.index + 1, cc.title, overall, tl.chapters.length);
     }
   }
 

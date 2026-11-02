@@ -251,7 +251,8 @@ export function popIn(t: number, dur = 560): { s: number; a: number } {
   return { s: 0.86 + 0.14 * easeOutCubic(p), a: Math.min(1, p * 2) };
 }
 
-/** Soft radial flash used on hard cuts / reveals. */
+/** Soft radial flash used on hard cuts / reveals.
+ *  @deprecated v1 strobe — use softBloom (PATCH 5) at new call sites. */
 export function flash(ctx: CanvasRenderingContext2D, W: number, H: number, age: number, dur = 340): void {
   if (age < 0 || age > dur) return;
   const p = age / dur;
@@ -260,6 +261,39 @@ export function flash(ctx: CanvasRenderingContext2D, W: number, H: number, age: 
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0, 0, W, H);
   ctx.restore();
+}
+
+/**
+ * v2 soft bloom (PATCH 5) — replaces flash() at cut call sites.
+ * The v1 50%-alpha full-screen white frame read as a strobe on a bright
+ * theme (exactly the pattern photosensitivity guidance says to avoid) and
+ * barely read as "impact" on a light palette anyway. v2 is a 12% warm
+ * ivory-gold wash decaying over 180ms — felt, not seen.
+ */
+export function softBloom(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  age: number,
+  dur = 180
+): void {
+  if (age < 0 || age > dur) return;
+  const p = age / dur;
+  ctx.save();
+  ctx.globalAlpha = (1 - p) * 0.12;
+  ctx.fillStyle = '#FFF3D6'; // warm ivory-gold, not white
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+/**
+ * v2 scale punch for hard cuts (PATCH 5) — optional 1-2% overshoot that
+ * decays in 160ms. Multiply into the camera scale right after a cut.
+ */
+export function scalePunch(age: number, dur = 160): number {
+  if (age < 0 || age > dur) return 1;
+  const p = age / dur;
+  return 1 + 0.02 * Math.sin(p * Math.PI) * (1 - p);
 }
 
 /** Deterministic floating gold coins (for pump / wealth scenes). */

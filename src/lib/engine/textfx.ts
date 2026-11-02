@@ -22,7 +22,16 @@ export interface CaptionStyle {
   mode: 'karaoke' | 'simple' | 'off';
 }
 
-/** Draw the active caption. Returns nothing; safely no-ops when inactive. */
+/**
+ * Draw the active caption. Returns nothing; safely no-ops when inactive.
+ *
+ * v2 (PATCH 4): the old pill could span W-520px at 0.94 alpha — on host
+ * scenes it ate ~20-25% of the frame and fought the scene art, and
+ * unspoken words sat at 0.42 grey (contrast fail). Now: pill hard-capped
+ * at 62% of frame width, one line preferred / two max, a gold brand tab
+ * on the left edge, spoken words at full ink, upcoming at 55% ink, and
+ * the active word gets a crisp gold underline sweep.
+ */
 export function drawCaptions(
   ctx: CanvasRenderingContext2D,
   W: number,
@@ -32,7 +41,6 @@ export function drawCaptions(
   style: CaptionStyle
 ): void {
   if (style.mode === 'off' || !lines.length) return;
-  // find active line (with 250ms tail grace)
   let active: CaptionLine | null = null;
   for (const l of lines) {
     if (tMs >= l.start - 120 && tMs <= l.end + 260) active = l;
@@ -40,71 +48,76 @@ export function drawCaptions(
   if (!active) return;
 
   const words = active.words;
-  const fontSize = 42;
-  const maxW = W - 520;
+  const fontSize = 40;
+  const maxW = Math.min(W - 520, W * 0.62); // hard cap: 62% of frame
   setFont(ctx, fontSize, 600, FONT_UI);
   const spaceW = ctx.measureText(' ').width;
-  // Sliding window: for long sentences, show the words around the currently
-  // spoken one (a few spoken words back + all that fit in two rows ahead).
+
+  // sliding window: 6 spoken words back, fill forward to the width cap
   let winStart = 0;
   let lastSpoken = -1;
   for (let i = 0; i < words.length; i++) {
     if (tMs >= words[i].t) lastSpoken = i;
   }
-  if (lastSpoken > 8) winStart = lastSpoken - 6;
+  if (lastSpoken > 6) winStart = lastSpoken - 5;
   const winWords = words.slice(winStart);
-  const rows: { words: (CaptionWord | null)[]; width: number }[] = [{ words: [], width: 0 }];
-  let current = 0;
+
+  const rows: { words: CaptionWord[]; width: number }[] = [{ words: [], width: 0 }];
+  let cur = 0;
   for (const w of winWords) {
     const ww = ctx.measureText(w.w).width;
-    if (rows[current].width + ww > maxW && rows[current].words.length > 0) {
+    if (rows[cur].width + ww > maxW && rows[cur].words.length > 0) {
+      // two rows max — never a wall of text. (The v1 `push then break` order
+      // built a phantom third row; this stops BEFORE creating it.)
+      if (rows.length >= 2) break;
       rows.push({ words: [], width: 0 });
-      current++;
-      if (rows.length > 2) break;
+      cur++;
     }
-    rows[current].words.push(w);
-    rows[current].width += ww + spaceW;
+    rows[cur].words.push(w);
+    rows[cur].width += ww + spaceW;
   }
-  const totalH = rows.length * (fontSize + 18) + 40;
-  const baseY = H - 132;
+
+  const rowH = fontSize + 16;
+  const totalH = rows.length * rowH + 36;
+  const baseY = H - 128; // clear of the 8px progress bar + safe margin
   const widest = Math.max(...rows.map((r) => r.width));
 
-  // pill background
+  // pill — fully opaque plate (scene text under it must occlude cleanly,
+  // not ghost through), one hairline border, gold brand tab on the left
   ctx.save();
   const px = W / 2 - widest / 2 - 34;
-  const py = baseY - totalH + 6;
-  ctx.globalAlpha = 0.92;
-  ctx.fillStyle = rgba('#FFFFFF', 0.94);
-  roundRect(ctx, px, py, widest + 68, totalH, 26);
+  const py = baseY - totalH + 4;
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#FFFFFF';
+  roundRect(ctx, px, py, widest + 68, totalH, 30);
   ctx.fill();
   ctx.lineWidth = 2;
   ctx.strokeStyle = rgba('#B9B4A6', 0.5);
-  roundRect(ctx, px, py, widest + 68, totalH, 26);
+  roundRect(ctx, px, py, widest + 68, totalH, 30);
   ctx.stroke();
+  ctx.fillStyle = PALETTE.gold;
+  roundRect(ctx, px + 2, py + 14, 6, totalH - 28, 3);
+  ctx.fill();
   ctx.restore();
 
-  // words
+  // words — spoken = ink, upcoming = 55% ink (passes contrast), active = sweep
   ctx.save();
   ctx.textBaseline = 'middle';
   setFont(ctx, fontSize, 600, FONT_UI);
   rows.forEach((row, ri) => {
     let x = W / 2 - row.width / 2 + spaceW / 2;
-    const y = py + 30 + ri * (fontSize + 18) + fontSize / 2;
+    const y = py + 26 + ri * rowH + fontSize / 2;
     for (const w of row.words) {
-      if (!w) continue;
       const spoken = tMs >= w.t;
-      const activeW = tMs >= w.t && tMs <= w.t + w.d + 90;
-      ctx.fillStyle = spoken ? PALETTE.ink : rgba('#55555F', 0.42);
+      const activeW = spoken && tMs <= w.t + w.d + 90;
+      ctx.fillStyle = spoken ? PALETTE.ink : rgba('#55555F', 0.55);
+      ctx.fillText(w.w, x, y);
       if (style.mode === 'karaoke' && activeW) {
-        ctx.fillStyle = PALETTE.ink;
-        ctx.fillText(w.w, x, y);
         const ww = ctx.measureText(w.w).width;
         const sweep = clamp01((tMs - w.t) / Math.max(w.d, 80));
         ctx.fillStyle = PALETTE.gold;
         roundRect(ctx, x - 2, y + fontSize * 0.62, (ww + 4) * easeOutQuad(sweep), 6, 3);
         ctx.fill();
-      } else {
-        ctx.fillText(w.w, x, y);
       }
       x += ctx.measureText(w.w).width + spaceW;
     }
@@ -112,7 +125,7 @@ export function drawCaptions(
   ctx.restore();
 }
 
-/** Chapter card — the 1.2s premium transition between sections. */
+/** Chapter card — the 0.9s premium transition between sections. */
 export function drawChapterCard(
   ctx: CanvasRenderingContext2D,
   W: number,
@@ -121,7 +134,8 @@ export function drawChapterCard(
   dur: number,
   index: number,
   title: string,
-  progress: number // overall video progress 0..1
+  progress: number, // overall video progress 0..1
+  totalChapters = 10 // v2 (PATCH 8): dots match the real chapter count
 ): void {
   const p = clamp01(t / Math.min(dur, 500));
   const out = clamp01((t - (dur - 380)) / 380);
@@ -151,7 +165,7 @@ export function drawChapterCard(
   void size;
   ctx.fillText(title, W / 2, H / 2 + 22);
   // progress dots
-  const total = 10;
+  const total = Math.max(2, totalChapters);
   const dotR = 7;
   const gap = 26;
   const startX = W / 2 - ((total - 1) * gap) / 2;

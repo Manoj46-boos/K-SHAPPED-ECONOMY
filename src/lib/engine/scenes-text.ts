@@ -4,8 +4,8 @@
  */
 
 import { clamp01, easeInOutSine, easeOutBack, easeOutCubic, easeOutQuad } from './easing';
-import { PALETTE, TONE, card, rgba, roundRect, setFont, paintBg, glowBlob } from './theme';
-import { bokehField, lightRays, flash, sparkles, drawK3D, kMotifs, floatCoins } from './effects';
+import { PALETTE, TONE, card, rgba, roundRect, setFont, paintBg } from './theme';
+import { bokehField, lightRays, softBloom, sparkles, drawK3D, kMotifs, floatCoins } from './effects';
 import { SceneCtx } from './scene-context';
 import { Stickman, drawStickman, POSES, blendPose } from './stickman';
 import { wrapText } from './charts';
@@ -20,7 +20,7 @@ function bg(g: SceneCtx, seed: number, gold = 0.4): void {
 export function bigTextScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   paintBg(ctx, W, H, t);
-  flash(ctx, W, H, t, 260);
+  softBloom(ctx, W, H, t, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)
   const lines = (s.lines as string[]) || [];
   lines.forEach((ln, i) => {
     const ap = clamp01((t - 160 - i * 620) / 700);
@@ -388,91 +388,92 @@ export function commentPromptScene(g: SceneCtx): void {
   drawStickman(ctx, W * 0.88, H * 0.84, 0.96, t, { pose, alpha: clamp01(t / 700), look: -0.5 }, 36);
 }
 
-// ── endScreen: subscribe + next video ────────────────────────────────────────
+// ── endScreen v2: next-video teaser + host, YouTube-safe (PATCH 6) ──────────
+// The v1 SUBSCRIBE pill sat at W*0.58 — exactly where YouTube overlays its own
+// end-screen elements (video card + subscribe placeholder cover roughly the
+// right 40% and bottom 25%). Our branding got buried under their placeholder.
+// v2 keeps ALL custom art in the LEFT 55% and leaves the right side empty for
+// YouTube's two elements. Dashed placement hints render in the studio preview
+// only (previewMode=true) — never in the final encode.
 export function endScreenScene(g: SceneCtx): void {
   const { ctx, W, H, t, channelName, nextVideoTitle } = g;
+  const showHints = (g as any).previewMode === true; // studio preview only
   paintBg(ctx, W, H, t);
-  bokehField(ctx, W, H, t, { intensity: 1.2, seed: 261, gold: 0.65 });
-  kMotifs(ctx, W, H, t, 0.06);
-  floatCoins(ctx, W * 0.5, H * 0.3, t, 6, 260);
+  bokehField(ctx, W, H, t, { intensity: 1.1, seed: 261, gold: 0.6 });
+  kMotifs(ctx, W, H, t, 0.05);
+  floatCoins(ctx, W * 0.3, H * 0.32, t, 5, 200);
 
-  // next-video card (left)
+  // ── LEFT 55% — next-video teaser card (the real click driver) ──
   const ap = clamp01(t / 800);
-  const nx = W * 0.08;
-  const ny = H * 0.22;
+  const nx = W * 0.06;
+  const ny = H * 0.24;
   ctx.save();
   ctx.globalAlpha = ap;
   ctx.translate(0, (1 - easeOutCubic(ap)) * 40);
-  card(ctx, nx, ny, 640, 380, { r: 30 });
-  // fake video thumb: mini K + chart
+  card(ctx, nx, ny, 660, 400, { r: 30 });
   ctx.fillStyle = PALETTE.goldWash;
-  roundRect(ctx, nx + 24, ny + 24, 592, 240, 20);
+  roundRect(ctx, nx + 24, ny + 24, 612, 250, 20);
   ctx.fill();
-  drawK3D(ctx, nx + 170, ny + 140, 76, clamp01((t - 300) / 900), t);
-  // thumb chart lines
+  drawK3D(ctx, nx + 170, ny + 145, 76, clamp01((t - 300) / 900), t);
   ctx.strokeStyle = rgba(PALETTE.up, 0.8);
   ctx.lineWidth = 6;
   ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(nx + 300, ny + 200);
-  ctx.lineTo(nx + 360, ny + 160);
-  ctx.lineTo(nx + 400, ny + 180);
-  ctx.lineTo(nx + 480, ny + 100);
-  ctx.lineTo(nx + 560, ny + 70);
+  ctx.moveTo(nx + 320, ny + 210); ctx.lineTo(nx + 380, ny + 170);
+  ctx.lineTo(nx + 420, ny + 190); ctx.lineTo(nx + 500, ny + 110);
+  ctx.lineTo(nx + 580, ny + 80);
   ctx.stroke();
-  ctx.strokeStyle = rgba(PALETTE.down, 0.65);
-  ctx.beginPath();
-  ctx.moveTo(nx + 300, ny + 200);
-  ctx.lineTo(nx + 380, ny + 212);
-  ctx.lineTo(nx + 460, ny + 196);
-  ctx.lineTo(nx + 560, ny + 216);
-  ctx.stroke();
-  // label
   setFont(ctx, 25, 700);
   ctx.fillStyle = PALETTE.goldDeep;
   ctx.textAlign = 'left';
-  ctx.fillText('NEXT WEEK', nx + 24, ny + 316);
+  ctx.fillText('NEXT WEEK', nx + 24, ny + 330);
   setFont(ctx, 29, 600);
   ctx.fillStyle = PALETTE.ink;
   wrapText(ctx, nextVideoTitle, 600, 29, 600).forEach((ln, i) => {
-    ctx.fillText(ln, nx + 24, ny + 352 + i * 38);
+    ctx.fillText(ln, nx + 24, ny + 366 + i * 38);
   });
   ctx.restore();
 
-  // subscribe panel (right)
-  const sp = clamp01((t - 600) / 800);
-  const sx = W * 0.58;
-  const sy = H * 0.26;
-  ctx.save();
-  ctx.globalAlpha = sp;
-  // subscribe button (pulsing)
-  const pulse = 1 + 0.03 * Math.sin(t / 320);
-  ctx.translate(sx + 160, sy + 60);
-  ctx.scale(pulse, pulse);
-  ctx.fillStyle = PALETTE.gold;
-  roundRect(ctx, -160, -44, 320, 88, 44);
-  ctx.fill();
-  setFont(ctx, 36, 700);
-  ctx.fillStyle = '#FFFFFF';
-  ctx.textAlign = 'center';
-  ctx.fillText('SUBSCRIBE', 0, 12);
-  ctx.restore();
-  // channel name under button
-  ctx.save();
-  ctx.globalAlpha = sp;
-  ctx.textAlign = 'center';
-  setFont(ctx, 34, 700);
-  ctx.fillStyle = PALETTE.ink;
-  ctx.fillText(channelName.toUpperCase(), sx + 160, sy + 170);
-  setFont(ctx, 27, 600);
-  ctx.fillStyle = PALETTE.inkSoft;
-  ctx.fillText('data-driven breakdowns, every week', sx + 160, sy + 220);
-  ctx.restore();
+  // ── host waving, bottom-left (inside safe zone) ──
+  const pose = {
+    ...blendPose(POSES.wave, POSES.wave, 0),
+    rAL: POSES.wave.rAL + Math.sin(t / 160) * 16,
+  };
+  drawStickman(ctx, W * 0.30, H * 0.86, 1.02, t, { pose, alpha: clamp01((t - 800) / 600), look: -0.4 }, 37);
 
-  // waving host
-  const pose = { ...blendPose(POSES.wave, POSES.wave, 0), rAL: POSES.wave.rAL + Math.sin(t / 160) * 16 };
-  drawStickman(ctx, W * 0.72, H * 0.86, 1.06, t, { pose, alpha: clamp01((t - 800) / 600), look: -0.4 }, 37);
-  glowBlob(ctx, W * 0.72, H * 0.6, 240, PALETTE.gold, 0.08);
+  // ── channel name + tagline, bottom-center-left ──
+  const tp = clamp01((t - 500) / 700);
+  if (tp > 0) {
+    ctx.save();
+    ctx.globalAlpha = tp;
+    ctx.textAlign = 'center';
+    setFont(ctx, 44, 700);
+    ctx.fillStyle = PALETTE.ink;
+    ctx.fillText(channelName.toUpperCase(), W * 0.30, H * 0.20);
+    setFont(ctx, 27, 600);
+    ctx.fillStyle = PALETTE.inkSoft;
+    ctx.fillText('data-driven breakdowns, every week', W * 0.30, H * 0.20 + 48);
+    ctx.restore();
+  }
+
+  // ── RIGHT 40% — RESERVED for YouTube's own end-screen elements ──
+  if (showHints) {
+    // dashed hint boxes ONLY in the studio preview so you can drop YouTube's
+    // subscribe/video elements onto them in YouTube Studio with confidence.
+    ctx.save();
+    ctx.setLineDash([10, 12]);
+    ctx.strokeStyle = rgba(PALETTE.gold, 0.55);
+    ctx.lineWidth = 3;
+    // YouTube video element (square-ish, right-center)
+    roundRect(ctx, W * 0.645, H * 0.20, 480, 300, 18);
+    ctx.stroke();
+    // YouTube subscribe element (circular, right-bottom)
+    ctx.beginPath();
+    ctx.arc(W * 0.76, H * 0.74, 150, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
 }
 
 export { easeInOutSine, easeOutQuad, TONE };

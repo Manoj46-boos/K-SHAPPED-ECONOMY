@@ -40,8 +40,21 @@ export const SCRIPT: ChapterSpec[] = [
           gesture: 'present',
           expression: 'warm',
           entrance: 'walk',
-          chip: 'direct to camera · no graphics yet',
+          headline: 'Two numbers\nthat don’t add up.',
+          sub: 'Markets near record highs — and a country that feels\nlike it’s falling behind. Both are true.',
+          kicker: 'THE K-SHAPED ECONOMY · CH 01',
         }),
+      },
+      {
+        // v2 (PATCH 8): the v1 edit parked a 28-second self-introduction here
+        // as its own chapter at the 80-second mark — the single biggest
+        // retention cliff in the video (new viewers just met you 80 seconds
+        // ago; this is where they leave). The channel promise is now ONE
+        // 8-second sentence at ~0:12, delivered as a quick logo sting right
+        // after the cold open, and the full chapter moves on without it.
+        vo: 'Quick note for new faces: this channel shows the full range of every number — never just the best headline. Now, the data.',
+        pauseAfter: 500,
+        scene: P('channelIntro', 'c1-sting', {}),
       },
       {
         vo: 'Two numbers.',
@@ -102,19 +115,11 @@ export const SCRIPT: ChapterSpec[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  {
-    id: 'ch2',
-    title: 'What this channel is about',
-    beats: [
-      {
-        vo:
-          'If you\u2019re new here: this channel is about growing capital with actual data — not hot takes. That means showing you the full range on a number, not just whichever end makes the best headline. So let\u2019s start with the part most coverage skips: what genuinely happened in the markets this year, and what didn\u2019t.',
-        pauseAfter: 700,
-        scene: P('channelIntro', 'c2-intro', {}),
-      },
-    ],
-  },
-
+  // v2 (PATCH 8): the standalone "What this channel is about" chapter was
+  // REMOVED — a 28-second self-introduction at the 80-second mark is the
+  // most expensive 28 seconds in a 20-minute render on a new channel. The
+  // promise now lives in one 8-second sentence at ~0:12 (see ch1) and in the
+  // closing recap, where it belongs.
   // ─────────────────────────────────────────────────────────────────────────────
   {
     id: 'ch3',
@@ -793,7 +798,9 @@ export const SCRIPT: ChapterSpec[] = [
           stage: 'spot',
           gesture: 'close',
           expression: 'warm',
-          kicker: 'reacting to a headline — vs actually understanding one',
+          headline: 'Reacting to a headline —\nvs actually understanding one.',
+          sub: 'Know which number you\u2019re looking at — and why\nsmart people can disagree about it.',
+          kicker: 'THE K-SHAPED ECONOMY · THREE TAKEAWAYS',
         }),
       },
       {

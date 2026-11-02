@@ -81,8 +81,12 @@ const PROGRESSIONS: Record<Mood, string[]> = {
   resolve: ['F', 'G6', 'Cmaj9', 'Cmaj9'],
 };
 
+// v2 (PATCH 8): remapped for the 9-chapter edit (the standalone channel-intro
+// chapter was cut — its promise now lives in one 8-second sentence at ~0:12).
+// Order: ch1 sparse, ch3 bright, ch4 reflective, ch5 curious, ch6 lift,
+// ch7 reflective, ch8 curious, ch9 lift, ch10 resolve.
 const CHAPTER_MOODS: Mood[] = [
-  'sparse', 'bright', 'bright', 'reflective', 'curious', 'lift', 'reflective', 'curious', 'lift', 'resolve',
+  'sparse', 'bright', 'reflective', 'curious', 'lift', 'reflective', 'curious', 'lift', 'resolve',
 ];
 
 function levelFor(mood: Mood, vol: number): number {
@@ -323,6 +327,95 @@ function addRiser(L: Float32Array, R: Float32Array, startSec: number, durSec: nu
   }
 }
 
+// ── v2 transition & data-moment SFX (PATCH 7) ───────────────────────────────
+
+/**
+ * Airy whoosh on hard cuts / scene changes — band-passed noise with a
+ * rise-fast / fall-slow envelope. Reads as "movement into the next scene";
+ * the v1 mix was silent across every cut, which is why it felt like hold
+ * music. Deterministic xorshift noise, zero allocations.
+ */
+export function addWhoosh(
+  L: Float32Array, R: Float32Array,
+  startSec: number, gain: number
+): void {
+  const dur = 0.55;
+  const n0 = Math.round(startSec * SR_OUT);
+  const n1 = Math.min(L.length, n0 + Math.round(dur * SR_OUT));
+  let seed = 12345;
+  const rng = () => {
+    // xorshift, deterministic
+    seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+    return ((seed >>> 0) / 4294967296) * 2 - 1;
+  };
+  let lp = 0, lp2 = 0;
+  for (let i = n0; i < n1; i++) {
+    const t = (i - n0) / SR_OUT;
+    const p = t / dur;
+    // rise fast, fall slow — reads as "movement into the next scene"
+    const env = Math.min(1, p * 4) * Math.pow(Math.max(0, 1 - Math.pow(p, 2.2)), 1.6) * gain * 0.09;
+    const x = rng();
+    const cutoff = 0.04 + 0.6 * p * p; // opens up as it moves
+    lp += cutoff * (x - lp);
+    lp2 += cutoff * 0.6 * (lp - lp2);
+    const s = (lp - lp2) * env; // band-pass feel
+    L[i] += s;
+    R[i] += s * 0.92;
+  }
+}
+
+/**
+ * Soft confirmation ding on count-up completions (statCards settle, gauge
+ * lands, bars reach their peak). Marimba-ish: sine + wooden 4th partial,
+ * fast decay. E6 sits above the voice band without piercing.
+ */
+export function addDing(
+  L: Float32Array, R: Float32Array,
+  startSec: number, gain: number,
+  freq = 1318.5 // E6
+): void {
+  const n0 = Math.round(startSec * SR_OUT);
+  const dur = Math.round(0.7 * SR_OUT);
+  for (let i = n0; i < Math.min(L.length, n0 + dur); i++) {
+    const t = (i - n0) / SR_OUT;
+    const env = Math.exp(-t * 6.5) * 0.5 * gain * 0.28;
+    const s =
+      Math.sin(2 * Math.PI * freq * t) * env +
+      Math.sin(2 * Math.PI * freq * 2.76 * t) * env * 0.18; // wooden partial
+    L[i] += s * 0.9;
+    R[i] += s;
+  }
+}
+
+/**
+ * v2 bus glue (PATCH 7): gentle 2.5:1 compression over −12 dBFS with 5ms
+ * attack / 120ms release, then tanh soft-limit at the same true-peak
+ * ceiling. Replaces the v1 peak-only soft-limit: ~3 dB louder perceived
+ * loudness, and pads stop hiding under the VO. Control rate 2ms.
+ */
+export function masterGlue(L: Float32Array, R: Float32Array): void {
+  const grid = 96; // 2ms control rate
+  let env = 0;
+  for (let i = 0; i < L.length; i += grid) {
+    let peak = 0;
+    const end = Math.min(L.length, i + grid);
+    for (let j = i; j < end; j++) {
+      peak = Math.max(peak, Math.abs(L[j]), Math.abs(R[j]));
+    }
+    // gentle 2.5:1 over -12 dBFS, 5ms attack / 120ms release
+    const over = Math.max(0, peak - 0.25);
+    const target = over > 0 ? 0.25 + over / 2.5 : peak;
+    const ratio = peak > 0 ? target / peak : 1;
+    if (ratio < env) env = ratio + (env - ratio) * 0.55;      // release
+    else env = ratio + (env - ratio) * 0.85;                   // attack
+    const g = env * 1.35; // makeup gain
+    for (let j = i; j < end; j++) {
+      L[j] = Math.tanh(L[j] * g) * 0.92;
+      R[j] = Math.tanh(R[j] * g) * 0.92;
+    }
+  }
+}
+
 // ── Yield helper (unthrottled in background tabs, unlike setTimeout) ─────────
 const yieldChannel: MessageChannel | null =
   typeof MessageChannel !== 'undefined' ? new MessageChannel() : null;
@@ -488,22 +581,17 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
     addKMotif(L, R, start + 0.55, Math.max(0.4, bgmVolume));
   }
 
-  // ── 5. gentle soft-limit for a clean master ──
-  onProgress?.(0.92, 'mastering');
-  for (let i = 0; i < totalFrames; i++) {
-    let v = L[i];
-    if (v > 0.82 || v < -0.82) {
-      const sign = v < 0 ? -1 : 1;
-      const m = Math.abs(v);
-      L[i] = sign * (0.82 + 0.18 * Math.tanh((m - 0.82) / 0.18));
-    }
-    v = R[i];
-    if (v > 0.82 || v < -0.82) {
-      const sign = v < 0 ? -1 : 1;
-      const m = Math.abs(v);
-      R[i] = sign * (0.82 + 0.18 * Math.tanh((m - 0.82) / 0.18));
-    }
+  // ── 4b. v2 SFX: whoosh on every hard cut, ding on data landings (PATCH 7) ──
+  for (const cut of tl.cutTimes) {
+    addWhoosh(L, R, cut / 1000, bgmVolume);
   }
+  for (const d of tl.dataDingTimes) {
+    addDing(L, R, d / 1000, bgmVolume);
+  }
+
+  // ── 5. v2 master: bus glue (compression + soft-limit, PATCH 7) ──
+  onProgress?.(0.92, 'mastering');
+  masterGlue(L, R);
 
   onProgress?.(1, 'mix complete');
   return mix;

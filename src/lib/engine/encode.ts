@@ -9,6 +9,22 @@ import { Muxer, FileSystemWritableFileStreamTarget, ArrayBufferTarget } from 'mp
 import { Timeline } from './timeline';
 import { drawFrame, RenderOptions } from './director';
 
+// ── v2 (PATCH 10): yield via MessageChannel macrotask — unthrottled in
+// background tabs, unlike setTimeout (same pattern as audio.ts) ────────────
+const yieldChannel: MessageChannel | null =
+  typeof MessageChannel !== 'undefined' ? new MessageChannel() : null;
+
+function yieldToUI(): Promise<void> {
+  return new Promise((resolve) => {
+    if (yieldChannel) {
+      yieldChannel.port1.onmessage = () => resolve();
+      yieldChannel.port2.postMessage(0);
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
+}
+
 export interface EncoderStats {
   frame: number;
   totalFrames: number;
@@ -105,7 +121,7 @@ export interface CapabilityReport {
 }
 
 export async function probeCapabilities(log?: (m: string) => void): Promise<CapabilityReport> {
-  const video = await pickVideoCodec(1920, 1080, 6_000_000, 30, log);
+  const video = await pickVideoCodec(1920, 1080, 8_000_000, 30, log);
   const audio = await pickAudioCodec(log);
   const fsa = 'showSaveFilePicker' in (globalThis as any);
   const webcodecs = !!(video && audio);
@@ -179,10 +195,15 @@ export async function renderVideo(job: RenderJob): Promise<{ bytes: number }> {
   const W = canvas.width;
   const H = canvas.height;
   const fps = tl.fps;
-  const ctx = canvas.getContext('2d', { alpha: false })!;
+  // v2 (PATCH 10): `desynchronized: true` skips the compositor where
+  // Chromium supports it (no-op elsewhere) — a few extra fps for free.
+  const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true })!;
   ctx.imageSmoothingQuality = 'high';
 
-  const bitrate = W >= 1920 ? 6_000_000 : 3_200_000;
+  // v2 (PATCH 10): 8 Mbps for 1080p — dense 40px caption strokes and thin
+  // chart lines survive YouTube's re-encode instead of smearing. ~35% larger
+  // file, same render time. 720p stays the half-price fallback.
+  const bitrate = W >= 1920 ? 8_000_000 : 4_500_000;
   const video = await pickVideoCodec(W, H, bitrate, fps, onLog);
   const audio = await pickAudioCodec(onLog);
   if (!video || !audio) {
@@ -259,7 +280,10 @@ export async function renderVideo(job: RenderJob): Promise<{ bytes: number }> {
       timestamp: Math.round(f * frameDur),
       duration: Math.round(frameDur),
     });
-    encoder.encode(frame, { keyFrame: f % (fps * 2) === 0 });
+    // v2 (PATCH 10): 4-second GOP — chart content is static for seconds at
+    // a time, so double the keyframe interval halves the bitrate needed at
+    // equal quality and the MP4 scrubs better in YouTube's player.
+    encoder.encode(frame, { keyFrame: f % (fps * 4) === 0 });
     frame.close();
 
     // backpressure — keeps memory flat on low-RAM machines
@@ -268,9 +292,11 @@ export async function renderVideo(job: RenderJob): Promise<{ bytes: number }> {
         await new Promise((r) => setTimeout(r, 1));
       }
     }
-    // yield to UI regularly
+    // v2 (PATCH 10): report every 500ms and yield once a second via a
+    // MessageChannel macrotask — the v1 200ms setTimeout(0) loop was up to
+    // 5 scheduler yields/sec starving the encoder on 2-core laptops.
     const now = performance.now();
-    if (now - lastReport > 200) {
+    if (now - lastReport > 500) {
       lastReport = now;
       const elapsed = now - started;
       const done = f + 1;
@@ -288,8 +314,8 @@ export async function renderVideo(job: RenderJob): Promise<{ bytes: number }> {
           ? `ch ${(beat.chapter + 1).toString().padStart(2, '0')} · ${beat.beat.scene.type}`
           : 'finishing',
       });
-      await new Promise((r) => setTimeout(r, 0));
     }
+    if (f % 30 === 0) await yieldToUI();
   }
 
   await encoder.flush();
