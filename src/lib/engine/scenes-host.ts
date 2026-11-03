@@ -4,7 +4,7 @@
  */
 
 import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, lerp } from './easing';
-import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg } from './theme';
+import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg, FONT_DISPLAY, CAPTION_ZONE_TOP } from './theme';
 import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp } from './effects';
 import { Stickman, POSES, blendPose, walkIn, nodPulse } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
@@ -205,7 +205,9 @@ function hostChips(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   }
 }
 
-const FONT_SERIF = 'Georgia, "Times New Roman", serif';
+// v5 (audit P1-1): scene headlines draw in the bundled display serif
+// (Fraunces) — same face as every other serif moment in the film.
+const FONT_SERIF = FONT_DISPLAY;
 
 export function hostScene(g: SceneCtx): void {
   // v2 (PATCH 9): beats that carry an editorial `headline` get the composed
@@ -409,15 +411,19 @@ export function splitNumbersScene(g: SceneCtx): void {
       ctx.save();
       ctx.globalAlpha = ap * 0.9;
       ctx.fillStyle = rgba('#FFFFFF', 0.92);
-      roundRect(ctx, W - tw - 160, H - 210, tw + 44, 44, 22);
+      // v5: was H-210 (y 870–914) — inside the caption pill band, grazing
+      // wide pills (the v4 panel already called it “extremely close”).
+      // Now it sits in the deliberate gap BELOW the pill (bottom ≈ 956) and
+      // above the progress bar, right-aligned opposite the source tag.
+      roundRect(ctx, W - tw - 160, H - 112, tw + 44, 44, 22);
       ctx.fill();
       ctx.lineWidth = 2;
       ctx.strokeStyle = rgba('#B9B4A6', 0.6);
-      roundRect(ctx, W - tw - 160, H - 210, tw + 44, 44, 22);
+      roundRect(ctx, W - tw - 160, H - 112, tw + 44, 44, 22);
       ctx.stroke();
       ctx.fillStyle = PALETTE.inkFaint;
       ctx.textAlign = 'left';
-      ctx.fillText(cornerNote, W - tw - 138, H - 181);
+      ctx.fillText(cornerNote, W - tw - 138, H - 83);
       ctx.restore();
     }
   }
@@ -543,6 +549,19 @@ export function divergeKScene(g: SceneCtx): void {
       ctx.arc(kx + S * 0.9, ky + S * 0.82, 10, 0, Math.PI * 2);
       ctx.fill();
     }
+    // v5 (audit P1-3): the K's lower arm personified — a second character
+    // (same rig, coffee mug instead of the host's scarf) stands at the coral
+    // arm's tip, gently bobbing: the "bottom half of the K" now has a face.
+    // He faces the vertex/host (flip) and appears once the arms complete;
+    // drawn BEFORE the arm labels so THE MOOD stays crisp on top of his soft
+    // ground shadow, and he clears the caption zone (feet ≈ y 734).
+    const bob = Math.sin(t / 850) * 4;
+    const sp2 = clamp01((t - 3000) / 700);
+    if (sp2 > 0) {
+      const pose2 = Stickman.poseAt(t, { gesture: 'close', speaking: false, seed: 9 });
+      drawStickmanV2(ctx, kx + S * 1.15 + 8, ky + S * 1.05 + 6 + bob, 0.55, t,
+        { pose: pose2, alpha: sp2 * 0.96, flip: true, look: -0.7, scarf: false, prop: 'coffee' }, 9);
+    }
   }
 
   // labels on the arms — v4 (audit P0-6): hidden in `opening` mode so the
@@ -560,7 +579,10 @@ export function divergeKScene(g: SceneCtx): void {
     ctx.fillText('THE MOOD', kx + S * 1.35, ky + S * 1.25);
     setFont(ctx, 44, 700);
     ctx.fillStyle = PALETTE.ink;
-    ctx.fillText('the K-shaped economy', kx - S * 1.5, ky + S * 1.75);
+    // v5: was ky + S*1.75 (y≈875) — under the caption pill, half-plated by
+    // its opaque white. Now a proper sub-caption directly under the K's
+    // waist, clear of the chip (top 744) and the pill zone (800+).
+    ctx.fillText('the K-shaped economy', kx - S * 1.5, ky + S * 0.95);
     ctx.restore();
   }
 
@@ -575,7 +597,12 @@ export function divergeKScene(g: SceneCtx): void {
       setFont(ctx, 26, 600);
       const tw = ctx.measureText(txt).width;
       const cx = W / 2 - tw / 2 - 28;
-      const cy = H - 236;
+      // v5: the chip lived at H-236 — INSIDE the caption pill's band
+      // (808–956), so whenever a caption was live the opaque pill plated
+      // over the chip and left a garbled gold sliver (vision panel: “a
+      // messy yellow highlight over the subtitle”). It now rides fully
+      // ABOVE the pill zone, 10px clear of a two-row pill's top edge.
+      const cy = CAPTION_ZONE_TOP - 56;
       ctx.fillStyle = PALETTE.goldWash;
       roundRect(ctx, cx, cy, tw + 56, 54, 27);
       ctx.fill();
@@ -594,7 +621,9 @@ export function divergeKScene(g: SceneCtx): void {
   // body style as every other scene
   const hx = W * 0.19;
   const hy = H * 0.8;
-  const pose = Stickman.poseAt(t, { gesture: upP < 0.5 ? 'present' : 'pointR', speaking: g.speaking });
+  // v5 (audit P1-3): as the K completes, the host leans INTO it — the
+  // signature scene now has a third act of body language (present → leanIn)
+  const pose = Stickman.poseAt(t, { gesture: upP < 0.5 ? 'present' : 'leanIn', speaking: g.speaking });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
   drawStickmanV2(ctx, hx, hy, 1.05, t, { pose, alpha: clamp01(t / 400), look: 0.9, talk }, 5);
   softBloom(ctx, W, H, t - 3800, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)

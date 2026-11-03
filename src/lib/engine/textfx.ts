@@ -4,7 +4,9 @@
  */
 
 import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad } from './easing';
-import { PALETTE, FONT_UI, rgba, roundRect, setFont } from './theme';
+import { PALETTE, FONT_UI, FONT_DISPLAY, rgba, roundRect, setFont } from './theme';
+import { Stickman } from './stickman';
+import { drawStickmanV2 } from './stickman-v2';
 
 export interface CaptionWord {
   t: number; // ms, absolute timeline time
@@ -154,7 +156,7 @@ export function drawChapterCard(
   // numeral gives the card scale and brand without stealing legibility
   ctx.save();
   ctx.globalAlpha = a * 0.1 * easeOutCubic(clamp01(t / 700));
-  setFont(ctx, 400, 700, 'Georgia, "Times New Roman", serif');
+  setFont(ctx, 400, 700, FONT_DISPLAY);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = PALETTE.gold;
@@ -176,7 +178,7 @@ export function drawChapterCard(
   ctx.fillText(`CHAPTER ${String(index).padStart(2, '0')}`, W / 2, H / 2 - 66);
   // title — v4 (audit §4.3): serif like every scene headline; one family
   // policy for scene titles kills the “brand switches voice” note
-  setFont(ctx, 62, 700, 'Georgia, "Times New Roman", serif');
+  setFont(ctx, 62, 700, FONT_DISPLAY);
   ctx.fillStyle = PALETTE.ink;
   const size = fitShrink(ctx, title, W - 400, 62);
   void size;
@@ -203,6 +205,61 @@ export function drawChapterCard(
     ctx.arc(x, y, active ? dotR + 3 : filled ? dotR : dotR * 0.62, 0, Math.PI * 2);
     ctx.fillStyle = filled ? (active ? PALETTE.goldDeep : PALETTE.gold) : rgba('#B9B4A6', 0.5);
     ctx.fill();
+  }
+  // v5 (audit P1-5): the host peeks in from the left edge with a signpost
+  // pointing at the chapter — the card now has a guide, not just type. He
+  // slides in 24px and settles; the sign board carries the chapter number
+  // and an arrow chevron aimed at the title. Drawn last so he reads OVER
+  // the ghost numeral, alpha tied to the card's own fade.
+  {
+    const slide = (1 - easeOutCubic(clamp01(t / 420))) * 24;
+    const sy = H * 0.78;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.translate(-slide, 0);
+    // signpost: pole + tilted board with the chapter number + chevron
+    const px = 196;
+    ctx.strokeStyle = rgba('#8C8474', 0.9);
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(px, sy + 6);
+    ctx.lineTo(px, sy - 148);
+    ctx.stroke();
+    ctx.save();
+    ctx.translate(px, sy - 148);
+    ctx.rotate(-0.05);
+    setFont(ctx, 26, 700);
+    const label = `CH. ${String(index).padStart(2, '0')}`;
+    const bw = ctx.measureText(label).width + 92;
+    ctx.fillStyle = PALETTE.goldWash;
+    roundRect(ctx, -14, -46, bw, 56, 12);
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = PALETTE.gold;
+    roundRect(ctx, -14, -46, bw, 56, 12);
+    ctx.stroke();
+    ctx.fillStyle = PALETTE.goldInk;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, 0, -17);
+    // arrow chevron pointing at the title
+    ctx.strokeStyle = PALETTE.goldInk;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(bw - 62, -18);
+    ctx.lineTo(bw - 42, -18);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(bw - 50, -27);
+    ctx.lineTo(bw - 38, -18);
+    ctx.lineTo(bw - 50, -9);
+    ctx.stroke();
+    ctx.restore();
+    // the host — peeking, pointing at the sign/title
+    const pose = Stickman.poseAt(t, { gesture: 'pointR', speaking: false, seed: 3 });
+    drawStickmanV2(ctx, 96, sy + 58, 0.72, t, { pose, alpha: a, look: 0.9, scarf: true }, 3);
+    ctx.restore();
   }
   ctx.restore();
 }

@@ -1,6 +1,56 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* ── Bundled OFL typefaces (audit P1-1) ──────────────────────────────────────
+ * Fraunces (display serif) + Inter (UI sans), both SIL Open Font License.
+ * Bundled (not linked) so every render — any machine, online or off — draws
+ * with the exact same faces: the canvas engine points FONT_DISPLAY / FONT_UI
+ * at these families (src/lib/engine/theme.ts). The studio page awaits
+ * document.fonts before the first frame is drawn, so there is no
+ * first-frame-fallback flash. Licenses: /public/fonts/*-OFL.txt. */
+@font-face {
+  font-family: "Fraunces";
+  src: url("/fonts/Fraunces-400.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "Fraunces";
+  src: url("/fonts/Fraunces-600.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "Fraunces";
+  src: url("/fonts/Fraunces-700.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter-400.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter-600.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter-700.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

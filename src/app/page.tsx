@@ -97,6 +97,11 @@ export default function StudioPage() {
   const [renderStats, setRenderStats] = useState<EncoderStats | null>(null);
   const [caps, setCaps] = useState<CapabilityReport | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
+  // v5 (audit P1-1): true once the bundled Fraunces/Inter faces are loaded —
+  // canvas text only uses @font-face families AFTER they finish loading, so
+  // every draw before that silently falls back to Georgia/Segoe. The idle
+  // loop, preview and the render itself all wait on this flag.
+  const [fontsReady, setFontsReady] = useState(false);
   const [mixDirty, setMixDirty] = useState(false);
   const [fpsDirty, setFpsDirty] = useState(false);
   const [previewVoiceKey, setPreviewVoiceKey] = useState<string | null>(null);
@@ -128,9 +133,35 @@ export default function StudioPage() {
     probeCapabilities(addLog).then(setCaps).catch(() => setCaps(null));
   }, [addLog]);
 
-  // idle animation before timeline exists
+  // v5 (audit P1-1): load the bundled OFL faces BEFORE any canvas text is
+  // drawn. document.fonts.load() resolves per face+weight; the explicit
+  // 12px probe strings force the exact @font-face entries in globals.css
+  // (400/600/700 × Fraunces + Inter). Headless/SSR-safe: only browsers
+  // with document.fonts take this path; the flag stays false until then.
   useEffect(() => {
-    if (prepared || phase === 'rendering') return;
+    let alive = true;
+    const faces = [
+      '400 12px "Fraunces"', '600 12px "Fraunces"', '700 12px "Fraunces"',
+      '400 12px "Inter"', '600 12px "Inter"', '700 12px "Inter"',
+    ];
+    const go = async () => {
+      try {
+        if (typeof document !== 'undefined' && (document as any).fonts) {
+          await Promise.all(faces.map((f) => (document as any).fonts.load(f, 'Kk0¾$%·—’')));
+          await (document as any).fonts.ready;
+        }
+      } catch {
+        // a failed load falls back to the system stack — never block the app
+      }
+      if (alive) setFontsReady(true);
+    };
+    go();
+    return () => { alive = false; };
+  }, []);
+
+  // idle animation before timeline exists — waits for the bundled faces
+  useEffect(() => {
+    if (prepared || phase === 'rendering' || !fontsReady) return;
     let alive = true;
     const loop = () => {
       if (!alive) return;
@@ -146,7 +177,7 @@ export default function StudioPage() {
       alive = false;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [prepared, phase, channelName]);
+  }, [prepared, phase, channelName, fontsReady]);
 
   // ── prepare: TTS → timeline → mix ──
   const prepare = useCallback(async () => {
@@ -322,6 +353,14 @@ export default function StudioPage() {
   const doRender = useCallback(
     async (testMode: boolean) => {
       if (!prepared) return;
+      // v5 (audit P1-1): never encode a frame before the bundled faces are
+      // live — a render that starts early bakes the Georgia fallback into
+      // 33,000 frames. fontsReady flips within ~100ms of page load.
+      if (!fontsReady) {
+        try {
+          await (document as any).fonts?.ready;
+        } catch {}
+      }
       const res = RESOLUTIONS.find((r) => r.id === resolution)!;
       const canvas = canvasRef.current!;
       const prevW = canvas.width;
@@ -388,7 +427,7 @@ export default function StudioPage() {
         if (prepared) drawAt(Math.min(tRef.current, prepared.timeline.durationMs - 1));
       }
     },
-    [prepared, resolution, fps, renderOptions, stopAudio, toast, addLog, drawAt]
+    [prepared, resolution, fps, renderOptions, stopAudio, toast, addLog, drawAt, fontsReady]
   );
 
   // ── thumbnail ── (panel P0-1: exports all three Test & Compare variants;

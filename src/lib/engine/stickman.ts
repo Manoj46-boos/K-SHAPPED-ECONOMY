@@ -48,6 +48,13 @@ export const POSES: Record<string, Pose> = {
   serious: { ...base(), lAU: -14, lAL: -12, rAU: 16, rAL: 12, browAngle: 14, smile: 0 },
   aha: { ...base(), rAU: 96, rAL: 140, lAU: -40, lAL: -60, browRaise: 0.8, smile: 0.6 },
   close: { ...base(), lAU: -30, lAL: -46, rAU: 34, rAL: 48, smile: 0.55, browRaise: 0.15 },
+  // v5 (audit P1-3): three new poses — the emotional range the panel asked for.
+  // leanIn: curiosity — torso tips toward the content, brows up, held breath
+  leanIn: { ...base(), lean: 12, headTilt: -5, rootY: -4, lAU: -20, lAL: -30, rAU: 12, rAL: 26, browRaise: 0.45, smile: 0.35 },
+  // facepalm: dismay — palm to forehead, head bowed, concerned brows
+  facepalm: { ...base(), lean: 4, headTilt: 12, rootY: 2, lAU: -10, lAL: -6, rAU: 78, rAL: 222, browRaise: 0.1, browAngle: 18, smile: 0 },
+  // thumbsUp: earned optimism — fist raised beside the head, big smile
+  thumbsUp: { ...base(), lean: -3, headTilt: -4, lAU: -18, lAL: -14, rAU: 85, rAL: 150, browRaise: 0.5, smile: 0.75 },
 };
 
 export function blendPose(a: Pose, b: Pose, t: number): Pose {

@@ -4,7 +4,7 @@
  */
 
 import { clamp01, easeInOutSine, easeOutBack, easeOutCubic, easeOutQuad } from './easing';
-import { PALETTE, TONE, card, rgba, roundRect, setFont, paintBg } from './theme';
+import { PALETTE, TONE, card, rgba, roundRect, setFont, paintBg, FONT_DISPLAY } from './theme';
 import { bokehField, lightRays, softBloom, sparkles, drawK3D, kMotifs, floatCoins } from './effects';
 import { SceneCtx } from './scene-context';
 import { Stickman, POSES, blendPose } from './stickman';
@@ -32,7 +32,7 @@ export function bigTextScene(g: SceneCtx): void {
     const scale = 0.94 + 0.06 * easeOutBack(ap);
     ctx.translate(W / 2, H * 0.36 + i * 130);
     ctx.scale(scale, scale);
-    setFont(ctx, 108, 700, 'Georgia, "Times New Roman", serif');
+    setFont(ctx, 108, 700, FONT_DISPLAY);
     ctx.fillStyle = i === 1 ? PALETTE.goldDeep : PALETTE.ink;
     ctx.fillText(ln, 0, 0);
     ctx.restore();
@@ -75,7 +75,7 @@ export function stampCardScene(g: SceneCtx): void {
   const scale = 1 + (1 - easeOutBack(ap)) * 0.4;
   ctx.scale(scale, scale);
   const txt = (s.stamp as string) || 'RECORD HIGHS';
-  setFont(ctx, 110, 700, 'Georgia, serif');
+  setFont(ctx, 110, 700, FONT_DISPLAY);
   const tw = ctx.measureText(txt).width;
   // stamp frame
   ctx.strokeStyle = PALETTE.up;
@@ -217,7 +217,7 @@ export function takeawaysScene(g: SceneCtx): void {
       ctx.save();
       ctx.globalAlpha = ap;
       card(ctx, x, y, W * 0.18, 220, { r: 30 });
-      setFont(ctx, 92, 700, 'Georgia, serif');
+      setFont(ctx, 92, 700, FONT_DISPLAY);
       ctx.fillStyle = i === 1 ? PALETTE.goldDeep : PALETTE.ink;
       ctx.textAlign = 'center';
       ctx.fillText(String(i + 1), x + W * 0.09, y + 130);
@@ -240,7 +240,7 @@ export function takeawaysScene(g: SceneCtx): void {
         const x = 110 + (i - 1) * 120;
         ctx.save();
         ctx.globalAlpha = ap * 0.35;
-        setFont(ctx, 66, 700, 'Georgia, serif');
+        setFont(ctx, 66, 700, FONT_DISPLAY);
         ctx.fillStyle = PALETTE.inkFaint;
         ctx.textAlign = 'left';
         ctx.fillText(String(i), x, H * 0.3);
@@ -272,7 +272,7 @@ export function takeawaysScene(g: SceneCtx): void {
     ctx.beginPath();
     ctx.arc(x + 110, y + 110, 62, 0, Math.PI * 2);
     ctx.stroke();
-    setFont(ctx, 72, 700, 'Georgia, serif');
+    setFont(ctx, 72, 700, FONT_DISPLAY);
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.textAlign = 'center';
     ctx.fillText(String(focus), x + 110, y + 136);
@@ -304,10 +304,13 @@ export function takeawaysScene(g: SceneCtx): void {
     // host reacting on the left
     const hp = clamp01((t - 700) / 600);
     if (hp > 0) {
-      const gesture = focus === 1 ? 'count1' : focus === 2 ? 'count2' : 'count3';
+      // v5 (audit P1-3): takeaways 1–2 count on fingers; the third — the
+      // earned-optimism payoff — gets the raised thumb
+      const gesture = focus === 1 ? 'count1' : focus === 2 ? 'count2' : 'thumbsUp';
       const pose = Stickman.poseAt(t, { gesture, speaking: false });
       // v3 (panel P0-3): v2 renderer
-      drawStickmanV2(ctx, W * 0.13, H * 0.82, 1.0, t, { pose, alpha: hp, look: 0.6 }, 35);
+      drawStickmanV2(ctx, W * 0.13, H * 0.82, 1.0, t,
+        { pose, alpha: hp, look: 0.6, prop: focus === 3 ? 'thumb' : undefined }, 35);
     }
   }
 }

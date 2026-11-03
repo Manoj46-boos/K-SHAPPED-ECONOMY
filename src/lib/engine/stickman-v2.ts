@@ -13,7 +13,7 @@
  * any call site.
  */
 
-import { PALETTE, rgba } from './theme';
+import { PALETTE, rgba, roundRect } from './theme';
 import { clamp01 } from './easing';
 
 const D2R = Math.PI / 180;
@@ -178,6 +178,9 @@ export function drawStickmanV2(
     nod?: number;
     /** 0..1 mouth openness envelope, driven by word timings (v3, P0-4). */
     talk?: number;
+    /** Hand prop (v5, audit P1-3): 'coffee' — the second character's mug;
+     * 'thumb' — a thumb stub on the raised fist for the thumbsUp pose. */
+    prop?: 'coffee' | 'thumb';
   },
   seed = 0
 ): void {
@@ -237,8 +240,53 @@ export function drawStickmanV2(
     ctx.stroke();
   }
 
-  // NEAR arm
-  limb2(ctx, neckX + 4, neckY + 3, pose.rAU, pose.rAL, U_ARM, L_ARM, 13, 11, 9, ink);
+  // NEAR arm — capture the hand so props ride it (v5, audit P1-3)
+  const hand = limb2(ctx, neckX + 4, neckY + 3, pose.rAU, pose.rAL, U_ARM, L_ARM, 13, 11, 9, ink);
+  if (r.prop === 'thumb') {
+    // a short stub above the fist — reads as a raised thumb at any scale
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 9;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(hand.ex, hand.ey - 4);
+    ctx.lineTo(hand.ex + 3, hand.ey - 24);
+    ctx.stroke();
+  }
+  if (r.prop === 'coffee') {
+    // the second character's mug — upright regardless of arm angle
+    ctx.save();
+    ctx.translate(hand.ex, hand.ey + 6);
+    // cup body
+    ctx.fillStyle = '#FFFFFF';
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 5;
+    roundRect(ctx, -14, -12, 28, 32, 6);
+    ctx.fill();
+    ctx.stroke();
+    // handle on the outer (screen-right) side
+    ctx.beginPath();
+    ctx.arc(17, 4, 9, -Math.PI / 2.2, Math.PI / 2.2);
+    ctx.stroke();
+    // coffee surface
+    ctx.fillStyle = rgba('#8F6E12', 0.9);
+    roundRect(ctx, -10, -9, 20, 6, 3);
+    ctx.fill();
+    // steam — two deterministic wisps
+    ctx.strokeStyle = rgba('#8C8474', 0.55);
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    for (let s = 0; s < 2; s++) {
+      const ph = t / 640 + s * 2.4;
+      ctx.beginPath();
+      ctx.moveTo(-4 + s * 9, -14);
+      ctx.quadraticCurveTo(
+        -4 + s * 9 + Math.sin(ph) * 7, -26,
+        -4 + s * 9 + Math.sin(ph + 1.2) * 9, -38
+      );
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 
   // head — tilt + eye glints + subtle cheek warmth
   const tiltR = (pose.lean + pose.headTilt) * D2R;

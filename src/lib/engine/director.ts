@@ -6,7 +6,7 @@
  */
 
 import { clamp01, easeInOutSine, easeOutCubic } from './easing';
-import { PALETTE, paintBg, rgba } from './theme';
+import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI } from './theme';
 import { drawGrain, lightVignette, bokehField, scalePunch, camState } from './effects';
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
 import { Timeline, beatAt } from './timeline';
@@ -134,11 +134,23 @@ function cameraV2(
   const isComparison =
     sceneType.includes('split') || sceneType.includes('Compare') ||
     sceneType === 'ownerWorker' || sceneType === 'trioConverge';
-  const target = isComparison ? -0.012 : 0.028; // pull back vs push in
+  // v5 (audit P1-4): bigText gets a deliberate slow dolly — the hard-cut
+  // statement beat is the one scene family where a felt push reads as
+  // intent, not drift (0.028 → 0.055 over the group)
+  const target = sceneType === 'bigText' ? 0.055 : isComparison ? -0.012 : 0.028;
   const camScale = 1 + target * easeInOutSine(p);
   // slow consistent drift, always screen-left-to-right (no beatIndex term)
-  const camX = Math.sin(gt / 7300) * 14;
+  let camX = Math.sin(gt / 7300) * 14;
   const camY = Math.cos(gt / 9100) * 9;
+  // v5 (audit P1-4): chart-follow pan — while a chartJourney line writes
+  // itself (draw-on = clamp01(gt/2600), the same clock the scene uses), the
+  // camera operator tracks the draw head: a one-way ±32px nudge that eases
+  // out as the line completes, then hands back to the drift. The two most
+  // static scene families are now kinetic.
+  if (sceneType === 'chartJourney') {
+    const drawP = clamp01(gt / 2600);
+    camX += (easeOutCubic(drawP) - 0.5) * 64;
+  }
   // publish BEFORE the scene draws — the bg planes counter-drift off this
   camState.dx = camX * camScale;
   camState.dy = camY * camScale;
@@ -299,13 +311,13 @@ export function drawIdleFrame(
   ctx.scale(sx, sy);
   ctx.textAlign = 'center';
   ctx.fillStyle = PALETTE.ink;
-  ctx.font = `700 76px Georgia, serif`;
+  ctx.font = `700 76px ${FONT_DISPLAY}`;
   ctx.fillText('The K-Shaped Economy', 960, 420);
-  ctx.font = `600 40px "Segoe UI", system-ui, sans-serif`;
+  ctx.font = `600 40px ${FONT_UI}`;
   ctx.fillStyle = PALETTE.inkSoft;
   ctx.fillText('market record highs · consumer confidence at 2022 lows', 960, 500);
   ctx.fillStyle = PALETTE.goldDeep;
-  ctx.font = `600 30px "Segoe UI", system-ui, sans-serif`;
+  ctx.font = `600 30px ${FONT_UI}`;
   ctx.fillText(channelName.toUpperCase() + ' · VIDEO STUDIO', 960, 940);
   ctx.restore();
   void H;

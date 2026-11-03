@@ -266,7 +266,9 @@ export const SCRIPT: ChapterSpec[] = [
         pauseAfter: 500,
         scene: P('host', 'c4-flip', {
           stage: 'kflip',
-          gesture: 'flip',
+          // v5 (audit P1-3): 'flip' was a dead gesture name (rendered idle) —
+          // the intended beat is curiosity about the other side of the K
+          gesture: 'leanIn',
           expression: 'curious',
         }),
       },
@@ -568,7 +570,9 @@ export const SCRIPT: ChapterSpec[] = [
         pauseAfter: 500,
         scene: P('host', 'c7-lead', {
           stage: 'kdescend',
-          gesture: 'flip',
+          // v5 (audit P1-3): 'flip' was dead (rendered idle); the beat is
+          // bracing the viewer for stark debt numbers — facepalm dismay
+          gesture: 'facepalm',
           expression: 'serious',
         }),
       },
@@ -699,7 +703,8 @@ export const SCRIPT: ChapterSpec[] = [
         pauseAfter: 600,
         scene: P('host', 'c8-twist', {
           stage: 'spot',
-          gesture: 'present',
+          // v5 (audit P1-3): peak curiosity — the host leans into the twist
+          gesture: 'leanIn',
           expression: 'curious',
           ribbon: 'THE TWIST',
         }),

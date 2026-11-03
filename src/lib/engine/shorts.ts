@@ -18,7 +18,7 @@
 import { drawFrame, RenderOptions } from './director';
 import { drawCaptions } from './textfx';
 import { Timeline } from './timeline';
-import { paintBg, PALETTE, rgba, roundRect, setFont } from './theme';
+import { paintBg, PALETTE, rgba, roundRect, setFont, FONT_DISPLAY } from './theme';
 import { renderVideo } from './encode';
 import { getSharedAudioContext } from './audio';
 import { clamp01 } from './easing';
@@ -105,7 +105,7 @@ function drawNativeVerticalText(
   const beat = beatAt(tl, tMs);
   const lines = ((beat?.beat.scene as any)?.lines as string[]) || [];
   const t = beat ? Math.max(0, tMs - beat.startMs) : tMs % 4000;
-  const SERIF = 'Georgia, "Times New Roman", serif';
+  const SERIF = FONT_DISPLAY; // v5 (audit P1-1): bundled Fraunces, not the Georgia lottery
 
   // auto-fit: the widest line must clear the 72px safe margins
   const maxTextW = W - 72 * 2;
@@ -261,7 +261,7 @@ function drawNativeVerticalK(
     ctx.fillText('THE MARKET', W - 72, ky - S * 1.05 + 10);
     ctx.fillStyle = PALETTE.down;
     ctx.fillText('THE MOOD', W - 72, ky + S * 1.25);
-    setFont(ctx, 40, 700, 'Georgia, "Times New Roman", serif');
+    setFont(ctx, 40, 700, FONT_DISPLAY);
     ctx.textAlign = 'center';
     ctx.fillStyle = PALETTE.ink;
     ctx.fillText('the K-shaped economy', kx, ky + S * 1.75);
@@ -357,7 +357,7 @@ export function drawShortFrame(
 
   // 5) top title band — 2 lines max, mobile-first, clear of the top UI
   ctx.save();
-  setFont(ctx, 54, 700, 'Georgia, "Times New Roman", serif');
+  setFont(ctx, 54, 700, FONT_DISPLAY);
   ctx.fillStyle = PALETTE.ink;
   ctx.textAlign = 'center';
   // wrap to 2 rows of ~940px max

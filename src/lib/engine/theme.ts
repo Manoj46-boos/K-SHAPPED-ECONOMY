@@ -55,12 +55,18 @@ export const PALETTE: Palette = {
   white: '#FFFFFF',
 };
 
+// ── Typography (audit P1-1): bundled OFL faces, loaded by the studio page ───
+// Fraunces (SIL OFL) replaces the Georgia lottery — an editorial display
+// serif with real weights; Inter (SIL OFL) replaces the Windows-only Segoe
+// UI stack. Both ship in /public/fonts and are @font-face'd in globals.css,
+// so renders are pixel-identical on any machine, online or offline. The old
+// families stay in the stack as last-resort fallbacks only.
 export const FONT_DISPLAY =
-  'Georgia, "Times New Roman", "Songti SC", serif';
+  '"Fraunces", Georgia, "Times New Roman", "Songti SC", serif';
 export const FONT_UI =
-  '"Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif';
+  '"Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif';
 export const FONT_UI_SEMI =
-  '"Segoe UI Variable Display", "Segoe UI Semibold", "Segoe UI", system-ui, Roboto, sans-serif';
+  '"Inter", "Segoe UI Variable Display", "Segoe UI Semibold", "Segoe UI", system-ui, Roboto, sans-serif';
 
 export const TONE = (tone?: string): { main: string; soft: string } => {
   switch (tone) {
