@@ -47,6 +47,10 @@ export interface RenderJob {
   onLog?: (msg: string) => void;
   /** limit audio encoding duration (test renders) — ms */
   audioDurationMs?: number;
+  /** v3 (panel P2-1): optional override for the per-frame draw. The Shorts
+   *  9:16 pipeline uses this to compose the vertical frame instead of the
+   *  standard 16:9 drawFrame. tMs is the timeline-local time of the frame. */
+  drawOverride?: (ctx: CanvasRenderingContext2D, tMs: number) => void;
 }
 
 const VIDEO_CODEC_CHAIN = [
@@ -275,7 +279,12 @@ export async function renderVideo(job: RenderJob): Promise<{ bytes: number }> {
   for (let f = 0; f < totalFrames; f++) {
     if (encodeError) throw encodeError;
     const tMs = (f / fps) * 1000;
-    drawFrame(ctx, tl, tMs, options);
+    if (job.drawOverride) {
+      // v3 (panel P2-1): Shorts compose their own 9:16 frame
+      job.drawOverride(ctx, tMs);
+    } else {
+      drawFrame(ctx, tl, tMs, options);
+    }
     const frame = new (globalThis as any).VideoFrame(canvas, {
       timestamp: Math.round(f * frameDur),
       duration: Math.round(frameDur),

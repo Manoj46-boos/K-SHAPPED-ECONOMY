@@ -37,13 +37,27 @@ function taper(
   ctx.beginPath(); ctx.arc(ex, ey, w1 / 2, 0, Math.PI * 2); ctx.fill();
 }
 
+/** Right-anchor a word pair inside the YouTube crop-safe margin. */
+function safeRightAnchor(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  lines: string[]
+): number {
+  let widest = 0;
+  for (const l of lines) widest = Math.max(widest, ctx.measureText(l).width);
+  // 5% safe margin each side (YouTube crops up to ~5% on some surfaces).
+  return W * 0.95 - widest;
+}
+
 export function drawThumbnail(
   ctx: CanvasRenderingContext2D,
   W: number,
-  H: number
+  H: number,
+  variant: 0 | 1 | 2 = 0
 ): void {
   const UP = '#0E8074', DOWN = '#D96C47', GOLD = '#C9A227', GOLDD = '#A8841B';
   const INK = '#26262E', IVORY = '#FDFCF8';
+  void DOWN; void GOLD; void IVORY;
 
   // background: diagonal split — cool mint left / warm peach right
   const gl = ctx.createLinearGradient(0, 0, W * 0.55, H);
@@ -183,12 +197,40 @@ export function drawThumbnail(
   ctx.strokeText('RECORD', 0, 0);
   ctx.strokeText('HIGHS', 0, 118);
   ctx.restore();
+  // ══ THE FIX (panel P0-1) ═══════════════════════════════════════════════
+  // v2 bug: after stroke3() the ctx still carried the K-letterform's last
+  // pass (gold, 44px) — strokeText() then drew a 44px outline around 100px
+  // letters and the words rendered as a gold mass; the pair was also
+  // LEFT-anchored at x = 0.665W so "FEELING" ran off the 1280px canvas.
+  // Now: stroke state reset explicitly + right-anchored inside the 5%
+  // crop-safe margin. Variants for YouTube Test & Compare:
+  //   0 — teal outline, "FEELING BROKE?" at H*0.78 (original intent)
+  //   1 — deep-gold outline (warm A/B against the mint background)
+  //   2 — shorter punchline "STILL BROKE?" stacked higher, more air
   setFont(ctx, 100, 700, FONT_UI);
   ctx.textAlign = 'left';
-  const rX = W * 0.665; // 5% safe margin from the right edge (YouTube crops)
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillText('FEELING', rX, H * 0.78);
-  ctx.strokeText('FEELING', rX, H * 0.78);
-  ctx.fillText('BROKE?', rX, H * 0.885);
-  ctx.strokeText('BROKE?', rX, H * 0.885);
+  ctx.strokeStyle = variant === 1 ? GOLDD : UP; // never inherit the K passes
+  ctx.lineWidth = 10;
+  const rLines = variant === 2 ? ['STILL', 'BROKE?'] : ['FEELING', 'BROKE?'];
+  const rX = safeRightAnchor(ctx, W, rLines);
+  const rY0 = variant === 2 ? H * 0.74 : H * 0.78;
+  for (let i = 0; i < rLines.length; i++) {
+    const y = rY0 + i * (H * 0.105);
+    ctx.fillText(rLines[i], rX, y);
+    ctx.strokeText(rLines[i], rX, y);
+  }
+}
+
+/**
+ * A/B/C thumbnail generator for YouTube's Test & Compare — same composition,
+ * three punchline treatments. Convenience wrapper over drawThumbnail(v).
+ */
+export function drawThumbnailVariant(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  variant: 0 | 1 | 2 = 0
+): void {
+  drawThumbnail(ctx, W, H, variant);
 }

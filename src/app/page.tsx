@@ -33,6 +33,7 @@ import { prepareProject, PreparedProject, PipelineProgress, VoiceSettings } from
 import { buildTimeline } from '@/lib/engine/timeline';
 import { renderMix } from '@/lib/engine/audio';
 import { drawThumbnail } from '@/lib/engine/thumbnail';
+import { pickShortMoments, renderShort } from '@/lib/engine/shorts';
 import {
   TITLE_OPTIONS, DESCRIPTION_BODY, DESCRIPTION_TAIL, KEY_SOURCES_LINE, TAGS, PINNED_COMMENT,
   NEXT_VIDEO_DEFAULT, VIDEO_TITLE,
@@ -100,6 +101,7 @@ export default function StudioPage() {
   const [fpsDirty, setFpsDirty] = useState(false);
   const [previewVoiceKey, setPreviewVoiceKey] = useState<string | null>(null);
   const [voicePreviewLoading, setVoicePreviewLoading] = useState(false);
+  const [shortIdx, setShortIdx] = useState(0); // v3 (panel P2-1): Shorts picker
 
   // ── preview player ──
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -389,24 +391,103 @@ export default function StudioPage() {
     [prepared, resolution, fps, renderOptions, stopAudio, toast, addLog, drawAt]
   );
 
-  // ── thumbnail ──
+  // ── thumbnail ── (panel P0-1: exports all three Test & Compare variants;
+  // v2's punchline words rendered as a gold blob + clipped at the edge)
   const downloadThumbnail = useCallback(() => {
-    const c = document.createElement('canvas');
-    c.width = 1280;
-    c.height = 720;
-    const ctx = c.getContext('2d')!;
-    drawThumbnail(ctx, 1280, 720);
-    c.toBlob((blob) => {
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'k-shaped-economy-thumbnail-1280x720.png';
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 30_000);
-    }, 'image/png');
-    toast({ title: 'Thumbnail saved', description: '1280×720 PNG — test it at 120px before committing.' });
+    const variants: Array<{ v: 0 | 1 | 2; name: string }> = [
+      { v: 0, name: 'A' },
+      { v: 1, name: 'B' },
+      { v: 2, name: 'C' },
+    ];
+    variants.forEach(({ v, name }) => {
+      const c = document.createElement('canvas');
+      c.width = 1280;
+      c.height = 720;
+      const ctx = c.getContext('2d')!;
+      drawThumbnail(ctx, 1280, 720, v);
+      c.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `k-shaped-economy-thumb-${name}-1280x720.png`;
+        // stagger downloads so the browser treats each as user-initiated
+        setTimeout(() => {
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 30_000);
+        }, v * 350);
+      }, 'image/png');
+    });
+    toast({
+      title: 'Thumbnails saved (A · B · C)',
+      description: 'Three 1280×720 variants for YouTube Test & Compare — check each at 120px before committing.',
+    });
   }, [toast]);
+
+  // ── Shorts 9:16 ── (panel P2-1: the highest-leverage growth surface)
+  const shortsList = useMemo(
+    () => (prepared ? pickShortMoments(prepared.timeline) : []),
+    [prepared]
+  );
+  const doRenderShort = useCallback(async () => {
+    if (!prepared || !shortsList.length) return;
+    const spec = shortsList[Math.min(shortIdx, shortsList.length - 1)];
+    const canvas = canvasRef.current!;
+    const prevW = canvas.width;
+    const prevH = canvas.height;
+    canvas.width = 1080;
+    canvas.height = 1920;
+
+    const writable = await pickSaveTarget(
+      `k-economy-short-${spec.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}.mp4`
+    );
+    if (writable === null) {
+      addLog('save dialog unavailable or cancelled — rendering the Short in memory; it will download automatically');
+    }
+
+    stopAudio();
+    setPlaying(false);
+    setPhase('rendering');
+    setRenderStats(null);
+    addLog(`Short render started · 1080×1920 @ ${prepared.timeline.fps}fps · “${spec.title}”`);
+
+    try {
+      try {
+        wakeLockRef.current = await (navigator as any).wakeLock?.request('screen');
+      } catch {}
+      await renderShort({
+        timeline: prepared.timeline,
+        mixBuffer: prepared.mixBuffer,
+        spec,
+        options: renderOptions,
+        canvas,
+        writable,
+        onProgress: (s) => setRenderStats(s as unknown as EncoderStats),
+        onLog: addLog,
+      });
+      setPhase('done');
+      toast({
+        title: 'Short ready 📱',
+        description: 'The 9:16 MP4 has been saved — upload it as a YouTube Short.',
+      });
+    } catch (e) {
+      setPhase('ready');
+      toast({
+        title: 'Short render failed',
+        description: e instanceof Error ? e.message : String(e),
+        variant: 'destructive',
+      });
+    } finally {
+      try {
+        wakeLockRef.current?.release?.();
+      } catch {}
+      wakeLockRef.current = null;
+      canvas.width = prevW;
+      canvas.height = prevH;
+      lastDrawnRef.current = -1;
+      if (prepared) drawAt(Math.min(tRef.current, prepared.timeline.durationMs - 1));
+    }
+  }, [prepared, shortsList, shortIdx, renderOptions, stopAudio, toast, addLog, drawAt]);
 
   // ── voice preview ──
   const previewVoice = useCallback(async () => {
@@ -692,6 +773,41 @@ export default function StudioPage() {
                 >
                   <FileVideo className="w-4 h-4 mr-2" /> Render full MP4 — {runtimeMin} min · {prepared.timeline.totalFrames.toLocaleString()} frames
                 </Button>
+              )}
+
+              {/* v3 (panel P2-1): Shorts 9:16 export — same engine, vertical cut */}
+              {prepared && !rendering && shortsList.length > 0 && (
+                <div className="space-y-2 rounded-xl border border-[#E9E4D6] bg-[#FDFCF8] p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] font-medium text-[#26262E]">Shorts · 9:16 cuts (1080×1920)</span>
+                    <Badge variant="outline" className="border-[#C9A227]/50 text-[#A8841B] bg-[#F7EFD7]">
+                      {shortsList.length} moments
+                    </Badge>
+                  </div>
+                  <select
+                    className="w-full rounded-lg border border-[#E9E4D6] bg-white px-3 py-2 text-[13px] text-[#26262E]"
+                    value={shortIdx}
+                    onChange={(e) => setShortIdx(Number(e.target.value))}
+                  >
+                    {shortsList.map((s, i) => (
+                      <option key={i} value={i}>
+                        {s.title} · ~{Math.round(Math.min(s.durMs, prepared.timeline.durationMs - s.startMs) / 1000)}s
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    variant="outline"
+                    className="w-full border-[#0E8074]/40 text-[#0E8074] hover:bg-[#DDF0EA]"
+                    onClick={doRenderShort}
+                    disabled={busy}
+                  >
+                    <MonitorPlay className="w-4 h-4 mr-1.5" /> Export this Short
+                  </Button>
+                  <p className="text-[11px] text-[#8A8577]">
+                    Same engine, vertical composition: title band, centered crop, vertical karaoke captions clear of the
+                    Shorts overlay zone. ~2–4 min per Short on the 8 GB laptop.
+                  </p>
+                </div>
               )}
 
               {rendering && renderStats && (

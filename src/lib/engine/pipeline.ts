@@ -9,6 +9,7 @@
 import { SCRIPT, splitSentencesSafe } from './pipeline-helpers';
 import { buildTimeline, AudioManifest } from './timeline';
 import { renderMix } from './audio';
+import { validateSceneProps } from './scene-props';
 
 export interface PipelineProgress {
   phase: 'idle' | 'tts' | 'decode' | 'timeline' | 'mix' | 'ready' | 'error';
@@ -142,6 +143,20 @@ export async function prepareProject(
   const { results } = await generateVoiceover(voice, onProgress);
   const { manifest, voBuffers } = await decodeAudio(results, onProgress);
   onProgress({ phase: 'timeline', detail: 'building the edit', done: 0, total: 1 });
+  // v3 (panel P1-6): dev-time guard — every unknown scene prop logs with its
+  // beat id, so a misspelled or unimplemented key can never ship silently
+  // again (three dead props shipped that way: invert, mini, hostCount).
+  if (process.env.NODE_ENV !== 'production') {
+    const issues = validateSceneProps();
+    if (issues.length) {
+      console.warn('[scene-props] unknown keys (beat scene.key):');
+      for (const it of issues) {
+        console.warn(
+          `  ch${it.beat} ${it.sceneType}: "${it.key}"${it.hint ? ' — ' + it.hint : ''}`
+        );
+      }
+    }
+  }
   const timeline = buildTimeline(manifest, audioSettings.fps);
   onProgress({
     phase: 'mix',

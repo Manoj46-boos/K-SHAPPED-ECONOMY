@@ -108,7 +108,8 @@ export const SCRIPT: ChapterSpec[] = [
         pauseAfter: 800,
         scene: P('divergeK', 'c1-k', {
           twistChip: true,
-          hostSide: 'left',
+          // v3 (panel P1-6): hostSide removed — divergeKScene always stages
+          // the host on the left; the prop shipped unread
         }),
       },
     ],
@@ -379,7 +380,6 @@ export const SCRIPT: ChapterSpec[] = [
           title: 'The Conference Board · Consumer Confidence',
           source: 'The Conference Board',
           yFormat: 'index',
-          mini: true,
           points: [
             [0, 104], [2, 101], [4, 97], [6, 93], [8, 90.5], [10, 89],
             [11, 88.2], [12, 88.9], [13, 90.4], [14, 91.6], [15, 92.3],
@@ -633,11 +633,14 @@ export const SCRIPT: ChapterSpec[] = [
           title: 'Job-security confidence · highest-earning third',
           source: 'University of Michigan',
           yFormat: 'index',
-          invert: true,
-          points: [
+          // v3 (panel P1-6): `invert: true` shipped dead (no scene read it).
+          // Resolved honestly: a FALLING confidence line already tells this
+          // story — what was wrong was the default teal "up" tone on a
+          // bad-news metric. Explicit down-tone series instead.
+          series: [{ name: '', tone: 'down', points: [
             [0, 96], [3, 93], [6, 90], [9, 88], [12, 86], [15, 84.5],
             [18, 83], [21, 82], [24, 81.2], [27, 80.6], [30, 80.1],
-          ],
+          ] }],
           annotations: [
             { at: 30, label: 'lowest since the 2008–09 financial crisis', tone: 'down', dy: 48 },
           ],
@@ -745,7 +748,6 @@ export const SCRIPT: ChapterSpec[] = [
         pauseAfter: 600,
         scene: P('takeaways', 'c9-intro', {
           focus: 0,
-          hostCount: true,
         }),
       },
       {

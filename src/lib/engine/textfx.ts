@@ -20,6 +20,10 @@ export interface CaptionLine {
 
 export interface CaptionStyle {
   mode: 'karaoke' | 'simple' | 'off';
+  /** Optional baseline Y (design px) for the pill bottom edge. Defaults to
+   *  H-128 — the Shorts 9:16 pipeline passes a higher baseY so the caption
+   *  clears the YouTube Shorts overlay zone. (v3, panel P2-1) */
+  baseY?: number;
 }
 
 /**
@@ -79,7 +83,7 @@ export function drawCaptions(
 
   const rowH = fontSize + 16;
   const totalH = rows.length * rowH + 36;
-  const baseY = H - 128; // clear of the 8px progress bar + safe margin
+  const baseY = style.baseY ?? H - 128; // clear of the 8px progress bar + safe margin
   const widest = Math.max(...rows.map((r) => r.width));
 
   // pill — fully opaque plate (scene text under it must occlude cleanly,

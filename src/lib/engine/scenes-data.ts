@@ -6,11 +6,12 @@
  */
 
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, lerp } from './easing';
-import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob } from './theme';
+import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, CAPTION_ZONE_TOP } from './theme';
 import { bokehField, kMotifs, lightRays, drawK, drawK3D, floatCoins, sparkles } from './effects';
 import { SceneCtx } from './scene-context';
 import { lineChart, pieChart, barRow, dotGrid, gauge, statCard, sourceTag, sceneTitle, wrapText } from './charts';
-import { Stickman, drawStickman, POSES, blendPose } from './stickman';
+import { Stickman, POSES, blendPose } from './stickman';
+import { drawStickmanV2, talkAt } from './stickman-v2';
 
 function bg(g: SceneCtx, seed: number, gold = 0.4): void {
   paintBg(g.ctx, g.W, g.H, g.t);
@@ -20,8 +21,12 @@ function bg(g: SceneCtx, seed: number, gold = 0.4): void {
 }
 
 function hostSmall(g: SceneCtx, x: number, gesture = 'present', seed = 3): void {
+  // v3 (panel P0-3/P0-4): the data-scene host now uses the SAME v2 renderer
+  // as every host scene (tapered ink, hand discs, layered shadow) and the
+  // mouth articulates with the word timings — no more mid-video body swap.
   const pose = Stickman.poseAt(g.t, { gesture, speaking: g.speaking });
-  drawStickman(g.ctx, x, g.H * 0.86, 0.84, g.t, { pose, alpha: clamp01((g.t - 500) / 500), look: g.W / 2 > x ? 0.5 : -0.5 }, seed);
+  const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
+  drawStickmanV2(g.ctx, x, g.H * 0.86, 0.84, g.t, { pose, alpha: clamp01((g.t - 500) / 500), look: g.W / 2 > x ? 0.5 : -0.5, talk }, seed);
 }
 
 // ── chartTwin: S&P + Nasdaq mini charts ─────────────────────────────────────
@@ -85,13 +90,25 @@ export function chartTwinScene(g: SceneCtx): void {
 export function chartJourneyScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 71);
+  // v3 (panel P1-1): SceneCtx.t is GROUP-relative — it spans every beat
+  // sharing a sceneKey — but props come from the CURRENT beat. In any
+  // multi-beat group the animation clock is pre-advanced when later beats
+  // begin, so staggered reveals never ran (verified: the c4-gallup group's
+  // phase:'recovery' reveal was pinned at 1.0 the instant beat 2 started).
+  // The chart's draw-on stays GROUP-relative (it draws once across the
+  // group); per-beat content keys off beatT.
+  const bt = g.beatT;
   const title = s.title as string;
   const drawP = clamp01(t / 2600);
   sceneTitle(ctx, title, 110, 150, clamp01(t / 600));
   const chartX = 190;
   const chartY = H * 0.22;
   const chartW = W - 190 - 210;
-  const chartH = H * 0.42;
+  const extraStats = (s.extraStats as any[]) || [];
+  // v3 (panel P0-2 follow-up): with 2 stat rows the v2 stack reached
+  // y 883-949 — under the caption pill. The chart yields a little height on
+  // 2-stat beats so both rows sit fully above CAPTION_ZONE_TOP.
+  const chartH = H * (extraStats.length >= 2 ? 0.355 : 0.42);
 
   const series = (s.series as any[] | undefined)?.map((sr) => ({
     name: sr.name as string,
@@ -126,18 +143,21 @@ export function chartJourneyScene(g: SceneCtx): void {
     p: drawP,
     t,
     yFormat: ((s.yFormat as string) || 'index') as any,
-    revealFrac: s.phase === 'recovery' ? Math.max(0.75, clamp01((t - 800) / 4000)) : undefined,
+    // v3 (panel P1-1): beat-relative — the reveal RE-RUNS as the recovery
+    // beat's VO explains it, instead of arriving pre-pinned at 1.0
+    revealFrac: s.phase === 'recovery' ? Math.max(0.75, clamp01((bt - 800) / 4000)) : undefined,
   });
 
-  // extra stat chips (right column or bottom row)
-  const extraStats = (s.extraStats as any[]) || [];
+  // extra stat chips — v3: beat-relative stagger + anchored above the band
   extraStats.forEach((st, i) => {
-    const ap = clamp01((t - 1400 - i * 500) / 700);
+    const ap = clamp01((bt - 1400 - i * 500) / 700);
     if (ap <= 0) return;
     const c = TONE(st.tone || 'default');
     ctx.save();
     ctx.globalAlpha = ap;
-    const cyy = H * 0.74 + i * 84;
+    // bottom-anchored stack: last row's bottom edge sits at ~798 (design
+    // grid), clear of the caption pill top (800/808)
+    const cyy = ((732 - (extraStats.length - 1 - i) * 84) / 1080) * H;
     ctx.fillStyle = c.soft;
     roundRect(ctx, 190, cyy, 620, 66, 33);
     ctx.fill();
@@ -156,14 +176,21 @@ export function chartJourneyScene(g: SceneCtx): void {
     ctx.restore();
   });
 
-  // chips row
+  // chips row — v3 (panel P0-2 + P1-1): the stack was uncapped and with 2+
+  // extraStats the chips landed at y 821-989 — under the caption pill (top ≈
+  // 808), hidden. Cap the whole stat + chip stack ≥64px above the reserved
+  // band, and stagger off beatT so each beat's chips animate with its VO.
   const chips = (s.chips as string[]) || [];
+  const chipsY = Math.min(
+    H * 0.76 + extraStats.length * 84,
+    ((CAPTION_ZONE_TOP - 64) / 1080) * H
+  );
   chips.forEach((c, i) => {
-    const ap = clamp01((t - 2200 - i * 450) / 600);
+    const ap = clamp01((g.beatT - 2200 - i * 450) / 600);
     if (ap <= 0) return;
     ctx.save();
     ctx.globalAlpha = ap;
-    chip(ctx, c, 190 + i * 640, H * 0.76 + extraStats.length * 84, {
+    chip(ctx, c, 190 + i * 640, chipsY, {
       size: 24, iconDot: PALETTE.gold, alpha: 0.95,
     });
     ctx.restore();
@@ -267,10 +294,12 @@ export function dotGridScene(g: SceneCtx): void {
     setFont(ctx, 38, 700);
     ctx.fillStyle = PALETTE.ink;
     ctx.textAlign = 'center';
-    ctx.fillText(caption, W / 2, H * 0.82);
+    // v3 (panel P0-2): was H*0.82 (y≈885) / H*0.87 (y≈939) — both inside the
+    // caption pill band. Move below the pill, above the progress bar.
+    ctx.fillText(caption, W / 2, (988 / 1080) * H);
     setFont(ctx, 26, 600);
     ctx.fillStyle = PALETTE.inkFaint;
-    ctx.fillText('each dot = one company', W / 2, H * 0.87);
+    ctx.fillText('each dot = one company', W / 2, (1022 / 1080) * H);
     ctx.restore();
   }
   hostSmall(g, W * 0.9, 'present', 8);
@@ -389,7 +418,9 @@ export function barsCompareScene(g: SceneCtx): void {
       setFont(ctx, 26, 600);
       const tw = ctx.measureText(rc).width;
       const cx = W / 2 - tw / 2 - 28;
-      const cy = H - 190;
+      // v3 (panel P0-2): was H-190 (y≈890) — inside the caption pill band,
+      // which covered it. Anchor ≥70px above CAPTION_ZONE_TOP (chip h≈56).
+      const cy = ((CAPTION_ZONE_TOP - 70) / 1080) * H;
       ctx.fillStyle = PALETTE.goldWash;
       roundRect(ctx, cx, cy, tw + 56, 56, 28);
       ctx.fill();
@@ -442,6 +473,9 @@ export function trioConvergeScene(g: SceneCtx): void {
   });
   // converge → checkmark
   const cp = clamp01((t - 2600) / 900);
+  // motto hand-off progress (computed early — the checkmark caption fades
+  // out into the motto which takes over its slot)
+  const mottoIn = clamp01((t - 3600) / 700);
   if (cp > 0) {
     ctx.save();
     ctx.globalAlpha = cp;
@@ -472,25 +506,29 @@ export function trioConvergeScene(g: SceneCtx): void {
       ctx.lineTo(cx + 52, cy - 44 * p2);
       ctx.stroke();
     }
+    // v3 (panel P0-2): was cy+96 (y≈938) — inside the caption pill band.
+    // Shares the below-the-pill slot with the motto via a crossfade (the
+    // line hands off to the motto as the beat lands).
     setFont(ctx, 34, 700);
     ctx.fillStyle = PALETTE.ink;
     ctx.textAlign = 'center';
-    ctx.fillText('same shape · same time', cx, cy + 96);
+    ctx.globalAlpha = cp * (1 - mottoIn);
+    ctx.fillText('same shape · same time', cx, (1000 / 1080) * H);
     ctx.restore();
   }
-  // motto
+  // crossfade target — the motto uses the same slot the caption line vacated
   const motto = s.motto as string;
-  const mp = clamp01((t - 3600) / 700);
+  const mp = mottoIn;
   if (mp > 0 && motto) {
     ctx.save();
     ctx.globalAlpha = mp;
     ctx.textAlign = 'center';
     setFont(ctx, 40, 700);
     ctx.fillStyle = PALETTE.goldDeep;
-    ctx.fillText(motto, W / 2, H - 150);
+    ctx.fillText(motto, W / 2, (1000 / 1080) * H);
     setFont(ctx, 26, 600);
     ctx.fillStyle = PALETTE.inkSoft;
-    ctx.fillText(s.sub as string, W / 2, H - 104);
+    ctx.fillText(s.sub as string, W / 2, (1035 / 1080) * H);
     ctx.restore();
   }
 }
@@ -689,7 +727,8 @@ export function gasPumpScene(g: SceneCtx): void {
     ctx.textAlign = 'center';
     setFont(ctx, 34, 700);
     ctx.fillStyle = PALETTE.ink;
-    ctx.fillText(`${s.caption as string} — same country, same price shock`, W / 2, H * 0.82);
+    // v3 (panel P0-2): was H*0.82 (y≈885) — inside the caption pill band.
+    ctx.fillText(`${s.caption as string} — same country, same price shock`, W / 2, (992 / 1080) * H);
     ctx.restore();
   }
   sourceTag(ctx, W, s.source as string, H - 60);
@@ -896,7 +935,9 @@ export function ownerWorkerScene(g: SceneCtx): void {
     const pose = side === 'left'
       ? blendPose(POSES.climb, POSES.climb, 0)
       : POSES.shrug;
-    drawStickman(ctx, hx, hy - (side === 'left' ? 44 : 0), 0.86, t, {
+    // v3 (panel P0-3): v2 renderer — the shareholder/worker figures match the
+    // presenter's body style (they read as the same world)
+    drawStickmanV2(ctx, hx, hy - (side === 'left' ? 44 : 0), 0.86, t, {
       pose: side === 'left' ? { ...pose, lean: 12 } : pose,
       alpha: clamp01((t - i * 700 - 200) / 500),
       look: 0.3,
@@ -1120,7 +1161,9 @@ export function oddsSpreadScene(g: SceneCtx): void {
     ctx.textAlign = 'center';
     setFont(ctx, 30, 600);
     ctx.fillStyle = PALETTE.ink;
-    ctx.fillText(s.closer as string, W / 2, H * 0.78);
+    // v3 (panel P0-2): was H*0.78 (y≈842) — inside the caption band, hidden
+    // behind the pill. Sit ≥48px above CAPTION_ZONE_TOP.
+    ctx.fillText(s.closer as string, W / 2, ((CAPTION_ZONE_TOP - 48) / 1080) * H);
     ctx.restore();
   }
   sourceTag(ctx, W, s.source as string, H - 60);

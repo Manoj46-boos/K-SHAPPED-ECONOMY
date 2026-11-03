@@ -431,6 +431,108 @@ function yieldToUI(): Promise<void> {
   });
 }
 
+// ── v3 (panel P0-5): circular Schroeder reverb for the BGM loops ──────────
+// The v2 score was 100% dry — it read as a demo synth. Loops tile seamlessly,
+// so the reverb must wrap: two passes per buffer feed the tail back into the
+// head (circular ⇒ still seamless when tiled). ~4ms per loop, mix-time only.
+export function reverbLoopCircular(loop: Loop, mix = 0.2): void {
+  const N = loop.L.length;
+  const combs = [713, 891, 1027, 1137]; // ~30–47 ms at 24 kHz (coprime-ish)
+  const aps = [120, 41];                // ~5 ms / ~1.7 ms allpasses
+  const COMB_FB = 0.82;
+  const AP_G = 0.7;
+
+  for (const CH of [loop.L, loop.R]) {
+    const combBuf = combs.map((d) => new Float32Array(d));
+    const combIdx = new Array(combs.length).fill(0);
+    const apBuf = aps.map((d) => new Float32Array(d));
+    const apIdx = new Array(aps.length).fill(0);
+
+    // two passes ⇒ the reverb tail wraps into the loop head, seamless
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < N; i++) {
+        const dry = CH[i];
+        let wet = 0;
+
+        // parallel combs
+        for (let c = 0; c < combs.length; c++) {
+          const d = combs[c];
+          const buf = combBuf[c];
+          const v = buf[combIdx[c]];
+          buf[combIdx[c]] = dry + v * COMB_FB;
+          combIdx[c] = (combIdx[c] + 1) % d;
+          wet += v;
+        }
+        wet /= combs.length;
+
+        // series allpasses (standard form: y = -g*in + delayed; buf = in + g*y)
+        for (let a = 0; a < aps.length; a++) {
+          const d = aps[a];
+          const buf = apBuf[a];
+          const x = wet;
+          const delayed = buf[apIdx[a]];
+          const inNew = x + AP_G * delayed;
+          buf[apIdx[a]] = inNew;
+          wet = -AP_G * inNew + delayed;
+          apIdx[a] = (apIdx[a] + 1) % d;
+        }
+
+        CH[i] = dry * (1 - mix) + wet * mix * 1.7;
+      }
+    }
+  }
+}
+
+/**
+ * v3 (panel P0-5) — gentle presence lift for the VO (one-pole shelf).
+ * A subtle +2–3 dB lift above ~2 kHz takes the boxiness off Edge TTS
+ * without touching the music bed. One multiply per sample.
+ */
+export function makeVoShelf(): (x: number) => number {
+  const amt = 0.22;
+  let hp = 0;
+  return (x: number) => {
+    hp += 0.24 * (x - hp); // one-pole high-pass state
+    return x + amt * (x - hp); // add back a slice of the treble difference
+  };
+}
+
+/**
+ * v3 (panel P0-5) — master loudness normalisation to ≈ -14 LUFS.
+ * Simplified BS.1770: a mild high-pass weighting + sparse deterministic RMS,
+ * then one clean gain applied before masterGlue(). Exact K-weighting is not
+ * needed for a narration+bed mix; this lands within ~1 LU and preserves
+ * dynamics far better than letting YouTube's normaliser decide.
+ */
+export function normalizeLufs(
+  L: Float32Array,
+  R: Float32Array,
+  sampleRate: number,
+  targetLufs = -14
+): number {
+  const stride = 977; // deterministic sparse sampling (~1.5% of samples)
+  let sum = 0;
+  let n = 0;
+  let hp = 0;
+  for (let i = 0; i < L.length; i += stride) {
+    const x = (L[i] + R[i]) * 0.5;
+    hp += 0.04 * (x - hp); // ~60 Hz one-pole high-pass (K-weight-ish floor)
+    const y = x - hp;
+    sum += y * y + x * x * 0.3; // keep music-bed energy in view
+    n++;
+  }
+  void sampleRate;
+  const meanSq = sum / Math.max(1, n);
+  const lufs = -0.691 + 10 * Math.log10(meanSq + 1e-12);
+  const gainDb = Math.max(-12, Math.min(12, targetLufs - lufs)); // sane clamp
+  const gain = Math.pow(10, gainDb / 20);
+  for (let i = 0; i < L.length; i++) {
+    L[i] *= gain;
+    R[i] *= gain;
+  }
+  return gainDb;
+}
+
 // ── The mixer ────────────────────────────────────────────────────────────────
 export interface MixInput {
   timeline: Timeline;
@@ -452,12 +554,17 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
   const R = mix.getChannelData(1);
 
   // ── 1. BGM loops per mood (2 variants each, tiled) ──
+  // v3 (panel P0-5): each loop gets a circular Schroeder reverb pass — the
+  // score breathes instead of stopping dead. Adds ~15-25s to the mix step
+  // only; the render loop is untouched.
   onProgress?.(0.05, 'composing the score');
   const moods = [...new Set(CHAPTER_MOODS)];
   const loops = new Map<string, Loop>();
   for (const mood of moods) {
     for (let v = 0; v < 2; v++) {
-      loops.set(`${mood}:${v}`, renderMoodLoop(mood, v, bgmVolume));
+      const lp = renderMoodLoop(mood, v, bgmVolume);
+      reverbLoopCircular(lp, 0.2);
+      loops.set(`${mood}:${v}`, lp);
     }
   }
 
@@ -470,7 +577,9 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
       if (buf) voEvents.push({ buf, startSec: s.startMs / 1000 });
     }
   }
-  // add VO into the mix
+  // add VO into the mix — v3 (panel P0-5): each sample passes a gentle
+  // presence shelf (+2-3 dB above ~2 kHz) so the narration sits forward
+  const voShelf = makeVoShelf();
   for (const ev of voEvents) {
     const src = ev.buf.getChannelData(0);
     const srcRate = ev.buf.sampleRate;
@@ -482,7 +591,7 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
       const frac = i * ratio - srcPos;
       const a = src[srcPos] ?? 0;
       const b = src[srcPos + 1] ?? a;
-      const v = (a + (b - a) * frac) * voVolume;
+      const v = voShelf(a + (b - a) * frac) * voVolume;
       const idx = n0 + i;
       if (idx >= 0) {
         L[idx] += v;
@@ -589,7 +698,14 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
     addDing(L, R, d / 1000, bgmVolume);
   }
 
-  // ── 5. v2 master: bus glue (compression + soft-limit, PATCH 7) ──
+  // ── 5. v3 master: loudness → -14 LUFS, then bus glue (P0-5 + PATCH 7) ──
+  // Meeting YouTube's normalisation point in the mix means our dynamics,
+  // not the platform's limiter, decide the sound.
+  const applied = normalizeLufs(L, R, SR_OUT, -14);
+  onProgress?.(
+    0.915,
+    `loudness: ${applied >= 0 ? '+' : ''}${applied.toFixed(1)} dB to -14 LUFS`
+  );
   onProgress?.(0.92, 'mastering');
   masterGlue(L, R);
 
@@ -598,7 +714,9 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
 }
 
 // ── shared audio context (48k preferred for decoding) ────────────────────────
-function getSharedAudioContext(): AudioContext {
+/** v3 (panel P2-1): exported — the Shorts pipeline reuses this context to
+ *  slice the mix buffer into 9:16 windows. */
+export function getSharedAudioContext(): AudioContext {
   const w = globalThis as any;
   if (!w.__mixAudioCtx) {
     try {

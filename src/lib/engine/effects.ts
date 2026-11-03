@@ -6,6 +6,18 @@
 import { clamp01, drift, easeOutCubic, hash01, hashRange, lerp } from './easing';
 import { PALETTE, rgba, glowBlob } from './theme';
 
+// ── v3 (panel P1-2): parallax camera state ─────────────────────────────────────
+// cameraV2 scaled the whole frame uniformly — bokeh, cards and host all
+// moved at the same rate, so a push-in read as the picture "breathing". The
+// background planes now counter-drift so they move at ~BG_PARALLAX of the
+// camera — instant depth, deterministically. Written by director.cameraV2
+// once per frame BEFORE the scene drawer runs; a pure function of (gt,
+// groupDur) so scrub-determinism is preserved exactly.
+export const camState = { dx: 0, dy: 0, scale: 1 };
+
+/** Background planes move at this fraction of camera motion (0 = frozen bg). */
+export const BG_PARALLAX = 0.45;
+
 // ── Grain (pre-rendered tile, drawn once per frame at low alpha) ─────────────
 let grainTile: HTMLCanvasElement | OffscreenCanvas | null = null;
 
@@ -54,12 +66,16 @@ export function bokehField(
 ): void {
   const { intensity = 1, seed = 3, gold = 0.45 } = opts;
   const N = 26;
+  // v3 (panel P1-2): motes counter-shift by the camera motion the background
+  // did NOT follow, so the bokeh slides against the scene plane at ~0.45×.
+  const camX2 = camState.dx * (1 - BG_PARALLAX);
+  const camY2 = camState.dy * (1 - BG_PARALLAX);
   for (let i = 0; i < N; i++) {
     const depth = 0.25 + hash01(i + seed * 31) * 0.75;
     const speed = 8 + depth * 20;
-    const bx = (hash01(i * 3.7 + seed) * W + drift(t / 9000 + i * 3, i) * 40 * depth + W) % W;
+    const bx = (hash01(i * 3.7 + seed) * W + drift(t / 9000 + i * 3, i) * 40 * depth - camX2 * depth + W) % W;
     const by =
-      (hash01(i * 7.1 + seed * 5) * H - (t / 1000) * speed + Math.sin(t / 5000 + i) * 20 + H * 4) % H;
+      (hash01(i * 7.1 + seed * 5) * H - (t / 1000) * speed - camY2 * depth + Math.sin(t / 5000 + i) * 20 + H * 4) % H;
     const r = (5 + hash01(i * 2.3) * 26) * depth;
     const isGold = hash01(i * 5.3 + seed) < gold;
     const col = isGold ? PALETTE.gold : PALETTE.white;
@@ -161,7 +177,10 @@ export function kMotifs(
   ctx.strokeStyle = PALETTE.gold;
   ctx.lineWidth = 3;
   for (let i = 0; i < 3; i++) {
-    const x = (W * (0.18 + i * 0.34) + Math.sin(t / 7000 + i * 2) * 30) % W;
+    // v3 (panel P1-2): counter-drift against the camera at ~0.45× — the
+    // motifs sit behind the scene plane
+    const x = (W * (0.18 + i * 0.34) + Math.sin(t / 7000 + i * 2) * 30
+      - camState.dx * (1 - BG_PARALLAX) * 1.4 + W) % W;
     const y = H * (0.24 + hash01(i * 8.8) * 0.5) + Math.cos(t / 6000 + i) * 22;
     const s = 34 + hash01(i * 3.3) * 30;
     drawK(ctx, x, y, s, 3);

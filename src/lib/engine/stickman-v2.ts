@@ -18,6 +18,72 @@ import { clamp01 } from './easing';
 
 const D2R = Math.PI / 180;
 
+/**
+ * v3 (panel P0-4) — deterministic talk envelope: max mouth openness across
+ * words near local time t. `wordTimes` are ms-local to the beat — the same
+ * array SceneCtx already carries for caption sync and head nods, so routing
+ * it to the mouth costs nothing. Rise fast / fall slow reads as
+ * articulation; between sentences the mouth returns to the smile/neutral
+ * line. Pure function of t — scrub-determinism preserved.
+ */
+export function talkAt(t: number, wordTimes: number[]): number {
+  let open = 0;
+  for (const wt of wordTimes) {
+    const a = t - wt;
+    if (a >= -20 && a <= 260) {
+      const p = a < 0 ? 0 : a / 260;
+      const env = Math.sin(Math.PI * Math.min(1, p * 1.15));
+      open = Math.max(open, env);
+    }
+    if (wt > t + 300) break;
+  }
+  return open;
+}
+
+/**
+ * v3 mouth (panel P0-4) — when `talk` is high the mouth becomes an open,
+ * articulate jaw (dark rounded interior + ivory teeth/tongue hint so it
+ * stays light); otherwise the v2 smile/neutral line. The v1/v2 static
+ * curve mouth ran for ~18 of ~21 minutes of speech — the single biggest
+ * character-liveliness loss in the panel review.
+ */
+function drawMouthV2(
+  ctx: CanvasRenderingContext2D,
+  eyeDX: number,
+  smile: number,
+  talk: number
+): void {
+  const mx = eyeDX * 0.6;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = PALETTE.ink;
+  if (talk > 0.18) {
+    // open, articulate mouth: rounded jaw with dark interior
+    const w = 7 + talk * 4;
+    const h = 2.5 + talk * 9;
+    ctx.fillStyle = PALETTE.ink;
+    ctx.beginPath();
+    ctx.ellipse(mx, 15, w, h, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // small ivory tongue/teeth hint at the top of the opening (keeps it light)
+    ctx.fillStyle = '#FDFCF8';
+    ctx.beginPath();
+    ctx.ellipse(mx, 15 - h * 0.45, w * 0.55, h * 0.28, 0, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (smile > 0.05) {
+    ctx.lineWidth = 4.5;
+    ctx.beginPath();
+    ctx.moveTo(-8 + mx, 14);
+    ctx.quadraticCurveTo(mx, 14 + smile * 10, 8 + mx, 14);
+    ctx.stroke();
+  } else {
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(-6 + mx, 15);
+    ctx.lineTo(6 + mx, 15);
+    ctx.stroke();
+  }
+}
+
 /** Tapered quad stroke with round caps — the "premium ink" line. */
 export function taper(
   ctx: CanvasRenderingContext2D,
@@ -93,6 +159,8 @@ export function groundShadowV2(
  * drawStickmanV2 — drop-in visual upgrade of drawStickman() (same call sites).
  * Skeletal math is unchanged (poses still come from Stickman.poseAt), so all
  * existing scenes, walk cycles and gesture blends keep working.
+ * v3: `talk` (0..1 mouth openness envelope, panel P0-4) — pass
+ * `g.speaking ? talkAt(g.beatT, g.wordTimes) : 0` at host call sites.
  */
 export function drawStickmanV2(
   ctx: CanvasRenderingContext2D,
@@ -108,6 +176,8 @@ export function drawStickmanV2(
     shadow?: number;
     scarf?: boolean;
     nod?: number;
+    /** 0..1 mouth openness envelope, driven by word timings (v3, P0-4). */
+    talk?: number;
   },
   seed = 0
 ): void {
@@ -213,20 +283,8 @@ export function drawStickmanV2(
   ctx.moveTo(5 + eyeDX, -20 - bRaise + Math.tan(-bAngle) * -6);
   ctx.lineTo(17 + eyeDX, -18 - bRaise + Math.tan(-bAngle) * 6);
   ctx.stroke();
-  // mouth (existing semantics)
-  if (pose.smile > 0.05) {
-    ctx.lineWidth = 4.5;
-    ctx.beginPath();
-    ctx.moveTo(-8 + eyeDX * 0.6, 14);
-    ctx.quadraticCurveTo(0 + eyeDX * 0.6, 14 + pose.smile * 10, 8 + eyeDX * 0.6, 14);
-    ctx.stroke();
-  } else {
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(-6 + eyeDX * 0.6, 15);
-    ctx.lineTo(6 + eyeDX * 0.6, 15);
-    ctx.stroke();
-  }
+  // mouth (v3: articulate talk envelope when speaking, panel P0-4)
+  drawMouthV2(ctx, eyeDX, pose.smile, r.talk ?? 0);
   // cheek warmth — very subtle
   ctx.fillStyle = rgba(PALETTE.down, 0.16);
   ctx.beginPath(); ctx.ellipse(-21, 7, 5, 3.5, 0, 0, Math.PI * 2); ctx.fill();

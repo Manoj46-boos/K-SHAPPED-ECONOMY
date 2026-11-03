@@ -7,7 +7,7 @@
 
 import { clamp01, easeInOutSine, easeOutCubic } from './easing';
 import { PALETTE, paintBg, rgba } from './theme';
-import { drawGrain, lightVignette, bokehField, scalePunch } from './effects';
+import { drawGrain, lightVignette, bokehField, scalePunch, camState } from './effects';
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
 import { Timeline, beatAt } from './timeline';
 import { SceneCtx, SceneDrawer } from './scene-context';
@@ -116,6 +116,12 @@ function groupAt(tl: Timeline, tMs: number): Group | null {
  * shot. v2 derives intent from the scene itself: single-subject scenes push
  * in, comparison scenes pull back, and the drift is slow and always
  * screen-left-to-right — a camera operator, not a wobble.
+ *
+ * v3 (panel P1-2): publishes the transform into effects.camState BEFORE the
+ * scene draws, so the background planes (bokeh + K motifs) counter-drift at
+ * ~0.45× — two planes at different rates = depth instead of "breathing".
+ * Drift amplitudes raised (6→14, 4→9) so the parallax is FELT. camState is a
+ * pure function of (gt, groupDur) → same frame, same pixels, always.
  */
 function cameraV2(
   ctx: CanvasRenderingContext2D,
@@ -131,8 +137,12 @@ function cameraV2(
   const target = isComparison ? -0.012 : 0.028; // pull back vs push in
   const camScale = 1 + target * easeInOutSine(p);
   // slow consistent drift, always screen-left-to-right (no beatIndex term)
-  const camX = Math.sin(gt / 7300) * 6;
-  const camY = Math.cos(gt / 9100) * 4;
+  const camX = Math.sin(gt / 7300) * 14;
+  const camY = Math.cos(gt / 9100) * 9;
+  // publish BEFORE the scene draws — the bg planes counter-drift off this
+  camState.dx = camX * camScale;
+  camState.dy = camY * camScale;
+  camState.scale = camScale;
   ctx.translate(960 + camX, 540 + camY);
   ctx.scale(camScale, camScale);
   ctx.translate(-960, -540);
@@ -274,6 +284,11 @@ export function drawIdleFrame(
   const H = ctx.canvas.height;
   const sx = W / 1920;
   const sy = H / 1080;
+  // v3: no camera on the idle frame — reset the parallax state so the
+  // preview doesn't inherit a stale transform from the last drawFrame
+  camState.dx = 0;
+  camState.dy = 0;
+  camState.scale = 1;
   ctx.save();
   ctx.scale(sx, sy);
   paintBg(ctx, 1920, 1080, tMs);

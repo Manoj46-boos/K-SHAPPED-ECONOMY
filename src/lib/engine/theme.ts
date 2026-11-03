@@ -76,6 +76,15 @@ export const M = {
   chapterLabelY: 74,
 };
 
+/**
+ * Everything below this Y on the 1080-design grid belongs to the caption pill
+ * (top of a 2-row pill ≈ 808) + progress bar. Scene content must stay above
+ * it — or, deliberately, below the pill (pill bottom ≈ 956) in the narrow
+ * gap above the progress bar. (Panel P0-2: four verified scene-text vs
+ * caption-pill collisions shipped because scenes had no such constant.)
+ */
+export const CAPTION_ZONE_TOP = 800;
+
 /** rgba() helper: pass a #rrggbb color and alpha. */
 export function rgba(hex: string, a: number): string {
   const h = hex.replace('#', '');

@@ -7,7 +7,8 @@ import { clamp01, easeInOutSine, easeOutBack, easeOutCubic, easeOutQuad } from '
 import { PALETTE, TONE, card, rgba, roundRect, setFont, paintBg } from './theme';
 import { bokehField, lightRays, softBloom, sparkles, drawK3D, kMotifs, floatCoins } from './effects';
 import { SceneCtx } from './scene-context';
-import { Stickman, drawStickman, POSES, blendPose } from './stickman';
+import { Stickman, POSES, blendPose } from './stickman';
+import { drawStickmanV2 } from './stickman-v2';
 import { wrapText } from './charts';
 
 function bg(g: SceneCtx, seed: number, gold = 0.4): void {
@@ -55,7 +56,8 @@ export function bigTextScene(g: SceneCtx): void {
   const hp = clamp01((t - 2200) / 600);
   if (hp > 0) {
     const pose = Stickman.poseAt(t, { gesture: 'count2', speaking: false });
-    drawStickman(ctx, W * 0.86, H * 0.84, 0.9, t, { pose, alpha: hp, look: -0.6 }, 31);
+    // v3 (panel P0-3): v2 renderer — one body style across the whole film
+    drawStickmanV2(ctx, W * 0.86, H * 0.84, 0.9, t, { pose, alpha: hp, look: -0.6 }, 31);
   }
 }
 
@@ -114,7 +116,8 @@ export function stampCardScene(g: SceneCtx): void {
   const hp = clamp01((t - 900) / 600);
   if (hp > 0) {
     const pose = { ...POSES.close, headTilt: Math.sin(t / 700) * 4 };
-    drawStickman(ctx, W * 0.14, H * 0.84, 1.0, t, { pose, alpha: hp, look: 0.6 }, 32);
+    // v3 (panel P0-3): v2 renderer
+    drawStickmanV2(ctx, W * 0.14, H * 0.84, 1.0, t, { pose, alpha: hp, look: 0.6 }, 32);
   }
 }
 
@@ -193,7 +196,8 @@ export function quoteCardScene(g: SceneCtx): void {
   if (hp > 0) {
     const gesture = (s.hostGesture as string) || 'think';
     const pose = Stickman.poseAt(t, { gesture, speaking: false });
-    drawStickman(ctx, W * 0.85, H * 0.84, 0.94, t, { pose, alpha: hp, look: -0.7 }, 33);
+    // v3 (panel P0-3): v2 renderer
+    drawStickmanV2(ctx, W * 0.85, H * 0.84, 0.94, t, { pose, alpha: hp, look: -0.7 }, 33);
   }
 }
 
@@ -223,7 +227,8 @@ export function takeawaysScene(g: SceneCtx): void {
       gesture: t % 5000 < 2500 ? 'count1' : 'count2',
       speaking: false,
     });
-    drawStickman(ctx, W * 0.82, H * 0.84, 1.0, t, { pose, alpha: clamp01(t / 600), look: -0.5 }, 34);
+    // v3 (panel P0-3): v2 renderer
+    drawStickmanV2(ctx, W * 0.82, H * 0.84, 1.0, t, { pose, alpha: clamp01(t / 600), look: -0.5 }, 34);
   } else {
     // focused card zooms; other two minimized to the left rail
     for (let i = 1; i <= 3; i++) {
@@ -301,7 +306,8 @@ export function takeawaysScene(g: SceneCtx): void {
     if (hp > 0) {
       const gesture = focus === 1 ? 'count1' : focus === 2 ? 'count2' : 'count3';
       const pose = Stickman.poseAt(t, { gesture, speaking: false });
-      drawStickman(ctx, W * 0.13, H * 0.82, 1.0, t, { pose, alpha: hp, look: 0.6 }, 35);
+      // v3 (panel P0-3): v2 renderer
+      drawStickmanV2(ctx, W * 0.13, H * 0.82, 1.0, t, { pose, alpha: hp, look: 0.6 }, 35);
     }
   }
 }
@@ -385,7 +391,8 @@ export function commentPromptScene(g: SceneCtx): void {
     ctx.restore();
   });
   const pose = Stickman.poseAt(t, { gesture: 'pointR', speaking: false });
-  drawStickman(ctx, W * 0.88, H * 0.84, 0.96, t, { pose, alpha: clamp01(t / 700), look: -0.5 }, 36);
+  // v3 (panel P0-3): v2 renderer
+  drawStickmanV2(ctx, W * 0.88, H * 0.84, 0.96, t, { pose, alpha: clamp01(t / 700), look: -0.5 }, 36);
 }
 
 // ── endScreen v2: next-video teaser + host, YouTube-safe (PATCH 6) ──────────
@@ -434,12 +441,12 @@ export function endScreenScene(g: SceneCtx): void {
   });
   ctx.restore();
 
-  // ── host waving, bottom-left (inside safe zone) ──
+  // ── host waving, bottom-left (inside safe zone) — v3 (P0-3): v2 renderer ──
   const pose = {
     ...blendPose(POSES.wave, POSES.wave, 0),
     rAL: POSES.wave.rAL + Math.sin(t / 160) * 16,
   };
-  drawStickman(ctx, W * 0.30, H * 0.86, 1.02, t, { pose, alpha: clamp01((t - 800) / 600), look: -0.4 }, 37);
+  drawStickmanV2(ctx, W * 0.30, H * 0.86, 1.02, t, { pose, alpha: clamp01((t - 800) / 600), look: -0.4 }, 37);
 
   // ── channel name + tagline, bottom-center-left ──
   const tp = clamp01((t - 500) / 700);

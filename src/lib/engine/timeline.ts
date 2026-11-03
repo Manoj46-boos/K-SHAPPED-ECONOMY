@@ -64,6 +64,30 @@ const BEAT_LEAD_IN = 70;
 const CHAPTER_CARD_DUR = 900;
 const END_SCREEN_HOLD = 6500;
 
+/**
+ * v3 (panel P0-6) — punctuation-aware pause after a sentence (ms).
+ * SENTENCE_GAP was a constant 110ms; real narrators breathe. A full stop
+ * gets a real breath, a clause half a beat, and dramatic landings (the
+ * twist, the paradox line) get a held beat before the payoff. Deterministic.
+ */
+export function gapAfter(sentence: string): number {
+  const s = sentence.replace(/[""''\u201d\u2019]+$/u, '').trim();
+  let gap = 110; // base inter-sentence gap (v2 behaviour)
+  if (/[.!?]/.test(s.slice(-2))) {
+    gap += 260; // full stop: a real breath
+  } else if (/[,;:\u2014\u2013]/.test(s.slice(-2))) {
+    gap += 90; // clause: half a beat
+  }
+  // dramatic landings: the lines the script built for payoff
+  if (
+    /[.!?]$/.test(s) &&
+    /\b(twist|stark|paradox|record|ever|know|behind|hanging|flip)\b/i.test(s)
+  ) {
+    gap += 240;
+  }
+  return gap;
+}
+
 export function buildTimeline(manifest: AudioManifest, fps: number): Timeline {
   const beats: TimelineBeat[] = [];
   const chapterCards: Timeline['chapterCards'] = [];
@@ -85,11 +109,14 @@ export function buildTimeline(manifest: AudioManifest, fps: number): Timeline {
     }
     chapter.beats.forEach((beat: BeatSpec, bi: number) => {
       const sentences: SentenceSeg[] = [];
+      // v3 (panel P0-6): the split chunks were computed then discarded — they
+      // align with sentIdxs (both come from the same upstream split that
+      // produced the TTS cache keys `${ci}-${bi}-${si}`) and now drive the
+      // punctuation-aware gaps.
       const chunks = beat.vo
         .split(/\n/)
-        .map((s) => s.trim())
+        .map((sx) => sx.trim())
         .filter(Boolean);
-      void chunks;
       // sentence segmentation happens upstream (client sends per-sentence ids);
       // here we discover them from the manifest by beat-prefixed ids.
       const prefix = `${ci}-${bi}-`;
@@ -100,6 +127,7 @@ export function buildTimeline(manifest: AudioManifest, fps: number): Timeline {
         k++;
       }
       let local = BEAT_LEAD_IN;
+      let lastGap = SENTENCE_GAP;
       for (const si of sentIdxs) {
         const entry = manifest.lines[`${prefix}${si}`];
         sentences.push({
@@ -109,9 +137,11 @@ export function buildTimeline(manifest: AudioManifest, fps: number): Timeline {
           words: entry.words,
           text: '',
         });
-        local += entry.durationMs + SENTENCE_GAP;
+        const gap = chunks[si] !== undefined ? gapAfter(chunks[si]) : SENTENCE_GAP;
+        lastGap = gap;
+        local += entry.durationMs + gap;
       }
-      const speakDur = Math.max(0, local - BEAT_LEAD_IN - SENTENCE_GAP);
+      const speakDur = Math.max(0, local - BEAT_LEAD_IN - lastGap);
       const pause = beat.pauseAfter ?? 350;
       const isEndScreen = beat.scene.type === 'endScreen';
       const beatDur = BEAT_LEAD_IN + speakDur + pause + (isEndScreen ? END_SCREEN_HOLD : 0);

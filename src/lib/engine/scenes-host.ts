@@ -6,8 +6,8 @@
 import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, lerp } from './easing';
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg } from './theme';
 import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp } from './effects';
-import { Stickman, POSES, blendPose, drawStickman, walkIn, nodPulse } from './stickman';
-import { drawStickmanV2 } from './stickman-v2';
+import { Stickman, POSES, blendPose, walkIn, nodPulse } from './stickman';
+import { drawStickmanV2, talkAt } from './stickman-v2';
 import { SceneCtx } from './scene-context';
 import { sourceTag } from './charts';
 
@@ -111,7 +111,12 @@ function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   }
 }
 
-/** The host himself, with entrance + gesture + speech energy. */
+/** The host himself, with entrance + gesture + speech energy.
+ *  v3 (panel P0-3/P0-4): renders with drawStickmanV2 everywhere — the host
+ *  visibly changed body style between scenes when only hostSceneV2 used v2 —
+ *  and the mouth now articulates with the word timings (talk envelope).
+ *  Nods and talk key off beatT (wordTimes are beat-local; the v2 dead
+ *  `nod` computation and the group-time nodP are gone). */
 function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   const { ctx, W, H, t } = g;
   const hx = HOST_X(W, side);
@@ -130,12 +135,11 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
     const expr = expressionPose(g.s.expression as string | undefined);
     pose = { ...pose, ...expr };
   }
-  const nod = nodPulse(t, g.wordTimes.filter((w) => w > t - 400 && w < t + 50).length ? [] : []);
-  void nod;
-  const nodP = g.speaking ? nodPulse(t, g.wordTimes) : 0;
+  const nodP = g.speaking ? nodPulse(g.beatT, g.wordTimes) : 0;
+  const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
   const lookRight = g.s.lookRight ? 1 : g.s.lookLeft ? -1 : side === 'left' ? 0.8 : side === 'right' ? -0.8 : 0;
   const fade = entrance === 'walk' ? clamp01(t / 300) : clamp01(t / 420);
-  drawStickman(ctx, x, hy, scale, t, { pose, alpha: fade, look: lookRight, nod: nodP, scarf: true }, 11);
+  drawStickmanV2(ctx, x, hy, scale, t, { pose, alpha: fade, look: lookRight, nod: nodP, scarf: true, talk }, 11);
 }
 
 /** Kicker / ribbon / chip below or above host. */
@@ -252,9 +256,12 @@ export function hostSceneV2(g: SceneCtx): void {
     gesture: walkP < 0.98 ? 'idle' : (g.s.gesture ?? 'present'),
     speaking: g.speaking,
   });
+  // v3 (panel P0-4): nods + articulate mouth on the editorial host too
+  const nodP = g.speaking ? nodPulse(g.beatT, g.wordTimes) : 0;
+  const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
   drawStickmanV2(
     ctx, hx, H * 0.80, 1.42, t,
-    { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true },
+    { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk },
     11
   );
 
@@ -331,11 +338,15 @@ export function splitNumbersScene(g: SceneCtx): void {
   const cornerNote = s.cornerNote as string | undefined;
 
   if (mode === 'left' || mode === 'vs' || mode === 'vs-punch') {
-    drawNumberPanel(g, lx, py, panelW, panelH, 'THE MARKET', [
+    // v3 (panel P1-6): the market panel reads the script's `stats` prop
+    // (previously allowed-but-unread — the panel's validator caught it);
+    // the hardcoded list stays as the fallback.
+    const marketStats: StatItem[] = (s.stats as StatItem[]) || [
       { big: '+18%', label: 'S&P 500 · past year', tone: 'up' },
       { big: '+20%', label: 'Nasdaq · past year', tone: 'up' },
       { big: 'RECORD', label: 'corporate profit margins', tone: 'gold' },
-    ], t, 0);
+    ];
+    drawNumberPanel(g, lx, py, panelW, panelH, 'THE MARKET', marketStats, t, 0);
   }
   if (mode === 'right' || mode === 'vs' || mode === 'vs-punch') {
     const delay = mode === 'vs' || mode === 'vs-punch' ? 300 : 0;
@@ -555,13 +566,13 @@ export function divergeKScene(g: SceneCtx): void {
     }
   }
 
-  // host on the left presenting the K
-  const hostSide = (s.hostSide as string) || 'left';
+  // host on the left presenting the K — v3 (panel P0-3): v2 renderer, same
+  // body style as every other scene
   const hx = W * 0.19;
   const hy = H * 0.8;
   const pose = Stickman.poseAt(t, { gesture: upP < 0.5 ? 'present' : 'pointR', speaking: g.speaking });
-  drawStickman(ctx, hx, hy, 1.05, t, { pose, alpha: clamp01(t / 400), look: 0.9 }, 5);
-  void hostSide;
+  const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
+  drawStickmanV2(ctx, hx, hy, 1.05, t, { pose, alpha: clamp01(t / 400), look: 0.9, talk }, 5);
   softBloom(ctx, W, H, t - 3800, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)
 }
 
@@ -625,13 +636,14 @@ export function channelIntroScene(g: SceneCtx): void {
     ctx.restore();
   }
 
-  // host peeking from right, waving
+  // host peeking from right, waving — v3 (panel P0-3): v2 renderer
   const pose = blendPose(POSES.wave, POSES.wave, 0);
   const wavePose = {
     ...pose,
     rAL: pose.rAL + Math.sin(t / 160) * 14,
   };
-  drawStickman(ctx, W * 0.85, H * 0.82, 0.98, t, { pose: wavePose, alpha: clamp01((t - 600) / 500), look: -0.6 }, 9);
+  const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
+  drawStickmanV2(ctx, W * 0.85, H * 0.82, 0.98, t, { pose: wavePose, alpha: clamp01((t - 600) / 500), look: -0.6, talk }, 9);
 }
 
 // ── recapSplit (used at ch5 open and ch10 open) ─────────────────────────────
@@ -690,9 +702,10 @@ export function recapSplitScene(g: SceneCtx): void {
       ctx.restore();
     }
   }
-  // host small at bottom right
+  // host small at bottom right — v3 (panel P0-3): v2 renderer + talk
   const pose = Stickman.poseAt(t, { gesture: 'present', speaking: g.speaking });
-  drawStickman(ctx, W * 0.86, H * 0.84, 0.86, t, { pose, alpha: clamp01((t - 700) / 500), look: -0.4 }, 17);
+  const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
+  drawStickmanV2(ctx, W * 0.86, H * 0.84, 0.86, t, { pose, alpha: clamp01((t - 700) / 500), look: -0.4, talk }, 17);
 }
 
 function miniPanel(
@@ -790,7 +803,8 @@ export function paradoxResolveScene(g: SceneCtx): void {
     ctx.restore();
   });
   const pose = Stickman.poseAt(t, { gesture: 'aha', speaking: g.speaking });
-  drawStickman(ctx, W * 0.14, H * 0.82, 1.0, t, { pose, alpha: clamp01((t - 600) / 500), look: 0.5 }, 23);
+  const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
+  drawStickmanV2(ctx, W * 0.14, H * 0.82, 1.0, t, { pose, alpha: clamp01((t - 600) / 500), look: 0.5, talk }, 23);
 }
 
 export { sourceTag, slideUp, lerp, easeOutQuad };
