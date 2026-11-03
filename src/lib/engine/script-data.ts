@@ -32,17 +32,18 @@ export const SCRIPT: ChapterSpec[] = [
     title: 'The two numbers that don’t add up',
     beats: [
       {
+        // v4 (audit P0-6): the video now OPENS on the signature moment — the
+        // K draws itself while the cold-open line plays (first hard visual
+        // payoff at 0:00, not 1:10). `opening: true` suppresses the arm
+        // labels and the K-name caption so the naming beat lands later with
+        // full impact, and holds the twist chip on screen from this first
+        // scene (audit P0-6, items 1 and 4).
         vo:
           "If the market's near record highs right now — and you still feel like you're falling behind — you're not losing your mind. Here's the honest, data-backed reason both are true at once.",
         pauseAfter: 700,
-        scene: P('host', 'c1-host', {
-          stage: 'spot',
-          gesture: 'present',
-          expression: 'warm',
-          entrance: 'walk',
-          headline: 'Two numbers\nthat don’t add up.',
-          sub: 'Markets near record highs — and a country that feels\nlike it’s falling behind. Both are true.',
-          kicker: 'THE K-SHAPED ECONOMY · CH 01',
+        scene: P('divergeK', 'c1-k-open', {
+          twistChip: true,
+          opening: true,
         }),
       },
       {
@@ -50,23 +51,16 @@ export const SCRIPT: ChapterSpec[] = [
         // as its own chapter at the 80-second mark — the single biggest
         // retention cliff in the video (new viewers just met you 80 seconds
         // ago; this is where they leave). The channel promise is now ONE
-        // 8-second sentence at ~0:12, delivered as a quick logo sting right
-        // after the cold open, and the full chapter moves on without it.
+        // 8-second sentence, delivered as a quick logo sting. v4 (audit
+        // P0-6): with the K cold open at 0:00 the sting lands at ~0:14–0:22,
+        // inside the retention window, and the data starts ~0:25.
         vo: 'Quick note for new faces: this channel shows the full range of every number — never just the best headline. Now, the data.',
         pauseAfter: 500,
         scene: P('channelIntro', 'c1-sting', {}),
       },
       {
-        vo: 'Two numbers.',
-        pauseAfter: 450,
-        scene: P('host', 'c1-host-turn', {
-          stage: 'spot',
-          gesture: 'pointRight',
-          expression: 'curious',
-          lookRight: true,
-        }),
-      },
-      {
+        // v4 (audit P0-6): "Two numbers." cut as a spoken beat — the reveal
+        // itself carries the framing, straight from the sting (~0:25).
         vo:
           'Over the past year, the S&P 500 is up about 18%. The Nasdaq\u2019s up over 20%. Corporate America just posted its highest profit margins on record.',
         pauseAfter: 650,
@@ -108,6 +102,8 @@ export const SCRIPT: ChapterSpec[] = [
         pauseAfter: 800,
         scene: P('divergeK', 'c1-k', {
           twistChip: true,
+          // v4 (audit P0-6): the naming beat — the same K the video opened
+          // on, now completing with its labels: THE MARKET / THE MOOD.
           // v3 (panel P1-6): hostSide removed — divergeKScene always stages
           // the host on the left; the prop shipped unread
         }),
@@ -529,9 +525,11 @@ export const SCRIPT: ChapterSpec[] = [
         pauseAfter: 650,
         scene: P('aiDatacenter', 'c6-ai', {
           stats: [
-            { big: '¾', label: 'of all U.S. GDP growth in Q1 2026 — AI-related investment · one estimate (BEA-based)' },
-            { big: '1.4–1.5%', label: 'of GDP · AI infrastructure · Epoch AI — more than double pre-2023' },
-            { big: '$700–730B', label: '2026 build-out spend · the five biggest cloud & AI companies', tone: 'gold' },
+            // v4 (audit P0-1): labels shortened to one clean wrap line so
+            // the compact cards read fully inside their bodies
+            { big: '¾', label: 'of all U.S. GDP growth · Q1 2026 (BEA estimate)' },
+            { big: '1.4–1.5%', label: 'of GDP · AI infrastructure · Epoch AI — 2× pre-2023' },
+            { big: '$700–730B', label: '2026 build-out · five biggest cloud & AI companies', tone: 'gold' },
           ],
         }),
       },

@@ -483,8 +483,13 @@ export function gauge(
   opts: { cx: number; cy: number; r: number; value: number; p: number; t: number; label?: string }
 ): void {
   const { cx, cy, r, value, p, t } = opts;
+  // v4 (vision panel re-review): a1 was 0, not 2π. Canvas normalises the
+  // grey TRACK arc (π→0 reads as the top half), but every lerp() angle below
+  // then computed positions on the WRONG half — the needle rendered mirrored
+  // into the label area, each colour zone wrapped ~300° (the whole ring read
+  // coral), and the 25/50/75% tick labels landed in the bottom quadrants.
   const a0 = Math.PI;
-  const a1 = 0;
+  const a1 = 2 * Math.PI;
   const frac = clamp01(value / 100) * easeOutCubic(clamp01(p / 0.8));
   const needleA = lerp(a0, a1, frac);
   // arc track
@@ -509,6 +514,19 @@ export function gauge(
   ctx.beginPath();
   ctx.arc(cx, cy, r, lerp(a0, a1, 0.55), a1);
   ctx.stroke();
+  // minor radial ticks (v4: vision panel — a gauge without interior ticks
+  // cannot be read against a number; every 10% inside the ring, subtle but
+  // legible — the first attempt at 0.28 alpha was invisible at 1080p)
+  ctx.strokeStyle = rgba(PALETTE.ink, 0.42);
+  ctx.lineWidth = 2.5;
+  for (let v = 10; v < 100; v += 10) {
+    if (v % 25 === 0) continue; // major labels already anchor the quarters
+    const a = lerp(a0, a1, v / 100);
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * (r - 20), cy + Math.sin(a) * (r - 20));
+    ctx.lineTo(cx + Math.cos(a) * (r - 33), cy + Math.sin(a) * (r - 33));
+    ctx.stroke();
+  }
   // ticks
   setFont(ctx, 22, 600);
   ctx.fillStyle = PALETTE.inkFaint;
@@ -570,6 +588,12 @@ export function statCard(
     t: number;
     bigIsNumber?: boolean;
     decimals?: number;
+    /** v4 (audit P0-1): compact row metrics for tight columns — 58px numeral,
+     * 24px label, ~172px card height. The default metrics (88px numeral at
+     * y+138, label from y+190) need a ≥240px card; the AI-datacenter scene
+     * shipped 112px cards, so its text rendered OUTSIDE the card bodies and
+     * the next card overpainted it. */
+    compact?: boolean;
   }
 ): void {
   const { x, y, w, h, big, label, tag, tone = 'up', p, t } = opts;
@@ -580,10 +604,15 @@ export function statCard(
   ctx.globalAlpha = Math.min(1, ap * 1.6);
   ctx.translate(0, rise);
   const c = TONE(tone).main;
-  card(ctx, x, y, w, h, { r: 30 });
+  card(ctx, x, y, w, h, { r: opts.compact ? 22 : 30 });
+  const bigSize = opts.compact ? 58 : 88;
+  const bigBase = opts.compact ? 84 : 138;
+  const labelSize = opts.compact ? 24 : 27;
+  const labelBase = opts.compact ? 126 : 190;
+  const labelStep = opts.compact ? 30 : 36;
   // tone top accent line
   ctx.fillStyle = c;
-  roundRect(ctx, x + 34, y + 26, 64 * pop, 8, 4);
+  roundRect(ctx, x + 34, y + (opts.compact ? 22 : 26), (opts.compact ? 52 : 64) * pop, opts.compact ? 6 : 8, 3);
   ctx.fill();
   // big number
   ctx.textAlign = 'left';
@@ -598,15 +627,15 @@ export function statCard(
       if (big.endsWith('T')) bigText = bigText.replace(/(\d+(\.\d+)?)$/, '$1T');
     }
   }
-  setFont(ctx, 88, 700);
+  setFont(ctx, bigSize, 700);
   ctx.fillStyle = c;
-  ctx.fillText(bigText, x + 34, y + 138);
+  ctx.fillText(bigText, x + 34, y + bigBase);
   // label
-  setFont(ctx, 27, 600);
+  setFont(ctx, labelSize, 600);
   ctx.fillStyle = PALETTE.inkSoft;
-  const labelLines = wrapText(ctx, label, w - 68, 27, 600);
+  const labelLines = wrapText(ctx, label, w - 68, labelSize, 600);
   labelLines.forEach((ln, i) => {
-    ctx.fillText(ln, x + 34, y + 190 + i * 36);
+    ctx.fillText(ln, x + 34, y + labelBase + i * labelStep);
   });
   if (tag) {
     const tagP = clamp01((p - 0.45) / 0.4);
@@ -615,10 +644,11 @@ export function statCard(
       setFont(ctx, 22, 600);
       const tw = ctx.measureText(tag).width;
       ctx.fillStyle = TONE(tone === 'down' ? 'down' : tone).soft;
-      roundRect(ctx, x + 34, y + h - 58, tw + 28, 36, 18);
+      const tagY = opts.compact ? y + h - 40 : y + h - 58;
+      roundRect(ctx, x + 34, tagY, tw + 28, 36, 18);
       ctx.fill();
       ctx.fillStyle = c;
-      ctx.fillText(tag, x + 48, y + h - 34);
+      ctx.fillText(tag, x + 48, tagY + 24);
     }
   }
   ctx.restore();

@@ -441,12 +441,17 @@ export function endScreenScene(g: SceneCtx): void {
   });
   ctx.restore();
 
-  // ── host waving, bottom-left (inside safe zone) — v3 (P0-3): v2 renderer ──
+  // ── host waving, presenting the card from its right (inside safe zone) ──
+  // v3 (P0-3): v2 renderer. v4 (vision panel, flagged twice): the host stood
+  // at W*0.30 — directly UNDER the teaser card, and his head + waving arm
+  // crossed the NEXT WEEK title text near “Concentration”. He now stands
+  // clear to the card's right (body x≈795–895 vs text right edge ≈739),
+  // still inside the left-55% YouTube-safe zone, waving toward the card.
   const pose = {
     ...blendPose(POSES.wave, POSES.wave, 0),
     rAL: POSES.wave.rAL + Math.sin(t / 160) * 16,
   };
-  drawStickmanV2(ctx, W * 0.30, H * 0.86, 1.02, t, { pose, alpha: clamp01((t - 800) / 600), look: -0.4 }, 37);
+  drawStickmanV2(ctx, W * 0.44, H * 0.86, 1.0, t, { pose, alpha: clamp01((t - 800) / 600), look: -0.4 }, 37);
 
   // ── channel name + tagline, bottom-center-left ──
   const tp = clamp01((t - 500) / 700);

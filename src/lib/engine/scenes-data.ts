@@ -767,26 +767,30 @@ export function recessionGaugeScene(g: SceneCtx): void {
     t,
     label: 'Zandi\u2019s model · most alarmed point',
   });
-  // coin flip chip
+  // coin flip chip — v4 (vision panel re-review): was at y=H*0.8 (864) —
+  // inside the caption-pill band (top ≈ 808), colliding with the subtitle.
+  // Now cradled inside the gauge bowl, under the value + model label, clear
+  // of both the arc and the caption zone.
   const cp = clamp01((t - 3200) / 700);
   if (cp > 0 && s.coinChip) {
     ctx.save();
     ctx.globalAlpha = cp;
-    setFont(ctx, 30, 700);
+    setFont(ctx, 27, 700);
     const txt = s.coinChip as string;
     const tw = ctx.measureText(txt).width;
-    const x = W * 0.74 - tw / 2 - 28;
-    const y = H * 0.8;
+    const gx = W * 0.74;
+    const x = gx - tw / 2 - 28;
+    const y = 736;
     ctx.fillStyle = PALETTE.goldWash;
-    roundRect(ctx, x, y, tw + 56, 58, 29);
+    roundRect(ctx, x, y, tw + 56, 56, 28);
     ctx.fill();
     ctx.lineWidth = 2.5;
     ctx.strokeStyle = PALETTE.gold;
-    roundRect(ctx, x, y, tw + 56, 58, 29);
+    roundRect(ctx, x, y, tw + 56, 56, 28);
     ctx.stroke();
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.textAlign = 'left';
-    ctx.fillText(txt, x + 28, y + 38);
+    ctx.fillText(txt, x + 28, y + 37);
     ctx.restore();
   }
   sourceTag(ctx, W, s.source as string, H - 60);
@@ -850,11 +854,18 @@ export function aiDatacenterScene(g: SceneCtx): void {
     ctx.restore();
   }
 
-  // stat cards cascade
+  // stat cards cascade — v4 (audit P0-1): restacked as one clean vertical
+  // column with FULL content visible. The v3 layout (h:112, i*128) drew the
+  // 88px numeral at y+138 and the label from y+190 — physically outside the
+  // card body, overpainted by the next card, so the top card shipped as a
+  // lone "¾". Compact metrics (58px numeral, 24px label) fit a 172px card;
+  // three cards + gaps end at y≈722, clear of the caption zone (y≥800).
   const stats = (s.stats as any[]) || [];
   stats.forEach((st, i) => {
     statCard(ctx, {
-      x: W * 0.06, y: H * 0.13 + i * 128, w: 700, h: 112,
+      x: W * 0.06, y: 168 + i * 186, w: 640, h: 172,
+      compact: true,
+      bigIsNumber: false, // '¾' / '$700–730B' are strings; count-up mangles them
       big: st.big, label: st.label, tone: st.tone || 'gold',
       p: clamp01((t - 800 - i * 900) / 900), t,
     });

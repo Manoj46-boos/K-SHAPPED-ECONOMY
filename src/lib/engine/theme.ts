@@ -15,6 +15,11 @@ export interface Palette {
   cardBorder: string;
   gold: string;
   goldDeep: string;
+  /** AA-safe gold for small gold TEXT (audit P0-4): 4.64:1 on white.
+   * goldDeep is aligned to the same value in v4 so every existing gold
+   * label, chip and kicker clears WCAG at any size; gold #C9A227 stays
+   * for decorative strokes, rails and ≥40px display accents only. */
+  goldInk: string;
   goldWash: string;
   up: string;
   upSoft: string;
@@ -29,17 +34,21 @@ export const PALETTE: Palette = {
   bgTop: '#FDFCF8',
   bgBottom: '#F4EFE4',
   bgSoft: '#F8F5EC',
-  ink: '#26262E',
+  // Morning Ivory 2.0 (audit §8, Direction A — winner): every text pair
+  // measured against WCAG AA. ink 16.0:1 · inkSoft 7.4:1 · inkFaint 5.2:1 ·
+  // goldInk 4.6:1 · up 6.0:1 · down 4.5:1 on their real backgrounds.
+  ink: '#1E1F26',
   inkSoft: '#55555F',
-  inkFaint: '#9A9AA3',
+  inkFaint: '#6B6B75', // was #9A9AA3 (2.79:1 — source tags vanished on phones)
   card: '#FFFFFF',
   cardBorder: '#E9E4D6',
   gold: '#C9A227',
-  goldDeep: '#A8841B',
+  goldDeep: '#8F6E12', // was #A8841B (3.51:1 — large text only)
+  goldInk: '#8F6E12',
   goldWash: '#F7EFD7',
-  up: '#0E8074',
+  up: '#0B6E63', // was #0E8074
   upSoft: '#DDF0EA',
-  down: '#D96C47',
+  down: '#C2542E', // was #D96C47 (3.39:1 — large text only)
   downSoft: '#F9E3DB',
   muted: '#B9B4A6',
   chipBg: '#FFFFFF',

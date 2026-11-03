@@ -500,9 +500,10 @@ export function makeVoShelf(): (x: number) => number {
 /**
  * v3 (panel P0-5) — master loudness normalisation to ≈ -14 LUFS.
  * Simplified BS.1770: a mild high-pass weighting + sparse deterministic RMS,
- * then one clean gain applied before masterGlue(). Exact K-weighting is not
- * needed for a narration+bed mix; this lands within ~1 LU and preserves
- * dynamics far better than letting YouTube's normaliser decide.
+ * then one clean gain. v4 (audit P0-5): applied AFTER masterGlue() so the
+ * measured level is the shipped level. Exact K-weighting is not needed for a
+ * narration+bed mix; this lands within ~1 LU and preserves dynamics far
+ * better than letting YouTube's normaliser decide.
  */
 export function normalizeLufs(
   L: Float32Array,
@@ -606,6 +607,10 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
   const ctl = new Float32Array(Math.ceil(totalFrames / grid) + 2);
   const base = Math.max(0.02, bgmVolume * 0.5);
   const ducked = base * 0.3;
+  // v4 (audit P0-5): the bed LIFTS between sentences (gap level ≈ 1.6× base,
+  // capped) so the score audibly returns in pauses instead of idling at the
+  // duck floor — “the bed lives between sentences”, per the audit’s mix note.
+  const gap = Math.min(1, base * 1.6);
   // mark target duck windows
   const merged: { s: number; e: number }[] = [];
   for (const iv of tl.voIntervals) {
@@ -623,7 +628,7 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
     const releaseStep = grid / (0.2 * SR_OUT);
     for (let c = 0; c < ctl.length; c++) {
       const t = (c * grid) / SR_OUT;
-      let target = base;
+      let target = gap;
       while (mi < merged.length && t >= merged[mi].e) mi++;
       if (mi < merged.length && t >= merged[mi].s - 0.09) target = ducked;
       if (target < cur) cur = Math.max(target, cur - attackStep);
@@ -698,16 +703,35 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
     addDing(L, R, d / 1000, bgmVolume);
   }
 
-  // ── 5. v3 master: loudness → -14 LUFS, then bus glue (P0-5 + PATCH 7) ──
-  // Meeting YouTube's normalisation point in the mix means our dynamics,
-  // not the platform's limiter, decide the sound.
-  const applied = normalizeLufs(L, R, SR_OUT, -14);
+  // ── 5. v4 master (audit P0-5): bus glue FIRST, then normalise to the
+  // delivery target. The v3 order (normalise → glue) let the glue's makeup
+  // gain re-change the level after normalisation, so the mix shipped ≈2 LU
+  // off target — the platform, not the mix, decided the loudness. Glue first,
+  // then measure exactly what ships. A true-peak guard after the gain keeps
+  // normalisation from ever pushing samples past digital full scale.
+  onProgress?.(0.92, 'mastering');
+  masterGlue(L, R);
+  const applied = normalizeLufs(L, R, SR_OUT, -14.0);
   onProgress?.(
     0.915,
     `loudness: ${applied >= 0 ? '+' : ''}${applied.toFixed(1)} dB to -14 LUFS`
   );
-  onProgress?.(0.92, 'mastering');
-  masterGlue(L, R);
+  {
+    let peak = 0;
+    for (let i = 0; i < totalFrames; i++) {
+      const a = Math.abs(L[i]);
+      if (a > peak) peak = a;
+      const b = Math.abs(R[i]);
+      if (b > peak) peak = b;
+    }
+    if (peak > 0.985) {
+      const g = 0.985 / peak;
+      for (let i = 0; i < totalFrames; i++) {
+        L[i] *= g;
+        R[i] *= g;
+      }
+    }
+  }
 
   onProgress?.(1, 'mix complete');
   return mix;

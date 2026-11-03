@@ -9,7 +9,7 @@ import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp } fr
 import { Stickman, POSES, blendPose, walkIn, nodPulse } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
 import { SceneCtx } from './scene-context';
-import { sourceTag } from './charts';
+import { sourceTag, wrapText } from './charts';
 
 const HOST_X = (W: number, side: 'center' | 'left' | 'right'): number =>
   side === 'left' ? W * 0.27 : side === 'right' ? W * 0.73 : W * 0.5;
@@ -346,11 +346,14 @@ export function splitNumbersScene(g: SceneCtx): void {
       { big: '+20%', label: 'Nasdaq · past year', tone: 'up' },
       { big: 'RECORD', label: 'corporate profit margins', tone: 'gold' },
     ];
-    drawNumberPanel(g, lx, py, panelW, panelH, 'THE MARKET', marketStats, t, 0);
+    // v4 (audit P1-5): break the mirror — the market panel rides 44px
+    // higher than the mood panel so the divergence is felt in the layout
+    // itself, not just in the numbers.
+    drawNumberPanel(g, lx, py - 22, panelW, panelH, 'THE MARKET', marketStats, t, 0);
   }
   if (mode === 'right' || mode === 'vs' || mode === 'vs-punch') {
     const delay = mode === 'vs' || mode === 'vs-punch' ? 300 : 0;
-    drawNumberPanel(g, rx, py, panelW, panelH, 'THE MOOD', [
+    drawNumberPanel(g, rx, py + 22, panelW, panelH, 'THE MOOD', [
       { big: '16%', label: 'called the economy “good” or “excellent”', tone: 'down' },
       { big: '1 in 4', label: 'average recession odds · 72 economists (WSJ)', tone: 'down' },
     ], t, delay);
@@ -442,23 +445,41 @@ function drawNumberPanel(
   ctx.fillStyle = PALETTE.inkFaint;
   ctx.textAlign = 'left';
   ctx.fillText(kicker, x + 44, y + 66);
-  // accent bar
+  // accent rail — v4 (audit P1-5): full-width tone rail instead of a 72px
+  // sliver, so THE MARKET reads unmistakably teal and THE MOOD coral before
+  // a single numeral is read (the vision panel called the sliver “a glitch”)
   ctx.fillStyle = kicker === 'THE MARKET' ? PALETTE.up : PALETTE.down;
-  roundRect(ctx, x + 44, y + 84, 72, 8, 4);
+  roundRect(ctx, x + 44, y + 84, w - 88, 8, 4);
   ctx.fill();
+  // v4 (audit P0-2): row rhythm widens only when a label actually wraps
+  const rowGap = stats.some((st) => wrapText(ctx, st.label, w - 88, 25, 600).length > 1) ? 138 : 118;
   stats.forEach((st, i) => {
     const sa = clamp01((t - delay - 350 - i * 480) / 600);
     if (sa <= 0) return;
-    const sy = y + 160 + i * 118;
+    const sy = y + 160 + i * rowGap;
     ctx.globalAlpha = ap * sa;
     const tone = TONE(st.tone);
     setFont(ctx, 74, 700);
     ctx.fillStyle = tone.main;
     ctx.fillText(st.big, x + 44, sy + 62);
+    // v4 (audit P0-2): wrap, never truncate. The v3 line hard-cut labels at
+    // 33 characters with an ellipsis even when they FIT the panel — the
+    // cold open shipped “called the economy “good” or “excell…””. Two wrap
+    // lines max; if the wrapped stack would overrun the panel body the
+    // label auto-shrinks onto one line instead (never truncates).
     setFont(ctx, 25, 600);
+    let lines = wrapText(ctx, st.label, w - 88, 25, 600).slice(0, 2);
+    const stackedBottom = 160 + (stats.length - 1) * rowGap + 132;
+    if (lines.length > 1 && stackedBottom > h - 18) {
+      let size = 25;
+      while (ctx.measureText(st.label).width > w - 88 && size > 19) {
+        size -= 1;
+        setFont(ctx, size, 600);
+      }
+      lines = [st.label];
+    }
     ctx.fillStyle = PALETTE.inkSoft;
-    const label = st.label.length > 34 ? st.label.slice(0, 33) + '…' : st.label;
-    ctx.fillText(label, x + 44, sy + 100);
+    lines.forEach((ln, j) => ctx.fillText(ln, x + 44, sy + 100 + j * 32));
   });
   ctx.restore();
 }
@@ -524,9 +545,11 @@ export function divergeKScene(g: SceneCtx): void {
     }
   }
 
-  // labels on the arms
+  // labels on the arms — v4 (audit P0-6): hidden in `opening` mode so the
+  // cold open teases the shape and the naming beat (c1-k) lands the reveal
+  const opening = s.opening === true;
   const lblA = clamp01((t - 3000) / 700);
-  if (lblA > 0) {
+  if (lblA > 0 && !opening) {
     ctx.save();
     ctx.globalAlpha = lblA;
     setFont(ctx, 30, 700);
@@ -541,9 +564,10 @@ export function divergeKScene(g: SceneCtx): void {
     ctx.restore();
   }
 
-  // twist chip
+  // twist chip — v4 (audit P0-6): held from the first scene; in the opening
+  // beat it arrives at ~2.8s (mid cold-open), otherwise at 4.2s as before
   if (s.twistChip) {
-    const ap = clamp01((t - 4200) / 800);
+    const ap = clamp01((t - (opening ? 2800 : 4200)) / 800);
     if (ap > 0) {
       ctx.save();
       ctx.globalAlpha = ap;

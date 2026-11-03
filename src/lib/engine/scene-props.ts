@@ -23,7 +23,8 @@ export const SCENE_PROPS: Record<string, string[]> = {
          'kicker', 'ribbon', 'chip', 'lookRight', 'lookLeft'],
   channelIntro: [],
   splitNumbers: ['mode', 'cornerNote', 'stats'],
-  divergeK: ['twistChip'],
+  divergeK: ['twistChip', 'opening'], // v4 (audit P0-6): opening mode hides the
+  // arm labels + K-name so the cold open teases and the naming beat reveals
   chartTwin: ['charts', 'extraBadge', 'source'],
   chartJourney: ['title', 'source', 'yFormat', 'points', 'series', 'phase',
                  'annotations', 'band', 'peakBand', 'extraStats', 'chips',

@@ -149,6 +149,17 @@ export function drawChapterCard(
   // light backdrop wipe
   ctx.fillStyle = rgba('#FDFCF8', 0.97);
   ctx.fillRect(0, 0, W, H);
+  // v4 (audit P1-5): ghost chapter number behind the title — the vision
+  // panel called the bare card “a legal disclaimer slide”; a 10%-gold serif
+  // numeral gives the card scale and brand without stealing legibility
+  ctx.save();
+  ctx.globalAlpha = a * 0.1 * easeOutCubic(clamp01(t / 700));
+  setFont(ctx, 400, 700, 'Georgia, "Times New Roman", serif');
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = PALETTE.gold;
+  ctx.fillText(String(index).padStart(2, '0'), W / 2, H / 2 + 150);
+  ctx.restore();
   // gold rule grows
   const cw = 120 + 480 * easeOutCubic(p);
   ctx.strokeStyle = PALETTE.gold;
@@ -157,27 +168,40 @@ export function drawChapterCard(
   ctx.moveTo(W / 2 - cw / 2, H / 2 - 120);
   ctx.lineTo(W / 2 + cw / 2, H / 2 - 120);
   ctx.stroke();
-  // chapter number
+  // chapter number — goldInk (v4, audit P0-4): 30px small text needs the
+  // AA-safe gold, not the display gold
   setFont(ctx, 30, 600);
-  ctx.fillStyle = PALETTE.goldDeep;
+  ctx.fillStyle = PALETTE.goldInk;
   ctx.textAlign = 'center';
   ctx.fillText(`CHAPTER ${String(index).padStart(2, '0')}`, W / 2, H / 2 - 66);
-  // title
-  setFont(ctx, 62, 700);
+  // title — v4 (audit §4.3): serif like every scene headline; one family
+  // policy for scene titles kills the “brand switches voice” note
+  setFont(ctx, 62, 700, 'Georgia, "Times New Roman", serif');
   ctx.fillStyle = PALETTE.ink;
   const size = fitShrink(ctx, title, W - 400, 62);
   void size;
   ctx.fillText(title, W / 2, H / 2 + 22);
-  // progress dots
+  // progress dots — v4 (audit P1-5): the active chapter dot is enlarged
+  // and ringed so the row reads as navigation, not decoration
   const total = Math.max(2, totalChapters);
   const dotR = 7;
   const gap = 26;
   const startX = W / 2 - ((total - 1) * gap) / 2;
   for (let i = 0; i < total; i++) {
     const filled = i / (total - 1) <= progress;
+    const active = i === index - 1;
+    const x = startX + i * gap;
+    const y = H / 2 + 96;
+    if (active) {
+      ctx.beginPath();
+      ctx.arc(x, y, dotR + 6, 0, Math.PI * 2);
+      ctx.strokeStyle = rgba(PALETTE.gold, 0.55);
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    }
     ctx.beginPath();
-    ctx.arc(startX + i * gap, H / 2 + 96, filled ? dotR : dotR * 0.62, 0, Math.PI * 2);
-    ctx.fillStyle = filled ? PALETTE.gold : rgba('#B9B4A6', 0.5);
+    ctx.arc(x, y, active ? dotR + 3 : filled ? dotR : dotR * 0.62, 0, Math.PI * 2);
+    ctx.fillStyle = filled ? (active ? PALETTE.goldDeep : PALETTE.gold) : rgba('#B9B4A6', 0.5);
     ctx.fill();
   }
   ctx.restore();

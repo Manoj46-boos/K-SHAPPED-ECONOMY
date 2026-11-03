@@ -21,6 +21,10 @@ import { Timeline } from './timeline';
 import { paintBg, PALETTE, rgba, roundRect, setFont } from './theme';
 import { renderVideo } from './encode';
 import { getSharedAudioContext } from './audio';
+import { clamp01 } from './easing';
+import { bokehField, drawK3D, lightRays, sparkles } from './effects';
+import { Stickman } from './stickman';
+import { drawStickmanV2, talkAt } from './stickman-v2';
 
 export interface ShortSpec {
   /** timeline ms where the short starts */
@@ -31,6 +35,11 @@ export interface ShortSpec {
   title: string;
   /** which 1080-wide slice of the 1920 design grid to crop: 0..0.44 (0.22 ≈ center) */
   cropX: number;
+  /** v4 (audit P0-3 + P2-2): compose this moment NATIVELY in 9:16 instead of
+   * cropping the 16:9 frame. 'k' = the diverge-K moment (host + labelled K
+   * cannot fit any 1080 window); 'text' = hard-cut statement beats (the
+   * 108px serif lines run ~1200px wide — no crop window can hold them). */
+  native?: 'k' | 'text';
 }
 
 /** The six strongest vertical moments in the current script. */
@@ -41,15 +50,236 @@ export function pickShortMoments(tl: Timeline): ShortSpec[] {
     if (!b) return null;
     return { startMs: b.startMs + lead, durMs: 50_000, title, cropX };
   };
+  // v4 (audit P0-3): the flagship moment composes natively — no crop
+  const kMoment = mk('divergeK', 'The K-shaped economy, in one shape');
+  const txtMoment = mk('bigText', 'SEVEN stocks drive the market');
   const list = [
-    mk('divergeK', 'The K-shaped economy, in one shape', 0.2),
-    mk('bigText', 'SEVEN stocks drive the market', 0.2),
-    mk('statCards', 'The debt numbers, plainly', 0.1),
+    kMoment ? { ...kMoment, native: 'k' as const } : null,
+    txtMoment ? { ...txtMoment, native: 'text' as const } : null,
+    // v4: statCards 0.1 → 0.045 — the old window started at x≈192, 82px INTO
+    // the first card's text block; 0.045 shows cards 1–2 with card 1 fully
+    // intact (text block ends x≈603)
+    mk('statCards', 'The numbers, plainly', 0.045),
     mk('paradoxResolve', 'The “paradox” isn’t a paradox', 0.2),
-    mk('oddsSpread', 'Nobody agrees on the recession odds', 0.15),
+    // v4: oddsSpread replaced by recessionGauge — the odds track spans
+    // x≈220–1580 with a ~1190px centered closer line; no 1034px window can
+    // hold it without mid-word truncation. The fixed gauge (x≈1181–1661,
+    // source tag to x≈1810) fits whole inside a 0.42 window.
+    mk('recessionGauge', 'Nobody agrees on the recession odds', 0.42),
     mk('gasPump', 'Same gas price. Different worlds.', 0.15),
   ];
   return list.filter((x): x is ShortSpec => x !== null);
+}
+
+/** The beat active at an absolute timeline time. */
+function beatAt(tl: Timeline, tMs: number) {
+  for (const b of tl.beats) {
+    if (tMs >= b.startMs && tMs < b.endMs) return b;
+  }
+  return tl.beats.length ? tl.beats[tl.beats.length - 1] : undefined;
+}
+
+/** Scene type active at an absolute timeline time. */
+function beatSceneTypeAt(tl: Timeline, tMs: number): string | undefined {
+  return beatAt(tl, tMs)?.beat.scene.type;
+}
+
+/**
+ * v4 (audit P0-3 + P2-2) — hard-cut statement beats, composed NATIVELY for
+ * 9:16. The 16:9 scene sets these lines at 108px serif — ~1200px wide, wider
+ * than any 1080 crop window, so the cropped Short truncated mid-word
+ * (“OF FIVE HUNDRE…”). Here the lines auto-fit the vertical canvas with
+ * the same Georgia/gold language, the underline sweep, sparkles and the
+ * count-on-fingers host fully in frame.
+ */
+function drawNativeVerticalText(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  tl: Timeline,
+  tMs: number
+): void {
+  bokehField(ctx, W, H, tMs, { intensity: 0.85, seed: 221, gold: 0.45 });
+  lightRays(ctx, W, H, tMs, { alpha: 0.4 });
+
+  const beat = beatAt(tl, tMs);
+  const lines = ((beat?.beat.scene as any)?.lines as string[]) || [];
+  const t = beat ? Math.max(0, tMs - beat.startMs) : tMs % 4000;
+  const SERIF = 'Georgia, "Times New Roman", serif';
+
+  // auto-fit: the widest line must clear the 72px safe margins
+  const maxTextW = W - 72 * 2;
+  let size = 92;
+  setFont(ctx, size, 700, SERIF);
+  let widest = Math.max(1, ...lines.map((ln) => ctx.measureText(ln).width));
+  if (widest > maxTextW) size = Math.max(46, Math.floor((size * maxTextW) / widest));
+
+  const bandCy = 920;
+  const step = size * 1.22;
+  lines.forEach((ln, i) => {
+    const ap = clamp01((t - 160 - i * 620) / 700);
+    if (ap <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = ap;
+    ctx.textAlign = 'center';
+    const scale = 0.94 + 0.06 * (ap >= 1 ? 1 : ap);
+    ctx.translate(W / 2, bandCy + (i - (lines.length - 1) / 2) * step + step / 2);
+    ctx.scale(scale, scale);
+    setFont(ctx, size, 700, SERIF);
+    ctx.fillStyle = i === 1 ? PALETTE.goldDeep : PALETTE.ink;
+    ctx.fillText(ln, 0, 0);
+    ctx.restore();
+  });
+
+  // gold underline sweep under the statement block
+  const up2 = clamp01((t - 1500) / 700);
+  if (up2 > 0) {
+    ctx.save();
+    ctx.globalAlpha = up2;
+    ctx.strokeStyle = PALETTE.gold;
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'round';
+    const w = 380 * up2;
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - w / 2, bandCy + ((lines.length - 1) / 2) * step + step);
+    ctx.lineTo(W / 2 + w / 2, bandCy + ((lines.length - 1) / 2) * step + step);
+    ctx.stroke();
+    ctx.restore();
+  }
+  if (t > 1800) sparkles(ctx, W / 2, bandCy, tMs, t - 1800, { count: 10, radius: 240 });
+
+  // host counting on fingers, fully in frame at bottom-left
+  const hp = clamp01((t - 2200) / 600);
+  if (hp > 0) {
+    const pose = Stickman.poseAt(tMs, { gesture: 'count2', speaking: false });
+    drawStickmanV2(ctx, 165, 1420, 0.92, tMs, { pose, alpha: hp, look: -0.6 }, 31);
+  }
+  void H;
+}
+
+/**
+ * v4 (audit P0-3 + P2-2) — the diverge-K moment, composed NATIVELY for
+ * 9:16 instead of cropped. Reuses the 16:9 scene's exact visual language
+ * (growing teal/coral arms → 9-layer 3D K → arm labels → host) re-centred
+ * for the phone: K at the band's optical centre, labels right-aligned hard
+ * against a 72px safe margin, host fully in frame at bottom-left, nothing
+ * amputated at any edge.
+ */
+function drawNativeVerticalK(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  tl: Timeline,
+  tMs: number
+): void {
+  // atmosphere — same family as the 16:9 scene
+  bokehField(ctx, W, H, tMs, { intensity: 1, seed: 21, gold: 0.6 });
+  lightRays(ctx, W, H, tMs, { alpha: 0.5 });
+
+  const kx = W * 0.5;
+  const ky = 920; // optical centre of the 410–1490 band
+  const S = 235;
+
+  // beat-local time drives the same draw-on choreography as the 16:9 scene
+  const beat = tl.beats.find((b) => tMs >= b.startMs && tMs < b.endMs);
+  const t = beat ? Math.max(0, tMs - beat.startMs) : tMs % 4000;
+
+  const growP = clamp01((t - 400) / 2300);
+  const upP = clamp01((t - 400) / 1900);
+  const dnP = clamp01((t - 1100) / 1900);
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  if (upP > 0) {
+    ctx.strokeStyle = PALETTE.up;
+    ctx.lineWidth = 13;
+    ctx.beginPath();
+    ctx.moveTo(kx, ky + S * 0.1);
+    ctx.lineTo(kx + S * 1.15 * upP, ky - S * 1.05 * upP);
+    ctx.stroke();
+    const g = ctx.createRadialGradient(kx + S * 1.15 * upP, ky - S * 1.05 * upP, 0,
+      kx + S * 1.15 * upP, ky - S * 1.05 * upP, 42);
+    g.addColorStop(0, rgba(PALETTE.up, 0.4));
+    g.addColorStop(0.6, rgba(PALETTE.up, 0.14));
+    g.addColorStop(1, rgba(PALETTE.up, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(kx + S * 1.15 * upP, ky - S * 1.05 * upP, 42, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  if (dnP > 0) {
+    ctx.strokeStyle = PALETTE.down;
+    ctx.lineWidth = 13;
+    ctx.beginPath();
+    ctx.moveTo(kx, ky + S * 0.1);
+    ctx.lineTo(kx + S * 1.15 * dnP, ky + S * 1.05 * dnP);
+    ctx.stroke();
+    const g = ctx.createRadialGradient(kx + S * 1.15 * dnP, ky + S * 1.05 * dnP, 0,
+      kx + S * 1.15 * dnP, ky + S * 1.05 * dnP, 42);
+    g.addColorStop(0, rgba(PALETTE.down, 0.4));
+    g.addColorStop(0.6, rgba(PALETTE.down, 0.14));
+    g.addColorStop(1, rgba(PALETTE.down, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(kx + S * 1.15 * dnP, ky + S * 1.05 * dnP, 42, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // the full K fades in as the arms complete (the arms ARE the K)
+  if (growP > 0.55) {
+    const kA = clamp01((growP - 0.55) / 0.45);
+    ctx.save();
+    ctx.globalAlpha = kA;
+    drawK3D(ctx, kx, ky, S, 1, tMs);
+    ctx.restore();
+    const dotA = clamp01((t - 2600) / 600);
+    if (dotA > 0) {
+      ctx.save();
+      ctx.globalAlpha = dotA;
+      ctx.fillStyle = PALETTE.up;
+      ctx.beginPath();
+      ctx.arc(kx + S * 0.9, ky - S * 0.82, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = PALETTE.down;
+      ctx.beginPath();
+      ctx.arc(kx + S * 0.9, ky + S * 0.82, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // arm labels — right-aligned hard against the safe margin so they can
+  // never clip (the crop path cut “THE MARKET” at the window edge)
+  const lblA = clamp01((t - 3000) / 700);
+  if (lblA > 0) {
+    ctx.save();
+    ctx.globalAlpha = lblA;
+    setFont(ctx, 30, 700);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = PALETTE.up;
+    ctx.fillText('THE MARKET', W - 72, ky - S * 1.05 + 10);
+    ctx.fillStyle = PALETTE.down;
+    ctx.fillText('THE MOOD', W - 72, ky + S * 1.25);
+    setFont(ctx, 40, 700, 'Georgia, "Times New Roman", serif');
+    ctx.textAlign = 'center';
+    ctx.fillStyle = PALETTE.ink;
+    ctx.fillText('the K-shaped economy', kx, ky + S * 1.75);
+    ctx.restore();
+  }
+
+  // host, fully in frame, bottom-left of the band — presenting the K
+  const speaking = tl.voIntervals.some(
+    (v) => tMs >= v.start - 150 && tMs <= v.end + 250
+  );
+  const pose = Stickman.poseAt(tMs, { gesture: 'present', speaking });
+  let talk = 0;
+  const line = tl.captionLines.find((l) => tMs >= l.start - 120 && tMs <= l.end + 260);
+  if (line && speaking) {
+    talk = talkAt(tMs - line.start, line.words.map((w) => w.t - line.start));
+  }
+  drawStickmanV2(ctx, 165, 1420, 0.95, tMs, { pose, alpha: clamp01(t / 400), look: 0.85, talk }, 5);
+  void H;
 }
 
 /**
@@ -69,26 +299,61 @@ export function drawShortFrame(
   // 1) full-bleed ivory backdrop on the vertical canvas
   paintBg(ctx, W, H, tMs);
 
-  // 2) scene frame with captions/watermark/progress suppressed — the crop
-  //    is the scene's own composition, and we re-caption vertically below
-  const octx = offscreen.getContext('2d')!;
-  drawFrame(octx, tl, tMs, {
-    ...opts,
-    captions: 'off',
-    progressBar: false,
-    watermark: false,
-  });
+  // 2) the hero band — native composition when this moment asks for it and
+  //    the timeline is actually in that scene, otherwise the safe inset crop
+  const activeType = beatSceneTypeAt(tl, tMs);
+  if (spec.native === 'k' && activeType === 'divergeK') {
+    drawNativeVerticalK(ctx, W, H, tl, tMs);
+  } else if (spec.native === 'text' && activeType === 'bigText') {
+    drawNativeVerticalText(ctx, W, H, tl, tMs);
+  } else {
+    // scene frame with captions/watermark/progress suppressed — the crop
+    // is the scene's own composition, and we re-caption vertically below
+    const octx = offscreen.getContext('2d')!;
+    drawFrame(octx, tl, tMs, {
+      ...opts,
+      captions: 'off',
+      progressBar: false,
+      watermark: false,
+    });
 
-  // 3) crop the 1080×1080 window and place it in the middle band
-  const sx = Math.round(Math.min(0.44, Math.max(0, spec.cropX)) * 1920);
-  ctx.drawImage(offscreen, sx, 0, 1080, 1080, 0, 410, 1080, 1080);
+    // v4 (audit P0-3): the crop window is inset 46px so nothing important
+    // rides the phone's screen edge — content that merely touches the old
+    // 1080 boundary read as “cut off by the frame”, not composed
+    const inset = 46;
+    const sx = Math.round(Math.min(0.44, Math.max(0, spec.cropX)) * 1920);
+    ctx.drawImage(
+      offscreen,
+      sx + inset * 0.5, 0, 1080 - inset, 1080,
+      inset / 2, 410, 1080 - inset, 1080
+    );
 
-  // 4) soft frame edge so the crop sits IN the phone, not slapped on it
-  const edge = ctx.createLinearGradient(0, 410, 0, 410 + 90);
-  edge.addColorStop(0, rgba('#FDFCF8', 0.55));
-  edge.addColorStop(1, rgba('#FDFCF8', 0));
-  ctx.fillStyle = edge;
-  ctx.fillRect(0, 410, W, 90);
+    // soft frame edge so the crop sits IN the phone, not slapped on it
+    const edge = ctx.createLinearGradient(0, 410, 0, 410 + 90);
+    edge.addColorStop(0, rgba('#FDFCF8', 0.55));
+    edge.addColorStop(1, rgba('#FDFCF8', 0));
+    ctx.fillStyle = edge;
+    ctx.fillRect(0, 410, W, 90);
+
+    // v4: soft SIDE edges too — some 16:9 scenes are wider than any 1034px
+    // window (a scene title, a full-width track), so the window can cross
+    // content. A 70px ivory taper on both sides makes any residual boundary
+    // crossing read as intentional windowing/vignette, never a hard slice.
+    // Peak 0.42 (not 0.55): enough to soften, light enough that the leftmost
+    // tick label stays readable (panel note — protect edge labels from the
+    // heaviest part of the fade).
+    const fade = 70;
+    const egL = ctx.createLinearGradient(inset / 2, 0, inset / 2 + fade, 0);
+    egL.addColorStop(0, rgba('#FDFCF8', 0.42));
+    egL.addColorStop(1, rgba('#FDFCF8', 0));
+    ctx.fillStyle = egL;
+    ctx.fillRect(inset / 2, 410, fade, 1080);
+    const egR = ctx.createLinearGradient(W - inset / 2 - fade, 0, W - inset / 2, 0);
+    egR.addColorStop(0, rgba('#FDFCF8', 0));
+    egR.addColorStop(1, rgba('#FDFCF8', 0.42));
+    ctx.fillStyle = egR;
+    ctx.fillRect(W - inset / 2 - fade, 410, fade, 1080);
+  }
 
   // 5) top title band — 2 lines max, mobile-first, clear of the top UI
   ctx.save();
@@ -116,10 +381,11 @@ export function drawShortFrame(
   ctx.restore();
 
   // 6) vertical captions — the existing system already scales by W/H; the
-  //    raised baseY keeps the pill clear of the Shorts overlay zone
+  //    raised baseY (v4, audit P0-3: 1656 → 1560) keeps the pill clear of
+  //    the Shorts action bar AND the thumb zone
   drawCaptions(ctx, W, H, tMs, tl.captionLines, {
     mode: opts.captions,
-    baseY: 1656,
+    baseY: 1560,
   });
 
   // 7) channel mark bottom
