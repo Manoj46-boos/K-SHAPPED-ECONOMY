@@ -10,19 +10,31 @@
  * soft bass + shaker + heartbeat, chord progressions per chapter mood,
  * a signature "K motif" chime on every chapter card, auto-ducking under
  * the voiceover, and a gentle final fade.
+ *
+ * v6 (audit P2-1): the underscore is now SCORE-AS-DATA (score.ts — single
+ * source of truth) and the bed renders through real instruments when the
+ * offline soundfont render has been run: public/beds/sf2-<mood>-<v>.wav
+ * (GeneralUser GS via sf2.ts, level-matched to the DSP bed it replaces).
+ * Missing beds fall back to this file's DSP voices — same notes, either
+ * way. The hand-drawn K-motif chimes, risers, whooshes and dings stay DSP
+ * on top of the bed, per the audit: "keep your own K-motif chimes and
+ * whooshes."
  */
 
 import { Timeline } from './timeline';
-import { hash01 } from './easing';
+import { hash01, seededRandom } from './easing';
+import {
+  Mood, CHAPTER_MOODS, scaledScore,
+  SR_BGM, BPM, LOOP_DUR, LOOP_LEN,
+} from './score';
+import { loadBedLoops, BedLoop } from './beds';
+
+export { SR_BGM, BPM, LOOP_DUR, hash01 };
+
+/** The mix volume the offline bed render was level-matched at. */
+export const BED_REF_VOL = 0.55;
 
 const SR_OUT = 48000;
-const SR_BGM = 24000;
-const BPM = 92;
-const BEAT = 60 / BPM;
-const BAR = BEAT * 4;
-const LOOP_BARS = 4;
-const LOOP_DUR = BAR * LOOP_BARS; // ≈ 10.435 s
-const LOOP_LEN = Math.round(LOOP_DUR * SR_BGM);
 
 // ── Sine table (fast, deterministic) ─────────────────────────────────────────
 const SINE_N = 8192;
@@ -38,67 +50,10 @@ function sine(ph: number): number {
   return a + (b - a) * f;
 }
 
-function seededRandom(seed: number): () => number {
-  let s = (seed * 2654435761) >>> 0 || 42;
-  return () => {
-    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
-    return s / 4294967296;
-  };
-}
+// ── Note vocabulary (v6: midi-number driven — see score.ts) ──────────────
 
-// ── Note vocabulary ──────────────────────────────────────────────────────────
-const NOTE_FREQS: Record<string, number> = {
-  C: 261.63, 'C#': 277.18, D: 293.66, 'D#': 311.13, E: 329.63, F: 349.23,
-  'F#': 369.99, G: 392.0, 'G#': 415.3, A: 440.0, 'A#': 466.16, B: 493.88,
-};
-
-function freqOf(note: string): number {
-  const m = note.match(/^([A-G]#?)(\d)$/);
-  if (!m) return 440;
-  return (NOTE_FREQS[m[1]] / 261.63) * 261.63 * Math.pow(2, Number(m[2]) - 4);
-}
-
-const CHORDS: Record<string, { root: string; notes: string[] }> = {
-  C: { root: 'C3', notes: ['C3', 'G3', 'E4', 'B4'] },
-  Cmaj9: { root: 'C2', notes: ['C3', 'G3', 'E4', 'D5'] },
-  GonB: { root: 'B2', notes: ['B2', 'D3', 'G3', 'B4'] },
-  Am7: { root: 'A2', notes: ['A2', 'E3', 'G3', 'C4'] },
-  F: { root: 'F2', notes: ['F2', 'C3', 'A3', 'E4'] },
-  Fmaj9: { root: 'F2', notes: ['F2', 'C3', 'A3', 'G4'] },
-  G6: { root: 'G2', notes: ['G2', 'D3', 'B3', 'E4'] },
-  Dm7: { root: 'D2', notes: ['D3', 'A3', 'C4', 'F4'] },
-  G7: { root: 'G2', notes: ['G2', 'F3', 'B3', 'D4'] },
-};
-
-type Mood = 'sparse' | 'bright' | 'reflective' | 'curious' | 'lift' | 'resolve';
-
-const PROGRESSIONS: Record<Mood, string[]> = {
-  sparse: ['Cmaj9', 'G6', 'Am7', 'Fmaj9'],
-  bright: ['C', 'GonB', 'Am7', 'F'],
-  reflective: ['Am7', 'Fmaj9', 'Cmaj9', 'G6'],
-  curious: ['Dm7', 'G7', 'Cmaj9', 'Cmaj9'],
-  lift: ['F', 'G6', 'Am7', 'C'],
-  resolve: ['F', 'G6', 'Cmaj9', 'Cmaj9'],
-};
-
-// v2 (PATCH 8): remapped for the 9-chapter edit (the standalone channel-intro
-// chapter was cut — its promise now lives in one 8-second sentence at ~0:12).
-// Order: ch1 sparse, ch3 bright, ch4 reflective, ch5 curious, ch6 lift,
-// ch7 reflective, ch8 curious, ch9 lift, ch10 resolve.
-const CHAPTER_MOODS: Mood[] = [
-  'sparse', 'bright', 'reflective', 'curious', 'lift', 'reflective', 'curious', 'lift', 'resolve',
-];
-
-function levelFor(mood: Mood, vol: number): number {
-  const base = 0.5 * vol;
-  switch (mood) {
-    case 'sparse': return base * 0.6;
-    case 'reflective': return base * 0.85;
-    case 'curious': return base * 0.9;
-    case 'bright': return base;
-    case 'lift': return base * 1.1;
-    case 'resolve': return base * 0.95;
-  }
+function freqFromMidi(midi: number): number {
+  return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
 // ── Voice renderers (write into 24k stereo loop buffers) ─────────────────────
@@ -107,8 +62,8 @@ interface Loop {
   R: Float32Array;
 }
 
-function renderPad(loop: Loop, note: string, startSec: number, durSec: number, vel: number): void {
-  const f = freqOf(note);
+function renderPad(loop: Loop, midi: number, startSec: number, durSec: number, vel: number): void {
+  const f = freqFromMidi(midi);
   const n0 = Math.round(startSec * SR_BGM);
   const n1 = Math.min(LOOP_LEN, n0 + Math.round(durSec * SR_BGM));
   const attack = Math.min(0.5, durSec * 0.3);
@@ -130,8 +85,8 @@ function renderPad(loop: Loop, note: string, startSec: number, durSec: number, v
   }
 }
 
-function renderPiano(loop: Loop, note: string, startSec: number, vel: number, pan: number): void {
-  const f = freqOf(note);
+function renderPiano(loop: Loop, midi: number, startSec: number, vel: number, pan: number): void {
+  const f = freqFromMidi(midi);
   const durSec = 2.1;
   const n0 = Math.round(startSec * SR_BGM);
   const n1 = Math.min(LOOP_LEN, n0 + Math.round(durSec * SR_BGM));
@@ -152,8 +107,8 @@ function renderPiano(loop: Loop, note: string, startSec: number, vel: number, pa
   }
 }
 
-function renderBass(loop: Loop, note: string, startSec: number, durSec: number, vel: number): void {
-  const f = freqOf(note);
+function renderBass(loop: Loop, midi: number, startSec: number, durSec: number, vel: number): void {
+  const f = freqFromMidi(midi);
   const n0 = Math.round(startSec * SR_BGM);
   const n1 = Math.min(LOOP_LEN, n0 + Math.round(durSec * SR_BGM));
   const incr = f / SR_BGM;
@@ -207,52 +162,37 @@ function renderKick(loop: Loop, startSec: number, vel: number): void {
   }
 }
 
-/** Renders one 4-bar loop of a mood (deterministic per variant). */
-function renderMoodLoop(mood: Mood, variant: number, vol: number): Loop {
+/**
+ * v6 (audit P2-1) — the DSP fallback bed: renders the score's notes with
+ * the same table-based voices the v5 bed used. Identical music (the score
+ * module preserves the v5 rng call order for note choice); the shaker's
+ * noise realization is now per-hit seeded, which is inaudible — the bed
+ * that SHIPS is the soundfont render in public/beds/ anyway.
+ *
+ * Exported for scripts/render-bed.mjs, which level-matches the soundfont
+ * render against this loop's RMS — timbre upgrade, zero mix regression.
+ */
+export function renderMoodLoopDsp(mood: Mood, variant: number, vol: number): Loop {
   const loop: Loop = { L: new Float32Array(LOOP_LEN), R: new Float32Array(LOOP_LEN) };
-  const rng = seededRandom(variant * 977 + mood.length * 131 + 17);
-  const lv = levelFor(mood, vol);
-  const prog = PROGRESSIONS[mood];
-  const eighth = BEAT * 0.5;
-
-  for (let bar = 0; bar < LOOP_BARS; bar++) {
-    const barT = bar * BAR;
-    const chordName = prog[bar % 4];
-    const chord = CHORDS[chordName];
-    // pad — full bar
-    chord.notes.forEach((n) => renderPad(loop, n, barT, BAR * 1.02, lv * 0.34));
-    // bass
-    renderBass(loop, chord.root, barT, BAR * 0.92, lv * 0.42);
-    // heartbeat + shaker for brighter moods
-    if (mood === 'bright' || mood === 'lift') {
-      renderKick(loop, barT, lv * 0.4);
-      renderKick(loop, barT + BEAT * 2, lv * 0.32);
-      for (let e = 0; e < 8; e++) {
-        const accent = e % 2 === 0 ? 0.9 : 0.5;
-        renderShaker(loop, barT + e * eighth, lv * 0.34 * accent, rng);
-      }
-    } else if (mood === 'curious') {
-      renderShaker(loop, barT + BEAT * 2, lv * 0.26, rng);
-    }
-    // felt-piano arpeggio
-    const arpNotes = [...chord.notes.slice(1), chord.notes[1]];
-    const density = mood === 'sparse' ? 0.4 : mood === 'reflective' ? 0.62 : 0.85;
-    for (let step = 0; step < 8; step++) {
-      if (rng() < density) {
-        const ni = (step + bar + variant) % arpNotes.length;
-        let note = arpNotes[ni];
-        if (rng() < 0.15) {
-          note = note.replace(/(\d)$/, (d) => String(Number(d) + 1));
-        }
-        const swing = (rng() - 0.5) * 0.03;
-        renderPiano(
-          loop,
-          note,
-          barT + step * eighth + swing,
-          lv * (0.42 + rng() * 0.26),
-          (rng() - 0.5) * 1.2
-        );
-      }
+  const notes = scaledScore(mood, variant, vol);
+  let hit = 0;
+  for (const n of notes) {
+    switch (n.voice) {
+      case 'pad':
+        renderPad(loop, n.midi, n.startSec, n.durSec, n.vel);
+        break;
+      case 'bass':
+        renderBass(loop, n.midi, n.startSec, n.durSec, n.vel);
+        break;
+      case 'piano':
+        renderPiano(loop, n.midi, n.startSec, n.vel, n.pan);
+        break;
+      case 'shaker':
+        renderShaker(loop, n.startSec, n.vel, seededRandom(Math.round(n.startSec * 1000) + variant * 7919 + (hit++) * 131));
+        break;
+      case 'kick':
+        renderKick(loop, n.startSec, n.vel);
+        break;
     }
   }
   return loop;
@@ -260,15 +200,15 @@ function renderMoodLoop(mood: Mood, variant: number, vol: number): Loop {
 
 // ── Transient events (rendered at 48k directly into the mix) ────────────────
 function addKMotif(L: Float32Array, R: Float32Array, startSec: number, gain: number): void {
-  const notes: [string, number, number, number][] = [
-    // [note, offsetSec, vel, pan]
-    ['E4', 0, 0.32, -0.3],
-    ['C5', 0.16, 0.28, 0.3],
-    ['A3', 0.16, 0.2, 0.05],
-    ['E5', 0.36, 0.22, 0.15],
+  // [midi, offsetSec, vel, pan] — v6: midi numbers (E4=64 · C5=72 · A3=57 · E5=76)
+  const notes: [number, number, number, number][] = [
+    [64, 0, 0.32, -0.3],
+    [72, 0.16, 0.28, 0.3],
+    [57, 0.16, 0.2, 0.05],
+    [76, 0.36, 0.22, 0.15],
   ];
-  for (const [note, off, vel, pan] of notes) {
-    const f = freqOf(note);
+  for (const [midi, off, vel, pan] of notes) {
+    const f = freqFromMidi(midi);
     const n0 = Math.round((startSec + off) * SR_OUT);
     const dur = Math.round(1.8 * SR_OUT);
     const incr = f / SR_OUT;
@@ -287,9 +227,9 @@ function addKMotif(L: Float32Array, R: Float32Array, startSec: number, gain: num
       if (ph >= 1) ph -= 1;
     }
   }
-  // soft pad bed under the motif
-  for (const n of ['E3', 'B3']) {
-    const f = freqOf(n);
+  // soft pad bed under the motif (E3=52 · B3=59)
+  for (const midi of [52, 59]) {
+    const f = freqFromMidi(midi);
     const n0 = Math.round(startSec * SR_OUT);
     const dur = Math.round(1.6 * SR_OUT);
     const incr = f / SR_OUT;
@@ -558,12 +498,35 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
   // v3 (panel P0-5): each loop gets a circular Schroeder reverb pass — the
   // score breathes instead of stopping dead. Adds ~15-25s to the mix step
   // only; the render loop is untouched.
+  // v6 (audit P2-1): prefer the offline soundfont render (real GeneralUser
+  // GS instruments, level-matched at BED_REF_VOL); fall back to the DSP
+  // voices per loop when the asset is missing. Either way the notes are
+  // the same — score.ts is the single source of truth.
   onProgress?.(0.05, 'composing the score');
   const moods = [...new Set(CHAPTER_MOODS)];
+  const bedNames: string[] = [];
+  for (const mood of moods) {
+    for (let v = 0; v < 2; v++) bedNames.push(`sf2-${mood}-${v}`);
+  }
+  const beds = await loadBedLoops(bedNames);
+  const bedScale = bgmVolume / BED_REF_VOL; // beds were matched at BED_REF_VOL
   const loops = new Map<string, Loop>();
   for (const mood of moods) {
     for (let v = 0; v < 2; v++) {
-      const lp = renderMoodLoop(mood, v, bgmVolume);
+      const bed: BedLoop | null = beds?.get(`sf2-${mood}-${v}`) ?? null;
+      let lp: Loop;
+      if (bed) {
+        if (Math.abs(bedScale - 1) < 1e-4) {
+          lp = { L: bed.L, R: bed.R };
+        } else {
+          const L = new Float32Array(bed.L.length);
+          const R = new Float32Array(bed.R.length);
+          for (let i = 0; i < L.length; i++) { L[i] = bed.L[i] * bedScale; R[i] = bed.R[i] * bedScale; }
+          lp = { L, R };
+        }
+      } else {
+        lp = renderMoodLoopDsp(mood, v, bgmVolume);
+      }
       reverbLoopCircular(lp, 0.2);
       loops.set(`${mood}:${v}`, lp);
     }
@@ -752,4 +715,4 @@ export function getSharedAudioContext(): AudioContext {
   return w.__mixAudioCtx;
 }
 
-export { LOOP_DUR, hash01 };
+// (LOOP_DUR & friends re-exported at the top — see score.ts)

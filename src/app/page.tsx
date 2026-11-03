@@ -24,7 +24,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   AudioLines, Play, Pause, RotateCcw, Download, Clapperboard, ShieldCheck,
   Sparkles, Gauge, FileVideo, Image as ImageIcon, Copy, CheckCircle2, Loader2,
-  Volume2, MonitorPlay, Wand2,
+  Volume2, MonitorPlay, Wand2, Activity,
 } from 'lucide-react';
 
 import { drawFrame, drawIdleFrame } from '@/lib/engine/director';
@@ -34,6 +34,7 @@ import { buildTimeline } from '@/lib/engine/timeline';
 import { renderMix } from '@/lib/engine/audio';
 import { drawThumbnail } from '@/lib/engine/thumbnail';
 import { pickShortMoments, renderShort } from '@/lib/engine/shorts';
+import { analytics, thumbnailLeader } from '@/lib/engine/analytics';
 import {
   TITLE_OPTIONS, DESCRIPTION_BODY, DESCRIPTION_TAIL, KEY_SOURCES_LINE, TAGS, PINNED_COMMENT,
   NEXT_VIDEO_DEFAULT, VIDEO_TITLE,
@@ -468,6 +469,33 @@ export default function StudioPage() {
     () => (prepared ? pickShortMoments(prepared.timeline) : []),
     [prepared]
   );
+
+  // ── Analytics loop (audit P2-3) ──
+  // retention rides on the timeline's beats once a retention CSV has been
+  // ingested; the thumbnail race comes from Test & Compare ingest
+  const retentionBeats = useMemo(
+    () =>
+      prepared
+        ? prepared.timeline.beats.filter((b) => typeof b.retention?.dropPerMin === 'number')
+        : [],
+    [prepared]
+  );
+  const cliffs = useMemo(
+    () =>
+      retentionBeats
+        .filter((b) => (b.retention?.dropPerMin ?? 0) <= -2.5)
+        .sort((a, b) => (a.retention?.dropPerMin ?? 0) - (b.retention?.dropPerMin ?? 0))
+        .slice(0, 4)
+        .map((b) => ({
+          beat: b,
+          mm: Math.floor(b.startMs / 60000),
+          ss: Math.floor((b.startMs % 60000) / 1000).toString().padStart(2, '0'),
+          drop: b.retention?.dropPerMin ?? 0,
+        })),
+    [retentionBeats]
+  );
+  const thumbRace = useMemo(() => analytics().thumbnails, []);
+  const leader = useMemo(() => thumbnailLeader(), [thumbRace]);
   const doRenderShort = useCallback(async () => {
     if (!prepared || !shortsList.length) return;
     const spec = shortsList[Math.min(shortIdx, shortsList.length - 1)];
@@ -1014,6 +1042,84 @@ export default function StudioPage() {
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
+            </CardContent>
+          </Card>
+
+          {/* analytics loop (audit P2-3) — measured retention + thumbnail race */}
+          <Card className="border-[#E9E4D6] shadow-sm bg-white">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-[15px] flex items-center gap-2 text-[#26262E]">
+                <Activity className="w-4 h-4 text-[#0E8074]" /> Analytics loop
+                <span className="ml-auto text-[11px] font-normal text-[#8A8577]">
+                  {retentionBeats.length
+                    ? `measured on your last upload · ${cliffs.length} cliff${cliffs.length === 1 ? '' : 's'}`
+                    : 'runs after your first upload'}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {retentionBeats.length === 0 ? (
+                <p className="text-[12px] text-[#8A8577] leading-relaxed">
+                  A few days after you publish, export <b>Audience retention</b> (Analytics → Engagement)
+                  and the <b>thumbnail Test &amp; Compare</b> table (Content → ⋮), then run{' '}
+                  <code className="text-[11px] bg-[#F8F5EC] px-1.5 py-0.5 rounded border border-[#E9E4D6]">
+                    node scripts/ingest-analytics.mjs retention.csv thumbs.csv
+                  </code>
+                  . Every beat below gets its measured drop-off, the cliffs get flagged, and the next
+                  script edit starts from evidence instead of vibes.
+                </p>
+              ) : (
+                <>
+                  <div className="space-y-1.5">
+                    {cliffs.map(({ beat, mm, ss, drop }) => (
+                      <div
+                        key={`${beat.chapter}-${beat.beatIndex}`}
+                        className="flex items-center gap-2 text-[12px]"
+                      >
+                        <Badge variant="outline" className="border-[#D96C47]/40 text-[#C2542E] bg-[#F9E3DB] font-mono text-[10px] shrink-0">
+                          {mm}:{ss}
+                        </Badge>
+                        <span className="text-[#55555F] truncate">
+                          {beat.chapterTitle.length > 30 ? beat.chapterTitle.slice(0, 29) + '…' : beat.chapterTitle}
+                          <span className="text-[#B9B4A6]"> · {beat.beat.scene.type}</span>
+                        </span>
+                        <span className="ml-auto font-mono text-[11px] text-[#C2542E] shrink-0">
+                          {drop.toFixed(1)}%/min
+                        </span>
+                      </div>
+                    ))}
+                    {!cliffs.length && (
+                      <p className="text-[12px] text-[#0E8074]">
+                        No cliffs ≥ 2.5%/min measured — the pacing is holding.
+                      </p>
+                    )}
+                  </div>
+                  <Separator className="bg-[#E9E4D6]" />
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] font-medium text-[#8A8577] uppercase tracking-wide">
+                      Thumbnail race · Test &amp; Compare
+                    </p>
+                    {thumbRace.map((t) => (
+                      <div key={t.variant} className="flex items-center gap-2 text-[12px]">
+                        <Badge
+                          variant="outline"
+                          className={`shrink-0 font-mono text-[10px] ${
+                            t.variant === leader?.variant
+                              ? 'border-[#C9A227] text-[#A8841B] bg-[#F7EFD7]'
+                              : 'border-[#E9E4D6] text-[#8A8577] bg-white'
+                          }`}
+                        >
+                          {t.label}
+                        </Badge>
+                        <span className="text-[#55555F] truncate">{t.hypothesis}</span>
+                        <span className="ml-auto font-mono text-[11px] text-[#26262E] shrink-0">
+                          {typeof t.ctr === 'number' ? `${t.ctr.toFixed(2)}% CTR` : '—'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 

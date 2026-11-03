@@ -12,6 +12,18 @@ export const invLerp = (a: number, b: number, v: number): number =>
 
 export const clamp01 = (v: number): number => clamp(v, 0, 1);
 
+/**
+ * Deterministic LCG stream (v6, audit P2-1): moved here from audio.ts so the
+ * score module and the DSP bed share one canonical seeded generator.
+ */
+export function seededRandom(seed: number): () => number {
+  let s = (seed * 2654435761) >>> 0 || 42;
+  return () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
 /** Normalized progress of `t` inside [start, end]. */
 export const rng01 = (t: number, start: number, end: number): number =>
   end <= start ? 1 : clamp01((t - start) / (end - start));

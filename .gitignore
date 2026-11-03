@@ -57,3 +57,8 @@ server.log
 tool-results/
 agent-ctx/
 mini-services/
+
+# soundfont bed render scratch (public/beds/*.wav are committed; this is the
+# tsc output + optional downloaded soundfont from scripts/render-bed.mjs)
+.bed-build/
+GeneralUser_GS.sf2

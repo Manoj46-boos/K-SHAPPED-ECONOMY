@@ -5,6 +5,7 @@
 
 import { BeatSpec, ChapterSpec, SCRIPT } from './script-data';
 import { CaptionLine } from './textfx';
+import { BeatRetention, beatRetention } from './analytics';
 
 export interface SentenceSeg {
   lineId: string;
@@ -27,6 +28,10 @@ export interface TimelineBeat {
   /** local ms when speech is active */
   speakStartMs: number;
   speakEndMs: number;
+  /** v6 (audit P2-3): measured audience retention for this beat, logged
+   *  back from YouTube Studio by scripts/ingest-analytics.mjs. Present
+   *  only after a retention CSV has been ingested. */
+  retention?: BeatRetention;
 }
 
 export interface Timeline {
@@ -155,6 +160,9 @@ export function buildTimeline(manifest: AudioManifest, fps: number): Timeline {
         sentences,
         speakStartMs: BEAT_LEAD_IN,
         speakEndMs: BEAT_LEAD_IN + speakDur,
+        // v6 (audit P2-3): measured retention rides on the beat, so the
+        // studio (and any render-time tooling) can see where viewers left
+        retention: beatRetention(chapter.id, bi),
       });
       if (sentences.length) {
         voIntervals.push({ start: now + BEAT_LEAD_IN, end: now + BEAT_LEAD_IN + speakDur });

@@ -1,0 +1,25 @@
+{
+  "video": {
+    "videoId": "",
+    "publishedAt": "",
+    "fetchedAt": ""
+  },
+  "beats": {},
+  "thumbnails": [
+    {
+      "variant": 0,
+      "label": "A",
+      "hypothesis": "The teal K + rocket chart + \"FEELING BROKE?\" — identity-first: the chart proves the story before the click."
+    },
+    {
+      "variant": 1,
+      "label": "B",
+      "hypothesis": "Gold K on the split field — warmth-first: the brand color carries the emotion the words don't have to."
+    },
+    {
+      "variant": 2,
+      "label": "C",
+      "hypothesis": "\"STILL BROKE?\" stacked headline — question-first: skips the visual metaphor and goes straight at the viewer."
+    }
+  ]
+}
