@@ -14,7 +14,7 @@
  * Rendered preview: panel report frame B-thumbnail-v2.png.
  */
 
-import { FONT_UI, rgba, roundRect, setFont } from './theme';
+import { PALETTE, FONT_UI, rgba, roundRect, setFont } from './theme';
 
 /** Tapered stroke helper (thick-to-thin polygon with round caps). */
 function taper(
@@ -55,8 +55,10 @@ export function drawThumbnail(
   H: number,
   variant: 0 | 1 | 2 = 0
 ): void {
-  const UP = '#0E8074', DOWN = '#D96C47', GOLD = '#C9A227', GOLDD = '#A8841B';
-  const INK = '#26262E', IVORY = '#FDFCF8';
+  // v5: one source of truth — the engine palette, not a second hand-hexed
+  // set drifting in the most-viewed pixel the channel owns.
+  const { up: UP, down: DOWN, gold: GOLD, goldDeep: GOLDD, ink: INK } = PALETTE;
+  const IVORY = '#FFFFFF';
   void DOWN; void GOLD; void IVORY;
 
   // background: diagonal split — cool mint left / warm peach right
@@ -207,12 +209,14 @@ export function drawThumbnail(
   //   0 — teal outline, "FEELING BROKE?" at H*0.78 (original intent)
   //   1 — deep-gold outline (warm A/B against the mint background)
   //   2 — shorter punchline "STILL BROKE?" stacked higher, more air
-  setFont(ctx, 100, 700, FONT_UI);
+  // v5: variant 2 is the 3-word-rule champion — ONE line at 116px.
+  // (3-words-or-fewer outperforms 4+ at average CTR; mobile renders 160px.)
+  setFont(ctx, variant === 2 ? 116 : 100, 700, FONT_UI);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#FFFFFF';
   ctx.strokeStyle = variant === 1 ? GOLDD : UP; // never inherit the K passes
   ctx.lineWidth = 10;
-  const rLines = variant === 2 ? ['STILL', 'BROKE?'] : ['FEELING', 'BROKE?'];
+  const rLines = variant === 2 ? ['STILL BROKE?'] : ['FEELING', 'BROKE?'];
   const rX = safeRightAnchor(ctx, W, rLines);
   const rY0 = variant === 2 ? H * 0.74 : H * 0.78;
   for (let i = 0; i < rLines.length; i++) {

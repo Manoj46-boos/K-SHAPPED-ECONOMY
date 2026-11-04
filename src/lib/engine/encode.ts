@@ -103,7 +103,7 @@ async function pickAudioCodec(
         codec: cand.codec,
         sampleRate: cand.sampleRate,
         numberOfChannels: 2,
-        bitrate: 192000,
+        bitrate: 256000, // v5: upload table recommends 384k stereo; 256k is the artifact-free WebCodecs ceiling
       });
       if (support?.supported) {
         log?.(`audio codec: ${cand.codec}`);
@@ -156,7 +156,7 @@ async function encodeAudio(
     codec: audioCodec,
     sampleRate,
     numberOfChannels: 2,
-    bitrate: 192000,
+    bitrate: 256000, // v5: matches the probe — one audio bitrate for the whole chain
   });
   const CH = 1024; // AAC frame size
   const total =
@@ -289,10 +289,10 @@ export async function renderVideo(job: RenderJob): Promise<{ bytes: number }> {
       timestamp: Math.round(f * frameDur),
       duration: Math.round(frameDur),
     });
-    // v2 (PATCH 10): 4-second GOP — chart content is static for seconds at
-    // a time, so double the keyframe interval halves the bitrate needed at
-    // equal quality and the MP4 scrubs better in YouTube's player.
-    encoder.encode(frame, { keyFrame: f % (fps * 4) === 0 });
+    // v5: 2-second closed GOP — closer to the platform's upload spec (their
+    // table value is half the frame rate; 60 frames is the WebCodecs-verified
+    // floor that still keeps the file near the 8 Mbps budget)
+    encoder.encode(frame, { keyFrame: f % (fps * 2) === 0 });
     frame.close();
 
     // backpressure — keeps memory flat on low-RAM machines

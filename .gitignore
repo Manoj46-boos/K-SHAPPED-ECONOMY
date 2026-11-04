@@ -62,3 +62,8 @@ mini-services/
 # tsc output + optional downloaded soundfont from scripts/render-bed.mjs)
 .bed-build/
 GeneralUser_GS.sf2
+
+# studio runtime cache — TTS audio + word timings. The analytics ingest
+# (v5 patch: prefer the TTS cache) reads it; it is per-machine and regenerates
+# on every render, so it never belongs in the tree.
+.render-assets/

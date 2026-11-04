@@ -429,7 +429,7 @@ export function reverbLoopCircular(loop: Loop, mix = 0.2): void {
  * without touching the music bed. One multiply per sample.
  */
 export function makeVoShelf(): (x: number) => number {
-  const amt = 0.22;
+  const amt = 0.30; // v5: +3 dB presence — the 96 kbps Edge MP3 is dull above 2 kHz
   let hp = 0;
   return (x: number) => {
     hp += 0.24 * (x - hp); // one-pole high-pass state
@@ -569,7 +569,7 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
   const grid = 240; // 48k / 5ms
   const ctl = new Float32Array(Math.ceil(totalFrames / grid) + 2);
   const base = Math.max(0.02, bgmVolume * 0.5);
-  const ducked = base * 0.3;
+  const ducked = base * 0.22; // v5: Edge TTS owns the mids — 0.3 let the bed speak over the voice
   // v4 (audit P0-5): the bed LIFTS between sentences (gap level ≈ 1.6× base,
   // capped) so the score audibly returns in pauses instead of idling at the
   // duck floor — “the bed lives between sentences”, per the audit’s mix note.

@@ -31,26 +31,28 @@ export interface Palette {
 }
 
 export const PALETTE: Palette = {
-  bgTop: '#FDFCF8',
-  bgBottom: '#F4EFE4',
-  bgSoft: '#F8F5EC',
-  // Morning Ivory 2.0 (audit §8, Direction A — winner): every text pair
-  // measured against WCAG AA. ink 16.0:1 · inkSoft 7.4:1 · inkFaint 5.2:1 ·
-  // goldInk 4.6:1 · up 6.0:1 · down 4.5:1 on their real backgrounds.
+  // v5 "Bright Teal on White": the ivory→beige canvas becomes a pure-white
+  // canvas; every border, wash and soft tint retints into the teal family.
+  // Gold keeps its cameo (chapter cards, watermark, scarf) and is banned
+  // from the always-on furniture. The audited text pairs are unchanged and
+  // only gain contrast on the lighter canvas.
+  bgTop: '#FFFFFF',
+  bgBottom: '#F4F9F8',     // was #F4EFE4 (beige) — a teal-tinted breath
+  bgSoft: '#F8FCFB',       // was #F8F5EC (ivory)
   ink: '#1E1F26',
   inkSoft: '#55555F',
-  inkFaint: '#6B6B75', // was #9A9AA3 (2.79:1 — source tags vanished on phones)
+  inkFaint: '#6B6B75',
   card: '#FFFFFF',
-  cardBorder: '#E9E4D6',
+  cardBorder: '#DFEAE7', // was #E9E4D6 (khaki) — teal-grey hairlines
   gold: '#C9A227',
-  goldDeep: '#8F6E12', // was #A8841B (3.51:1 — large text only)
+  goldDeep: '#8F6E12',
   goldInk: '#8F6E12',
-  goldWash: '#F7EFD7',
-  up: '#0B6E63', // was #0E8074
-  upSoft: '#DDF0EA',
-  down: '#C2542E', // was #D96C47 (3.39:1 — large text only)
-  downSoft: '#F9E3DB',
-  muted: '#B9B4A6',
+  goldWash: '#F7F0DC',
+  up: '#0B6E63',
+  upSoft: '#D9EFEA',
+  down: '#C2542E',
+  downSoft: '#FAE7E1',     // was #F9E3DB
+  muted: '#B2C4C1',        // was #B9B4A6 (warm grey) — cool grey to match teal
   chipBg: '#FFFFFF',
   white: '#FFFFFF',
 };
@@ -63,10 +65,14 @@ export const PALETTE: Palette = {
 // families stay in the stack as last-resort fallbacks only.
 export const FONT_DISPLAY =
   '"Fraunces", Georgia, "Times New Roman", "Songti SC", serif';
+// v5: system-ui / -apple-system removed — node-canvas REJECTS font stacks
+// containing them and silently falls back to the wrong family in headless
+// renders (the harness caught it). Browsers are unaffected: Inter resolves
+// first in the stack either way.
 export const FONT_UI =
-  '"Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif';
+  '"Inter", "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 export const FONT_UI_SEMI =
-  '"Inter", "Segoe UI Variable Display", "Segoe UI Semibold", "Segoe UI", system-ui, Roboto, sans-serif';
+  '"Inter", "Segoe UI Variable Display", "Segoe UI Semibold", "Segoe UI", Roboto, sans-serif';
 
 export const TONE = (tone?: string): { main: string; soft: string } => {
   switch (tone) {
@@ -131,6 +137,15 @@ export function roundRect(
   h: number,
   r: number
 ): void {
+  // v5: node-canvas renders arcTo on sub-10px rects with visible artifacts
+  // (promoted from the render harness). Tiny plates read as rounded at
+  // render scale anyway — plain rects are pixel-clean everywhere.
+  if (w < 10 || h < 10) {
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.closePath();
+    return;
+  }
   const rr = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
   ctx.moveTo(x + rr, y);
@@ -304,15 +319,14 @@ export function paintBg(
   H: number,
   t = 0
 ): void {
-  const g = ctx.createLinearGradient(0, 0, W * 0.25, H);
-  g.addColorStop(0, PALETTE.bgTop);
-  g.addColorStop(1, PALETTE.bgBottom);
-  ctx.fillStyle = g;
+  // v5: pure-white base (no gradient — flat fields are the premium register),
+  // one breathing teal wash. The gold corner wash is gone: on white, a
+  // 5%-alpha gold blob reads as a smudge, not life.
+  ctx.fillStyle = PALETTE.bgTop;
   ctx.fillRect(0, 0, W, H);
-  // breathing gold horizon wash (organic life, very subtle)
   const pulse = 0.5 + 0.5 * Math.sin(t / 6000);
-  glowBlob(ctx, W * 0.82, H * 0.16 + driftY(t), W * 0.5, PALETTE.gold, 0.05 + 0.02 * pulse);
-  glowBlob(ctx, W * 0.1, H * 0.9, W * 0.42, PALETTE.up, 0.035 + 0.015 * (1 - pulse));
+  glowBlob(ctx, W * 0.82, H * 0.16 + driftY(t), W * 0.5, PALETTE.up, 0.030 + 0.012 * pulse);
+  glowBlob(ctx, W * 0.1, H * 0.9, W * 0.42, PALETTE.up, 0.022 + 0.010 * (1 - pulse));
 }
 
 const driftY = (t: number): number => Math.sin(t / 5200) * 26;

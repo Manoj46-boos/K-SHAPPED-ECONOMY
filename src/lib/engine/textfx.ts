@@ -98,11 +98,11 @@ export function drawCaptions(
   roundRect(ctx, px, py, widest + 68, totalH, 30);
   ctx.fill();
   ctx.lineWidth = 2;
-  ctx.strokeStyle = rgba('#B9B4A6', 0.5);
+  ctx.strokeStyle = rgba(PALETTE.muted, 0.5);                // v5: cool-grey hairline
   roundRect(ctx, px, py, widest + 68, totalH, 30);
   ctx.stroke();
-  ctx.fillStyle = PALETTE.gold;
-  roundRect(ctx, px + 2, py + 14, 6, totalH - 28, 3);
+  ctx.fillStyle = PALETTE.up;                                 // v5: teal tab — the voice
+  roundRect(ctx, px + 2, py + 14, 8, totalH - 28, 4);
   ctx.fill();
   ctx.restore();
 
@@ -121,8 +121,8 @@ export function drawCaptions(
       if (style.mode === 'karaoke' && activeW) {
         const ww = ctx.measureText(w.w).width;
         const sweep = clamp01((tMs - w.t) / Math.max(w.d, 80));
-        ctx.fillStyle = PALETTE.gold;
-        roundRect(ctx, x - 2, y + fontSize * 0.62, (ww + 4) * easeOutQuad(sweep), 6, 3);
+        ctx.fillStyle = PALETTE.up;                       // v5: teal karaoke sweep
+        roundRect(ctx, x - 2, y + fontSize * 0.62, (ww + 4) * easeOutQuad(sweep), 8, 4);
         ctx.fill();
       }
       x += ctx.measureText(w.w).width + spaceW;
@@ -350,10 +350,10 @@ export function drawProgressBar(
 ): void {
   const y = H - 8;
   ctx.save();
-  ctx.fillStyle = rgba('#B9B4A6', 0.28);
+  ctx.fillStyle = rgba(PALETTE.muted, 0.28);
   roundRect(ctx, 0, y, W, 8, 0);
   ctx.fill();
-  ctx.fillStyle = PALETTE.gold;
+  ctx.fillStyle = PALETTE.up;                 // v5: teal progress
   roundRect(ctx, 0, y, W * clamp01(progress), 8, 0);
   ctx.fill();
   for (const f of chapterFracs) {

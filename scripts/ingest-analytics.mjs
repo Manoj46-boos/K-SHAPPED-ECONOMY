@@ -106,20 +106,47 @@ const retentionCsv = args[0];
 const thumbsCsv = args[1] || null;
 
 // ── 4. build the REAL timeline (same code path as the render) ───────────────
-// synthetic manifest: word-count timing, the same estimator the render
-// harness uses — timestamps land within ~1s of the shipped video
-const WORD_MS = 360;
+// v5: prefer the studio's TTS cache (.render-assets/tts) — real Edge
+// TTS durations + word boundaries beat the 360 ms/word estimator, so retention
+// samples map onto beats at the same timestamps the shipped video used.
+// Falls back to the estimator when the cache is absent (fresh clones, CI).
+const TTS_DIR = path.join(ROOT, '.render-assets', 'tts');
+const byText = new Map();
+if (fs.existsSync(TTS_DIR)) {
+  for (const f of fs.readdirSync(TTS_DIR)) {
+    if (!f.endsWith('.json')) continue;
+    try {
+      const j = JSON.parse(fs.readFileSync(path.join(TTS_DIR, f), 'utf8'));
+      if (j && Array.isArray(j.words) && typeof j.estDuration === 'number' && j.text) {
+        byText.set(j.text, j);
+      }
+    } catch {}
+  }
+}
+console.log(`tts cache: ${byText.size} lines (0 = estimator fallback)`);
+const WORD_MS = 360; // estimator fallback
 const manifest = { lines: {} };
 SCRIPT.forEach((chapter, ci) => {
   chapter.beats.forEach((beat, bi) => {
     const sentences = beat.vo.split(/\n/).map((x) => x.trim()).filter(Boolean);
     sentences.forEach((text, si) => {
+      const key = `${ci}-${bi}-${si}`;
+      const hit = byText.get(text);
+      if (hit) {
+        // v5: prefer the studio's TTS cache — real durations + word boundaries
+        // beat the 360 ms/word estimator. NOTE: the cache's estDuration is in
+        // SECONDS (Edge TTS r.duration — the studio interface comment says ms
+        // but the data says seconds); convert or the timeline collapses.
+        manifest.lines[key] = { key: `x${key}`, durationMs: Math.round(hit.estDuration * 1000),
+          words: hit.words.map((w) => ({ t: w.t, d: w.d, w: w.w })) };
+        return;
+      }
       const words = text.split(/\s+/).filter(Boolean);
       const durMs = Math.round(words.length * WORD_MS + 420);
       const wordList = [];
       let t = 120;
       for (const w of words) { wordList.push({ t, d: Math.round(WORD_MS * 0.72), w }); t += WORD_MS; }
-      manifest.lines[`${ci}-${bi}-${si}`] = { key: `x${ci}-${bi}-${si}`, durationMs: durMs, words: wordList };
+      manifest.lines[key] = { key: `x${key}`, durationMs: durMs, words: wordList };
     });
   });
 });

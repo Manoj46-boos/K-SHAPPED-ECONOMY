@@ -731,8 +731,16 @@ export function drawShortFrame(
     ctx.fillRect(W - inset / 2 - fade, 410, fade, 1080);
   }
 
-  // 5) top title band — 2 lines max, mobile-first, clear of the top UI
+  // 5) top title band — 2 lines max, mobile-first, clear of the top UI.
+  // v7: the first 0.35s scales the band 1.14→1.00 and grows the underline —
+  // Shorts open on motion (73.6% average viewed leaves no room for a static
+  // start). Entry time is short-relative (tMs arrives as full-timeline time).
+  const inP = easeOutCubic(clamp01((tMs - spec.startMs) / 350));
   ctx.save();
+  ctx.translate(W / 2, 250);
+  const bandS = 0.86 + 0.14 * inP;
+  ctx.scale(bandS, bandS);
+  ctx.translate(-W / 2, -250);
   setFont(ctx, 54, 700, FONT_DISPLAY);
   ctx.fillStyle = PALETTE.ink;
   ctx.textAlign = 'center';
@@ -751,8 +759,8 @@ export function drawShortFrame(
   }
   if (cur) rows.push(cur);
   rows.slice(0, 2).forEach((r, i) => ctx.fillText(r, W / 2, 250 + i * 66));
-  ctx.fillStyle = PALETTE.gold;
-  roundRect(ctx, W / 2 - 70, 250 + Math.min(rows.length, 2) * 66 - 10, 140, 8, 4);
+  ctx.fillStyle = PALETTE.up;                                // v7: teal underline, grows with the entry
+  roundRect(ctx, W / 2 - 70 * inP, 250 + Math.min(rows.length, 2) * 66 - 10, 140 * inP, 8, 4);
   ctx.fill();
   ctx.restore();
 

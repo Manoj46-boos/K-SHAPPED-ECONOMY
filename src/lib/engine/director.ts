@@ -271,9 +271,11 @@ export function drawFrame(
     drawProgressBar(ctx, W, H, t / tl.durationMs, fracs);
   }
 
-  // grain + vignette
-  drawGrain(ctx, W, H, 0.45);
-  lightVignette(ctx, W, H, 0.8);
+  // v5 finishing: grain 0.45→0.30 (film texture, not noise, on a bright
+  // theme) and vignette 0.8→0.45 — on a white canvas the corner darkening
+  // double-treats what the grain already does. Subtraction reads premium.
+  drawGrain(ctx, W, H, 0.30);
+  lightVignette(ctx, W, H, 0.45);
 
   // global fades: from white at start, to white at end
   const fadeIn = 1 - clamp01(t / 600);

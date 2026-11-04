@@ -191,6 +191,9 @@ export function drawStickmanV2(
   ctx.globalAlpha = alpha;
   ctx.translate(cx, groundY);
   ctx.scale(r.flip ? -scale : scale, scale);
+  // v6 idle life: a 2.4s breath sway (±0.23°) around the ground contact —
+  // the freeze between sentences read as a mannequin without it.
+  ctx.rotate(Math.sin(t / 2400 + seed * 1.7) * 0.004);
 
   const U_LEG = 72, L_LEG = 66, TORSO = 96, U_ARM = 58, L_ARM = 54;
   const pelvisY = -U_LEG - L_LEG + pose.rootY;
@@ -311,10 +314,13 @@ export function drawStickmanV2(
   // eyes + glints
   const look = clamp01((r.look ?? 0) * 0.5 + 0.5) * 2 - 1;
   const eyeDX = look * 7;
+  // v6: deterministic blink — 120ms every ~4.2s, phase-shifted per seed so
+  // two hosts never blink in unison. A blink is 90% of "alive".
+  const blink = ((t + seed * 700) % 4200) < 120 ? 0.12 : 1;
   ctx.fillStyle = ink;
   ctx.beginPath();
-  ctx.ellipse(-11 + eyeDX, -6, 4.6, 4.6, 0, 0, Math.PI * 2);
-  ctx.ellipse(11 + eyeDX, -6, 4.6, 4.6, 0, 0, Math.PI * 2);
+  ctx.ellipse(-11 + eyeDX, -6, 4.6, 4.6 * blink, 0, 0, Math.PI * 2);
+  ctx.ellipse(11 + eyeDX, -6, 4.6, 4.6 * blink, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = '#FFFFFF';
   ctx.beginPath(); ctx.arc(-9.5 + eyeDX, -7.5, 1.6, 0, Math.PI * 2); ctx.fill();
