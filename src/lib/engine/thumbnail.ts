@@ -135,7 +135,7 @@ export function drawThumbnail(
   ctx.save();
   ctx.translate(sx, sy);
   ctx.scale(1.35, 1.35);
-  ctx.fillStyle = rgba('#8C8474', 0.25);
+  ctx.fillStyle = rgba(PALETTE.shadow, 0.25);
   ctx.beginPath();
   ctx.ellipse(0, 6, 62, 13, 0, 0, Math.PI * 2);
   ctx.fill();

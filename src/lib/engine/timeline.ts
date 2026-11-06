@@ -49,6 +49,11 @@ export interface Timeline {
   /** v2 (PATCH 7/8): ms 1.4s after each data scene starts — when counters
    *  finish easing. Used by the mixer to place confirmation dings. */
   dataDingTimes: number[];
+  /** v8 (panel P0-5): dramatic-silence windows — beats flagged `dropOut`
+   *  get ~1.2s where the BGM ducks to near-zero right before the payoff
+   *  line lands. Silence is the loudest VFX in a 20-minute underscored
+   *  film; the mix never went quiet once before this. */
+  silenceWindows: { start: number; end: number }[];
 }
 
 export interface AudioManifestEntry {
@@ -206,6 +211,19 @@ export function buildTimeline(manifest: AudioManifest, fps: number): Timeline {
     }
   }
 
+  // v8 (panel P0-5): dramatic-silence windows. A beat flagged `dropOut`
+  // ducks the bed to ~4% for the 1.4s BEFORE its payoff sentence — the
+  // underline-the-twist trick every great editor uses. The payoff itself
+  // slams back in at full gap level.
+  const silenceWindows: { start: number; end: number }[] = [];
+  for (const b of beats) {
+    if (b.beat.dropOut) {
+      const silenceDur = Math.min(1400, Math.max(400, (b.speakEndMs - b.speakStartMs) * 0.35));
+      const payoffStart = b.startMs + b.speakStartMs;
+      silenceWindows.push({ start: Math.max(0, payoffStart - silenceDur), end: payoffStart });
+    }
+  }
+
   return {
     durationMs,
     fps,
@@ -217,6 +235,7 @@ export function buildTimeline(manifest: AudioManifest, fps: number): Timeline {
     voIntervals,
     cutTimes,
     dataDingTimes,
+    silenceWindows,
   };
 }
 

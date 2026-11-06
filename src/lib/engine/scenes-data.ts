@@ -14,7 +14,7 @@ import { Stickman, POSES, blendPose } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
 
 function bg(g: SceneCtx, seed: number, gold = 0.4): void {
-  paintBg(g.ctx, g.W, g.H, g.t);
+  paintBg(g.ctx, g.W, g.H, g.t, g.chapterTone);
   bokehField(g.ctx, g.W, g.H, g.t, { intensity: 0.75, seed, gold });
   lightRays(g.ctx, g.W, g.H, g.t, { alpha: 0.45 });
   kMotifs(g.ctx, g.W, g.H, g.t, 0.04);
@@ -255,7 +255,9 @@ export function pieChartScene(g: SceneCtx): void {
     const lines = wrapText(ctx, sl.label, 420, 30, 600);
     lines.forEach((ln, j) => ctx.fillText(ln, W * 0.58 + 76, ly + 34 + j * 40));
     setFont(ctx, 38, 700);
-    ctx.fillStyle = TONE(sl.tone).main;
+    // v8.1: the bright fill gold (#C9A227) fails AA at 38px — text-sized
+    // gold numerals use goldInk (4.8:1); the swatch chip stays bright.
+    ctx.fillStyle = sl.tone === 'gold' ? PALETTE.goldInk : TONE(sl.tone).main;
     ctx.fillText(`${Math.round(sl.value)}%`, W * 0.58 + 560, ly + 40);
     ctx.restore();
   });
@@ -276,20 +278,23 @@ export function dotGridScene(g: SceneCtx): void {
     t,
   });
   // bracket over the highlighted dots + caption
+  // v8: "these ten" moved to the bracket's right end (the panel caught it
+  // colliding with the scene-title underline above the grid)
   const ap = clamp01((t - 2600) / 700);
   if (ap > 0) {
     ctx.save();
     ctx.globalAlpha = ap;
     ctx.strokeStyle = PALETTE.gold;
     ctx.lineWidth = 4;
+    const bracketW = 10 * ((W - 400) / 25);
     ctx.beginPath();
     ctx.moveTo(196, H * 0.2 - 26);
-    ctx.lineTo(196 + 10 * ((W - 400) / 25), H * 0.2 - 26);
+    ctx.lineTo(196 + bracketW, H * 0.2 - 26);
     ctx.stroke();
     setFont(ctx, 30, 700);
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.textAlign = 'left';
-    ctx.fillText('these ten', 200, H * 0.2 - 46);
+    ctx.fillText('these ten', 196 + bracketW + 26, H * 0.2 - 16);
     const caption = s.caption as string;
     setFont(ctx, 38, 700);
     ctx.fillStyle = PALETTE.ink;
@@ -338,7 +343,7 @@ export function magChipsScene(g: SceneCtx): void {
     ctx.fillStyle = PALETTE.ink;
     ctx.textAlign = 'center';
     ctx.fillText(name, x + tw / 2, y + 74);
-    setFont(ctx, 19, 600);
+    setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 19)
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.fillText('MAG ' + (i + 1), x + tw / 2, y + 40);
     ctx.restore();
@@ -403,7 +408,7 @@ export function barsCompareScene(g: SceneCtx): void {
       setFont(ctx, 27, 600);
       ctx.fillStyle = PALETTE.inkSoft;
       ctx.fillText(fc.label, fx + 210, fy + 58);
-      setFont(ctx, 22, 600);
+      setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 22)
       ctx.fillStyle = PALETTE.goldDeep;
       ctx.fillText(fc.tag, fx + 210, fy + 92);
       ctx.restore();
@@ -486,7 +491,7 @@ export function trioConvergeScene(g: SceneCtx): void {
     ctx.lineCap = 'round';
     for (let i = 0; i < 3; i++) {
       const sx = W * 0.09 + W * 0.11 + i * (W * 0.28);
-      ctx.strokeStyle = rgba('#B9B4A6', 0.8);
+      ctx.strokeStyle = rgba(PALETTE.grid, 0.8);
       ctx.beginPath();
       ctx.moveTo(sx, H * 0.6);
       ctx.lineTo(cx + lerp(-60, 0, cp) * (i - 1), cy - 40);
@@ -660,7 +665,11 @@ export function gasPumpScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 151, 0.5);
   sceneTitle(ctx, 'Same shock — different roads', 110, 150, clamp01(t / 600));
-  // the pump (center)
+  // the pump (center) — v8: the vision panel called the old beige-screen
+  // pump "clip-art from 2012". A modern pump reads as: white body, crisp
+  // hairline, a soft-TEAL screen (no dark tones — the theme's upSoft wash)
+  // with ink digits on a white price plate. Same silhouette, same price
+  // roll animation, ten lines of change.
   const px = W * 0.5;
   const py = H * 0.3;
   const ap = clamp01(t / 800);
@@ -668,14 +677,15 @@ export function gasPumpScene(g: SceneCtx): void {
   ctx.globalAlpha = ap;
   // pump body
   card(ctx, px - 110, py, 220, 330, { r: 26 });
-  ctx.fillStyle = PALETTE.goldWash;
+  // teal screen wash (was goldWash beige)
+  ctx.fillStyle = PALETTE.upSoft;
   roundRect(ctx, px - 82, py + 28, 164, 110, 18);
   ctx.fill();
   setFont(ctx, 44, 700);
-  ctx.fillStyle = PALETTE.goldDeep;
+  ctx.fillStyle = PALETTE.up;
   ctx.textAlign = 'center';
   ctx.fillText('GAS', px, py + 92);
-  // price digits roll
+  // price digits roll — on a clean white plate now
   const roll = (t / 300) % 10;
   setFont(ctx, 40, 700);
   ctx.fillStyle = PALETTE.ink;
@@ -767,6 +777,35 @@ export function recessionGaugeScene(g: SceneCtx): void {
     t,
     label: 'Zandi\u2019s model · most alarmed point',
   });
+  // v8: the mid-roll engagement chip — asks for the viewer's guess WHILE
+  // the gauge is still sweeping toward 48%. Comments during the video (not
+  // just at the end) are a ranking signal, and "guess before the reveal"
+  // is a proven engagement device. Rides above the debates, below the
+  // caption zone, and fades before the coin chip lands.
+  const promptChip = s.promptChip as string | undefined;
+  if (promptChip) {
+    const pp = clamp01((t - 2000) / 600) * (1 - clamp01((t - 5600) / 700));
+    if (pp > 0) {
+      ctx.save();
+      ctx.globalAlpha = pp;
+      setFont(ctx, 27, 700);
+      const tw = ctx.measureText(promptChip).width;
+      const cx0 = W * 0.35;
+      const x = cx0 - tw / 2 - 28;
+      const y = 626;
+      ctx.fillStyle = PALETTE.upSoft;
+      roundRect(ctx, x, y, tw + 56, 56, 28);
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = rgba(PALETTE.up, 0.7);
+      roundRect(ctx, x, y, tw + 56, 56, 28);
+      ctx.stroke();
+      ctx.fillStyle = PALETTE.up;
+      ctx.textAlign = 'left';
+      ctx.fillText(promptChip, x + 28, y + 37);
+      ctx.restore();
+    }
+  }
   // coin flip chip — v4 (vision panel re-review): was at y=H*0.8 (864) —
   // inside the caption-pill band (top ≈ 808), colliding with the subtitle.
   // Now cradled inside the gauge bowl, under the value + model label, clear
@@ -799,12 +838,12 @@ export function recessionGaugeScene(g: SceneCtx): void {
 // ── aiDatacenter scene (3D-ish racks) ───────────────────────────────────────
 export function aiDatacenterScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
-  paintBg(ctx, W, H, t);
+  paintBg(ctx, W, H, t, g.chapterTone);
   bokehField(ctx, W, H, t, { intensity: 1.15, seed: 171, gold: 0.5 });
   // perspective floor grid
   const horizon = H * 0.56;
   ctx.save();
-  ctx.strokeStyle = rgba('#B9B4A6', 0.4);
+  ctx.strokeStyle = rgba(PALETTE.grid, 0.4);
   ctx.lineWidth = 1.6;
   for (let i = 0; i <= 14; i++) {
     const fx = (i / 14) * W;
@@ -840,13 +879,13 @@ export function aiDatacenterScene(g: SceneCtx): void {
     roundRect(ctx, x - rw / 2, y - rh, rw, rh, 10);
     ctx.fill();
     ctx.lineWidth = 2;
-    ctx.strokeStyle = rgba('#B9B4A6', 0.8);
+    ctx.strokeStyle = rgba(PALETTE.grid, 0.8);
     roundRect(ctx, x - rw / 2, y - rh, rw, rh, 10);
     ctx.stroke();
     // blinking lights
     for (let k = 0; k < 6; k++) {
       const on = Math.sin(t / 200 + i * 3 + k * 1.7) > 0.2;
-      ctx.fillStyle = on ? (k % 3 === 0 ? PALETTE.gold : PALETTE.up) : rgba('#B9B4A6', 0.5);
+      ctx.fillStyle = on ? (k % 3 === 0 ? PALETTE.gold : PALETTE.up) : rgba(PALETTE.grid, 0.5);
       ctx.beginPath();
       ctx.arc(x - rw / 2 + 18 + (k % 3) * 22, y - rh + 24 + Math.floor(k / 3) * 34, 5.5, 0, Math.PI * 2);
       ctx.fill();
@@ -871,6 +910,16 @@ export function aiDatacenterScene(g: SceneCtx): void {
     });
   });
   if (t > 3600) sparkles(ctx, W * 0.41, H * 0.3, t, t - 3600, { count: 10, radius: 160 });
+  // v8: the host — the vision panel flagged this scene "no character, no
+  // motion cue, lowest energy on the sheet". The presenter now walks the
+  // datacenter floor (bottom-right, presenting the racks) with the talk
+  // envelope. One drawStickmanV2 call; the scene keeps its full layout.
+  {
+    const pose = Stickman.poseAt(t, { gesture: 'present', speaking: g.speaking });
+    const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
+    drawStickmanV2(ctx, W * 0.9, H * 0.88, 1.05, t,
+      { pose, alpha: clamp01((t - 900) / 600), look: -0.7, scarf: true, talk }, 27);
+  }
 }
 
 // ── statCards scene ──────────────────────────────────────────────────────────
@@ -902,7 +951,7 @@ export function ownerWorkerScene(g: SceneCtx): void {
   const R = s.right as any;
   // divider
   ctx.save();
-  ctx.strokeStyle = rgba('#B9B4A6', 0.6);
+  ctx.strokeStyle = rgba(PALETTE.grid, 0.6);
   ctx.lineWidth = 3;
   ctx.setLineDash([2, 12]);
   ctx.beginPath();
@@ -935,7 +984,7 @@ export function ownerWorkerScene(g: SceneCtx): void {
       ctx.lineTo(hx + 170, hy - 90);
       ctx.stroke();
     } else {
-      ctx.strokeStyle = rgba('#B9B4A6', 0.7);
+      ctx.strokeStyle = rgba(PALETTE.grid, 0.7);
       ctx.lineWidth = 12;
       ctx.lineCap = 'round';
       ctx.beginPath();
@@ -981,7 +1030,7 @@ export function fundSplitScene(g: SceneCtx): void {
   ctx.fillStyle = PALETTE.ink;
   ctx.textAlign = 'left';
   ctx.fillText('S&P 500 index fund', bx + 36, by + 56);
-  setFont(ctx, 23, 600);
+  setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 23)
   ctx.fillStyle = PALETTE.inkFaint;
   ctx.fillText('500 companies · feels diversified', bx + 36, by + 94);
   ctx.restore();
@@ -1023,7 +1072,7 @@ export function fundSplitScene(g: SceneCtx): void {
     const grayX = gx + 7 * 34 + 90;
     for (let i = 0; i < 60; i++) {
       const p2 = clamp01((t - 1900 - i * 6) / 500);
-      ctx.fillStyle = rgba('#B9B4A6', 0.6);
+      ctx.fillStyle = rgba(PALETTE.grid, 0.6);
       const col = i % 30;
       const row = Math.floor(i / 30);
       roundRect(ctx, grayX + col * 17, gy + row * 44 + 14, 10, 32 * easeOutCubic(p2) + 4, 3);
@@ -1091,12 +1140,12 @@ export function oddsSpreadScene(g: SceneCtx): void {
   const ap = clamp01(t / 800);
   ctx.save();
   ctx.globalAlpha = ap;
-  ctx.fillStyle = rgba('#C8C2B2', 0.35);
+  ctx.fillStyle = rgba(PALETTE.track, 0.35);
   roundRect(ctx, trackX, trackY - 12, trackW, 24, 12);
   ctx.fill();
   for (let v = 0; v <= 100; v += 25) {
     const x = trackX + (v / 100) * trackW;
-    setFont(ctx, 23, 600);
+    setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 23)
     ctx.fillStyle = PALETTE.inkFaint;
     ctx.textAlign = 'center';
     ctx.fillText(`${v}%`, x, trackY + 52);

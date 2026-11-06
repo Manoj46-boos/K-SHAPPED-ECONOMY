@@ -37,7 +37,7 @@ export const SCENE_PROPS: Record<string, string[]> = {
   kDef: ['definition', 'source'],
   credibilityChips: ['kicker', 'chips', 'year'],
   gasPump: ['source', 'cards', 'caption'],
-  recessionGauge: ['source', 'debates', 'gaugeTo', 'coinChip'],
+  recessionGauge: ['source', 'debates', 'gaugeTo', 'coinChip', 'promptChip'],
   aiDatacenter: ['stats'],
   statCards: ['source', 'cards'],
   ownerWorker: ['left', 'right'],

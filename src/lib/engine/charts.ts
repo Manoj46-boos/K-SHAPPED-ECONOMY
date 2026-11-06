@@ -71,14 +71,16 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
   } = opts;
   const [yMin, yMax] = yBounds(opts);
 
-  // grid + y labels
+  // grid + y labels — v8: axis text 22→24px (TYPE_FLOOR: the panel measured
+  // axis labels below mobile legibility in landscape; 24px is the floor
+  // every reading text now respects)
   ctx.save();
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   for (let i = 0; i <= gridLines; i++) {
     const gy = y + (h * i) / gridLines;
     const val = yMax - ((yMax - yMin) * i) / gridLines;
-    ctx.strokeStyle = rgba('#B9B4A6', 0.35);
+    ctx.strokeStyle = rgba(PALETTE.grid, 0.35);
     ctx.lineWidth = 1.5;
     ctx.setLineDash(i === gridLines ? [] : [6, 8]);
     ctx.beginPath();
@@ -87,7 +89,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     ctx.stroke();
     ctx.setLineDash([]);
     if (showYAxis) {
-      setFont(ctx, 22, 400);
+      setFont(ctx, 24, 400);
       ctx.fillStyle = PALETTE.inkFaint;
       const label =
         yFormat === 'ndx' ? Math.round(val / 100) / 10 + 'k'
@@ -105,7 +107,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     ctx.fillStyle = rgba(PALETTE.gold, 0.10);
     roundRect(ctx, x, Math.min(by1, by2), w, Math.abs(by2 - by1), 14);
     ctx.fill();
-    setFont(ctx, 21, 600);
+    setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 21)
     ctx.textAlign = 'left';
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.fillText(opts.band.label, x + 16, Math.min(by1, by2) + 24);
@@ -127,7 +129,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     ctx.stroke();
     ctx.save();
     ctx.translate(bx + bw / 2, y + h - 14);
-    setFont(ctx, 20, 600);
+    setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 20)
     ctx.textAlign = 'center';
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.fillText(opts.peakBand.label, 0, 0);
@@ -151,8 +153,11 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     ctx.lineTo(pts0[pts0.length - 1].x, y + h);
     ctx.closePath();
     const g = ctx.createLinearGradient(0, y, 0, y + h);
-    g.addColorStop(0, rgba(tone0, 0.18));
-    g.addColorStop(1, rgba(tone0, 0.02));
+    // v8: 0.18/0.02 → 0.22/0.05 — the panel read the v5 fills as "pale
+    // sludge" after transcode; a touch more ink makes the area read teal
+    // at a glance without darkening the frame
+    g.addColorStop(0, rgba(tone0, 0.22));
+    g.addColorStop(1, rgba(tone0, 0.05));
     ctx.fillStyle = g;
     ctx.fill();
     ctx.restore();
@@ -239,13 +244,13 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       ctx.beginPath();
       ctx.arc(px, py, 6, 0, Math.PI * 2);
       ctx.stroke();
-      // label pill
-      setFont(ctx, 23, 600);
+      // label pill — v8: 23→25px text (TYPE_FLOOR discipline)
+      setFont(ctx, 25, 600);
       ctx.textAlign = 'center';
       const tw = ctx.measureText(a.label).width;
       const ly = py + (a.dy ?? 40) - rise;
       const lx = Math.min(Math.max(px, x + tw / 2 + 18), x + w - tw / 2 - 18);
-      ctx.fillStyle = rgba('#8C8474', 0.10);
+      ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
       roundRect(ctx, lx - tw / 2 - 16 + 1, ly - 34 + 3, tw + 32, 46, 23);
       ctx.fill();
       ctx.fillStyle = '#fff';
@@ -334,7 +339,9 @@ export function pieChart(
       const pop = 1 + (isHi ? easeOutBack(appeared) * 0.028 : 0);
       const rr = r * pop * (0.94 + 0.06 * easeOutQuad(appeared));
       ctx.save();
-      ctx.fillStyle = isHi ? tone : rgba('#C8C2B2', 0.5);
+      // v8: the "other" segment — track color at 0.62 (was warm greige at
+      // 0.5): the panel read it as "a stain next to the gold wedge"
+      ctx.fillStyle = isHi ? tone : rgba(PALETTE.track, 0.62);
       ctx.beginPath();
       ctx.moveTo(cx, cy);
       ctx.arc(cx, cy, rr, a0 + gap, drawA1 - gap);
@@ -401,9 +408,9 @@ export function barRow(
   ctx.fillStyle = PALETTE.ink;
   ctx.textAlign = 'left';
   ctx.fillText(label, x, y + rowH * 0.5 - 14);
-  // bar track
+  // bar track — v8: cool track at 0.3 (was warm greige 0.25)
   const by = y + rowH * 0.5 - 2;
-  ctx.fillStyle = rgba('#C8C2B2', 0.25);
+  ctx.fillStyle = rgba(PALETTE.track, 0.30);
   roundRect(ctx, x, by, w, 30, 15);
   ctx.fill();
   // value bar
@@ -423,15 +430,15 @@ export function barRow(
   if (opts.tag) {
     const ap = clamp01((p - 0.5) / 0.4);
     if (ap > 0) {
-      setFont(ctx, 21, 600);
+      setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 21; chip resized)
       const tw = ctx.measureText(opts.tag).width;
       const tagX = x + Math.max(30, bw) + 18;
       ctx.globalAlpha = ap;
       ctx.fillStyle = PALETTE.goldWash;
-      roundRect(ctx, tagX + 108, by + 2, tw + 26, 28, 14);
+      roundRect(ctx, tagX + 108, by - 1, tw + 30, 34, 17);
       ctx.fill();
       ctx.fillStyle = PALETTE.goldDeep;
-      ctx.fillText(opts.tag, tagX + 121, by + 22);
+      ctx.fillText(opts.tag, tagX + 123, by + 23);
       ctx.globalAlpha = 1;
     }
   }
@@ -470,7 +477,7 @@ export function dotGrid(
     const isHi = idx < highlight;
     const pop = 1 + Math.sin(appear * Math.PI) * 0.6;
     const pulse = isHi ? 1 + 0.18 * Math.sin(t / 300 + idx * 1.7) : 1;
-    ctx.fillStyle = isHi ? PALETTE.gold : rgba('#B9B4A6', 0.55);
+    ctx.fillStyle = isHi ? PALETTE.gold : rgba(PALETTE.grid, 0.62);
     ctx.beginPath();
     ctx.arc(cx, cy, dotR * pop * pulse * appear, 0, Math.PI * 2);
     ctx.fill();
@@ -495,7 +502,7 @@ export function gauge(
   // arc track
   ctx.save();
   ctx.lineCap = 'round';
-  ctx.strokeStyle = rgba('#C8C2B2', 0.4);
+  ctx.strokeStyle = rgba(PALETTE.track, 0.4);
   ctx.lineWidth = 26;
   ctx.beginPath();
   ctx.arc(cx, cy, r, a0, a1);
@@ -528,7 +535,7 @@ export function gauge(
     ctx.stroke();
   }
   // ticks
-  setFont(ctx, 22, 600);
+  setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 22)
   ctx.fillStyle = PALETTE.inkFaint;
   ctx.textAlign = 'center';
   for (let v = 0; v <= 100; v += 25) {
@@ -641,14 +648,14 @@ export function statCard(
     const tagP = clamp01((p - 0.45) / 0.4);
     if (tagP > 0) {
       ctx.globalAlpha = tagP;
-      setFont(ctx, 22, 600);
+      setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 22)
       const tw = ctx.measureText(tag).width;
       ctx.fillStyle = TONE(tone === 'down' ? 'down' : tone).soft;
       const tagY = opts.compact ? y + h - 40 : y + h - 58;
-      roundRect(ctx, x + 34, tagY, tw + 28, 36, 18);
+      roundRect(ctx, x + 34, tagY, tw + 30, 38, 19);
       ctx.fill();
       ctx.fillStyle = c;
-      ctx.fillText(tag, x + 48, tagY + 24);
+      ctx.fillText(tag, x + 49, tagY + 26);
     }
   }
   ctx.restore();
@@ -679,7 +686,9 @@ export function wrapText(
   return lines;
 }
 
-/** Source tag bottom-right of a scene. */
+/** Source tag bottom-right of a scene — v8: 24→27px. The panel measured
+ *  source tags as the least-legible reading text in the film; 27px keeps
+ *  them quiet but readable on a phone. */
 export function sourceTag(
   ctx: CanvasRenderingContext2D,
   W: number,
@@ -690,7 +699,7 @@ export function sourceTag(
   if (!source) return;
   ctx.save();
   ctx.globalAlpha = alpha;
-  setFont(ctx, 24, 400);
+  setFont(ctx, 27, 400);
   ctx.fillStyle = PALETTE.inkFaint;
   ctx.textAlign = 'right';
   ctx.fillText(`Source: ${source}`, W - 110, y);

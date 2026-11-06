@@ -34,6 +34,18 @@ export interface PreparedProject {
 
 const TTS_BATCH = 8;
 
+/** v8 (panel P0-4): per-beat vocal direction → TTS rate/pitch offsets.
+ *  A 20-minute flat read is the #1 'sounds AI' tell; these small offsets
+ *  give the narration an emotional contour that Edge TTS cannot infer on
+ *  its own. Applied on top of the user's chosen base rate/pitch. */
+export const VO_STYLE_DELTAS: Record<string, { rate: number; pitch: number }> = {
+  neutral: { rate: 0, pitch: 0 },
+  calm:    { rate: -6, pitch: 0 },   // slower, measured — data chapters
+  urgent: { rate: 6, pitch: 1 },    // the cold open, the paradox
+  reveal: { rate: -10, pitch: -2 }, // slow, low, held — the twist, payoffs
+  quote:  { rate: -2, pitch: 3 },   // lighter — quoted characters
+};
+
 function audioCtxShared(): AudioContext {
   const w = globalThis as any;
   if (!w.__sharedAudioCtx) {
@@ -42,13 +54,23 @@ function audioCtxShared(): AudioContext {
   return w.__sharedAudioCtx;
 }
 
-/** All sentence chunks across the whole script. */
-export function allChunks(): { id: string; text: string }[] {
-  const out: { id: string; text: string }[] = [];
+/** All sentence chunks across the whole script.
+ *  v8: each chunk carries its beat's vocal direction (voStyle → rate/pitch
+ *  offsets) and optional per-beat voice, so quoted economists get their own
+ *  voices and emotional beats get an actual emotional read. */
+export function allChunks(): { id: string; text: string; voice?: string; rateDelta?: number; pitchDelta?: number }[] {
+  const out: { id: string; text: string; voice?: string; rateDelta?: number; pitchDelta?: number }[] = [];
   SCRIPT.forEach((chapter, ci) => {
     chapter.beats.forEach((beat, bi) => {
+      const style = VO_STYLE_DELTAS[beat.voStyle ?? 'neutral'] ?? VO_STYLE_DELTAS.neutral;
       splitSentencesSafe(beat.vo).forEach((text, si) => {
-        out.push({ id: `${ci}-${bi}-${si}`, text });
+        out.push({
+          id: `${ci}-${bi}-${si}`,
+          text,
+          voice: beat.voice,
+          rateDelta: style.rate,
+          pitchDelta: style.pitch,
+        });
       });
     });
   });
@@ -69,7 +91,14 @@ export async function generateVoiceover(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        lines: batch,
+        lines: batch.map((l) => ({
+          id: l.id,
+          text: l.text,
+          // v8: per-line vocal direction rides the batch payload
+          voice: l.voice,
+          rateDelta: l.rateDelta ?? 0,
+          pitchDelta: l.pitchDelta ?? 0,
+        })),
         voice: voice.voice,
         rate: voice.rate,
         pitch: voice.pitch,

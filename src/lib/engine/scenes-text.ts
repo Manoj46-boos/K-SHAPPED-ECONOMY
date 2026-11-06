@@ -4,7 +4,7 @@
  */
 
 import { clamp01, easeInOutSine, easeOutBack, easeOutCubic, easeOutQuad } from './easing';
-import { PALETTE, TONE, card, rgba, roundRect, setFont, paintBg, FONT_DISPLAY } from './theme';
+import { PALETTE, TONE, card, rgba, roundRect, setFont, paintBg, FONT_DISPLAY, FONT_UI } from './theme';
 import { bokehField, lightRays, softBloom, sparkles, drawK3D, kMotifs, floatCoins } from './effects';
 import { SceneCtx } from './scene-context';
 import { Stickman, POSES, blendPose } from './stickman';
@@ -12,7 +12,7 @@ import { drawStickmanV2 } from './stickman-v2';
 import { wrapText } from './charts';
 
 function bg(g: SceneCtx, seed: number, gold = 0.4): void {
-  paintBg(g.ctx, g.W, g.H, g.t);
+  paintBg(g.ctx, g.W, g.H, g.t, g.chapterTone);
   bokehField(g.ctx, g.W, g.H, g.t, { intensity: 0.85, seed, gold });
   lightRays(g.ctx, g.W, g.H, g.t, { alpha: 0.5 });
 }
@@ -20,7 +20,7 @@ function bg(g: SceneCtx, seed: number, gold = 0.4): void {
 // ── bigText: the hard cut ────────────────────────────────────────────────────
 export function bigTextScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
-  paintBg(ctx, W, H, t);
+  paintBg(ctx, W, H, t, g.chapterTone);
   softBloom(ctx, W, H, t, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)
   const lines = (s.lines as string[]) || [];
   lines.forEach((ln, i) => {
@@ -77,12 +77,27 @@ export function stampCardScene(g: SceneCtx): void {
   const txt = (s.stamp as string) || 'RECORD HIGHS';
   setFont(ctx, 110, 700, FONT_DISPLAY);
   const tw = ctx.measureText(txt).width;
+  // v8 (vision panel): the stamp frame strokes crossed THROUGH the
+  // letterforms and muddied the R-E-C. A white knockout plate behind the
+  // type keeps the brushed-frame energy while the word stays crisp.
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  roundRect(ctx, -tw / 2 - 44, -104, tw + 88, 148, 16);
+  ctx.fill();
+  ctx.restore();
   // stamp frame
   ctx.strokeStyle = PALETTE.up;
   ctx.lineWidth = 10;
   roundRect(ctx, -tw / 2 - 60, -110, tw + 120, 170, 18);
   ctx.stroke();
   ctx.fillStyle = PALETTE.up;
+  // v8.1 root-cause fix: the word drew LEFT-anchored at local x=0 (the
+  // frame/plate geometry assumes a centred word), so the stamp started at
+  // the frame's centre line and overflowed right — the frame's edges cut
+  // straight through the letterforms. This is the defect BOTH vision
+  // reviews kept flagging; the knockout plate alone couldn't fix it
+  // because the plate shares the same centred assumption.
+  ctx.textAlign = 'center';
   ctx.fillText(txt, 0, 24);
   ctx.restore();
   // checkmark + sub
@@ -93,7 +108,10 @@ export function stampCardScene(g: SceneCtx): void {
     ctx.strokeStyle = PALETTE.up;
     ctx.lineWidth = 14;
     ctx.lineCap = 'round';
-    const cxx = cx + 250;
+    // v8.1 recheck: the check sat at cx+250 — inside the word's extent,
+    // its 14px strokes striking the letterforms. It now clears the stamp
+    // frame entirely (frame edge is cx + tw/2 + 60).
+    const cxx = cx + tw / 2 + 130;
     const cyy = cy + 40;
     ctx.beginPath();
     ctx.moveTo(cxx - 26, cyy);
@@ -137,7 +155,7 @@ export function quoteCardScene(g: SceneCtx): void {
   ctx.translate(0, (1 - easeOutCubic(ap)) * 36);
   card(ctx, x, y, cw, ch, { r: 34 });
   // accent
-  ctx.fillStyle = soft ? rgba('#B9B4A6', 0.9) : PALETTE.gold;
+  ctx.fillStyle = soft ? rgba(PALETTE.grid, 0.9) : PALETTE.gold;
   roundRect(ctx, x + 44, y + 40, 8, ch - 80, 4);
   ctx.fill();
   // kicker
@@ -360,7 +378,8 @@ export function commentPromptScene(g: SceneCtx): void {
   ctx.fillText(sub, W / 2, H * 0.42);
   ctx.restore();
 
-  // floating comment bubbles
+  // floating comment bubbles — v8: white cards with teal/gold borders
+  // (the panel called the old warm-tan fills "dirty paper scraps")
   const comments = [
     'the market side, honestly', 'a bit of both…', 'sentiment side 100%',
     'gas prices got me', 'my portfolio disagrees with my mood',
@@ -372,13 +391,13 @@ export function commentPromptScene(g: SceneCtx): void {
     const y = H * (0.52 + (i % 2) * 0.14) + Math.cos(t / 1100 + i) * 10;
     ctx.save();
     ctx.globalAlpha = bp * 0.95;
-    setFont(ctx, 26, 600);
+    setFont(ctx, 27, 600);
     const tw = ctx.measureText(c).width;
     ctx.fillStyle = i % 2 ? PALETTE.upSoft : PALETTE.goldWash;
     roundRect(ctx, x - tw / 2 - 26, y - 34, tw + 52, 62, 30);
     ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = rgba(i % 2 ? PALETTE.up : PALETTE.gold, 0.5);
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = rgba(i % 2 ? PALETTE.up : PALETTE.gold, 0.6);
     roundRect(ctx, x - tw / 2 - 26, y - 34, tw + 52, 62, 30);
     ctx.stroke();
     // tail
@@ -408,7 +427,7 @@ export function commentPromptScene(g: SceneCtx): void {
 export function endScreenScene(g: SceneCtx): void {
   const { ctx, W, H, t, channelName, nextVideoTitle } = g;
   const showHints = (g as any).previewMode === true; // studio preview only
-  paintBg(ctx, W, H, t);
+  paintBg(ctx, W, H, t, g.chapterTone);
   bokehField(ctx, W, H, t, { intensity: 1.1, seed: 261, gold: 0.6 });
   kMotifs(ctx, W, H, t, 0.05);
   floatCoins(ctx, W * 0.3, H * 0.32, t, 5, 200);
@@ -421,7 +440,9 @@ export function endScreenScene(g: SceneCtx): void {
   ctx.globalAlpha = ap;
   ctx.translate(0, (1 - easeOutCubic(ap)) * 40);
   card(ctx, nx, ny, 660, 400, { r: 30 });
-  ctx.fillStyle = PALETTE.goldWash;
+  // v8: card interior upSoft (teal wash) — the vision panel read the old
+  // cream interior as the last big 'aged paper' wash in the film
+  ctx.fillStyle = PALETTE.upSoft;
   roundRect(ctx, nx + 24, ny + 24, 612, 250, 20);
   ctx.fill();
   drawK3D(ctx, nx + 170, ny + 145, 76, clamp01((t - 300) / 900), t);
@@ -450,11 +471,55 @@ export function endScreenScene(g: SceneCtx): void {
   // crossed the NEXT WEEK title text near “Concentration”. He now stands
   // clear to the card's right (body x≈795–895 vs text right edge ≈739),
   // still inside the left-55% YouTube-safe zone, waving toward the card.
+  // v8: he PRESENTS — points at the WATCH NEXT arrow below (the scene's
+  // click mechanism) instead of waving at nothing.
   const pose = {
-    ...blendPose(POSES.wave, POSES.wave, 0),
-    rAL: POSES.wave.rAL + Math.sin(t / 160) * 16,
+    ...POSES.pointR,
+    rAL: POSES.pointR.rAL + Math.sin(t / 900) * 4,
   };
-  drawStickmanV2(ctx, W * 0.44, H * 0.86, 1.0, t, { pose, alpha: clamp01((t - 800) / 600), look: -0.4 }, 37);
+  drawStickmanV2(ctx, W * 0.44, H * 0.86, 1.0, t, { pose, alpha: clamp01((t - 800) / 600), look: 0.6 }, 37);
+
+  // ── v8: the WATCH NEXT arrow — the end screen's click mechanism ────────
+  // The panel's verdict: "no thumbnail target = the most commercially
+  // important frame does brand work only." YouTube fills the right 40% with
+  // its own video element + subscribe circle; a bold outlined arrow + chip
+  // INSIDE our safe zone points at exactly where those land, and the host's
+  // pointing gesture sells it. Geometry-checked: clears the teaser card
+  // (ends y≈659), the host (x≥785), and the coins (ends y≈570).
+  {
+    const ap = clamp01((t - 1400) / 600);
+    if (ap > 0) {
+      ctx.save();
+      ctx.globalAlpha = ap;
+      const ax = W * 0.26;
+      const ay = H * 0.70;
+      setFont(ctx, 56, 700, FONT_UI);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#FFFFFF';
+      ctx.strokeStyle = PALETTE.up;
+      ctx.lineWidth = 10;
+      ctx.lineJoin = 'round';
+      ctx.strokeText('WATCH NEXT', ax, ay);
+      ctx.fillText('WATCH NEXT', ax, ay);
+      // the arrow — a chunky chevron aimed at YouTube's element zone
+      ctx.strokeStyle = PALETTE.up;
+      ctx.lineWidth = 14;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      const bounce = Math.sin(t / 480) * 8;
+      ctx.beginPath();
+      ctx.moveTo(ax + 200, ay - 26 + bounce * 0.4);
+      ctx.lineTo(ax + 268, ay - 4 + bounce * 0.4);
+      ctx.lineTo(ax + 200, ay + 18 + bounce * 0.4);
+      ctx.stroke();
+      // gold pulse dot riding the arrow (life + direction)
+      ctx.fillStyle = PALETTE.gold;
+      ctx.beginPath();
+      ctx.arc(ax + 268 + 18, ay - 4 + bounce * 0.4, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
 
   // ── channel name + tagline, bottom-center-left ──
   const tp = clamp01((t - 500) / 700);

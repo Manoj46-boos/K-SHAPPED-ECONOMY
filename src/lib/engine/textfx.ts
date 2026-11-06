@@ -54,18 +54,24 @@ export function drawCaptions(
   if (!active) return;
 
   const words = active.words;
-  const fontSize = 40;
-  const maxW = Math.min(W - 520, W * 0.62); // hard cap: 62% of frame
-  setFont(ctx, fontSize, 600, FONT_UI);
+  // v8: 40→46px, 600→700 weight. The vision panel measured the caption as
+  // the smallest reading text on a phone in landscape — the majority view
+  // for finance explainers. 46px/1080 = 4.26% of frame height, inside
+  // YouTube's own caption register; the extra weight survives the platform
+  // transcode at 480p.
+  const fontSize = 46;
+  const maxW = Math.min(W - 460, W * 0.66); // hard cap: 66% of frame
+  setFont(ctx, fontSize, 700, FONT_UI);
   const spaceW = ctx.measureText(' ').width;
 
-  // sliding window: 6 spoken words back, fill forward to the width cap
+  // sliding window: 4 spoken words back (v8: was 6 — a shorter read-ahead
+  // makes the karaoke sweep punchier and the pill narrower), fill forward
   let winStart = 0;
   let lastSpoken = -1;
   for (let i = 0; i < words.length; i++) {
     if (tMs >= words[i].t) lastSpoken = i;
   }
-  if (lastSpoken > 6) winStart = lastSpoken - 5;
+  if (lastSpoken > 4) winStart = lastSpoken - 3;
   const winWords = words.slice(winStart);
 
   const rows: { words: CaptionWord[]; width: number }[] = [{ words: [], width: 0 }];
@@ -106,23 +112,25 @@ export function drawCaptions(
   ctx.fill();
   ctx.restore();
 
-  // words — spoken = ink, upcoming = 55% ink (passes contrast), active = sweep
+  // words — spoken = ink, upcoming = 42% ink (v8: was 55% — wider
+  // spoken/unspoken contrast makes the sweep readable at a glance),
+  // active = sweep
   ctx.save();
   ctx.textBaseline = 'middle';
-  setFont(ctx, fontSize, 600, FONT_UI);
+  setFont(ctx, fontSize, 700, FONT_UI);
   rows.forEach((row, ri) => {
     let x = W / 2 - row.width / 2 + spaceW / 2;
     const y = py + 26 + ri * rowH + fontSize / 2;
     for (const w of row.words) {
       const spoken = tMs >= w.t;
       const activeW = spoken && tMs <= w.t + w.d + 90;
-      ctx.fillStyle = spoken ? PALETTE.ink : rgba('#55555F', 0.55);
+      ctx.fillStyle = spoken ? PALETTE.ink : rgba('#4F5D59', 0.42);
       ctx.fillText(w.w, x, y);
       if (style.mode === 'karaoke' && activeW) {
         const ww = ctx.measureText(w.w).width;
         const sweep = clamp01((tMs - w.t) / Math.max(w.d, 80));
         ctx.fillStyle = PALETTE.up;                       // v5: teal karaoke sweep
-        roundRect(ctx, x - 2, y + fontSize * 0.62, (ww + 4) * easeOutQuad(sweep), 8, 4);
+        roundRect(ctx, x - 2, y + fontSize * 0.62, (ww + 4) * easeOutQuad(sweep), 9, 4.5);
         ctx.fill();
       }
       x += ctx.measureText(w.w).width + spaceW;
@@ -149,7 +157,7 @@ export function drawChapterCard(
   ctx.save();
   ctx.globalAlpha = a;
   // light backdrop wipe
-  ctx.fillStyle = rgba('#FDFCF8', 0.97);
+  ctx.fillStyle = rgba('#FFFFFF', 0.97);
   ctx.fillRect(0, 0, W, H);
   // v4 (audit P1-5): ghost chapter number behind the title — the vision
   // panel called the bare card “a legal disclaimer slide”; a 10%-gold serif
@@ -203,7 +211,7 @@ export function drawChapterCard(
     }
     ctx.beginPath();
     ctx.arc(x, y, active ? dotR + 3 : filled ? dotR : dotR * 0.62, 0, Math.PI * 2);
-    ctx.fillStyle = filled ? (active ? PALETTE.goldDeep : PALETTE.gold) : rgba('#B9B4A6', 0.5);
+    ctx.fillStyle = filled ? (active ? PALETTE.goldDeep : PALETTE.gold) : rgba(PALETTE.grid, 0.5);
     ctx.fill();
   }
   // v5 (audit P1-5): the host peeks in from the left edge with a signpost
@@ -219,7 +227,7 @@ export function drawChapterCard(
     ctx.translate(-slide, 0);
     // signpost: pole + tilted board with the chapter number + chevron
     const px = 196;
-    ctx.strokeStyle = rgba('#8C8474', 0.9);
+    ctx.strokeStyle = rgba(PALETTE.shadow, 0.9);
     ctx.lineWidth = 7;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -301,7 +309,7 @@ export function drawWatermark(
   ctx.moveTo(0, 1);
   ctx.lineTo(12, 12);
   ctx.stroke();
-  setFont(ctx, 23, 600);
+  setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 23)
   ctx.fillStyle = rgba('#55555F', 0.9);
   ctx.textAlign = 'left';
   ctx.fillText(channelName.toUpperCase(), 24, 8);
@@ -324,14 +332,14 @@ export function drawChapterLabel(
   if (a <= 0) return;
   ctx.save();
   ctx.globalAlpha = a * 0.9;
-  setFont(ctx, 22, 600);
+  setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 22)
   const tw = ctx.measureText(label).width;
   const x = W - 96 - tw - 40;
   ctx.fillStyle = rgba('#FFFFFF', 0.9);
   roundRect(ctx, x, 44, tw + 44, 44, 22);
   ctx.fill();
   ctx.lineWidth = 2;
-  ctx.strokeStyle = rgba('#B9B4A6', 0.55);
+  ctx.strokeStyle = rgba(PALETTE.grid, 0.55);
   roundRect(ctx, x, 44, tw + 44, 44, 22);
   ctx.stroke();
   ctx.fillStyle = PALETTE.inkSoft;
@@ -357,7 +365,7 @@ export function drawProgressBar(
   roundRect(ctx, 0, y, W * clamp01(progress), 8, 0);
   ctx.fill();
   for (const f of chapterFracs) {
-    ctx.fillStyle = rgba('#FDFCF8', 0.9);
+    ctx.fillStyle = rgba('#FFFFFF', 0.9);
     ctx.beginPath();
     ctx.arc(f * W, y + 4, 3.4, 0, Math.PI * 2);
     ctx.fill();

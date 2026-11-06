@@ -4,8 +4,18 @@ import { synthesizeLines } from '@/lib/server/tts-service';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
+interface TtsLine {
+  id: string;
+  text: string;
+  /** v8: per-line voice override (quoted economists get their own voices) */
+  voice?: string;
+  /** v8: per-line rate/pitch deltas from the beat's voStyle direction */
+  rateDelta?: number;
+  pitchDelta?: number;
+}
+
 interface TtsBody {
-  lines: { id: string; text: string }[];
+  lines: TtsLine[];
   voice?: string;
   rate?: number;
   pitch?: number;
@@ -34,6 +44,11 @@ export async function POST(req: NextRequest) {
   const pitch = Number.isFinite(body.pitch) ? Number(body.pitch) : 0;
 
   try {
+    // v8 (panel P0-4): the batch carries per-line vocal direction. The
+    // service resolves each line's effective (voice, rate, pitch) — base
+    // settings + the beat's voStyle deltas + any per-beat voice override —
+    // and caches per resolved combination, so quoted-voice lines and
+    // narrator lines never collide in the cache.
     const results = await synthesizeLines(lines, voice, rate, pitch, 3);
     return NextResponse.json({
       ok: true,

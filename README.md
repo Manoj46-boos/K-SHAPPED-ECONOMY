@@ -6,8 +6,9 @@ Renders your complete YouTube script — **"Why Does Everyone Feel Broke When th
 - **Human-like neural voiceover** (free Microsoft Edge voices — Andrew by default)
 - **Original score** composed by code (royalty-free, fully monetizable) with automatic ducking under the voice
 - **Karaoke captions** synced word-by-word to the voice
-- **Light "Morning Ivory" design** — warm ivory, gold, teal & coral. No dark theme anywhere.
-- Chapter cards, animated charts, the signature 3-D "K", progress bar, end screen, and a **thumbnail generator**
+- **Light "Premium White" design** — pure-white canvas, slate-teal ink (#2E4A43), teal & coral accents, bright gold cameos. No black, no brown, no dark theme anywhere.
+- Chapter cards with the **K-wipe transition** (a giant soft K sweeps every chapter), animated charts, the signature 3-D "K", progress bar, end screen with a WATCH NEXT click target, a **two-voice economist debate** (free Edge voices), and a **thumbnail generator**
+- **Offline render QA harness** — `npm i -D canvas` once, then `node tools/render-check.mjs` renders ~20 representative frames to `./harness-frames/` so you can check any scene without opening the studio
 - Built for an **8 GB office laptop**: frames render one at a time and stream directly to disk
 
 ---

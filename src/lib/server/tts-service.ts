@@ -110,9 +110,21 @@ async function synthesize(
   );
 }
 
-/** Runs synthesis with bounded concurrency; fresh EdgeTTS per slot avoids socket reuse issues. */
+/** Runs synthesis with bounded concurrency; fresh EdgeTTS per slot avoids socket reuse issues.
+ *  v8: each line may override the voice (quoted characters) and carry
+ *  rate/pitch deltas from its beat's voStyle — the cache key includes the
+ *  resolved combination, so a Guy-voiced quote never collides with the
+ *  same text in the narrator's voice. */
+export interface SynthLine {
+  id: string;
+  text: string;
+  voice?: string;
+  rateDelta?: number;
+  pitchDelta?: number;
+}
+
 export async function synthesizeLines(
-  lines: { id: string; text: string }[],
+  lines: SynthLine[],
   voice: string,
   rate: number,
   pitch: number,
@@ -129,7 +141,11 @@ export async function synthesizeLines(
     while (cursor < total) {
       const idx = cursor++;
       const line = lines[idx];
-      results.set(line.id, await synthesize(tts, line.id, line.text, voice, rate, pitch));
+      // v8: resolve this line's effective vocal direction
+      const lineVoice = line.voice || voice;
+      const lineRate = rate + (Number.isFinite(line.rateDelta) ? (line.rateDelta as number) : 0);
+      const linePitch = pitch + (Number.isFinite(line.pitchDelta) ? (line.pitchDelta as number) : 0);
+      results.set(line.id, await synthesize(tts, line.id, line.text, lineVoice, lineRate, linePitch));
       done++;
       onProgress?.(done, total);
     }

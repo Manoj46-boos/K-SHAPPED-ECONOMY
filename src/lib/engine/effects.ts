@@ -64,7 +64,13 @@ export function bokehField(
   t: number,
   opts: { intensity?: number; seed?: number; gold?: number } = {}
 ): void {
-  const { intensity = 1, seed = 3, gold = 0.45 } = opts;
+  const { intensity = 1, seed = 3, gold = 0.22 } = opts;
+  // v8: gold ratio hard-capped — scene call sites still pass 0.5-0.6
+  // from the v5 era and every one of them reads as 'aged paper stains' on
+  // the white canvas (panel verdict, twice). v8.1 recheck: 0.28 still left
+  // smudge-sized gold motes, so the cap drops to 0.18. The cap makes the
+  // field safe no matter what the caller asks for.
+  const goldRatio = Math.min(0.18, gold);
   const N = 26;
   // v3 (panel P1-2): motes counter-shift by the camera motion the background
   // did NOT follow, so the bokeh slides against the scene plane at ~0.45×.
@@ -76,10 +82,26 @@ export function bokehField(
     const bx = (hash01(i * 3.7 + seed) * W + drift(t / 9000 + i * 3, i) * 40 * depth - camX2 * depth + W) % W;
     const by =
       (hash01(i * 7.1 + seed * 5) * H - (t / 1000) * speed - camY2 * depth + Math.sin(t / 5000 + i) * 20 + H * 4) % H;
-    const r = (5 + hash01(i * 2.3) * 26) * depth;
-    const isGold = hash01(i * 5.3 + seed) < gold;
-    const col = isGold ? PALETTE.gold : PALETTE.white;
-    const a = (0.10 + hash01(i * 9.2) * 0.16) * intensity * depth;
+    // v8: on a white canvas only the GOLD motes are visible — at 0.45
+    // ratio they read as 'aged paper stains' (panel verdict). v8.1 recheck:
+    // even capped at 0.28 the large gold motes still read as smudges — the
+    // cap drops to 0.18 AND gold motes render at 0.72× radius with a
+    // dimmer alpha ceiling: gold is a rare sparkle, never a stain. The
+    // field itself is carried by teal-white.
+    const isGold = hash01(i * 5.3 + seed) < goldRatio;
+    const col = isGold ? PALETTE.gold : '#F2FAF8';
+    // v8.2: gold motes also get a hard radius cap (14px core) — the v8.1
+    // recheck still found one large gold mote reading as a blotch. Gold is
+    // sparkle-sized, always; teal-white motes may stay large and soft.
+    const r = Math.min((5 + hash01(i * 2.3) * 26) * depth * (isGold ? 0.72 : 1), isGold ? 14 : 1e9);
+    // v8: alpha floor 0.10→0.13 — the v5 field was sub-visible after
+    // YouTube's transcode on phone screens (the panel saw "muddy smudges",
+    // i.e. the bottom of the range, and nothing else). Barely-there is now
+    // actually there.
+    const a =
+      (isGold ? 0.11 + hash01(i * 9.2) * 0.13 : 0.13 + hash01(i * 9.2) * 0.17) *
+      intensity *
+      depth;
     glowBlob(ctx, bx, by, r * 3, col, a);
   }
 }
@@ -227,7 +249,12 @@ export function drawK(
   ctx.restore();
 }
 
-/** 3D-extruded K (layered strokes for depth) — the hero moment. */
+/** 3D-extruded K (layered strokes for depth) — the hero moment.
+ *  v8: the extrusion stack lightened (9→6 layers, 0.16→0.10 alpha) and
+ *  the gold sheen narrowed to a specular band (0.5→0.30 alpha, half the
+ *  height) — the pixel audit measured the old broad sweep at hue 46° /
+ *  sat 0.78 as it crossed the ink face, which read as a brown wash, not a
+ *  specular highlight. */
 export function drawK3D(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -236,26 +263,26 @@ export function drawK3D(
   grow: number,
   t: number
 ): void {
-  const layers = 9;
+  const layers = 6;
   for (let i = layers; i >= 1; i--) {
     const f = i / layers;
-    const off = i * 4.2;
+    const off = i * 5.4;
     ctx.save();
     ctx.translate(off, -off * 0.35);
     const shade = lerp(0.5, 0.95, f);
     ctx.globalAlpha = 0.9;
-    drawK(ctx, x, y, s, 30 - i * 1.4, rgba('#8C8474', 0.16 * shade), grow);
+    drawK(ctx, x, y, s, 30 - i * 1.4, rgba(PALETTE.shadow, 0.10 * shade), grow);
     ctx.restore();
   }
   // face strokes
   drawK(ctx, x, y, s, 30, PALETTE.ink, grow);
-  // gold sheen sweep
+  // gold sheen — a narrow specular band, not a wash
   const sweep = (t / 2400) % 1;
   ctx.save();
   ctx.beginPath();
-  ctx.rect(x - s * 1.4, y - s * 1.3 + sweep * s * 2.6, s * 2.8, s * 0.5);
+  ctx.rect(x - s * 1.4, y - s * 1.3 + sweep * s * 2.6, s * 2.8, s * 0.28);
   ctx.clip();
-  drawK(ctx, x, y, s, 30, rgba(PALETTE.gold, 0.5), grow);
+  drawK(ctx, x, y, s, 30, rgba(PALETTE.gold, 0.30), grow);
   ctx.restore();
 }
 
@@ -306,13 +333,66 @@ export function softBloom(
 }
 
 /**
- * v2 scale punch for hard cuts (PATCH 5) — optional 1-2% overshoot that
- * decays in 160ms. Multiply into the camera scale right after a cut.
+ * v2 scale punch for hard cuts (PATCH 5) — 3.5% overshoot decaying over
+ * 200ms (v8: was 2%/160ms — the panel found 2% below perception next to
+ * the new 5% camera moves; the punch must clear the camera or it reads
+ * as nothing). Multiply into the camera scale right after a cut.
  */
-export function scalePunch(age: number, dur = 160): number {
+export function scalePunch(age: number, dur = 200): number {
   if (age < 0 || age > dur) return 1;
   const p = age / dur;
-  return 1 + 0.02 * Math.sin(p * Math.PI) * (1 - p);
+  return 1 + 0.035 * Math.sin(p * Math.PI) * (1 - p);
+}
+
+// ── v8: the K-WIPE — the brand-owned chapter transition ────────────────────
+// A giant soft K sweeps left→right across the frame for the first 420ms of
+// every chapter card: the audience learns it by chapter 3 and starts to
+// feel "new section coming" — the same trick a great show's title sequence
+// does with motion, not words. One clipped drawK per frame, fully
+// deterministic, ~0.2ms of render time on the 8 GB Dell.
+export function kWipe(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  tMs: number,
+  dur = 420
+): void {
+  if (tMs < 0 || tMs > dur) return;
+  const p = tMs / dur;
+  // easeInOut through the frame; alpha peaks mid-sweep
+  const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+  const a = Math.sin(p * Math.PI) * 0.07;
+  const cx = -W * 0.35 + e * W * 1.7;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.strokeStyle = PALETTE.up;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  // one huge K, arms trailing the vertex like a brush stroke
+  const s = H * 0.42;
+  ctx.lineWidth = 46;
+  ctx.beginPath();
+  ctx.moveTo(cx, H * 0.5 - s);
+  ctx.lineTo(cx, H * 0.5 + s);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx, H * 0.5 + s * 0.08);
+  ctx.lineTo(cx + s * 1.12, H * 0.5 - s * 0.92);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx, H * 0.5 + s * 0.08);
+  ctx.lineTo(cx + s * 1.12, H * 0.5 + s * 0.92);
+  ctx.stroke();
+  // a warm counter-stroke a beat behind — depth on the sweep
+  ctx.globalAlpha = a * 0.6;
+  ctx.strokeStyle = PALETTE.gold;
+  const cx2 = cx - W * 0.05;
+  ctx.lineWidth = 20;
+  ctx.beginPath();
+  ctx.moveTo(cx2, H * 0.5 - s * 0.9);
+  ctx.lineTo(cx2, H * 0.5 + s * 0.9);
+  ctx.stroke();
+  ctx.restore();
 }
 
 /** Deterministic floating gold coins (for pump / wealth scenes). */

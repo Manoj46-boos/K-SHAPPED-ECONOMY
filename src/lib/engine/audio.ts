@@ -584,18 +584,37 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
     else merged.push({ s, e });
   }
   // build control curve with ramps (attack 90ms, release 200ms)
+  // v8 (panel P0-5): dramatic-silence windows — flagged beats duck the bed
+  // to ~4% right before their payoff line. Two windows in the whole film;
+  // scarcity is the mechanism. Attack 140ms (fast enough to feel sudden),
+  // release 260ms (the slam-back is part of the effect).
   {
     let cur = base;
     let mi = 0;
     const attackStep = grid / (0.09 * SR_OUT);
     const releaseStep = grid / (0.2 * SR_OUT);
+    const silAttackStep = grid / (0.14 * SR_OUT);
+    const silReleaseStep = grid / (0.26 * SR_OUT);
+    const silLevel = Math.max(0.015, base * 0.07);
     for (let c = 0; c < ctl.length; c++) {
       const t = (c * grid) / SR_OUT;
       let target = gap;
       while (mi < merged.length && t >= merged[mi].e) mi++;
       if (mi < merged.length && t >= merged[mi].s - 0.09) target = ducked;
-      if (target < cur) cur = Math.max(target, cur - attackStep);
-      else cur = Math.min(target, cur + releaseStep);
+      // silence windows override everything inside them
+      for (const sw of tl.silenceWindows ?? []) {
+        const s = sw.start / 1000;
+        const e = sw.end / 1000;
+        if (t >= s - 0.05 && t <= e + 0.12) {
+          target = silLevel;
+          break;
+        }
+      }
+      const isSil = target === silLevel;
+      const down = isSil ? silAttackStep : attackStep;
+      const up = isSil ? silReleaseStep : releaseStep;
+      if (target < cur) cur = Math.max(target, cur - down);
+      else cur = Math.min(target, cur + up);
       ctl[c] = cur;
     }
   }
@@ -664,6 +683,21 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
   }
   for (const d of tl.dataDingTimes) {
     addDing(L, R, d / 1000, bgmVolume);
+  }
+
+  // ── 4c. v8 (panel P0-5): the silence SLAM — each dramatic-silence window
+  // ends with the signature K-motif chime landing exactly on the payoff
+  // word. The motif was previously heard only on chapter cards; the twist
+  // beat now gets the brand's own sound at the single most important
+  // moment of the film, and the end screen closes on it too.
+  for (const sw of tl.silenceWindows ?? []) {
+    addKMotif(L, R, sw.end / 1000, Math.max(0.45, bgmVolume * 0.9));
+  }
+  {
+    const endBeat = tl.beats[tl.beats.length - 1];
+    if (endBeat?.beat.scene.type === 'endScreen') {
+      addKMotif(L, R, endBeat.startMs / 1000 + 0.4, Math.max(0.45, bgmVolume));
+    }
   }
 
   // ── 5. v4 master (audit P0-5): bus glue FIRST, then normalise to the

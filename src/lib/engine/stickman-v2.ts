@@ -139,14 +139,14 @@ export function groundShadowV2(
   ctx.translate(cx, groundY);
   ctx.scale(scale, scale);
   const g = ctx.createRadialGradient(0, 4, 8, 0, 4, 120);
-  g.addColorStop(0, rgba('#8C8474', 0.30));
-  g.addColorStop(0.55, rgba('#8C8474', 0.12));
-  g.addColorStop(1, rgba('#8C8474', 0));
+  g.addColorStop(0, rgba(PALETTE.shadow, 0.30));
+  g.addColorStop(0.55, rgba(PALETTE.shadow, 0.12));
+  g.addColorStop(1, rgba(PALETTE.shadow, 0));
   ctx.fillStyle = g;
   ctx.beginPath();
   ctx.ellipse(0, 8, 118, 26, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = rgba('#8C8474', 0.35);
+  ctx.strokeStyle = rgba(PALETTE.shadow, 0.35);
   ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(-130, 8); ctx.lineTo(130, 8); ctx.stroke();
   ctx.strokeStyle = rgba(PALETTE.gold, 0.85);
@@ -205,7 +205,7 @@ export function drawStickmanV2(
   if ((r.shadow ?? 1) > 0) groundShadowV2(ctx, 0, 0, 1);
 
   const ink = PALETTE.ink;
-  const inkFar = '#6E6E78';
+  const inkFar = '#67746F'; // v8: cool slate far-limb (was purple-grey)
 
   // FAR limbs — thinner + lighter (depth)
   limb2(ctx, -6, pelvisY, pose.lLU, pose.lLL, U_LEG, L_LEG, 12, 10, 9, inkFar);
@@ -275,7 +275,7 @@ export function drawStickmanV2(
     roundRect(ctx, -10, -9, 20, 6, 3);
     ctx.fill();
     // steam — two deterministic wisps
-    ctx.strokeStyle = rgba('#8C8474', 0.55);
+    ctx.strokeStyle = rgba(PALETTE.shadow, 0.55);
     ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     for (let s = 0; s < 2; s++) {
@@ -300,7 +300,7 @@ export function drawStickmanV2(
   ctx.translate(headCX, headCY + nod);
   ctx.rotate(tiltR * 0.6);
   // soft head shadow for depth
-  ctx.fillStyle = rgba('#8C8474', 0.10);
+  ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
   ctx.beginPath();
   ctx.arc(3, 5, 34, 0, Math.PI * 2);
   ctx.fill();

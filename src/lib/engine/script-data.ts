@@ -11,6 +11,20 @@ export interface BeatSpec {
   pauseAfter?: number;
   /** scene props; `sceneKey` groups consecutive beats into one continuous scene */
   scene: { type: string; sceneKey: string; [k: string]: unknown };
+  /** v8 (panel P0-4): per-beat vocal direction. Maps to TTS rate/pitch
+   *  offsets so a 20-minute narration stops being one flat read:
+   *  calm = −6% rate, reveal = −10% + pitch −2Hz (slow, low, held),
+   *  urgent = +6% rate (the cold open, the paradox), quote = pitch +3Hz
+   *  (lighter, for quoted characters). Default: the base voice settings. */
+  voStyle?: 'calm' | 'neutral' | 'urgent' | 'reveal' | 'quote';
+  /** v8: a completely different Edge voice for this beat (quoted
+   *  economists get their own voices — the debate becomes a real
+   *  two-voice argument instead of one narrator quoting himself). */
+  voice?: string;
+  /** v8 (panel P0-5): duck the BGM to near-silence just before this beat's
+   *  payoff line. Used twice in the whole film (the twist, the paradox
+   *  strike) — scarcity is what makes it work. */
+  dropOut?: boolean;
 }
 
 export interface ChapterSpec {
@@ -38,9 +52,17 @@ export const SCRIPT: ChapterSpec[] = [
         // labels and the K-name caption so the naming beat lands later with
         // full impact, and holds the twist chip on screen from this first
         // scene (audit P0-6, items 1 and 4).
+        // v8 (panel P0-6): the channel promise is now SPOKEN INSIDE the cold
+        // open ("the full range of the data — never just the best headline")
+        // and the dedicated 8-second branding beat is cut. Retention data:
+        // 55% of viewers are lost in the first 60s and a self-referential
+        // beat at 0:14–0:22 is a known dip on new channels. Data now starts
+        // at ~0:12 instead of ~0:25. The sting scene type survives for
+        // channels that want it — it's just not in THIS edit.
         vo:
-          "If the market's near record highs right now — and you still feel like you're falling behind — you're not losing your mind. Here's the honest, data-backed reason both are true at once.",
-        pauseAfter: 700,
+          "If the market's near record highs right now — and you still feel like you're falling behind — you're not losing your mind. Here's the honest, data-backed reason both are true at once — the full range of the data, never just the best headline.",
+        pauseAfter: 600,
+        voStyle: 'urgent',
         scene: P('divergeK', 'c1-k-open', {
           twistChip: true,
           opening: true,
@@ -49,18 +71,9 @@ export const SCRIPT: ChapterSpec[] = [
       {
         // v2 (PATCH 8): the v1 edit parked a 28-second self-introduction here
         // as its own chapter at the 80-second mark — the single biggest
-        // retention cliff in the video (new viewers just met you 80 seconds
-        // ago; this is where they leave). The channel promise is now ONE
-        // 8-second sentence, delivered as a quick logo sting. v4 (audit
-        // P0-6): with the K cold open at 0:00 the sting lands at ~0:14–0:22,
-        // inside the retention window, and the data starts ~0:25.
-        vo: 'Quick note for new faces: this channel shows the full range of every number — never just the best headline. Now, the data.',
-        pauseAfter: 500,
-        scene: P('channelIntro', 'c1-sting', {}),
-      },
-      {
-        // v4 (audit P0-6): "Two numbers." cut as a spoken beat — the reveal
-        // itself carries the framing, straight from the sting (~0:25).
+        // retention cliff in the video. v8: REMOVED entirely — the promise
+        // now rides the cold open above, one sentence, no separate scene.
+        // The channelIntro scene drawer stays available for future edits.
         vo:
           'Over the past year, the S&P 500 is up about 18%. The Nasdaq\u2019s up over 20%. Corporate America just posted its highest profit margins on record.',
         pauseAfter: 650,
@@ -90,6 +103,7 @@ export const SCRIPT: ChapterSpec[] = [
       {
         vo: 'Same country. Same year. Two completely different stories.',
         pauseAfter: 550,
+        voStyle: 'reveal',
         scene: P('splitNumbers', 'c1-market', {
           mode: 'vs-punch',
           cornerNote: 'sources for every stat in this video are linked below',
@@ -100,6 +114,7 @@ export const SCRIPT: ChapterSpec[] = [
         vo:
           'Economists have a name for this now — the “K-shaped economy.” If you\u2019ve got money in the market, this isn\u2019t trivia. And stick around, because there\u2019s a twist later in this video that applies directly to your portfolio — not just to people watching from the sidelines. Let\u2019s go through the real data — all of it, not just the parts that make the better headline.',
         pauseAfter: 800,
+        voStyle: 'calm',
         scene: P('divergeK', 'c1-k', {
           twistChip: true,
           // v4 (audit P0-6): the naming beat — the same K the video opened
@@ -491,9 +506,15 @@ export const SCRIPT: ChapterSpec[] = [
         }),
       },
       {
+        // v8 (panel P0-4/P0-5): the debate is now a REAL two-voice argument —
+        // documentary style. The narrator sets each economist up, then their
+        // own (distinct, free Edge) voice delivers the quote, then the
+        // narrator resolves. One flat 20-minute TTS read is the #1 'sounds
+        // AI' tell for high-RPM audiences; quoted characters having voices
+        // is the single biggest free upgrade to perceived production value.
         vo:
-          'Not every economist agrees on how severe this is, by the way — and that disagreement is itself useful. Goldman Sachs\u2019 chief U.S. economist initially argued the K-shape narrative was somewhat overstated. Moody\u2019s Mark Zandi has been far more alarmed, saying for much of the past year that roughly half of U.S. states were effectively in a state-level recession, with lower-income consumers, in his words, “hanging on by their fingertips.” At his most alarmed point, in that same spring, as the Iran conflict escalated, Zandi\u2019s own recession model briefly hit 48% — practically a coin flip. Reasonable, serious people are reading the same data differently, which tells you this is genuinely contested, not a settled slam dunk in either direction.',
-        pauseAfter: 800,
+          'Not every economist agrees on how severe this is — and that disagreement is itself useful. Goldman Sachs\u2019 chief U.S. economist initially argued:',
+        pauseAfter: 200,
         scene: P('recessionGauge', 'c5-gauge', {
           source: 'Goldman Sachs · Moody\u2019s Analytics',
           debates: [
@@ -502,7 +523,37 @@ export const SCRIPT: ChapterSpec[] = [
           ],
           gaugeTo: 48,
           coinChip: '48% — practically a coin flip',
+          // v8: mid-roll engagement — the comment prompt rides this scene
+          promptChip: 'Before the number lands — what\u2019s YOUR recession odds guess? Comments.',
         }),
+      },
+      {
+        // the Goldman voice — classic news-anchor timbre (free Edge voice)
+        vo: 'The K-shape narrative is somewhat overstated.',
+        pauseAfter: 200,
+        voice: 'en-US-GuyMultilingualNeural',
+        voStyle: 'quote',
+        scene: P('recessionGauge', 'c5-gauge', {}),
+      },
+      {
+        vo:
+          'Moody\u2019s Mark Zandi has been far more alarmed, saying for much of the past year that roughly half of U.S. states were effectively in a state-level recession — in his words:',
+        pauseAfter: 200,
+        scene: P('recessionGauge', 'c5-gauge', {}),
+      },
+      {
+        // Zandi's voice — deeper, more urgent (free Edge voice)
+        vo: 'Lower-income consumers are hanging on by their fingertips.',
+        pauseAfter: 250,
+        voice: 'en-US-BrianMultilingualNeural',
+        voStyle: 'quote',
+        scene: P('recessionGauge', 'c5-gauge', {}),
+      },
+      {
+        vo:
+          'At his most alarmed point, in that same spring, as the Iran conflict escalated, Zandi\u2019s own recession model briefly hit 48% — practically a coin flip. Reasonable, serious people are reading the same data differently, which tells you this is genuinely contested, not a settled slam dunk in either direction.',
+        pauseAfter: 800,
+        scene: P('recessionGauge', 'c5-gauge', {}),
       },
     ],
   },
@@ -687,6 +738,8 @@ export const SCRIPT: ChapterSpec[] = [
         vo:
           'Put that all together, and the “paradox” in the headline stops being a paradox. The market can be at record highs and genuinely be leaving most of the country behind — because most of the country was never really in the market to begin with, and the people who are in it have more riding on it than ever.',
         pauseAfter: 800,
+        voStyle: 'urgent',
+        dropOut: true, // v8: the bed cuts out before the paradox resolves
         scene: P('paradoxResolve', 'c7-paradox', {}),
       },
     ],
@@ -701,6 +754,8 @@ export const SCRIPT: ChapterSpec[] = [
         vo:
           'Here\u2019s the twist I promised at the top. If you\u2019re watching this channel, you probably already have money in the market — which might make you assume you\u2019re automatically on the winning side of the K. It\u2019s more complicated than that.',
         pauseAfter: 600,
+        voStyle: 'reveal',
+        dropOut: true, // v8: silence, then the K-motif slams in on "twist"
         scene: P('host', 'c8-twist', {
           stage: 'spot',
           // v5 (audit P1-3): peak curiosity — the host leans into the twist

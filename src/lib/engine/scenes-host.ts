@@ -30,7 +30,7 @@ function expressionPose(expression?: string): Partial<typeof POSES.idle> {
 /** Common host stage: background, spotlight, optional stage decoration. */
 function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   const { ctx, W, H } = g;
-  paintBg(ctx, W, H, g.t);
+  paintBg(ctx, W, H, g.t, g.chapterTone);
   bokehField(ctx, W, H, g.t, { intensity: 0.9, seed: 7 });
   lightRays(ctx, W, H, g.t, { alpha: 0.6 });
   kMotifs(ctx, W, H, g.t, 0.05);
@@ -50,7 +50,7 @@ function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
     ctx.beginPath();
     ctx.ellipse(hx, hy + 34, 300, 74, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = rgba('#B9B4A6', 0.35);
+    ctx.fillStyle = rgba(PALETTE.grid, 0.35);
     ctx.beginPath();
     ctx.ellipse(hx, hy + 30, 250, 52, 0, 0, Math.PI * 2);
     ctx.stroke();
@@ -62,7 +62,7 @@ function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
     ctx.save();
     ctx.globalAlpha = ap;
     card(ctx, ex - 210 * ap - (1 - ap) * 40, ey - 160, 420, 320, { r: 24 });
-    ctx.strokeStyle = rgba('#B9B4A6', 0.7);
+    ctx.strokeStyle = rgba(PALETTE.grid, 0.7);
     ctx.lineWidth = 7;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -238,11 +238,11 @@ export function hostSceneV2(g: SceneCtx): void {
   const { ctx, W, H, t } = g;
 
   // ── stage: bg + soft bokeh + faint editorial column grid ──
-  paintBg(ctx, W, H, t);
+  paintBg(ctx, W, H, t, g.chapterTone);
   bokehField(ctx, W, H, t, { intensity: 0.85, seed: 7 });
   lightRays(ctx, W, H, t, { alpha: 0.45 });
   kMotifs(ctx, W, H, t, 0.04);
-  ctx.strokeStyle = rgba('#8C8474', 0.07);
+  ctx.strokeStyle = rgba(PALETTE.shadow, 0.07);
   ctx.lineWidth = 1.5;
   [W * 0.36, W * 0.62].forEach((x) => {
     ctx.beginPath(); ctx.moveTo(x, 120); ctx.lineTo(x, H - 160); ctx.stroke();
@@ -325,7 +325,7 @@ interface StatItem {
 
 export function splitNumbersScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
-  paintBg(ctx, W, H, t);
+  paintBg(ctx, W, H, t, g.chapterTone);
   bokehField(ctx, W, H, t, { intensity: 0.7, seed: 12 });
   const mode = (s.mode as string) || 'left';
 
@@ -369,7 +369,7 @@ export function splitNumbersScene(g: SceneCtx): void {
     const ap = clamp01((t - 500) / 600);
     ctx.save();
     ctx.globalAlpha = ap;
-    ctx.strokeStyle = rgba('#B9B4A6', 0.8);
+    ctx.strokeStyle = rgba(PALETTE.grid, 0.8);
     ctx.lineWidth = 3;
     ctx.setLineDash([2, 12]);
     ctx.beginPath();
@@ -385,7 +385,7 @@ export function splitNumbersScene(g: SceneCtx): void {
       roundRect(ctx, W / 2 - tw / 2 - 24, y - ch / 2, tw + 48, ch, ch / 2);
       ctx.fill();
       ctx.lineWidth = 2;
-      ctx.strokeStyle = rgba('#B9B4A6', 0.45);
+      ctx.strokeStyle = rgba(PALETTE.grid, 0.45);
       roundRect(ctx, W / 2 - tw / 2 - 24, y - ch / 2, tw + 48, ch, ch / 2);
       ctx.stroke();
       ctx.fillStyle = fg;
@@ -406,7 +406,7 @@ export function splitNumbersScene(g: SceneCtx): void {
   if (cornerNote) {
     const ap = clamp01((t - 1600) / 700);
     if (ap > 0) {
-      setFont(ctx, 23, 600);
+      setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 23)
       const tw = ctx.measureText(cornerNote).width;
       ctx.save();
       ctx.globalAlpha = ap * 0.9;
@@ -418,7 +418,7 @@ export function splitNumbersScene(g: SceneCtx): void {
       roundRect(ctx, W - tw - 160, H - 112, tw + 44, 44, 22);
       ctx.fill();
       ctx.lineWidth = 2;
-      ctx.strokeStyle = rgba('#B9B4A6', 0.6);
+      ctx.strokeStyle = rgba(PALETTE.grid, 0.6);
       roundRect(ctx, W - tw - 160, H - 112, tw + 44, 44, 22);
       ctx.stroke();
       ctx.fillStyle = PALETTE.inkFaint;
@@ -493,7 +493,7 @@ function drawNumberPanel(
 // ── divergeK: the signature moment — two lines become the letter K ──────────
 export function divergeKScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
-  paintBg(ctx, W, H, t);
+  paintBg(ctx, W, H, t, g.chapterTone);
   bokehField(ctx, W, H, t, { intensity: 1.1, seed: 21, gold: 0.6 });
   lightRays(ctx, W, H, t, { alpha: 0.8 });
 
@@ -565,24 +565,36 @@ export function divergeKScene(g: SceneCtx): void {
   }
 
   // labels on the arms — v4 (audit P0-6): hidden in `opening` mode so the
-  // cold open teases the shape and the naming beat (c1-k) lands the reveal
+  // cold open teases the shape and the naming beat (c1-k) lands the reveal.
+  // v8 (panel re-review): three fixes from the full-resolution frame audit —
+  // (1) "the K-shaped economy" used to cross the K's stem and lower arm;
+  // it now sits ABOVE-LEFT of the formation as a serif naming title with a
+  // gold rule, spatially unmistakable and typographically calmer.
+  // (2) arm labels get a white halo so they stay crisp even near strokes.
+  // (3) labels push further out (S*1.45) clear of the arm tips.
   const opening = s.opening === true;
   const lblA = clamp01((t - 3000) / 700);
   if (lblA > 0 && !opening) {
     ctx.save();
     ctx.globalAlpha = lblA;
-    setFont(ctx, 30, 700);
-    ctx.textAlign = 'left';
-    ctx.fillStyle = PALETTE.up;
-    ctx.fillText('THE MARKET', kx + S * 1.35, ky - S * 1.05);
-    ctx.fillStyle = PALETTE.down;
-    ctx.fillText('THE MOOD', kx + S * 1.35, ky + S * 1.25);
-    setFont(ctx, 44, 700);
+    // the naming title — clear of the letterform, above-left
+    setFont(ctx, 46, 700, FONT_DISPLAY);
+    ctx.textAlign = 'center';
     ctx.fillStyle = PALETTE.ink;
-    // v5: was ky + S*1.75 (y≈875) — under the caption pill, half-plated by
-    // its opaque white. Now a proper sub-caption directly under the K's
-    // waist, clear of the chip (top 744) and the pill zone (800+).
-    ctx.fillText('the K-shaped economy', kx - S * 1.5, ky + S * 0.95);
+    ctx.fillText('the K-shaped economy', 700, 258);
+    ctx.fillStyle = PALETTE.gold;
+    roundRect(ctx, 700 - 130, 276, 260, 6, 3);
+    ctx.fill();
+    // arm labels — halo-backed, clear of arm tips
+    const halo = (x: number, y: number, text: string, color: string): void => {
+      glowBlob(ctx, x, y, 120, '#FFFFFF', 0.9);
+      setFont(ctx, 30, 700);
+      ctx.textAlign = 'left';
+      ctx.fillStyle = color;
+      ctx.fillText(text, x, y);
+    };
+    halo(kx + S * 1.45, ky - S * 1.02, 'THE MARKET', PALETTE.up);
+    halo(kx + S * 1.45, ky + S * 1.28, 'THE MOOD', PALETTE.down);
     ctx.restore();
   }
 
@@ -618,21 +630,24 @@ export function divergeKScene(g: SceneCtx): void {
   }
 
   // host on the left presenting the K — v3 (panel P0-3): v2 renderer, same
-  // body style as every other scene
-  const hx = W * 0.19;
+  // body style as every other scene. v8: pulled inward (0.19→0.24 W) and
+  // scaled up (1.05→1.2) — the vision panel measured the left half of the
+  // signature frame ~45% empty with a lone small host. The K formation is
+  // the hero; the host is its counterweight, not a spectator.
+  const hx = W * 0.24;
   const hy = H * 0.8;
   // v5 (audit P1-3): as the K completes, the host leans INTO it — the
   // signature scene now has a third act of body language (present → leanIn)
   const pose = Stickman.poseAt(t, { gesture: upP < 0.5 ? 'present' : 'leanIn', speaking: g.speaking });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, hx, hy, 1.05, t, { pose, alpha: clamp01(t / 400), look: 0.9, talk }, 5);
+  drawStickmanV2(ctx, hx, hy, 1.2, t, { pose, alpha: clamp01(t / 400), look: 0.9, talk }, 5);
   softBloom(ctx, W, H, t - 3800, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)
 }
 
 // ── channelIntro: branding beat ──────────────────────────────────────────────
 export function channelIntroScene(g: SceneCtx): void {
   const { ctx, W, H, t, channelName } = g;
-  paintBg(ctx, W, H, t);
+  paintBg(ctx, W, H, t, g.chapterTone);
   bokehField(ctx, W, H, t, { intensity: 1, seed: 33, gold: 0.6 });
   const cx = W / 2;
   const cy = H * 0.4;
@@ -702,7 +717,7 @@ export function channelIntroScene(g: SceneCtx): void {
 // ── recapSplit (used at ch5 open and ch10 open) ─────────────────────────────
 export function recapSplitScene(g: SceneCtx): void {
   const { ctx, W, H, t } = g;
-  paintBg(ctx, W, H, t);
+  paintBg(ctx, W, H, t, g.chapterTone);
   bokehField(ctx, W, H, t, { intensity: 0.8, seed: 44 });
   const pw = W * 0.36;
   const ph = H * 0.34;
@@ -808,7 +823,7 @@ function miniPanel(
 // ── paradoxResolve: the headline paradox resolves into the K ────────────────
 export function paradoxResolveScene(g: SceneCtx): void {
   const { ctx, W, H, t } = g;
-  paintBg(ctx, W, H, t);
+  paintBg(ctx, W, H, t, g.chapterTone);
   bokehField(ctx, W, H, t, { intensity: 0.9, seed: 55, gold: 0.55 });
   const cx = W / 2;
   // the word "PARADOX" appears, then strikes through

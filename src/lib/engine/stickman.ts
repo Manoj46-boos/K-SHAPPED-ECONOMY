@@ -223,14 +223,14 @@ export function drawStickman(
 
   // ground shadow
   if ((r.shadow ?? 1) > 0) {
-    ctx.fillStyle = rgba('#8C8474', 0.16 * (r.shadow ?? 1));
+    ctx.fillStyle = rgba(PALETTE.shadow, 0.16 * (r.shadow ?? 1));
     ctx.beginPath();
     ctx.ellipse(0, 6, 58, 12, 0, 0, Math.PI * 2);
     ctx.fill();
   }
 
   const ink = PALETTE.ink;
-  const inkFar = '#5B5B66';
+  const inkFar = '#52605C'; // v8: cool slate far-limb (was purple-grey)
   const w = RIG.lineWidth;
 
   // far limbs (left side) in lighter ink → subtle depth

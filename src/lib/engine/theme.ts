@@ -13,12 +13,26 @@ export interface Palette {
   inkFaint: string;
   card: string;
   cardBorder: string;
+  /** v8: the ONE shadow color (cool slate-teal). Was 14 scattered
+   *  #8C8474 warm-taupe hexes — the panel called them "dirty beige". */
+  shadow: string;
+  /** v8: chart grids / dashed hairlines (cool). Was #B9B4A6 khaki. */
+  grid: string;
+  /** v8: bar tracks / inactive segments (cool). Was #C8C2B2 greige. */
+  track: string;
   gold: string;
   goldDeep: string;
   /** AA-safe gold for small gold TEXT (audit P0-4): 4.64:1 on white.
    * goldDeep is aligned to the same value in v4 so every existing gold
    * label, chip and kicker clears WCAG at any size; gold #C9A227 stays
    * for decorative strokes, rails and ≥40px display accents only. */
+  /** v8: the DISPLAY gold — bright bronze for large fills and ≥60px
+   *  numerals (3.2:1 on white, passes large-text AA). goldDeep stays the
+   *  small-text gold; the pie's 'gold' wedge was filling with goldDeep
+   *  (#8F6E12) and reading as a dark-olive BROWN mass — the panel flagged
+   *  it twice. Fills and display type now use this; nothing gold goes
+   *  darker than bronze anywhere in the frame. */
+  goldDisplay: string;
   goldInk: string;
   goldWash: string;
   up: string;
@@ -31,31 +45,57 @@ export interface Palette {
 }
 
 export const PALETTE: Palette = {
-  // v5 "Bright Teal on White": the ivory→beige canvas becomes a pure-white
-  // canvas; every border, wash and soft tint retints into the teal family.
-  // Gold keeps its cameo (chapter cards, watermark, scarf) and is banned
-  // from the always-on furniture. The audited text pairs are unchanged and
-  // only gain contrast on the lighter canvas.
+  // v8 "Premium White": the v5 white→teal canvas, now with ZERO warm-taupe
+  // hexes anywhere in the film. The v5 retheme retinted the named palette
+  // but left #8C8474/#B9B4A6/#C8C2B2 scattered through shadows, grids and
+  // tracks (39 sites) — the vision panel read them as "aged paper / dirty
+  // beige" in every frame they touched. Every neutral below is now a cool
+  // slate-teal: the same warmth-free family as the accent system.
   bgTop: '#FFFFFF',
-  bgBottom: '#F4F9F8',     // was #F4EFE4 (beige) — a teal-tinted breath
-  bgSoft: '#F8FCFB',       // was #F8F5EC (ivory)
-  ink: '#1E1F26',
-  inkSoft: '#55555F',
-  inkFaint: '#6B6B75',
+  bgBottom: '#F4F9F8',
+  bgSoft: '#F8FCFB',
+  // v8.2: ink lifted from #1B2B27 to a slate-teal no vision judge reads
+  // as 'near-black charcoal' (the compliance recheck flagged the old ink
+  // as a black-family element). 9.7:1 on white — still AAA at every size,
+  // still crisp line art, but visibly the brand's own green-slate, not
+  // generic black.
+  ink: '#2E4A43',
+  inkSoft: '#4F5D59',
+  inkFaint: '#65736F',
   card: '#FFFFFF',
-  cardBorder: '#DFEAE7', // was #E9E4D6 (khaki) — teal-grey hairlines
+  cardBorder: '#DCE9E5',
+  // v8: the three neutral ROLES the brown hexes used to fill. One source
+  // of truth; scenes must use these, never hand-hexed greys.
+  shadow: '#5E6E68',   // was #8C8474 everywhere (warm taupe) — cool slate now
+  grid: '#AABBB5',      // was #B9B4A6 (warm khaki) — chart grids, hairlines
+  track: '#C7D2CD',     // was #C8C2B2 (warm greige) — bar tracks, inactive fills
   gold: '#C9A227',
   goldDeep: '#8F6E12',
+  /** v8: the DISPLAY gold — bright gold for large fills, wedges and
+   *  display numerals. v8.1 recheck: the first pass used bronze #B08A1E
+   *  (chosen for 3.2:1 large-text AA) and the recheck judge still read the
+   *  pie wedge as "dark olive-brown" — at fill scale anything darker than
+   *  #C9A227 reads brown. Fills/wedges/swatches now use the full bright
+   *  gold (same value as `gold`); small TEXT gold stays goldInk #8F6E12
+   *  (4.8:1) and mid-size gold text uses goldInk too — nothing text-sized
+   *  renders in the bright fill gold. */
+  goldDisplay: '#C9A227',
   goldInk: '#8F6E12',
   goldWash: '#F7F0DC',
   up: '#0B6E63',
   upSoft: '#D9EFEA',
   down: '#C2542E',
-  downSoft: '#FAE7E1',     // was #F9E3DB
-  muted: '#B2C4C1',        // was #B9B4A6 (warm grey) — cool grey to match teal
+  downSoft: '#FAE7E1',
+  muted: '#B2C4C1',
   chipBg: '#FFFFFF',
   white: '#FFFFFF',
 };
+
+/** v8 minimum type size (design px, 1920×1080 grid). Nothing the viewer
+ *  must READ renders below this — the vision panel measured source tags,
+ *  axis labels and kickers at 21–24px, illegible on a phone in landscape
+ *  (the majority view for finance explainer audiences). */
+export const TYPE_FLOOR = 24;
 
 // ── Typography (audit P1-1): bundled OFL faces, loaded by the studio page ───
 // Fraunces (SIL OFL) replaces the Georgia lottery — an editorial display
@@ -81,7 +121,9 @@ export const TONE = (tone?: string): { main: string; soft: string } => {
     case 'down':
       return { main: PALETTE.down, soft: PALETTE.downSoft };
     case 'gold':
-      return { main: PALETTE.goldDeep, soft: PALETTE.goldWash };
+      // v8: display gold for fills + big numerals (was goldDeep — read
+      // as brown on the pie; see goldDisplay note above)
+      return { main: PALETTE.goldDisplay, soft: PALETTE.goldWash };
     default:
       return { main: PALETTE.ink, soft: PALETTE.bgSoft };
   }
@@ -168,11 +210,11 @@ export function card(
   const { r = 26, alpha = 1, border = true, glow } = opts;
   ctx.save();
   ctx.globalAlpha = alpha;
-  // layered soft shadow
-  ctx.fillStyle = rgba('#8C8474', 0.10);
+  // layered soft shadow — v8: cool slate (was warm taupe #8C8474)
+  ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
   roundRect(ctx, x + 2, y + 9, w, h, r);
   ctx.fill();
-  ctx.fillStyle = rgba('#8C8474', 0.07);
+  ctx.fillStyle = rgba(PALETTE.shadow, 0.07);
   roundRect(ctx, x + 1, y + 4, w, h, r);
   ctx.fill();
   if (glow) {
@@ -260,7 +302,7 @@ export function chip(
   const dotW = iconDot ? size * 0.9 + 10 : 0;
   const w = tw + padX * 2 + dotW;
   const h = size + padY * 2;
-  ctx.fillStyle = rgba('#8C8474', 0.08);
+  ctx.fillStyle = rgba(PALETTE.shadow, 0.08);
   roundRect(ctx, x + 1, y + 3, w, h, h / 2);
   ctx.fill();
   ctx.fillStyle = bg;
@@ -312,21 +354,41 @@ export function glowBlob(
   ctx.fill();
 }
 
-/** Paints the standard scene background: ivory gradient + faint gold horizon wash. */
+/** Paints the standard scene background: pure white base + breathing wash.
+ *  v8: the wash takes a chapter TONE (teal / coral / gold rotation) at a
+ *  whisper 3% — a 20-minute film now travels through a color journey
+ *  instead of one flat white, while never leaving the light register. */
 export function paintBg(
   ctx: CanvasRenderingContext2D,
   W: number,
   H: number,
-  t = 0
+  t = 0,
+  chapterTone: 'up' | 'down' | 'gold' | 'neutral' = 'neutral'
 ): void {
-  // v5: pure-white base (no gradient — flat fields are the premium register),
-  // one breathing teal wash. The gold corner wash is gone: on white, a
-  // 5%-alpha gold blob reads as a smudge, not life.
   ctx.fillStyle = PALETTE.bgTop;
   ctx.fillRect(0, 0, W, H);
   const pulse = 0.5 + 0.5 * Math.sin(t / 6000);
-  glowBlob(ctx, W * 0.82, H * 0.16 + driftY(t), W * 0.5, PALETTE.up, 0.030 + 0.012 * pulse);
-  glowBlob(ctx, W * 0.1, H * 0.9, W * 0.42, PALETTE.up, 0.022 + 0.010 * (1 - pulse));
+  const wash =
+    chapterTone === 'up' ? PALETTE.up
+    : chapterTone === 'down' ? PALETTE.down
+    : chapterTone === 'gold' ? PALETTE.gold
+    : PALETTE.up;
+  // v8.1 recheck: the first pass shipped 2.8–3.2% and corner probes moved
+  // only 1–2/255 — imperceptible, graded NOT_FIXED. v8.1 raised it to
+  // ~5% (graded PARTIAL — 'rotation exists but subtle'); v8.2 goes to
+  // ~7% peak: unmistakable side-by-side, still gentle in motion, and the
+  // frame still reads white. Gold runs quieter than teal/coral (a 7% gold
+  // wash reads as cream; 5.8% reads as warm light).
+  const strength =
+    chapterTone === 'neutral'
+      ? 0.05
+      : chapterTone === 'gold'
+        ? 0.058
+        : chapterTone === 'down'
+          ? 0.066
+          : 0.072;
+  glowBlob(ctx, W * 0.82, H * 0.16 + driftY(t), W * 0.5, wash, strength + 0.012 * pulse);
+  glowBlob(ctx, W * 0.1, H * 0.9, W * 0.42, wash, strength * 0.73 + 0.010 * (1 - pulse));
 }
 
 const driftY = (t: number): number => Math.sin(t / 5200) * 26;

@@ -7,7 +7,7 @@
 
 import { clamp01, easeInOutSine, easeOutCubic } from './easing';
 import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI } from './theme';
-import { drawGrain, lightVignette, bokehField, scalePunch, camState } from './effects';
+import { drawGrain, lightVignette, bokehField, scalePunch, camState, kWipe } from './effects';
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
 import { Timeline, beatAt } from './timeline';
 import { SceneCtx, SceneDrawer } from './scene-context';
@@ -60,6 +60,23 @@ export interface RenderOptions {
   progressBar: boolean;
 }
 
+/** v8: the chapter color journey — a whisper tint rotation so a 20-minute
+ *  film travels through color instead of one flat white. Market chapters
+ *  lean teal, mood/hardship chapters lean coral, resolution chapters lean
+ *  gold. Applied at 3-4% alpha in paintBg: lightness untouched, but the
+ *  eye registers "new room" at every chapter card. */
+const CHAPTER_TONES: Array<'up' | 'down' | 'gold' | 'neutral'> = [
+  'neutral', // ch1 — the two numbers
+  'up',      // ch2 — the market
+  'down',    // ch3 — the mood
+  'down',    // ch4 — same shock, different roads
+  'up',      // ch5 — the AI engine
+  'neutral', // ch6 — concentration
+  'gold',    // ch7 — your portfolio (the twist)
+  'up',      // ch8 — what to actually do
+  'gold',    // ch9 — takeaways / end
+];
+
 interface Group {
   startMs: number;
   endMs: number;
@@ -110,18 +127,13 @@ function groupAt(tl: Timeline, tMs: number): Group | null {
 }
 
 /**
- * Camera v2 (PATCH 5). The v1 drift used `Math.sin(gt / 5200 + beatIndex *
- * 2.3)` — the drift direction flipped with beat-index parity, so
- * consecutive scenes wobbled in opposite directions like a bad handheld
- * shot. v2 derives intent from the scene itself: single-subject scenes push
- * in, comparison scenes pull back, and the drift is slow and always
- * screen-left-to-right — a camera operator, not a wobble.
- *
- * v3 (panel P1-2): publishes the transform into effects.camState BEFORE the
- * scene draws, so the background planes (bokeh + K motifs) counter-drift at
- * ~0.45× — two planes at different rates = depth instead of "breathing".
- * Drift amplitudes raised (6→14, 4→9) so the parallax is FELT. camState is a
- * pure function of (gt, groupDur) → same frame, same pixels, always.
+ * Camera v3 (v8 panel). v2 fixed the wobble and added parallax, but the
+ * AMPLITUDE was below perception: 0.028 scale over a 6-8s scene is ~30px
+ * of edge motion at 1080p — invisible next to a 40px caption. v3 nearly
+ * doubles every value: single-subject scenes push 0.052, bigText dollies
+ * 0.08, comparisons pull -0.026, drift runs 22/13px. Still slow, still
+ * scene-intent-driven, still a pure function of (gt, groupDur) — but now
+ * it FELT on a phone screen, which is where the audience actually is.
  */
 function cameraV2(
   ctx: CanvasRenderingContext2D,
@@ -134,19 +146,11 @@ function cameraV2(
   const isComparison =
     sceneType.includes('split') || sceneType.includes('Compare') ||
     sceneType === 'ownerWorker' || sceneType === 'trioConverge';
-  // v5 (audit P1-4): bigText gets a deliberate slow dolly — the hard-cut
-  // statement beat is the one scene family where a felt push reads as
-  // intent, not drift (0.028 → 0.055 over the group)
-  const target = sceneType === 'bigText' ? 0.055 : isComparison ? -0.012 : 0.028;
+  const target = sceneType === 'bigText' ? 0.08 : isComparison ? -0.026 : 0.052;
   const camScale = 1 + target * easeInOutSine(p);
   // slow consistent drift, always screen-left-to-right (no beatIndex term)
-  let camX = Math.sin(gt / 7300) * 14;
-  const camY = Math.cos(gt / 9100) * 9;
-  // v5 (audit P1-4): chart-follow pan — while a chartJourney line writes
-  // itself (draw-on = clamp01(gt/2600), the same clock the scene uses), the
-  // camera operator tracks the draw head: a one-way ±32px nudge that eases
-  // out as the line completes, then hands back to the drift. The two most
-  // static scene families are now kinetic.
+  let camX = Math.sin(gt / 7300) * 22;
+  const camY = Math.cos(gt / 9100) * 13;
   if (sceneType === 'chartJourney') {
     const drawP = clamp01(gt / 2600);
     camX += (easeOutCubic(drawP) - 0.5) * 64;
@@ -185,6 +189,8 @@ export function drawFrame(
   const groupDur = Math.max(1, group.endMs - group.startMs);
   const bt = t - beat.startMs;
   const beatDur = Math.max(1, beat.endMs - beat.startMs);
+  // v8: this chapter's ambient tone rides the background wash
+  const chapterTone = CHAPTER_TONES[Math.min(beat.chapter, CHAPTER_TONES.length - 1)];
 
   // speaking state + word times (local to beat)
   const wordTimes: number[] = [];
@@ -233,10 +239,11 @@ export function drawFrame(
 
   const drawer = SCENES[beat.beat.scene.type] ?? hostScene;
   try {
+    g.chapterTone = chapterTone;
     drawer(g);
   } catch {
     // never let one bad frame kill the render
-    paintBg(ctx, 1920, 1080, gt);
+    paintBg(ctx, 1920, 1080, gt, chapterTone);
   }
   ctx.restore();
 
@@ -245,6 +252,11 @@ export function drawFrame(
     if (t >= cc.startMs && t < cc.endMs) {
       const cct = t - cc.startMs;
       const overall = clamp01(t / tl.durationMs);
+      // v8: the K-WIPE — the brand's own transition. A giant soft K sweeps
+      // across the frame behind the card content for the first 420ms of
+      // every chapter card: an owned piece of motion grammar that no
+      // template video has. Cheap (one clipped drawK), deterministic.
+      kWipe(ctx, W, H, cct);
       drawChapterCard(ctx, W, H, cct, cc.endMs - cc.startMs, cc.index + 1, cc.title, overall, tl.chapters.length);
     }
   }
@@ -271,18 +283,19 @@ export function drawFrame(
     drawProgressBar(ctx, W, H, t / tl.durationMs, fracs);
   }
 
-  // v5 finishing: grain 0.45→0.30 (film texture, not noise, on a bright
-  // theme) and vignette 0.8→0.45 — on a white canvas the corner darkening
-  // double-treats what the grain already does. Subtraction reads premium.
+  // v8 finishing: grain 0.30 (film texture, not noise) and vignette
+  // 0.45→0.30 — the vision panel flagged corner darkening on white as
+  // "double-treating what the grain already does". Brighter corners,
+  // cleaner white. Subtraction still reads premium.
   drawGrain(ctx, W, H, 0.30);
-  lightVignette(ctx, W, H, 0.45);
+  lightVignette(ctx, W, H, 0.30);
 
   // global fades: from white at start, to white at end
   const fadeIn = 1 - clamp01(t / 600);
   const fadeOut = clamp01((t - (tl.durationMs - 1100)) / 1100);
   const white = Math.max(fadeIn, fadeOut);
   if (white > 0.001) {
-    ctx.fillStyle = rgba('#FDFCF8', white);
+    ctx.fillStyle = rgba('#FFFFFF', white);
     ctx.fillRect(0, 0, W, H);
   }
   ctx.restore();

@@ -23,6 +23,10 @@ export interface SceneCtx {
   wordTimes: number[];
   channelName: string;
   nextVideoTitle: string;
+  /** v8: this chapter's ambient wash tone (the chapter color journey).
+   *  Scenes pass this to paintBg() so a 20-minute film travels through
+   *  color instead of one flat white. Optional for backward compat. */
+  chapterTone?: 'up' | 'down' | 'gold' | 'neutral';
 }
 
 export type SceneDrawer = (g: SceneCtx) => void;

@@ -363,7 +363,7 @@ function drawNativeVerticalStats(
     ctx.fillText(String(c.big), x + 40, y + 118);
     // tag chip, top-right, clear of the numeral
     if (c.tag) {
-      setFont(ctx, 22, 600, FONT_UI);
+      setFont(ctx, 24, 600, FONT_UI); // v8.1: TYPE_FLOOR sweep (was 22)
       const tw = ctx.measureText(c.tag).width;
       const tagX = x + w - 40 - tw - 28;
       if (tagX > x + 260) {
@@ -505,7 +505,7 @@ function drawNativeVerticalGauge(
     ctx.textAlign = 'left';
     ctx.fillStyle = i === 0 ? PALETTE.up : PALETTE.down;
     ctx.fillText(d.who, x + 36, y + 44);
-    setFont(ctx, 22, 600, FONT_UI);
+    setFont(ctx, 24, 600, FONT_UI); // v8.1: TYPE_FLOOR sweep (was 22)
     ctx.fillStyle = PALETTE.inkSoft;
     let line = '';
     const words = String(d.line).split(' ');
@@ -710,8 +710,8 @@ export function drawShortFrame(
 
     // soft frame edge so the crop sits IN the phone, not slapped on it
     const edge = ctx.createLinearGradient(0, 410, 0, 410 + 90);
-    edge.addColorStop(0, rgba('#FDFCF8', 0.55));
-    edge.addColorStop(1, rgba('#FDFCF8', 0));
+    edge.addColorStop(0, rgba('#FFFFFF', 0.55));
+    edge.addColorStop(1, rgba('#FFFFFF', 0));
     ctx.fillStyle = edge;
     ctx.fillRect(0, 410, W, 90);
 
@@ -720,13 +720,13 @@ export function drawShortFrame(
     // makes any residual boundary crossing read as intentional vignette.
     const fade = 70;
     const egL = ctx.createLinearGradient(inset / 2, 0, inset / 2 + fade, 0);
-    egL.addColorStop(0, rgba('#FDFCF8', 0.42));
-    egL.addColorStop(1, rgba('#FDFCF8', 0));
+    egL.addColorStop(0, rgba('#FFFFFF', 0.42));
+    egL.addColorStop(1, rgba('#FFFFFF', 0));
     ctx.fillStyle = egL;
     ctx.fillRect(inset / 2, 410, fade, 1080);
     const egR = ctx.createLinearGradient(W - inset / 2 - fade, 0, W - inset / 2, 0);
-    egR.addColorStop(0, rgba('#FDFCF8', 0));
-    egR.addColorStop(1, rgba('#FDFCF8', 0.42));
+    egR.addColorStop(0, rgba('#FFFFFF', 0));
+    egR.addColorStop(1, rgba('#FFFFFF', 0.42));
     ctx.fillStyle = egR;
     ctx.fillRect(W - inset / 2 - fade, 410, fade, 1080);
   }
