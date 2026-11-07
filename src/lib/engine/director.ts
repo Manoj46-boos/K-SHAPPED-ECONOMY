@@ -104,6 +104,10 @@ function computeGroups(tl: Timeline): Group[] {
 let cachedTimeline: Timeline | null = null;
 let cachedGroups: Group[] = [];
 
+/** PANEL-9 R5: scene drawers that threw during this render (deduped).
+ *  Read by the studio after a render to list every silently-failed scene. */
+export const sceneRenderErrors: { scene: string; message: string }[] = [];
+
 function groupsFor(tl: Timeline): Group[] {
   if (cachedTimeline !== tl) {
     cachedGroups = computeGroups(tl);
@@ -241,8 +245,19 @@ export function drawFrame(
   try {
     g.chapterTone = chapterTone;
     drawer(g);
-  } catch {
-    // never let one bad frame kill the render
+  } catch (err) {
+    // PANEL-9 R5 (silent white frames): a throwing scene used to render a
+    // blank background with NO trace — in a 35,049-frame render that is a
+    // silent defect shipped to YouTube. The frame still renders (a bad
+    // frame beats a dead render on an 8 GB laptop), but the failure is now
+    // counted, logged once per scene, and surfaced to the studio UI via
+    // __sceneRenderErrors so the render summary can list them.
+    const sceneId = `ch${beat.chapter + 1}·${beat.beat.scene.type}@${(t / 1000).toFixed(1)}s`;
+    if (!sceneRenderErrors.some((e) => e.scene === sceneId)) {
+      const msg = err instanceof Error ? err.message : String(err);
+      sceneRenderErrors.push({ scene: sceneId, message: msg });
+      console.warn(`[director] scene render error (${sceneId}):`, msg);
+    }
     paintBg(ctx, 1920, 1080, gt, chapterTone);
   }
   ctx.restore();
