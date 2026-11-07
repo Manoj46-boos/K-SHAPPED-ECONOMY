@@ -89,8 +89,18 @@ export function drawCaptions(
     rows[cur].width += ww + spaceW;
   }
 
-  const rowH = fontSize + 16;
-  const totalH = rows.length * rowH + 36;
+  // PANEL-9 R7f (crushed two-row leading): rowH was fontSize+16 (62) with
+  // a 9px karaoke underline landing mid-gap — measured on the rendered
+  // frame, only 4px separated row-0 descenders from the underline and 7px
+  // the underline from row-1 caps, so a two-row pill read as two lines
+  // crashing into each other (quote-card render: "started climbing again"
+  // over "time you're watching"). rowH is now fontSize+22 and the vertical
+  // padding 36→24, which keeps the 2-row pill envelope EXACTLY where it
+  // was (totalH still 160, top still y=796 — every chip placed clear of
+  // CAPTION_ZONE_TOP stays clear) while opening the inter-row space to
+  // ~25px; the sweep is pulled tighter to its own word (0.60, 8px).
+  const rowH = fontSize + 22;
+  const totalH = rows.length * rowH + 24;
   const baseY = style.baseY ?? H - 128; // clear of the 8px progress bar + safe margin
   const widest = Math.max(...rows.map((r) => r.width));
 
@@ -108,7 +118,13 @@ export function drawCaptions(
   roundRect(ctx, px, py, widest + 68, totalH, 30);
   ctx.stroke();
   ctx.fillStyle = PALETTE.up;                                 // v5: teal tab — the voice
-  roundRect(ctx, px + 2, py + 14, 8, totalH - 28, 4);
+  // PANEL-9 R7m (tab poking past the pill's rounded edge): the tab ran
+  // py+14..py+totalH-14 at x=px+2 — but the pill's 30px corner arc keeps
+  // its left edge as far right as px+4.6 near the corners, so the tab's
+  // ends escaped the curve by ~3px and read as "an accent bar bleeding
+  // through the rounded edge" (S6 pump render). Inset to py+24 with
+  // height totalH-48 keeps every tab pixel inside the arc.
+  roundRect(ctx, px + 3, py + 24, 7, totalH - 48, 3.5);
   ctx.fill();
   ctx.restore();
 
@@ -120,7 +136,7 @@ export function drawCaptions(
   setFont(ctx, fontSize, 700, FONT_UI);
   rows.forEach((row, ri) => {
     let x = W / 2 - row.width / 2 + spaceW / 2;
-    const y = py + 26 + ri * rowH + fontSize / 2;
+    const y = py + 22 + ri * rowH + fontSize / 2;
     for (const w of row.words) {
       const spoken = tMs >= w.t;
       const activeW = spoken && tMs <= w.t + w.d + 90;
@@ -139,7 +155,7 @@ export function drawCaptions(
         const ww = ctx.measureText(w.w).width;
         const sweep = clamp01((tMs - w.t) / Math.max(w.d, 80));
         ctx.fillStyle = PALETTE.up;                       // v5: teal karaoke sweep
-        roundRect(ctx, x - 2, y + fontSize * 0.62, (ww + 4) * easeOutQuad(sweep), 9, 4.5);
+        roundRect(ctx, x - 2, y + fontSize * 0.6, (ww + 4) * easeOutQuad(sweep), 8, 4);
         ctx.fill();
       }
       x += ctx.measureText(w.w).width + spaceW;

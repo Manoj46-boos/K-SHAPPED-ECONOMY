@@ -149,7 +149,18 @@ export function quoteCardScene(g: SceneCtx): void {
   const cw = 980;
   const x = W / 2 - cw / 2;
   const y = H * 0.24;
-  const ch = 200 + lines.length * 60;
+  // PANEL-9 R7h (caveat lines colliding inside the card): ch was a flat
+  // 200 + lines.length*60 — one 60px slot per line — but lines WRAP at
+  // cw-160 = 820px, and a wrapped second row (46px below the first) crashed
+  // into the NEXT line's slot (c4-caveat: "reignited" printed 22px under
+  // "most interviews wrapped…", on top of "the mood by the time you
+  // watch…"). The card is now sized from MEASURED wrapped rows: 46px
+  // leading inside a wrap, 68px between logical lines, real bottom padding.
+  const wrapped = lines.map((ln) => wrapText(ctx, ln, cw - 160, 36, 600));
+  const ch =
+    168 +
+    wrapped.reduce((a, ls) => a + ls.length * 46, 0) +
+    Math.max(0, lines.length - 1) * 22;
   ctx.save();
   ctx.globalAlpha = ap;
   ctx.translate(0, (1 - easeOutCubic(ap)) * 36);
@@ -163,16 +174,20 @@ export function quoteCardScene(g: SceneCtx): void {
   ctx.fillStyle = soft ? PALETTE.inkFaint : PALETTE.goldDeep;
   ctx.textAlign = 'left';
   ctx.fillText((s.kicker as string).toUpperCase(), x + 84, y + 78);
-  // lines
+  // lines — R7h: running cursor; each logical line advances by its own
+  // wrapped row count (was a flat i*68 slot that wrapped rows overprinted)
   setFont(ctx, 36, 600);
   ctx.fillStyle = PALETTE.ink;
+  let lnY = y + 148;
   lines.forEach((ln, i) => {
     const lp = clamp01((t - 350 - i * 420) / 650);
     if (lp <= 0) return;
     ctx.globalAlpha = ap * lp;
-    wrapText(ctx, ln, cw - 160, 36, 600).forEach((wl, j) => {
-      ctx.fillText(wl, x + 84, y + 148 + i * 68 + j * 46);
+    wrapped[i].forEach((wl) => {
+      ctx.fillText(wl, x + 84, lnY);
+      lnY += 46;
     });
+    lnY += 22;
   });
   // icon
   const icon = s.icon as string;
@@ -269,9 +284,32 @@ export function takeawaysScene(g: SceneCtx): void {
     const ap = clamp01(t / 700);
     const cw = W * 0.62;
     const x = W * 0.28;
-    const y = H * 0.2;
+    // PANEL-9 R7g (takeaway text overflowing the card): the card height was
+    // a flat 170 + pts.length*76 — one 76px slot per point — but points WRAP
+    // (cw-260 ≈ 930px at 30px type), and the last point's baseline landed
+    // exactly on the card's bottom edge (c9-one: "2026's small-cap rotation…"
+    // half-in/half-out, flagged by the re-review). The card is now sized
+    // from MEASURED content: wrapped line counts per point, 36px between
+    // points, real bottom padding; the card starts at H*0.16 so even the
+    // tallest stack (c9-two: 2-line title + a 2-line point) bottoms out
+    // ≈699 — clear of CAPTION_ZONE_TOP with ~95px spare. A compress fallback
+    // (36→22 gaps, 40→36 leading) is the safety net if future copy grows.
+    const y = H * 0.16;
     const pts = (s.points as string[]) || [];
-    const ch = 170 + pts.length * 76;
+    const titleLines = wrapText(ctx, s.title as string, cw - 260, 44, 700);
+    const pointLines = pts.map((pt) => wrapText(ctx, pt, cw - 260, 30, 600));
+    let ptGap = 36;
+    let lineStep = 40;
+    const stackH = (gap: number, step: number): number =>
+      182 + titleLines.length * 56 +
+      pointLines.reduce((a, ls) => a + ls.length * step, 0) +
+      Math.max(0, pointLines.length - 1) * gap;
+    let ch = stackH(ptGap, lineStep);
+    if (y + ch > 780 && ch > 220) {
+      ptGap = 22;
+      lineStep = 36;
+      ch = stackH(ptGap, lineStep);
+    }
     ctx.save();
     ctx.globalAlpha = ap;
     ctx.translate(0, (1 - easeOutCubic(ap)) * 40);
@@ -298,7 +336,6 @@ export function takeawaysScene(g: SceneCtx): void {
     setFont(ctx, 44, 700);
     ctx.fillStyle = PALETTE.ink;
     ctx.textAlign = 'left';
-    const titleLines = wrapText(ctx, s.title as string, cw - 260, 44, 700);
     titleLines.forEach((ln, j) => ctx.fillText(ln, x + 210, y + 100 + j * 56));
     // rule
     ctx.strokeStyle = PALETTE.gold;
@@ -307,16 +344,19 @@ export function takeawaysScene(g: SceneCtx): void {
     ctx.moveTo(x + 210, y + 130 + titleLines.length * 56);
     ctx.lineTo(x + 210 + 300, y + 130 + titleLines.length * 56);
     ctx.stroke();
-    // points
+    // points — each point advances by its own wrapped line count
     setFont(ctx, 30, 600);
+    let ptY = y + 190 + titleLines.length * 56;
     pts.forEach((pt, i) => {
       const pp = clamp01((t - 500 - i * 550) / 700);
       if (pp <= 0) return;
       ctx.globalAlpha = ap * pp;
       ctx.fillStyle = i === pts.length - 1 ? PALETTE.goldDeep : PALETTE.inkSoft;
-      wrapText(ctx, pt, cw - 260, 30, 600).forEach((wl, j) => {
-        ctx.fillText(wl, x + 210, y + 190 + titleLines.length * 56 + i * 76 + j * 40);
+      pointLines[i].forEach((wl) => {
+        ctx.fillText(wl, x + 210, ptY);
+        ptY += lineStep;
       });
+      ptY += ptGap;
     });
     ctx.restore();
     // host reacting on the left

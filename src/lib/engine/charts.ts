@@ -615,7 +615,14 @@ export function gauge(
     if (opts.label) {
       setFont(ctx, 25, 600);
       ctx.fillStyle = PALETTE.inkSoft;
-      ctx.fillText(opts.label, cx, cy + 8);
+      // PANEL-9 R7c (label under the needle pivot): the label used to sit
+      // at cy+8 — its midline exactly on the 12px pivot dot, so the needle
+      // hub obscured the middle of the text (the re-review judge read "the
+      // 'o' in 'most' is obscured"). The needle only ever sweeps the TOP
+      // half (angles π→2π), so cy+48 is permanently needle-free, 17px
+      // below the hub, and still ~126px above the coin-flip chip that
+      // cradles under the dial (y≈736 in 16:9, 940 in Shorts).
+      ctx.fillText(opts.label, cx, cy + 48);
     }
   }
   ctx.restore();

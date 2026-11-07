@@ -457,12 +457,18 @@ function drawNumberPanel(
   ctx.fillStyle = kicker === 'THE MARKET' ? PALETTE.up : PALETTE.down;
   roundRect(ctx, x + 44, y + 84, w - 88, 8, 4);
   ctx.fill();
-  // v4 (audit P0-2): row rhythm widens only when a label actually wraps
+  // v4 (audit P0-2): row rhythm widens only when a label actually wraps.
+  // PANEL-9 R7p (3-stat stack cramped at the panel floor): first row was at
+  // y+160 with the label at sy+100 — the 3-stat market panel (S&P / Nasdaq /
+  // RECORD · corporate profit margins) landed its last label 15px from the
+  // panel bottom and only ~20px under the 74px numeral, which the letterboxed
+  // Shorts inset read as "flush / clipping". First row y+150, label sy+104:
+  // last label clears the floor by ~23px and the numeral↔label air grows 4px.
   const rowGap = stats.some((st) => wrapText(ctx, st.label, w - 88, 25, 600).length > 1) ? 138 : 118;
   stats.forEach((st, i) => {
     const sa = clamp01((t - delay - 350 - i * 480) / 600);
     if (sa <= 0) return;
-    const sy = y + 160 + i * rowGap;
+    const sy = y + 150 + i * rowGap;
     ctx.globalAlpha = ap * sa;
     const tone = TONE(st.tone);
     setFont(ctx, 74, 700);
@@ -475,7 +481,7 @@ function drawNumberPanel(
     // label auto-shrinks onto one line instead (never truncates).
     setFont(ctx, 25, 600);
     let lines = wrapText(ctx, st.label, w - 88, 25, 600).slice(0, 2);
-    const stackedBottom = 160 + (stats.length - 1) * rowGap + 132;
+    const stackedBottom = 150 + (stats.length - 1) * rowGap + 136;
     if (lines.length > 1 && stackedBottom > h - 18) {
       let size = 25;
       while (ctx.measureText(st.label).width > w - 88 && size > 19) {
@@ -485,7 +491,7 @@ function drawNumberPanel(
       lines = [st.label];
     }
     ctx.fillStyle = PALETTE.inkSoft;
-    lines.forEach((ln, j) => ctx.fillText(ln, x + 44, sy + 100 + j * 32));
+    lines.forEach((ln, j) => ctx.fillText(ln, x + 44, sy + 104 + j * 32));
   });
   ctx.restore();
 }
@@ -613,8 +619,17 @@ export function divergeKScene(g: SceneCtx): void {
       // (808–956), so whenever a caption was live the opaque pill plated
       // over the chip and left a garbled gold sliver (vision panel: “a
       // messy yellow highlight over the subtitle”). It now rides fully
-      // ABOVE the pill zone, 10px clear of a two-row pill's top edge.
-      const cy = CAPTION_ZONE_TOP - 56;
+      // ABOVE the pill zone.
+      // PANEL-9 R7b (chip corners clipped by the pill): the v5 math placed
+      // the chip at CAPTION_ZONE_TOP-56 (744..798) — but a TWO-ROW pill is
+      // 160px tall from baseY 952, topping out at y=796, so the pill's
+      // opaque plate still bit 2px (+2px stroke) off the chip's bottom
+      // rounded corners whenever the cold-open's long VO line wrapped to
+      // two rows (the re-review judge read it as "clipped, not fully
+      // rendered"). CAPTION_ZONE_TOP-76 puts the chip bottom at 778 — 18px
+      // clear of the tallest pill, and still clear of the K's lower-arm
+      // tip (x≈1355 vs chip right ≈1298) and the second stickman (x≥1330).
+      const cy = CAPTION_ZONE_TOP - 76;
       ctx.fillStyle = PALETTE.goldWash;
       roundRect(ctx, cx, cy, tw + 56, 54, 27);
       ctx.fill();

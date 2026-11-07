@@ -438,7 +438,11 @@ export function barsCompareScene(g: SceneCtx): void {
       ctx.save();
       ctx.globalAlpha = ap;
       const fx = W * 0.14;
-      const fy = H * 0.7;
+      // PANEL-9 R7k (flip counter plated by the caption pill): was H*0.7
+      // (756..886) — its label/tag baselines (814/848) sat behind the
+      // two-row pill (top ≈796). H*0.60 keeps the whole card (648..778)
+      // above CAPTION_ZONE_TOP, 9px under the last bar row.
+      const fy = H * 0.6;
       card(ctx, fx, fy, 640, 130, { r: 26 });
       setFont(ctx, 62, 700);
       ctx.fillStyle = PALETTE.down;
@@ -1015,8 +1019,15 @@ export function ownerWorkerScene(g: SceneCtx): void {
     ctx.fillStyle = tone.main;
     ctx.fillText(pnl.title.toUpperCase(), x + 340, H * 0.24);
     // mini stickman: shareholder on a rising line / worker on flat ground
+    // PANEL-9 R7d (panel text plated by the caption pill): the figure stood
+    // at H*0.72 with its wrap lines at H*0.85+j*44 (918/962) — the second
+    // line dead inside the caption band (two-row pill tops at y=796), so
+    // the opaque pill plated over the panel text and left "gai…" / "…oesn't"
+    // fragments peeking past its edges (flagged on the ownerWorker render).
+    // Figure now at H*0.60, wrap lines at 726/768 — everything, including
+    // descenders, clears CAPTION_ZONE_TOP with ~20px to spare.
     const hx = x + 340;
-    const hy = H * 0.72;
+    const hy = H * 0.6;
     if (side === 'left') {
       ctx.strokeStyle = rgba(PALETTE.up, 0.8);
       ctx.lineWidth = 12;
@@ -1046,8 +1057,10 @@ export function ownerWorkerScene(g: SceneCtx): void {
     }, 21 + i);
     setFont(ctx, 30, 600);
     ctx.fillStyle = PALETTE.inkSoft;
+    // R7d: baselines 726 / 768 (was 918 / 962) — above CAPTION_ZONE_TOP,
+    // 46px below the figure's ground line so the two never touch.
     wrapText(ctx, pnl.line, 560, 30, 600).forEach((ln, j) => {
-      ctx.fillText(ln, hx, H * 0.85 + j * 44);
+      ctx.fillText(ln, hx, hy + 78 + j * 42);
     });
     ctx.restore();
   });
@@ -1132,16 +1145,38 @@ export function fundSplitScene(g: SceneCtx): void {
     if (sp2 <= 0) return;
     ctx.save();
     ctx.globalAlpha = sp2;
-    const y = H * 0.58 + i * 110;
+    // PANEL-9 R7e (stat card 2 plated by the caption pill): the stack began
+    // at H*0.58 (626) with a 110 step — card 2 ran 736..828, its bottom 32px
+    // and label descenders inside the caption band (two-row pill tops at
+    // 796). The stack now starts at H*0.50 with a 98 step: card 2 ends at
+    // 730, a full 66px clear of the tallest pill.
+    const y = H * 0.5 + i * 98;
     const c = TONE(st.tone || 'default');
     card(ctx, W * 0.42, y, 640, 92, { r: 24 });
     setFont(ctx, 50, 700);
     ctx.fillStyle = c.main;
     ctx.textAlign = 'left';
     ctx.fillText(st.big, W * 0.42 + 36, y + 62);
+    // PANEL-9 R7o (stat label overflowing the card): the label was drawn at
+    // a FIXED +230px offset with no measurement — "of the S&P 500's total
+    // return in 2025 · seven stocks" (~750px at 25px) ran ~340px past the
+    // 640px card's right edge onto the background (flagged on fundSplit).
+    // The label now starts after the MEASURED big numeral and wraps inside
+    // the remaining card width (two rows max, vertically centred). The
+    // numeral is measured in ITS OWN 50px face before the label font loads.
+    const bigW = ctx.measureText(st.big).width;
     setFont(ctx, 25, 600);
+    const labelX = W * 0.42 + 36 + bigW + 26;
+    const maxLW = W * 0.42 + 640 - 18 - labelX;
+    const labelLines = maxLW > 120 ? wrapText(ctx, st.label, maxLW, 25, 600) : [];
     ctx.fillStyle = PALETTE.inkSoft;
-    ctx.fillText(st.label, W * 0.42 + 230, y + 56);
+    if (labelLines.length <= 1) {
+      ctx.fillText(labelLines[0] ?? st.label, labelX, y + 56);
+    } else {
+      labelLines.slice(0, 2).forEach((ln, j) => {
+        ctx.fillText(ln, labelX, y + 40 + j * 30);
+      });
+    }
     ctx.restore();
   });
 
@@ -1154,16 +1189,24 @@ export function fundSplitScene(g: SceneCtx): void {
       ctx.globalAlpha = cp2;
       setFont(ctx, 26, 600);
       const tw = ctx.measureText(cb).width;
+      // PANEL-9 R7e (callback chip plated by the caption pill): it rode at
+      // H-200 (880..934) — the dead center of the caption band, so the pill
+      // plated over its middle and left "sound…" / "…arlier" clipped at the
+      // pill's edges (flagged on the fundSplit render). It now sits in the
+      // deliberate BELOW-pill gap the theme defines (pill bottom ≈ 956,
+      // progress bar at 1072): y 966..1020, 10px clear of the pill and clear
+      // of the right-aligned source tag (x ≥ ~1410 vs chip ≤ ~1265).
+      const chy = 966;
       ctx.fillStyle = PALETTE.goldWash;
-      roundRect(ctx, W / 2 - tw / 2 - 28, H - 200, tw + 56, 54, 27);
+      roundRect(ctx, W / 2 - tw / 2 - 28, chy, tw + 56, 54, 27);
       ctx.fill();
       ctx.lineWidth = 2.5;
       ctx.strokeStyle = PALETTE.gold;
-      roundRect(ctx, W / 2 - tw / 2 - 28, H - 200, tw + 56, 54, 27);
+      roundRect(ctx, W / 2 - tw / 2 - 28, chy, tw + 56, 54, 27);
       ctx.stroke();
       ctx.fillStyle = PALETTE.goldDeep;
       ctx.textAlign = 'left';
-      ctx.fillText(cb, W / 2 - tw / 2, H - 165);
+      ctx.fillText(cb, W / 2 - tw / 2, chy + 35);
       ctx.restore();
     }
   }

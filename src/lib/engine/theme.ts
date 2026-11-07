@@ -191,10 +191,18 @@ export function roundRect(
   const rr = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
   ctx.moveTo(x + rr, y);
-  ctx.arcTo(x + rr, y, x + w, y, rr);
-  ctx.arcTo(x + w, y + h, x + w, y + rr, rr);
-  ctx.arcTo(x + rr, y + h, x, y + h, rr);
-  ctx.arcTo(x, y, x + rr, y, rr);
+  // PANEL-9 R7 (broken boxes everywhere): the previous arcTo sequence passed
+  // wrong control points — each corner call used the NEXT corner's vertex as
+  // its tangent point, so every rounded plate in the film (caption pills,
+  // chips, cards, chart bands, rack boxes, callouts) filled as a skewed
+  // wedge with diagonal edges and pinched ends, and text spilled outside
+  // (verified at pixel level: a 200×100 r20 plate failed 5/10 shape probes).
+  // Correct arcTo usage: (x1,y1) is the CORNER vertex, (x2,y2) lies on the
+  // edge that follows it. Classic four-corner sequence, spec-exact:
+  ctx.arcTo(x + w, y, x + w, y + h, rr); // top-right corner
+  ctx.arcTo(x + w, y + h, x, y + h, rr); // bottom-right corner
+  ctx.arcTo(x, y + h, x, y, rr); // bottom-left corner
+  ctx.arcTo(x, y, x + w, y, rr); // top-left corner
   ctx.closePath();
 }
 

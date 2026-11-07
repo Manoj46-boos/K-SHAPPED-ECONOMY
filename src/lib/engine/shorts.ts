@@ -610,17 +610,24 @@ function drawNativeVerticalPump(
   floatCoins(ctx, px, py + 60, t, 4, 60);
 
   // two household cards, side by side
+  // PANEL-9 R7l (stat text overflowing into the neighbour card): the cards
+  // were 456 wide at x=84/540 — touching with ZERO gap — and the 38px stat
+  // lines were drawn unmeasured, so 'driving · barely changed' (~500px) ran
+  // ~110px past its 392px text column into the LOWER-INCOME card (flagged
+  // on the S6 render). Cards are now 444 wide with a 16px gutter, and each
+  // stat auto-shrinks to its column (floor 26px) or wraps to two rows.
   const cards = ((s.cards as any[]) || []).slice(0, 2);
   cards.forEach((c, i) => {
     const cap = clamp01((t - 1000 - i * 900) / 800);
     if (cap <= 0) return;
-    const x = i === 0 ? 84 : 540;
+    const x = i === 0 ? 84 : 552;
+    const cw2 = 444;
     const y = 800;
     ctx.save();
     ctx.globalAlpha = cap;
     ctx.translate(0, (1 - easeOutCubic(cap)) * 40);
     const tone = TONE(c.tone);
-    card(ctx, x, y, 456, 250, { r: 26 });
+    card(ctx, x, y, cw2, 250, { r: 26 });
     setFont(ctx, 24, 700, FONT_UI);
     ctx.fillStyle = tone.main;
     ctx.textAlign = 'left';
@@ -631,10 +638,38 @@ function drawNativeVerticalPump(
     ctx.moveTo(x + 32, y + 72);
     ctx.lineTo(x + 180, y + 72);
     ctx.stroke();
+    const maxSW = cw2 - 64;
+    let sy = y + 140;
     ((c.stats as string[]) || []).slice(0, 2).forEach((st, j) => {
-      setFont(ctx, 38, 700, FONT_UI);
+      let size = 38;
+      setFont(ctx, size, 700, FONT_UI);
+      while (ctx.measureText(st).width > maxSW && size > 26) {
+        size -= 2;
+        setFont(ctx, size, 700, FONT_UI);
+      }
       ctx.fillStyle = j === 0 ? tone.main : PALETTE.ink;
-      ctx.fillText(st, x + 32, y + 140 + j * 56);
+      if (ctx.measureText(st).width <= maxSW) {
+        ctx.fillText(st, x + 32, sy);
+        sy += 56;
+      } else {
+        const words = String(st).split(' ');
+        const rows2: string[] = [];
+        let line = '';
+        for (const wd of words) {
+          const test = line ? line + ' ' + wd : wd;
+          if (ctx.measureText(test).width > maxSW && line) {
+            rows2.push(line);
+            line = wd;
+          } else {
+            line = test;
+          }
+        }
+        if (line) rows2.push(line);
+        rows2.slice(0, 2).forEach((r) => {
+          ctx.fillText(r, x + 32, sy);
+          sy += 36;
+        });
+      }
     });
     ctx.restore();
   });
@@ -661,6 +696,18 @@ const NATIVE_DRAWERS: Record<NativeMode, (ctx: CanvasRenderingContext2D, W: numb
   pump: drawNativeVerticalPump,
 };
 
+/** PANEL-9 R7i (mid-short crop clipping): reverse map scene type → native
+ *  mode. A Short spans 50s of timeline — after its opening moment ends the
+ *  frame lands on whatever scene plays next, and the old logic fell back to
+ *  the 1034px safe crop of the 16:9 render, which amputates wide scenes
+ *  (statCards' 1700px card row: "…D" / "…gins" clipped at the window edge,
+ *  the sources chip cut on the right — flagged on the S1 render). With the
+ *  reverse map, ANY scene that has a native 9:16 composition gets it for
+ *  the whole span; only scenes with no native drawer fall back to the crop. */
+const NATIVE_BY_SCENE_TYPE: Record<string, NativeMode> = Object.fromEntries(
+  (Object.keys(NATIVE_SCENE_TYPES) as NativeMode[]).map((m) => [NATIVE_SCENE_TYPES[m], m])
+);
+
 /**
  * Draw one 1080×1920 vertical frame at FULL-timeline time tMs.
  * `offscreen` is a scratch 1920×1080 canvas (create once, reuse per frame).
@@ -680,16 +727,19 @@ export function drawShortFrame(
 
   // 2) the hero band — v6: native composition while the timeline is inside
   //    this short's scene; the safe inset crop only as a fallback for spans
-  //    that fall outside the six native moments
+  //    that fall outside the six native moments.
+  //    PANEL-9 R7i: the native check now routes on the ACTIVE scene type —
+  //    a Short that plays past its opening moment keeps native 9:16 layouts
+  //    for every scene that has one (statCards, bigText, gauge, …) instead
+  //    of dropping to the 1034px crop that amputates wide 16:9 scenes.
   const activeType = beatSceneTypeAt(tl, tMs);
-  const native = spec.native && NATIVE_SCENE_TYPES[spec.native] === activeType
-    ? NATIVE_DRAWERS[spec.native]
-    : null;
+  const nativeMode = activeType ? NATIVE_BY_SCENE_TYPE[activeType] : undefined;
+  const native = nativeMode ? NATIVE_DRAWERS[nativeMode] : null;
   if (native) {
     native(ctx, W, H, tl, tMs);
   } else {
-    // scene frame with captions/watermark/progress suppressed — the crop
-    // is the scene's own composition, and we re-caption vertically below
+    // scene frame with captions/watermark/progress suppressed — we
+    // re-caption vertically below
     const octx = offscreen.getContext('2d')!;
     drawFrame(octx, tl, tMs, {
       ...opts,
@@ -698,37 +748,25 @@ export function drawShortFrame(
       watermark: false,
     });
 
-    // v4 (audit P0-3): the crop window is inset 46px so nothing important
-    // rides the phone's screen edge
-    const inset = 46;
-    const sx = Math.round(Math.min(0.44, Math.max(0, spec.cropX)) * 1920);
-    ctx.drawImage(
-      offscreen,
-      sx + inset * 0.5, 0, 1080 - inset, 1080,
-      inset / 2, 410, 1080 - inset, 1080
-    );
-
-    // soft frame edge so the crop sits IN the phone, not slapped on it
-    const edge = ctx.createLinearGradient(0, 410, 0, 410 + 90);
-    edge.addColorStop(0, rgba('#FFFFFF', 0.55));
-    edge.addColorStop(1, rgba('#FFFFFF', 0));
-    ctx.fillStyle = edge;
-    ctx.fillRect(0, 410, W, 90);
-
-    // soft SIDE edges — some 16:9 scenes are wider than any 1034px window,
-    // so the window can cross content. A 70px ivory taper on both sides
-    // makes any residual boundary crossing read as intentional vignette.
-    const fade = 70;
-    const egL = ctx.createLinearGradient(inset / 2, 0, inset / 2 + fade, 0);
-    egL.addColorStop(0, rgba('#FFFFFF', 0.42));
-    egL.addColorStop(1, rgba('#FFFFFF', 0));
-    ctx.fillStyle = egL;
-    ctx.fillRect(inset / 2, 410, fade, 1080);
-    const egR = ctx.createLinearGradient(W - inset / 2 - fade, 0, W - inset / 2, 0);
-    egR.addColorStop(0, rgba('#FFFFFF', 0));
-    egR.addColorStop(1, rgba('#FFFFFF', 0.42));
-    ctx.fillStyle = egR;
-    ctx.fillRect(W - inset / 2 - fade, 410, fade, 1080);
+    // PANEL-9 R7j (fallback amputates 16:9 scenes): the old fallback cropped
+    // a 1034px window out of the 1920px frame at full scale — every scene
+    // wider than the window lost content at the window edge (S1: stat cards
+    // "…D"/"…gins" cut at the left, the sources chip cut at the right; S2:
+    // axis labels and bar-value pills clipped both sides). The fallback now
+    // LETTERBOXES the entire 16:9 frame, fit to canvas width, centred in the
+    // hero band on a soft-shadow matte — every scene is fully visible at
+    // 0.5625 scale. The six hero moments still get their full-size native
+    // drawers (R7i), and the vertical captions + title band stay full-size,
+    // so the small inset type is context, never the reading surface.
+    const fw = W;
+    const fh = fw * (1080 / 1920); // 607.5
+    const fy = 410 + (1080 - fh) / 2;
+    card(ctx, 26, fy - 30, fw - 52, fh + 60, { r: 22 });
+    ctx.drawImage(offscreen, 0, 0, 1920, 1080, 0, fy, fw, fh);
+    // hairline frame so the inset reads as a mounted plate
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = PALETTE.cardBorder;
+    ctx.strokeRect(1, fy + 1, fw - 2, fh - 2);
   }
 
   // 5) top title band — 2 lines max, mobile-first, clear of the top UI.
@@ -827,6 +865,14 @@ export function shiftTimeline(
     })),
     cutTimes: tl.cutTimes.map((c) => c - startMs).filter((c) => c >= 0),
     dataDingTimes: tl.dataDingTimes.map((d) => d - startMs).filter((d) => d >= 0),
+    // PANEL-9 R7n: silenceWindows were dropped here — the shifted Short
+    // timeline failed the Timeline type (pre-existing tsc error) and, worse,
+    // the music bed's duck-for-silence logic (audio.ts) silently lost every
+    // silence window in the encoded Shorts. Shift + clamp like cutTimes.
+    silenceWindows: tl.silenceWindows
+      .map((w) => ({ start: w.start - startMs, end: w.end - startMs }))
+      .filter((w) => w.end > 0)
+      .map((w) => ({ start: Math.max(0, w.start), end: w.end })),
   };
 }
 
