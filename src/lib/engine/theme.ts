@@ -366,7 +366,16 @@ export function paintBg(
   chapterTone: 'up' | 'down' | 'gold' | 'neutral' = 'neutral'
 ): void {
   ctx.fillStyle = PALETTE.bgTop;
-  ctx.fillRect(0, 0, W, H);
+  // PANEL-9 R6b (top-edge strip defect): paintBg runs under the camera
+  // transform, which drifts ±23px and pulls back to 0.974 on comparison
+  // scenes — a fillRect(0,0,W,H) under that transform can leave the top /
+  // side rows with NO opaque base, and the wash blob + grain then land as
+  // semi-transparent warm speckle there (measured alpha 4-47): the
+  // "brown-olive band" the re-review panel flagged on recessionGauge, and
+  // in the shipped YUV it composites onto black. Bleeding the base fill
+  // 96px past the canvas absorbs the entire camera envelope (worst case
+  // ≈80px on chartJourney's extra drift); the wash geometry is unchanged.
+  ctx.fillRect(-96, -96, W + 192, H + 192);
   const pulse = 0.5 + 0.5 * Math.sin(t / 6000);
   const wash =
     chapterTone === 'up' ? PALETTE.up
@@ -379,13 +388,18 @@ export function paintBg(
   // ~7% peak: unmistakable side-by-side, still gentle in motion, and the
   // frame still reads white. Gold runs quieter than teal/coral (a 7% gold
   // wash reads as cream; 5.8% reads as warm light).
+  // v8.2/PANEL-9 R6: 'down' wash trimmed 0.066→0.050 — at 6.6% the coral
+  // chapter wash stacked with peach gradients and read as "dirty salmon"
+  // in the gasPump/recessionGauge renders (measured on real harness
+  // frames, not the palette card). 5% keeps the room-change effect
+  // without the mud. Gold and teal hold (they read clean in the same test).
   const strength =
     chapterTone === 'neutral'
       ? 0.05
       : chapterTone === 'gold'
         ? 0.058
         : chapterTone === 'down'
-          ? 0.066
+          ? 0.05
           : 0.072;
   glowBlob(ctx, W * 0.82, H * 0.16 + driftY(t), W * 0.5, wash, strength + 0.012 * pulse);
   glowBlob(ctx, W * 0.1, H * 0.9, W * 0.42, wash, strength * 0.73 + 0.010 * (1 - pulse));

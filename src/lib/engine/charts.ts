@@ -147,7 +147,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
   if (opts.band) {
     const by1 = y + h - ((opts.band.to - yMin) / (yMax - yMin)) * h;
     const by2 = y + h - ((opts.band.from - yMin) / (yMax - yMin)) * h;
-    ctx.fillStyle = rgba(PALETTE.gold, 0.10);
+    ctx.fillStyle = rgba(PALETTE.gold, 0.07);
     roundRect(ctx, x, Math.min(by1, by2), w, Math.abs(by2 - by1), 14);
     ctx.fill();
     setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 21)
@@ -163,7 +163,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     const xFrac1 = opts.peakBand.to / all[all.length - 1][0];
     const bx = x + xFrac0 * w;
     const bw = (xFrac1 - xFrac0) * w;
-    ctx.fillStyle = rgba(PALETTE.gold, 0.14);
+    ctx.fillStyle = rgba(PALETTE.gold, 0.10);
     roundRect(ctx, bx, y, bw, h, 12);
     ctx.fill();
     ctx.strokeStyle = rgba(PALETTE.gold, 0.35);
