@@ -59,7 +59,7 @@ export function drawThumbnail(
   // set drifting in the most-viewed pixel the channel owns.
   const { up: UP, down: DOWN, gold: GOLD, goldDeep: GOLDD, ink: INK } = PALETTE;
   const IVORY = '#FFFFFF';
-  void DOWN; void GOLD; void IVORY;
+  void DOWN; void GOLD; void IVORY; void INK;
 
   // background: diagonal split — cool mint left / warm peach right
   const gl = ctx.createLinearGradient(0, 0, W * 0.55, H);
@@ -131,10 +131,14 @@ export function drawThumbnail(
   ctx.restore();
 
   // RIGHT: stickman with turned-out empty pockets (NO brown props)
-  const sx = W * 0.80, sy = H * 0.66;
+  // PANEL-9 R3: scaled 1.35→1.0 and dropped below the punchline's baseline —
+  // the CTR judges read the old overlap (text over legs over K-diagonal)
+  // as "mud in the right third". The figure now reads as a quiet second
+  // beat, not a fight with the headline.
+  const sx = W * 0.80, sy = H * 0.80;
   ctx.save();
   ctx.translate(sx, sy);
-  ctx.scale(1.35, 1.35);
+  ctx.scale(1.0, 1.0);
   ctx.fillStyle = rgba(PALETTE.shadow, 0.25);
   ctx.beginPath();
   ctx.ellipse(0, 6, 62, 13, 0, 0, Math.PI * 2);
@@ -187,43 +191,32 @@ export function drawThumbnail(
   stroke3(kx - 8, ky + S * 0.06, kx + S * 1.06, ky - S * 0.94);
   stroke3(kx - 8, ky + S * 0.06, kx + S * 1.06, ky + S * 0.94);
 
-  // TYPE: max 2 words per line, outlined for mobile legibility
-  setFont(ctx, 108, 700, FONT_UI);
+  // TYPE: PANEL-9 R3 — one hook, not two. The stacked "RECORD / HIGHS"
+  // block was redundant with the +20% badge (paying prime pixels to say
+  // the same thing twice) and teal-on-mint measured ~1.9:1 at feed size.
+  // The punchline is now the ONLY type block: white fill, 9px dark-ink
+  // stroke, one word per line (each word ≈ 420px wide — clear of the K at
+  // x≈627, the figure at H*0.80, and the duration-stamp zone).
+  const punch = variant === 2 ? ['STILL', 'BROKE?'] : ['FEELING', 'BROKE?'];
+  // v2 of the fix: 140px "BROKE?" + 9px stroke reached x≈560 and grazed the
+  // K's rim (verification panel caught it at feed size). 124px clears the K
+  // (ends ≈ x 505 vs K rim ≈ x 627) while staying feed-legible.
+  const pSize = variant === 2 ? 124 : 116;
+  setFont(ctx, pSize, 700, FONT_UI);
   ctx.save();
-  ctx.translate(84, H * 0.50);
+  ctx.translate(84, H * 0.42);
   ctx.rotate(-0.015);
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillText('RECORD', 0, 0);
-  ctx.fillText('HIGHS', 0, 118);
-  ctx.strokeStyle = UP; ctx.lineWidth = 10;
-  ctx.strokeText('RECORD', 0, 0);
-  ctx.strokeText('HIGHS', 0, 118);
-  ctx.restore();
-  // ══ THE FIX (panel P0-1) ═══════════════════════════════════════════════
-  // v2 bug: after stroke3() the ctx still carried the K-letterform's last
-  // pass (gold, 44px) — strokeText() then drew a 44px outline around 100px
-  // letters and the words rendered as a gold mass; the pair was also
-  // LEFT-anchored at x = 0.665W so "FEELING" ran off the 1280px canvas.
-  // Now: stroke state reset explicitly + right-anchored inside the 5%
-  // crop-safe margin. Variants for YouTube Test & Compare:
-  //   0 — teal outline, "FEELING BROKE?" at H*0.78 (original intent)
-  //   1 — deep-gold outline (warm A/B against the mint background)
-  //   2 — shorter punchline "STILL BROKE?" stacked higher, more air
-  // v5: variant 2 is the 3-word-rule champion — ONE line at 116px.
-  // (3-words-or-fewer outperforms 4+ at average CTR; mobile renders 160px.)
-  setFont(ctx, variant === 2 ? 116 : 100, 700, FONT_UI);
   ctx.textAlign = 'left';
+  ctx.lineJoin = 'round';
   ctx.fillStyle = '#FFFFFF';
-  ctx.strokeStyle = variant === 1 ? GOLDD : UP; // never inherit the K passes
-  ctx.lineWidth = 10;
-  const rLines = variant === 2 ? ['STILL BROKE?'] : ['FEELING', 'BROKE?'];
-  const rX = safeRightAnchor(ctx, W, rLines);
-  const rY0 = variant === 2 ? H * 0.74 : H * 0.78;
-  for (let i = 0; i < rLines.length; i++) {
-    const y = rY0 + i * (H * 0.105);
-    ctx.fillText(rLines[i], rX, y);
-    ctx.strokeText(rLines[i], rX, y);
-  }
+  ctx.strokeStyle = PALETTE.ink;   // dark slate-teal ink — never gold, never teal-on-mint
+  ctx.lineWidth = variant === 1 ? 12 : 9;
+  punch.forEach((wd, i) => {
+    const y = i * (pSize * 1.02);
+    ctx.strokeText(wd, 0, y);
+    ctx.fillText(wd, 0, y);
+  });
+  ctx.restore();
 }
 
 /**
