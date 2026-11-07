@@ -45,6 +45,12 @@ export interface LineChartOpts {
   /** stop progress at a specific x-fraction (for phase highlighting) */
   revealFrac?: number;
   emphasizeLast?: boolean;
+  /** PANEL-9 R2 (chart credibility): x-axis time labels. A channel called
+   *  THE DATA DESK shipped charts with no x-axis — every vision judge read
+   *  them as "illustrative squiggles". Pass 3–5 labels (x in data units,
+   *  same scale as points[][0]); they render under the plot, TYPE_FLOOR
+   *  sized, and are omitted by callers that genuinely have no time axis. */
+  xLabels?: { at: number; label: string }[];
 }
 
 function yBounds(opts: LineChartOpts): [number, number] {
@@ -71,6 +77,36 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
   } = opts;
   const [yMin, yMax] = yBounds(opts);
 
+  // x-axis time labels (PANEL-9 R2) — drawn FIRST so gridlines/area/lines
+  // all sit above them; bottom-anchored under the plot area.
+  if (opts.xLabels && opts.xLabels.length) {
+    const lastX = series[0].points[series[0].points.length - 1][0] || 1;
+    ctx.save();
+    setFont(ctx, 24, 400);
+    ctx.textBaseline = 'alphabetic';
+    for (const xl of opts.xLabels) {
+      const trueLx = x + (xl.at / lastX) * w;
+      // PANEL-9 R2b: the v1 guard SKIPPED labels inside 10px of the plot
+      // edge — which silently deleted "12 mo ago" / "today" / "last Oct",
+      // the exact anchors the VO names. End labels now clamp inward by
+      // their measured half-width instead of being dropped; the tick mark
+      // stays at the true position.
+      const halfW = ctx.measureText(xl.label).width / 2 + 4;
+      const lx = Math.min(Math.max(trueLx, x + halfW), x + w - halfW);
+      // tick mark at the TRUE position
+      ctx.strokeStyle = rgba(PALETTE.grid, 0.6);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(trueLx, y + h);
+      ctx.lineTo(trueLx, y + h + 6);
+      ctx.stroke();
+      ctx.fillStyle = PALETTE.inkFaint;
+      ctx.textAlign = 'center';
+      ctx.fillText(xl.label, lx, y + h + 34);
+    }
+    ctx.restore();
+  }
+
   // grid + y labels — v8: axis text 22→24px (TYPE_FLOOR: the panel measured
   // axis labels below mobile legibility in landscape; 24px is the floor
   // every reading text now respects)
@@ -95,7 +131,14 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
         yFormat === 'ndx' ? Math.round(val / 100) / 10 + 'k'
         : yFormat === 'eci' ? Math.round(val).toString()
         : yFormat === 'pct' ? val.toFixed(1) + '%'
-        : Math.round(val).toString();
+        // PANEL-9 R2b: 'idx100' was declared in the union but never
+        // implemented — chartTwin fell through to raw "93..129" numbers
+        // that read like invented price levels. The data is a 12-month
+        // index rebased to 100, so the honest axis is % change vs start,
+        // which also matches the +18.4% / +22% badges above each chart.
+        : yFormat === 'idx100'
+          ? (val >= 100 ? '+' : '') + Math.round(val - 100) + '%'
+          : Math.round(val).toString();
       ctx.fillText(label, x - 14, gy);
     }
   }

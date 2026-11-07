@@ -20,13 +20,13 @@ function bg(g: SceneCtx, seed: number, gold = 0.4): void {
   kMotifs(g.ctx, g.W, g.H, g.t, 0.04);
 }
 
-function hostSmall(g: SceneCtx, x: number, gesture = 'present', seed = 3): void {
-  // v3 (panel P0-3/P0-4): the data-scene host now uses the SAME v2 renderer
-  // as every host scene (tapered ink, hand discs, layered shadow) and the
-  // mouth articulates with the word timings — no more mid-video body swap.
+function hostSmall(
+  g: SceneCtx, x: number, gesture = 'present', seed = 3,
+  groundY = g.H * 0.86, scale = 0.84
+): void {
   const pose = Stickman.poseAt(g.t, { gesture, speaking: g.speaking });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(g.ctx, x, g.H * 0.86, 0.84, g.t, { pose, alpha: clamp01((g.t - 500) / 500), look: g.W / 2 > x ? 0.5 : -0.5, talk }, seed);
+  drawStickmanV2(g.ctx, x, groundY, scale, g.t, { pose, alpha: clamp01((g.t - 500) / 500), look: g.W / 2 > x ? 0.5 : -0.5, talk }, seed);
 }
 
 // ── chartTwin: S&P + Nasdaq mini charts ─────────────────────────────────────
@@ -34,8 +34,17 @@ export function chartTwinScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 61);
   const cw = W * 0.38;
-  const ch = H * 0.4;
-  const cy = H * 0.3;
+  // PANEL-9 R2c (bottom-band clearance): the v8 stack put the per-chart
+  // badges at y≈816 and the extraBadge card at y 886-978 — INSIDE the
+  // karaoke caption zone (opaque pill, top ≈ 796 for two rows), so the
+  // caption sliced through "+24% · Nasdaq-100 · 12 months", and the
+  // left-anchored badges collided with the "12 mo ago" x-labels. New
+  // stack: the punchline stat moves to a chip in the (previously dead)
+  // top band, the per-chart badges sit in each card's title row, and the
+  // plots end at y≈689 with x-labels at y≈722 — everything clears the
+  // caption zone by ~30px.
+  const ch = H * 0.36;
+  const cy = H * 0.305;
   const charts = (s.charts as any[]) || [];
   charts.slice(0, 2).forEach((c, i) => {
     const x = W * 0.08 + i * (cw + W * 0.08);
@@ -43,25 +52,40 @@ export function chartTwinScene(g: SceneCtx): void {
     ctx.save();
     ctx.globalAlpha = ap;
     ctx.translate(0, (1 - easeOutCubic(ap)) * 36);
-    card(ctx, x, cy - 66, cw, ch + 132, { r: 30 });
+    card(ctx, x, cy - 66, cw, ch + 104, { r: 30 });
     setFont(ctx, 30, 600);
     ctx.fillStyle = PALETTE.ink;
     ctx.textAlign = 'left';
     ctx.fillText(c.title, x + 36, cy - 16);
-    // badge
-    setFont(ctx, 44, 700);
+    // badge — title row, right-anchored (R2c: was bottom-left at y≈816,
+    // colliding with the "12 mo ago" x-label; same visual band as the
+    // title so the headline stat reads at the card's top edge)
+    setFont(ctx, 40, 700);
     ctx.fillStyle = TONE('up').main;
-    ctx.fillText(c.badge, x + 36, cy + ch + 60);
+    ctx.textAlign = 'right';
+    ctx.fillText(c.badge, x + cw - 36, cy - 10);
+    ctx.textAlign = 'left';
     ctx.restore();
     lineChart(ctx, {
       x: x + 40, y: cy + 30, w: cw - 80, h: ch - 60,
       series: [{ name: '', tone: i === 0 ? 'up' : 'up', points: c.points }],
       p: clamp01((t - 200 - i * 260) / 2400),
       t,
-      yFormat: 'index', showYAxis: false, gridLines: 3,
+      yFormat: 'idx100', showYAxis: true, gridLines: 3,
+      // PANEL-9 R2: twin charts shipped axis-less — "illustrative squiggles",
+      // not data. Y axis on + a 3-stop time axis underneath.
+      // R2b: yFormat 'index'→'idx100' — the axis now reads as % change vs
+      // 12 mo ago (matches the +18.4% / +22% badges) instead of raw
+      // 93-129 "price levels" the re-review panel read as invented numbers.
+      xLabels: [
+        { at: 0, label: '12 mo ago' },
+        { at: 20, label: '6 mo ago' },
+        { at: 40, label: 'today' },
+      ],
     });
   });
-  // extra badge (Nasdaq-100)
+  // extra badge (Nasdaq-100) — punchline chip in the top band (R2c: was a
+  // full-width card at y 886-978, inside the caption pill zone)
   const eb = s.extraBadge as any | undefined;
   if (eb) {
     const ap = clamp01((t - 2000) / 700);
@@ -69,21 +93,30 @@ export function chartTwinScene(g: SceneCtx): void {
       ctx.save();
       ctx.globalAlpha = ap;
       const bx = W * 0.08;
-      const by = cy + ch + 130;
-      card(ctx, bx, by, W * 0.84, 92, { r: 26 });
+      const by = 128;
+      setFont(ctx, 46, 700);
+      const bigW = ctx.measureText(eb.big).width;
+      setFont(ctx, 28, 600);
+      const labW = ctx.measureText(eb.label).width;
+      const chipW = 36 + bigW + 24 + labW + 36;
+      card(ctx, bx, by, chipW, 84, { r: 26 });
       setFont(ctx, 46, 700);
       ctx.fillStyle = TONE('up').main;
       ctx.textAlign = 'left';
-      ctx.fillText(eb.big, bx + 36, by + 62);
+      ctx.fillText(eb.big, bx + 36, by + 56);
       setFont(ctx, 28, 600);
       ctx.fillStyle = PALETTE.inkSoft;
-      ctx.fillText(eb.label, bx + 190, by + 57);
+      ctx.fillText(eb.label, bx + 36 + bigW + 24, by + 51);
       ctx.restore();
-      if (ap >= 1) sparkles(ctx, W / 2, by + 46, t, t - 2600, { count: 10, radius: 220 });
+      if (ap >= 1) sparkles(ctx, bx + chipW / 2, by + 42, t, t - 2600, { count: 10, radius: 220 });
     }
   }
   sourceTag(ctx, W, s.source as string, H - 60);
-  hostSmall(g, W * 0.88);
+  // PANEL-9 R2b (z-order): the host used to stand at (W*0.88, H*0.86) —
+  // directly on the right chart's "today" x-label. Relocated to the empty
+  // top-right quadrant above the chart cards, smaller, looking down at
+  // the data; the full label strip along the card bottoms stays clear.
+  hostSmall(g, W * 0.87, 'present', 3, H * 0.225, 0.66);
 }
 
 // ── chartJourney: the generic annotated line chart scene ────────────────────
@@ -143,6 +176,15 @@ export function chartJourneyScene(g: SceneCtx): void {
     p: drawP,
     t,
     yFormat: ((s.yFormat as string) || 'index') as any,
+    // PANEL-9 R2: the hero journey chart now carries a real time axis —
+    // x=0 is ~last October, the script dates the March low (x=11) and the
+    // June record (x=20), so the stops line up with the annotations.
+    xLabels: [
+      { at: 0, label: 'last Oct' },
+      { at: 11, label: 'Mar' },
+      { at: 20, label: 'Jun' },
+      { at: 40, label: 'today' },
+    ],
     // v3 (panel P1-1): beat-relative — the reveal RE-RUNS as the recovery
     // beat's VO explains it, instead of arriving pre-pinned at 1.0
     revealFrac: s.phase === 'recovery' ? Math.max(0.75, clamp01((bt - 800) / 4000)) : undefined,
