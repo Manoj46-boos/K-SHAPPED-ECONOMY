@@ -7,15 +7,23 @@
  * Run:                    node tools/render-check.mjs
  * Output:                 ./harness-frames/*.png  (~20 frames, ~7 seconds)
  *
+ * PANEL-9 B1 (tooling): this file is ESM by extension but previously used
+ * CommonJS require() — `node tools/render-check.mjs` crashed with
+ * ERR_REQUIRE_ESM / MODULE_NOT_FOUND before drawing a single frame. It is
+ * now real ESM (createRequire for the compiled engine build, which is CJS).
+ *
  * The engine is compiled to CommonJS into .render-check-build/ automatically
  * on first run (needs the repo's TypeScript: it ships as a devDependency).
  */
-const path = require('path');
-const fs = require('fs');
-const { execSync } = require('node:child_process');
-const { createCanvas, registerFont } = require('canvas');
+import path from 'node:path';
+import fs from 'node:fs';
+import { execSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import { createCanvas, registerFont } from 'canvas';
 
-const REPO = path.resolve(__dirname, '..', '..');
+const require = createRequire(import.meta.url);
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BUILD = path.join(REPO, '.render-check-build');
 const OUT = path.join(REPO, 'harness-frames');
 if (!fs.existsSync(OUT)) fs.mkdirSync(OUT, { recursive: true });
@@ -30,7 +38,10 @@ if (!fs.existsSync(path.join(BUILD, 'director.js'))) {
   execSync(
     ['node_modules/.bin/tsc', ...files,
      '--outDir', BUILD, '--module', 'commonjs', '--moduleResolution', 'node',
-     '--target', 'es2022', '--skipLibCheck', '--esModuleInterop', '--resolveJsonModule'].join(' '),
+     '--target', 'es2022', '--skipLibCheck', '--esModuleInterop',
+     // PANEL-9: analytics.ts imports analytics-data.json — without this flag
+     // tsc exits 2 on the JSON import and the harness dies before rendering.
+     '--resolveJsonModule'].join(' '),
     { stdio: 'inherit', cwd: REPO }
   );
 }
@@ -151,4 +162,4 @@ for (const [name, r] of picks) {
   console.log(`rendered ${name} @ ${(r.t / 1000).toFixed(1)}s (${r.label})`);
 }
 
-console.log(`done in ${((Date.now() - t0) / 1000).toFixed(1)}s → ${targets.length} frames in ${OUT}`);
+console.log(`done in ${((Date.now() - t0) / 1000).toFixed(1)}s → ${targets.length} frames in ${path.relative(REPO, OUT)}/`);

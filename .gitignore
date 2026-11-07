@@ -67,3 +67,9 @@ GeneralUser_GS.sf2
 # (v5 patch: prefer the TTS cache) reads it; it is per-machine and regenerates
 # on every render, so it never belongs in the tree.
 .render-assets/
+
+# PANEL-9 render harness artifacts — offline QA frames + the tsc build the
+# harness compiles from src/lib/engine (regenerated on every run)
+.render-check-build/
+harness-frames/
+harness-frames-after/
