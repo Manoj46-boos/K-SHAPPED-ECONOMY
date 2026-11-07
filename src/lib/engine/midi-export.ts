@@ -160,7 +160,9 @@ export function scoreToSmf(notes: ScoreNote[], opts: SmfOptions = {}): Uint8Arra
 export function exportBedMidi(vol = 0.55): { name: string; bytes: Uint8Array }[] {
   const out: { name: string; bytes: Uint8Array }[] = [];
   for (const mood of MOODS) {
-    for (let v = 0; v < 2; v++) {
+    // PANEL-9 R4: export all 4 variants (matches audio.ts's tiler and
+    // scripts/render-bed.mjs; MIDI is how these loops reach FluidSynth/DAWs).
+    for (let v = 0; v < 4; v++) {
       const notes = scaledScore(mood as Mood, v, vol);
       out.push({ name: `bed-${mood}-v${v}`, bytes: scoreToSmf(notes, { vol, name: `K-shaped bed · ${mood} · v${v}` }) });
     }

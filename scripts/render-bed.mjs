@@ -51,6 +51,10 @@ if (!fs.existsSync(path.join(BUILD, 'audio.js'))) {
       '--target', 'es2022',
       '--skipLibCheck',
       '--esModuleInterop',
+      // PANEL-9 R4: audio.ts pulls in analytics.ts → analytics-data.json;
+      // without this flag tsc exits 2 on the JSON import and the bed render
+      // dies before writing a single loop.
+      '--resolveJsonModule',
     ].join(' '),
     { stdio: 'inherit' }
   );
@@ -121,7 +125,10 @@ let worstPeak = 0;
 const VOICE_TRIM = { pad: 1.0, piano: 1.0, bass: 1.0, kick: 0.5, shaker: 8.0 };
 
 for (const mood of MOODS) {
-  for (let v = 0; v < 2; v++) {
+  // PANEL-9 R4: 4 variants per mood (was 2). score.ts is fully
+  // variant-parameterised and deterministic, so v2–v3 are new loops, not
+  // copies — audio.ts's tiler already rotates through all rendered beds.
+  for (let v = 0; v < 4; v++) {
     const notes = scaledScore(mood, v, BED_REF_VOL);
     const renderNotes = notes.map((n) => ({
       key: n.voice === 'shaker' || n.voice === 'kick' ? DRUM_KEYS[n.voice] : n.midi,

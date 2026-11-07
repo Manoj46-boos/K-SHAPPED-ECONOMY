@@ -494,25 +494,30 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
   const L = mix.getChannelData(0);
   const R = mix.getChannelData(1);
 
-  // ── 1. BGM loops per mood (2 variants each, tiled) ──
+  // ── 1. BGM loops per mood, tiled ──
   // v3 (panel P0-5): each loop gets a circular Schroeder reverb pass — the
-  // score breathes instead of stopping dead. Adds ~15-25s to the mix step
-  // only; the render loop is untouched.
-  // v6 (audit P2-1): prefer the offline soundfont render (real GeneralUser
-  // GS instruments, level-matched at BED_REF_VOL); fall back to the DSP
-  // voices per loop when the asset is missing. Either way the notes are
-  // the same — score.ts is the single source of truth.
+  // score breathes instead of stopping dead (adds ~15-25s to the mix only).
+  // v6 (audit P2-1): prefer the offline soundfont render (GeneralUser GS,
+  // level-matched); fall back to the DSP voices when the asset is missing.
   onProgress?.(0.05, 'composing the score');
+  // PANEL-9 R4 (musical repetition): 2 variants × 10.43 s per mood meant a
+  // 20-minute film played the SAME loop ~115 times — each variant ~10
+  // plays per chapter. 4 variants per mood = 24 unique loops, ~5 plays per
+  // variant per chapter, and the tiler's A/B alternation becomes an A/B/C/D
+  // rotation. score.ts is already variant-parameterised and deterministic,
+  // so variants 2–3 render automatically (DSP fallback now; run
+  // `node scripts/render-bed.mjs` once to regenerate the SF2 beds).
   const moods = [...new Set(CHAPTER_MOODS)];
+  const VARIANTS_PER_MOOD = 4;
   const bedNames: string[] = [];
   for (const mood of moods) {
-    for (let v = 0; v < 2; v++) bedNames.push(`sf2-${mood}-${v}`);
+    for (let v = 0; v < VARIANTS_PER_MOOD; v++) bedNames.push(`sf2-${mood}-${v}`);
   }
   const beds = await loadBedLoops(bedNames);
   const bedScale = bgmVolume / BED_REF_VOL; // beds were matched at BED_REF_VOL
   const loops = new Map<string, Loop>();
   for (const mood of moods) {
-    for (let v = 0; v < 2; v++) {
+    for (let v = 0; v < VARIANTS_PER_MOOD; v++) {
       const bed: BedLoop | null = beds?.get(`sf2-${mood}-${v}`) ?? null;
       let lp: Loop;
       if (bed) {
@@ -531,8 +536,6 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
       loops.set(`${mood}:${v}`, lp);
     }
   }
-
-  // ── 2. VO placement (with resampling) + ducking envelope ──
   onProgress?.(0.12, 'placing the voiceover');
   const voEvents: { buf: AudioBuffer; startSec: number }[] = [];
   for (const beat of tl.beats) {
@@ -660,7 +663,11 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
         pos48 += 1;
         if (pos48 >= loopLen48) {
           pos48 -= loopLen48;
-          variant = 1 - variant;
+          // PANEL-9 R4: rotate through however many variants exist (2–4);
+          // never index past the last rendered variant (fresh clones before
+          // the bed re-render still ship 2).
+          const nVariants = [...loops.keys()].filter((k) => k.startsWith(`${sect.mood}:`)).length;
+          variant = (variant + 1) % Math.max(2, nVariants);
           loop = loops.get(`${sect.mood}:${variant}`)!;
         }
       }
