@@ -213,3 +213,91 @@ export function scaledScore(mood: Mood, variant: number, vol: number): ScoreNote
   const lv = levelFor(mood, vol);
   return moodScore(mood, variant).map((n) => ({ ...n, vel: n.vel * lv }));
 }
+
+// ── P1-3 (report): the SHOW THEME — 8 bars, stated three times ──────────────
+// The panel's P1-3: "compose one 8-bar recurring theme, state it at cold
+// open, twist, end screen." The theme QUOTES the K-motif chime (E4→C5→E5 —
+// the brand sound the audience already hears on every chapter card) as its
+// opening gesture, then answers it with a falling resolution. Same key and
+// chord language as the beds (A-minor relative / C-major), 92 BPM, fully
+// deterministic — pure data, no rng, so every statement is identical.
+
+export const THEME_BARS = 8;
+export const THEME_DUR = BAR * THEME_BARS; // ≈ 20.9 s
+
+/** The theme's own progression — a minor-question → major-answer arc. */
+const THEME_PROGRESSION = ['Am7', 'Fmaj9', 'Cmaj9', 'G6', 'Am7', 'Fmaj9', 'Cmaj9', 'Cmaj9'];
+
+/** [midi, bar, beat, durBeats, vel, pan] — the melody, phrase by phrase. */
+const THEME_MELODY: Array<[number, number, number, number, number, number]> = [
+  // phrase 1 — the K-motif quote, calm: E4 … C5
+  [64, 0, 0, 2, 0.46, -0.15],
+  [72, 0, 2, 2, 0.42, 0.20],
+  // phrase 1 answer — the chime's top note, then settling: E5 D5 C5
+  [76, 1, 0, 1.5, 0.48, 0.10],
+  [74, 1, 1.5, 0.5, 0.36, -0.20],
+  [72, 1, 2, 2, 0.42, 0.15],
+  // phrase 2 — descending: B4 G4 E4
+  [71, 2, 0, 1, 0.40, -0.10],
+  [67, 2, 1, 1, 0.38, 0.20],
+  [64, 2, 2, 2, 0.42, 0.00],
+  // lift into the second half: D4 E4 G4
+  [62, 3, 0, 2, 0.40, -0.20],
+  [64, 3, 2, 1, 0.38, 0.10],
+  [67, 3, 3, 1, 0.40, 0.20],
+  // phrase 3 — the question returns higher: A4 C5 B4
+  [69, 4, 0, 2, 0.46, -0.10],
+  [72, 4, 2, 1, 0.40, 0.20],
+  [71, 4, 3, 1, 0.38, -0.15],
+  // settles: A4 G4
+  [69, 5, 0, 2, 0.44, 0.10],
+  [67, 5, 2, 2, 0.38, -0.20],
+  // phrase 4 — the walk home: E4 … G4 A4
+  [64, 6, 0, 2, 0.42, 0.00],
+  [67, 6, 2, 0.5, 0.36, 0.20],
+  [69, 6, 2.5, 0.5, 0.38, 0.25],
+  // resolution — C5 held over Cmaj9
+  [72, 7, 0, 4, 0.50, 0.00],
+];
+
+/**
+ * The theme as note events, truncated to `bars` (2 = the signature quote,
+ * 4 = the A-phrase statement, 8 = the full arc). Melody in the felt-piano
+ * voice, soft pad chords, single-note bass, off-beat shaker in the back
+ * half only — the theme is a foreground gesture over the bed, never a
+ * second bed.
+ */
+export function themeScore(bars: number = THEME_BARS): ScoreNote[] {
+  const notes: ScoreNote[] = [];
+  const nBars = Math.max(1, Math.min(THEME_BARS, bars));
+  for (let bar = 0; bar < nBars; bar++) {
+    const barT = bar * BAR;
+    const chord = CHORDS[THEME_PROGRESSION[bar]];
+    // pad — chord tones, one bar, soft support (melody-forward balance:
+    // four summed tones must not exceed the melody's own level)
+    chord.notes.forEach((n) => {
+      notes.push({ voice: 'pad', midi: midiOf(n), startSec: barT, durSec: BAR * 1.02, vel: 0.10, pan: 0 });
+    });
+    // bass — the root
+    notes.push({ voice: 'bass', midi: midiOf(chord.root), startSec: barT, durSec: BAR * 0.92, vel: 0.18, pan: 0 });
+    // shaker — bars 5-8 only, off-beats, light
+    if (bar >= 4) {
+      notes.push({ voice: 'shaker', midi: DRUM_KEYS.shaker, startSec: barT + BEAT * 1.5, durSec: 0.12, vel: 0.18, pan: 0 });
+      notes.push({ voice: 'shaker', midi: DRUM_KEYS.shaker, startSec: barT + BEAT * 3.5, durSec: 0.12, vel: 0.13, pan: 0 });
+    }
+  }
+  // melody — the phrases, cut at the requested bar count
+  for (const [midi, bar, beat, durBeats, vel, pan] of THEME_MELODY) {
+    const startSec = bar * BAR + beat * BEAT;
+    if (startSec >= nBars * BAR - 0.05) continue;
+    notes.push({ voice: 'piano', midi, startSec, durSec: durBeats * BEAT, vel, pan });
+  }
+  return notes;
+}
+
+/** The coda — bar 8 alone (the held C5 over Cmaj9): appended after a 4-bar
+ *  statement so the end screen both quotes the theme AND resolves it. */
+export function themeCoda(): ScoreNote[] {
+  return themeScore(THEME_BARS).filter((n) => n.startSec >= 7 * BAR - 0.05)
+    .map((n) => ({ ...n, startSec: n.startSec - 7 * BAR }));
+}

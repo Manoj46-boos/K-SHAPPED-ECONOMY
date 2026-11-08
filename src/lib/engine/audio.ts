@@ -24,7 +24,8 @@
 import { Timeline } from './timeline';
 import { hash01, seededRandom } from './easing';
 import {
-  Mood, CHAPTER_MOODS, scaledScore,
+  Mood, CHAPTER_MOODS, scaledScore, ScoreNote,
+  themeScore, themeCoda, THEME_DUR,
   SR_BGM, BPM, LOOP_DUR, LOOP_LEN,
 } from './score';
 import { loadBedLoops, BedLoop } from './beds';
@@ -274,12 +275,18 @@ function addRiser(L: Float32Array, R: Float32Array, startSec: number, durSec: nu
  * rise-fast / fall-slow envelope. Reads as "movement into the next scene";
  * the v1 mix was silent across every cut, which is why it felt like hold
  * music. Deterministic xorshift noise, zero allocations.
+ * P1-3 (report): VELOCITY-CURVED — every cut used to get the same whoosh,
+ * so 41 cuts meant 41 identical gestures. `vel` (0..1) now scales the gain,
+ * the length (0.4s minor → 0.65s chapter) and how far the filter opens, so
+ * a chapter change lands as a page-turn and a same-type scene change
+ * whispers past. The mix stops drawing attention to its own machinery.
  */
 export function addWhoosh(
   L: Float32Array, R: Float32Array,
-  startSec: number, gain: number
+  startSec: number, gain: number,
+  vel = 1
 ): void {
-  const dur = 0.55;
+  const dur = 0.4 + 0.25 * vel;
   const n0 = Math.round(startSec * SR_OUT);
   const n1 = Math.min(L.length, n0 + Math.round(dur * SR_OUT));
   let seed = 12345;
@@ -289,18 +296,124 @@ export function addWhoosh(
     return ((seed >>> 0) / 4294967296) * 2 - 1;
   };
   let lp = 0, lp2 = 0;
+  const velGain = gain * (0.42 + 0.58 * vel);
+  const openAmt = 0.35 + 0.35 * vel;
   for (let i = n0; i < n1; i++) {
     const t = (i - n0) / SR_OUT;
     const p = t / dur;
     // rise fast, fall slow — reads as "movement into the next scene"
-    const env = Math.min(1, p * 4) * Math.pow(Math.max(0, 1 - Math.pow(p, 2.2)), 1.6) * gain * 0.09;
+    const env = Math.min(1, p * 4) * Math.pow(Math.max(0, 1 - Math.pow(p, 2.2)), 1.6) * velGain * 0.09;
     const x = rng();
-    const cutoff = 0.04 + 0.6 * p * p; // opens up as it moves
+    const cutoff = 0.04 + openAmt * p * p; // opens further on big cuts
     lp += cutoff * (x - lp);
     lp2 += cutoff * 0.6 * (lp - lp2);
     const s = (lp - lp2) * env; // band-pass feel
     L[i] += s;
     R[i] += s * 0.92;
+  }
+}
+
+// ── P1-3 (report): the SHOW THEME — rendered into the master mix ──────────
+// The theme is a foreground melodic layer over the bed (like the K-motif
+// chimes: hand-drawn DSP, not part of the GM bed map). These are the bed's
+// exact voices re-parameterised for the 48 kHz master bus and absolute
+// start times.
+function themePiano(L: Float32Array, R: Float32Array, n: ScoreNote, baseSec: number, gain: number): void {
+  const f = freqFromMidi(n.midi);
+  const durSec = Math.max(0.4, Math.min(4, n.durSec * 1.15));
+  const n0 = Math.round((baseSec + n.startSec) * SR_OUT);
+  const n1 = Math.min(L.length, n0 + Math.round(durSec * SR_OUT));
+  const incr = f / SR_OUT;
+  const gl = n.vel * gain * (1 - Math.max(0, n.pan));
+  const gr = n.vel * gain * (1 - Math.max(0, -n.pan));
+  let ph = 0;
+  for (let i = n0; i < n1; i++) {
+    const t = (i - n0) / SR_OUT;
+    const env = Math.exp(-t * 1.7);
+    let p2 = ph * 2;
+    if (p2 >= 1) p2 -= 1;
+    // P1-3 mix round: 2nd partial 0.22 → 0.15 (≈ −3 dB at the octave) —
+    // the panel's dialogue-priority insurance: the theme's harmonic stack
+    // was hot at 1-2kHz, the voice band's core. Melody stays forward;
+    // narration stays on top.
+    const s = (sine(ph) + 0.15 * sine(p2) * Math.exp(-t * 4.2)) * env;
+    if (i >= 0) { L[i] += s * gl; R[i] += s * gr; }
+    ph += incr;
+    if (ph >= 1) ph -= 1;
+  }
+}
+
+function themePad(L: Float32Array, R: Float32Array, n: ScoreNote, baseSec: number, gain: number): void {
+  const f = freqFromMidi(n.midi);
+  const n0 = Math.round((baseSec + n.startSec) * SR_OUT);
+  const n1 = Math.min(L.length, n0 + Math.round(n.durSec * SR_OUT));
+  const attack = Math.min(0.5, n.durSec * 0.3);
+  const release = Math.min(0.6, n.durSec * 0.3);
+  const incr = f / SR_OUT;
+  const g = n.vel * gain;
+  let ph = 0;
+  for (let i = n0; i < n1; i++) {
+    const t = (i - n0) / SR_OUT;
+    let env = 1;
+    if (t < attack) env = t / attack;
+    else if (t > n.durSec - release) env = Math.max(0, (n.durSec - t) / release);
+    let p2 = ph * 2;
+    if (p2 >= 1) p2 -= 1;
+    const s = (sine(ph) + 0.16 * sine(p2)) * env * g;
+    if (i >= 0) { L[i] += s; R[i] += s; }
+    ph += incr;
+    if (ph >= 1) ph -= 1;
+  }
+}
+
+function themeBass(L: Float32Array, R: Float32Array, n: ScoreNote, baseSec: number, gain: number): void {
+  const f = freqFromMidi(n.midi);
+  const n0 = Math.round((baseSec + n.startSec) * SR_OUT);
+  const n1 = Math.min(L.length, n0 + Math.round(n.durSec * SR_OUT));
+  const incr = f / SR_OUT;
+  const g = n.vel * gain;
+  let ph = 0;
+  for (let i = n0; i < n1; i++) {
+    const t = (i - n0) / SR_OUT;
+    let env = 1;
+    if (t < 0.04) env = t / 0.04;
+    else if (t > n.durSec - 0.2) env = Math.max(0, (n.durSec - t) / 0.2);
+    const s = sine(ph) * env * g;
+    if (i >= 0) { L[i] += s; R[i] += s; }
+    ph += incr;
+    if (ph >= 1) ph -= 1;
+  }
+}
+
+function themeShaker(L: Float32Array, R: Float32Array, n: ScoreNote, baseSec: number, gain: number): void {
+  const rng = seededRandom(Math.round((baseSec + n.startSec) * 1000) + 31);
+  const n0 = Math.round((baseSec + n.startSec) * SR_OUT);
+  const n1 = Math.min(L.length, n0 + Math.round(0.12 * SR_OUT));
+  let last = 0;
+  for (let i = n0; i < n1; i++) {
+    const t = (i - n0) / SR_OUT;
+    const env = Math.min(1, t / 0.004) * Math.exp(-t * 42);
+    const x = rng() * 2 - 1;
+    const hp = x - 0.9 * last;
+    last = x;
+    const s = hp * env * n.vel * gain * 0.6;
+    if (i >= 0) { L[i] += s; R[i] += s * 0.9; }
+  }
+}
+
+/** Render one theme statement into the master mix at an absolute time. */
+function renderTheme(
+  L: Float32Array, R: Float32Array,
+  notes: ScoreNote[], baseSec: number, gain: number
+): void {
+  if (baseSec < 0) return;
+  for (const n of notes) {
+    switch (n.voice) {
+      case 'piano': themePiano(L, R, n, baseSec, gain); break;
+      case 'pad': themePad(L, R, n, baseSec, gain); break;
+      case 'bass': themeBass(L, R, n, baseSec, gain); break;
+      case 'shaker': themeShaker(L, R, n, baseSec, gain); break;
+    }
   }
 }
 
@@ -481,6 +594,11 @@ export interface MixInput {
   bgmVolume: number;
   voVolume: number;
   onProgress?: (frac: number, label: string) => void;
+  /** P1-3: skip the mastering stage (glue + LUFS normalise + peak guard)
+   *  and return the raw score mix — used by the A/B evidence harness and the
+   *  voice-A/B prep tool, where the VO is absent and delivery-loudness
+   *  normalisation would clamp every foreground layer. Default: mastered. */
+  master?: boolean;
 }
 
 export async function renderMix(input: MixInput): Promise<AudioBuffer> {
@@ -685,8 +803,37 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
   }
 
   // ── 4b. v2 SFX: whoosh on every hard cut, ding on data landings (PATCH 7) ──
+  // P1-3 (report): velocity-curved whooshes — chapter cuts 1.0, scene-TYPE
+  // changes 0.72, same-type sceneKey changes 0.48. The curve comes from the
+  // timeline itself (chapter cards + the scene types either side of each
+  // cut), so it stays correct through any recut.
+  const typeAtCut = (tMs: number): string => {
+    for (const b of tl.beats) {
+      if (tMs >= b.startMs && tMs < b.endMs) return b.beat.scene.type;
+    }
+    return '';
+  };
   for (const cut of tl.cutTimes) {
-    addWhoosh(L, R, cut / 1000, bgmVolume);
+    let vel = 0.48;
+    // a CHAPTER cut is the scene-group start that lands at the END of a
+    // chapter card (the card occupies [startMs, startMs+900) and the beat
+    // begins at its end) — matching the card's startMs never fires, which
+    // silently demoted every chapter whoosh to the 0.72/0.48 tiers (caught
+    // while building the tier evidence, round 2)
+    const isChapter = tl.chapterCards.some(
+      (c) => cut >= c.startMs && cut <= c.endMs + 60
+    );
+    if (isChapter) vel = 1;
+    else {
+      // the beat BEFORE the cut (the outgoing scene's type)
+      let prevType = '';
+      for (const b of tl.beats) {
+        if (b.endMs <= cut) prevType = b.beat.scene.type;
+        else break;
+      }
+      if (prevType && typeAtCut(cut) !== prevType) vel = 0.72;
+    }
+    addWhoosh(L, R, cut / 1000, bgmVolume, vel);
   }
   for (const d of tl.dataDingTimes) {
     addDing(L, R, d / 1000, bgmVolume);
@@ -707,12 +854,56 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
     }
   }
 
+  // ── 4d. P1-3 (report): the SHOW THEME — one 8-bar identity, stated three
+  // times. Cold open states the A-phrase once the film has faded in; the
+  // twist quotes the signature phrase one second after the silence slam (the
+  // brand sound under the single most important line of the film); the end
+  // screen re-states the A-phrase and resolves it with the coda — the film
+  // opens and closes on the same music. Level: a foreground gesture over the
+  // ducked bed, never a second bed.
+  onProgress?.(0.87, 'the show theme');
+  {
+    // level calibration: the melody peaks ≈0.11-0.13 — a featured gesture
+    // clearly over the ducked bed (≈0.05-0.09 peak) and under the VO, in the
+    // same register as the K-motif chime (≈0.14 peak). The first pass ran
+    // ×2.7 hotter and peaked 0.98 — drowning, not stating.
+    const themeGain = Math.max(0.3, bgmVolume * 0.55);
+    // 1) cold open — bars 1-4 at ~2.2s (after the fade-in, under the hook)
+    renderTheme(L, R, themeScore(4), 2.2, themeGain * 0.92);
+    // 2) the twist — bars 1-2 (the K-motif quote), 1.0s after the ch7
+    // silence window's payoff lands. The ch6 paradox window keeps its bare
+    // chime: scarcity is the mechanism (the report's own P0-5 note).
+    for (const sw of tl.silenceWindows ?? []) {
+      let chapter = -1;
+      for (const b of tl.beats) {
+        if (sw.end >= b.startMs && sw.end < b.endMs) chapter = b.chapter;
+      }
+      if (chapter === 6) {
+        renderTheme(L, R, themeScore(2), sw.end / 1000 + 1.0, themeGain);
+      }
+    }
+    // 3) end screen — bars 1-4, then the resolution coda (held C5/Cmaj9)
+    const endBeat = tl.beats[tl.beats.length - 1];
+    if (endBeat?.beat.scene.type === 'endScreen') {
+      const es = endBeat.startMs / 1000 + 0.6;
+      renderTheme(L, R, themeScore(4), es, themeGain * 0.85);
+      renderTheme(L, R, themeCoda(), es + 4 * (60 / BPM) * 4, themeGain * 0.85);
+    }
+    void THEME_DUR;
+  }
+
   // ── 5. v4 master (audit P0-5): bus glue FIRST, then normalise to the
   // delivery target. The v3 order (normalise → glue) let the glue's makeup
   // gain re-change the level after normalisation, so the mix shipped ≈2 LU
   // off target — the platform, not the mix, decided the loudness. Glue first,
   // then measure exactly what ships. A true-peak guard after the gain keeps
   // normalisation from ever pushing samples past digital full scale.
+  // P1-3: `master:false` (evidence harness / voice-A/B prep) skips this —
+  // the raw score mix is what those tools need to compare.
+  if (input.master === false) {
+    onProgress?.(1, 'raw score mix (mastering skipped)');
+    return mix;
+  }
   onProgress?.(0.92, 'mastering');
   masterGlue(L, R);
   const applied = normalizeLufs(L, R, SR_OUT, -14.0);
