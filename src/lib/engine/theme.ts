@@ -4,6 +4,11 @@
  * teal-green for "up", warm coral for "down".
  */
 
+// v9 (report P0-1): card()/chip()/fitText feed the collision guard when the
+// harness enables it — every plated-through defect (D-01, D-02, the R7
+// family) was content a guard like this would have caught at render time.
+import { registerRect } from './collision';
+
 export interface Palette {
   bgTop: string;
   bgBottom: string;
@@ -91,11 +96,24 @@ export const PALETTE: Palette = {
   white: '#FFFFFF',
 };
 
-/** v8 minimum type size (design px, 1920×1080 grid). Nothing the viewer
+/** Minimum type size (design px, 1920×1080 grid). Nothing the viewer
  *  must READ renders below this — the vision panel measured source tags,
  *  axis labels and kickers at 21–24px, illegible on a phone in landscape
- *  (the majority view for finance explainer audiences). */
-export const TYPE_FLOOR = 24;
+ *  (the majority view for finance explainer audiences).
+ *  v9 (report P0 / D-07): the floor is now ENFORCED, not advisory —
+ *  fitText() clamps at it and warns in dev instead of shrinking to 14px —
+ *  and raised 24 → 28: 24px was 2.2% of frame height and the panel judged
+ *  every axis label under it illegible after the platform transcode. */
+export const TYPE_FLOOR = 28;
+
+/** Dev-mode warning sink for floor violations (the studio can surface it). */
+export function typeFloorWarn(site: string, size: number): void {
+  if (process.env.NODE_ENV !== 'production' && typeof console !== 'undefined') {
+    // non-fatal: clamped text still renders AT the floor; this exists so a
+    // too-long string surfaces in dev instead of silently shipping tiny.
+    console.warn(`[theme] TYPE_FLOOR clamp at ${site}: text wanted <${size}px>`);
+  }
+}
 
 // ── Typography (audit P1-1): bundled OFL faces, loaded by the studio page ───
 // Fraunces (SIL OFL) replaces the Georgia lottery — an editorial display
@@ -216,6 +234,7 @@ export function card(
   opts: { r?: number; alpha?: number; border?: boolean; glow?: string } = {}
 ): void {
   const { r = 26, alpha = 1, border = true, glow } = opts;
+  registerRect(`card@${Math.round(x)},${Math.round(y)}`, x, y, w, h);
   ctx.save();
   ctx.globalAlpha = alpha;
   // layered soft shadow — v8: cool slate (was warm taupe #8C8474)
@@ -251,7 +270,11 @@ export function setFont(
   ctx.font = `${weight} ${size}px ${family}`;
 }
 
-/** Text that auto-shrinks to fit maxW. Returns the final size used. */
+/** Text that auto-shrinks to fit maxW. Returns the final size used.
+ *  v9 (report D-07): the old floor of 14px broke the TYPE_FLOOR promise —
+ *  fitText itself was the biggest sub-floor offender. It now clamps at
+ *  TYPE_FLOOR (28) and warns in dev; a caller that needs smaller must wrap
+ *  or shorten the string, not shrink the type. */
 export function fitText(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -265,12 +288,16 @@ export function fitText(
 ): number {
   let s = size;
   setFont(ctx, s, weight, family);
-  while (ctx.measureText(text).width > maxW && s > 14) {
+  while (ctx.measureText(text).width > maxW && s > TYPE_FLOOR) {
     s -= 2;
     setFont(ctx, s, weight, family);
   }
+  if (ctx.measureText(text).width > maxW && s <= TYPE_FLOOR) {
+    typeFloorWarn(`fitText("${text.slice(0, 24)}…")`, s);
+  }
   ctx.fillStyle = fill;
   ctx.fillText(text, x, y);
+  registerRect(`fitText:${text.slice(0, 18)}`, x, y - s, ctx.measureText(text).width, s * 1.2);
   return s;
 }
 
@@ -293,7 +320,7 @@ export function chip(
   } = {}
 ): number {
   const {
-    size = 26,
+    size = 28,
     padX = 22,
     padY = 12,
     bg = PALETTE.white,
@@ -310,6 +337,7 @@ export function chip(
   const dotW = iconDot ? size * 0.9 + 10 : 0;
   const w = tw + padX * 2 + dotW;
   const h = size + padY * 2;
+  registerRect(`chip:${text.slice(0, 14)}`, x, y, w, h);
   ctx.fillStyle = rgba(PALETTE.shadow, 0.08);
   roundRect(ctx, x + 1, y + 3, w, h, h / 2);
   ctx.fill();
@@ -338,7 +366,7 @@ export function chipWidth(
   text: string,
   opts: { size?: number; padX?: number; iconDot?: boolean } = {}
 ): number {
-  const { size = 26, padX = 22, iconDot } = opts;
+  const { size = 28, padX = 22, iconDot } = opts;
   setFont(ctx, size, 600);
   return ctx.measureText(text).width + padX * 2 + (iconDot ? size * 0.9 + 10 : 0);
 }

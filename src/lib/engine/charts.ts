@@ -5,7 +5,8 @@
  */
 
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, easeOutQuad, lerp } from './easing';
-import { PALETTE, TONE, card, chip, rgba, roundRect, setFont, fitText } from './theme';
+import { PALETTE, TONE, card, chip, rgba, roundRect, setFont, fitText, TYPE_FLOOR } from './theme';
+import { registerRect } from './collision';
 
 export interface Pt {
   x: number;
@@ -82,8 +83,9 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
   if (opts.xLabels && opts.xLabels.length) {
     const lastX = series[0].points[series[0].points.length - 1][0] || 1;
     ctx.save();
-    setFont(ctx, 24, 400);
+    setFont(ctx, TYPE_FLOOR, 400); // v9 (D-07): 24→28 floor
     ctx.textBaseline = 'alphabetic';
+    registerRect('lineChart:xLabels', x, y + h + 8, w, 34);
     for (const xl of opts.xLabels) {
       const trueLx = x + (xl.at / lastX) * w;
       // PANEL-9 R2b: the v1 guard SKIPPED labels inside 10px of the plot
@@ -125,7 +127,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     ctx.stroke();
     ctx.setLineDash([]);
     if (showYAxis) {
-      setFont(ctx, 24, 400);
+      setFont(ctx, TYPE_FLOOR, 400); // v9 (D-07): 24→28 floor
       ctx.fillStyle = PALETTE.inkFaint;
       const label =
         yFormat === 'ndx' ? Math.round(val / 100) / 10 + 'k'
@@ -150,7 +152,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     ctx.fillStyle = rgba(PALETTE.gold, 0.07);
     roundRect(ctx, x, Math.min(by1, by2), w, Math.abs(by2 - by1), 14);
     ctx.fill();
-    setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 21)
+    setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor
     ctx.textAlign = 'left';
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.fillText(opts.band.label, x + 16, Math.min(by1, by2) + 24);
@@ -172,7 +174,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     ctx.stroke();
     ctx.save();
     ctx.translate(bx + bw / 2, y + h - 14);
-    setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 20)
+    setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor
     ctx.textAlign = 'center';
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.fillText(opts.peakBand.label, 0, 0);
@@ -287,12 +289,13 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       ctx.beginPath();
       ctx.arc(px, py, 6, 0, Math.PI * 2);
       ctx.stroke();
-      // label pill — v8: 23→25px text (TYPE_FLOOR discipline)
-      setFont(ctx, 25, 600);
+      // label pill — v9 (D-07): 25→28px (floor)
+      setFont(ctx, TYPE_FLOOR, 600);
       ctx.textAlign = 'center';
       const tw = ctx.measureText(a.label).width;
       const ly = py + (a.dy ?? 40) - rise;
       const lx = Math.min(Math.max(px, x + tw / 2 + 18), x + w - tw / 2 - 18);
+      registerRect(`annotation:${a.label.slice(0, 14)}`, lx - tw / 2 - 16, ly - 34, tw + 32, 46);
       ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
       roundRect(ctx, lx - tw / 2 - 16 + 1, ly - 34 + 3, tw + 32, 46, 23);
       ctx.fill();
@@ -450,6 +453,7 @@ export function barRow(
   setFont(ctx, 27, 600);
   ctx.fillStyle = PALETTE.ink;
   ctx.textAlign = 'left';
+  registerRect(`barRow:${label.slice(0, 14)}`, x, y + rowH * 0.5 - 44, Math.min(ctx.measureText(label).width, w), 40);
   ctx.fillText(label, x, y + rowH * 0.5 - 14);
   // bar track — v8: cool track at 0.3 (was warm greige 0.25)
   const by = y + rowH * 0.5 - 2;
@@ -473,10 +477,11 @@ export function barRow(
   if (opts.tag) {
     const ap = clamp01((p - 0.5) / 0.4);
     if (ap > 0) {
-      setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 21; chip resized)
+      setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor
       const tw = ctx.measureText(opts.tag).width;
       const tagX = x + Math.max(30, bw) + 18;
       ctx.globalAlpha = ap;
+      registerRect(`barTag:${opts.tag.slice(0, 12)}`, tagX + 108, by - 1, tw + 30, 34);
       ctx.fillStyle = PALETTE.goldWash;
       roundRect(ctx, tagX + 108, by - 1, tw + 30, 34, 17);
       ctx.fill();
@@ -519,11 +524,24 @@ export function dotGrid(
     const cy = y + row * chh + chh / 2;
     const isHi = idx < highlight;
     const pop = 1 + Math.sin(appear * Math.PI) * 0.6;
+    // v9 (report P0-6): highlighted dots render 1.7× — at 1.0× with a 0.18
+    // pulse the ten gold dots were indistinguishable from the 490 grey ones
+    // at a glance ("almost 4 dollars of every 10" never landed). 1.7× radius
+    // ≈ 3× the area reads instantly, plus a crisp ink ring so the gold dots
+    // read as COUNTED, not just colored.
+    const hiScale = 1.7;
     const pulse = isHi ? 1 + 0.18 * Math.sin(t / 300 + idx * 1.7) : 1;
     ctx.fillStyle = isHi ? PALETTE.gold : rgba(PALETTE.grid, 0.62);
     ctx.beginPath();
-    ctx.arc(cx, cy, dotR * pop * pulse * appear, 0, Math.PI * 2);
+    ctx.arc(cx, cy, dotR * (isHi ? hiScale : 1) * pop * pulse * appear, 0, Math.PI * 2);
     ctx.fill();
+    if (isHi && appear > 0.9) {
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.5);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, dotR * hiScale * pulse + 3.5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
 }
 
@@ -578,13 +596,19 @@ export function gauge(
     ctx.stroke();
   }
   // ticks
-  setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 22)
+  // v9 (report D-03): the arc's round end caps extend to r+13 (26px stroke,
+  // round caps) — the 0% and 100% labels at r+34 with ~26px half-width
+  // overlapped the caps by ~4px (verified: "100%" tick plated the cap).
+  // End labels now sit at r+58; mid labels keep r+34 (they sit between
+  // ticks, clear of the ring).
+  setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor
   ctx.fillStyle = PALETTE.inkFaint;
   ctx.textAlign = 'center';
   for (let v = 0; v <= 100; v += 25) {
     const a = lerp(a0, a1, v / 100);
-    const tx = cx + Math.cos(a) * (r + 34);
-    const ty = cy + Math.sin(a) * (r + 34) + 6;
+    const isEnd = v === 0 || v === 100;
+    const tx = cx + Math.cos(a) * (r + (isEnd ? 58 : 34));
+    const ty = cy + Math.sin(a) * (r + (isEnd ? 58 : 34)) + 6;
     ctx.fillText(`${v}%`, tx, ty);
   }
   // needle with spring
@@ -613,7 +637,7 @@ export function gauge(
     ctx.fillStyle = PALETTE.ink;
     ctx.fillText(`${Math.round(value * easeOutCubic(clamp01(p / 0.8)))}%`, cx, cy - r * 0.18);
     if (opts.label) {
-      setFont(ctx, 25, 600);
+      setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 25→28 floor
       ctx.fillStyle = PALETTE.inkSoft;
       // PANEL-9 R7c (label under the needle pivot): the label used to sit
       // at cy+8 — its midline exactly on the 12px pivot dot, so the needle
@@ -664,9 +688,9 @@ export function statCard(
   card(ctx, x, y, w, h, { r: opts.compact ? 22 : 30 });
   const bigSize = opts.compact ? 58 : 88;
   const bigBase = opts.compact ? 84 : 138;
-  const labelSize = opts.compact ? 24 : 27;
-  const labelBase = opts.compact ? 126 : 190;
-  const labelStep = opts.compact ? 30 : 36;
+  const labelSize = TYPE_FLOOR; // v9 (D-07): compact 24 / full 27 → 28 floor
+  const labelBase = opts.compact ? 128 : 192;
+  const labelStep = opts.compact ? 32 : 36;
   // tone top accent line
   ctx.fillStyle = c;
   roundRect(ctx, x + 34, y + (opts.compact ? 22 : 26), (opts.compact ? 52 : 64) * pop, opts.compact ? 6 : 8, 3);
@@ -698,7 +722,7 @@ export function statCard(
     const tagP = clamp01((p - 0.45) / 0.4);
     if (tagP > 0) {
       ctx.globalAlpha = tagP;
-      setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 22)
+      setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor
       const tw = ctx.measureText(tag).width;
       ctx.fillStyle = TONE(tone === 'down' ? 'down' : tone).soft;
       const tagY = opts.compact ? y + h - 40 : y + h - 58;
@@ -736,9 +760,9 @@ export function wrapText(
   return lines;
 }
 
-/** Source tag bottom-right of a scene — v8: 24→27px. The panel measured
- *  source tags as the least-legible reading text in the film; 27px keeps
- *  them quiet but readable on a phone. */
+/** Source tag bottom-right of a scene — v9: 27→28px (TYPE_FLOOR). The
+ *  panel measured source tags as the least-legible reading text in the
+ *  film; nothing the viewer must read renders under 28px now. */
 export function sourceTag(
   ctx: CanvasRenderingContext2D,
   W: number,
@@ -749,10 +773,12 @@ export function sourceTag(
   if (!source) return;
   ctx.save();
   ctx.globalAlpha = alpha;
-  setFont(ctx, 27, 400);
+  setFont(ctx, TYPE_FLOOR, 400);
   ctx.fillStyle = PALETTE.inkFaint;
   ctx.textAlign = 'right';
-  ctx.fillText(`Source: ${source}`, W - 110, y);
+  const txt = `Source: ${source}`;
+  registerRect('sourceTag', W - 110 - ctx.measureText(txt).width, y - 24, ctx.measureText(txt).width + 20, 32);
+  ctx.fillText(txt, W - 110, y);
   ctx.restore();
 }
 
@@ -771,6 +797,7 @@ export function sceneTitle(
   setFont(ctx, 54, 600);
   ctx.fillStyle = PALETTE.ink;
   ctx.textAlign = 'left';
+  registerRect(`sceneTitle:${text.slice(0, 16)}`, x, y - 50, Math.min(ctx.measureText(text).width, maxW), 76);
   fitText(ctx, text, x, y, maxW, 54, 600);
   const tw = Math.min(ctx.measureText(text).width, maxW);
   const sw = tw * easeOutCubic(ap);

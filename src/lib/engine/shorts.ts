@@ -130,7 +130,7 @@ function drawShortHost(
 function drawShortSource(ctx: CanvasRenderingContext2D, source: string | undefined): void {
   if (!source) return;
   ctx.save();
-  setFont(ctx, 24, 400, FONT_UI);
+  setFont(ctx, 28, 400, FONT_UI); // v9 (D-07): floor
   ctx.fillStyle = PALETTE.inkFaint;
   ctx.textAlign = 'center';
   ctx.fillText(`Source: ${source}`, 540, 1690);
@@ -363,7 +363,7 @@ function drawNativeVerticalStats(
     ctx.fillText(String(c.big), x + 40, y + 118);
     // tag chip, top-right, clear of the numeral
     if (c.tag) {
-      setFont(ctx, 24, 600, FONT_UI); // v8.1: TYPE_FLOOR sweep (was 22)
+      setFont(ctx, 28, 600, FONT_UI); // v9 (D-07): 24→28 floor
       const tw = ctx.measureText(c.tag).width;
       const tagX = x + w - 40 - tw - 28;
       if (tagX > x + 260) {
@@ -375,7 +375,7 @@ function drawNativeVerticalStats(
       }
     }
     // label, up to two wrap lines
-    setFont(ctx, 26, 600, FONT_UI);
+    setFont(ctx, 28, 600, FONT_UI); // v9 (D-07): floor
     ctx.fillStyle = PALETTE.inkSoft;
     let line = '';
     const words = String(c.label).split(' ');
@@ -501,11 +501,11 @@ function drawNativeVerticalGauge(
     ctx.save();
     ctx.globalAlpha = ap;
     card(ctx, x, y, w, 124, { r: 24 });
-    setFont(ctx, 26, 700, FONT_UI);
+    setFont(ctx, 28, 700, FONT_UI); // v9 (D-07): floor
     ctx.textAlign = 'left';
     ctx.fillStyle = i === 0 ? PALETTE.up : PALETTE.down;
     ctx.fillText(d.who, x + 36, y + 44);
-    setFont(ctx, 24, 600, FONT_UI); // v8.1: TYPE_FLOOR sweep (was 22)
+    setFont(ctx, 28, 600, FONT_UI); // v9 (D-07): 24→28 floor
     ctx.fillStyle = PALETTE.inkSoft;
     let line = '';
     const words = String(d.line).split(' ');
@@ -539,7 +539,7 @@ function drawNativeVerticalGauge(
   if (cp > 0 && s.coinChip) {
     ctx.save();
     ctx.globalAlpha = cp;
-    setFont(ctx, 27, 700, FONT_UI);
+    setFont(ctx, 28, 700, FONT_UI); // v9 (D-07): floor
     const txt = s.coinChip as string;
     const tw = ctx.measureText(txt).width;
     const x = W * 0.5 - tw / 2 - 28;
@@ -628,7 +628,7 @@ function drawNativeVerticalPump(
     ctx.translate(0, (1 - easeOutCubic(cap)) * 40);
     const tone = TONE(c.tone);
     card(ctx, x, y, cw2, 250, { r: 26 });
-    setFont(ctx, 24, 700, FONT_UI);
+    setFont(ctx, 28, 700, FONT_UI); // v9 (D-07): floor
     ctx.fillStyle = tone.main;
     ctx.textAlign = 'left';
     ctx.fillText(String(c.who).toUpperCase(), x + 32, y + 52);
@@ -812,7 +812,7 @@ export function drawShortFrame(
 
   // 7) channel mark bottom
   ctx.save();
-  setFont(ctx, 26, 600);
+  setFont(ctx, 28, 600); // v9 (D-07): floor
   ctx.fillStyle = PALETTE.goldDeep;
   ctx.textAlign = 'center';
   ctx.fillText(opts.channelName.toUpperCase(), W / 2, 1735);
