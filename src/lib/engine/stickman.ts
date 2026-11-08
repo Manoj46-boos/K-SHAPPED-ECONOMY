@@ -55,6 +55,20 @@ export const POSES: Record<string, Pose> = {
   facepalm: { ...base(), lean: 4, headTilt: 12, rootY: 2, lAU: -10, lAL: -6, rAU: 78, rAL: 222, browRaise: 0.1, browAngle: 18, smile: 0 },
   // thumbsUp: earned optimism — fist raised beside the head, big smile
   thumbsUp: { ...base(), lean: -3, headTilt: -4, lAU: -18, lAL: -14, rAU: 85, rAL: 150, browRaise: 0.5, smile: 0.75 },
+  // ── P1-1 (report): asymmetric hero poses. The v5 pose set is near-mirror
+  // symmetric (both arms at matched angles), so every "big" moment read as
+  // the same mannequin stance. Three deliberately ASYMMETRIC hero poses —
+  // weight on one leg, one arm high, one low — for the film's signature
+  // moments. Still pure data, still blendable with every existing pose.
+  // heroPresent: the signature-scene stance — weight back on the near leg,
+  // right arm sweeping high to the K, left hand low and open.
+  heroPresent: { ...base(), lean: 7, headTilt: -3, rootY: -2, lLU: -9, lLL: 6, rLU: 11, rLL: -7, lAU: -18, lAL: 14, rAU: 72, rAL: 98, browRaise: 0.25, smile: 0.55 },
+  // heroPoint: conviction — full-body point up-right, free hand parked on
+  // the hip, chin up.
+  heroPoint: { ...base(), lean: 9, headTilt: -5, lAU: -58, lAL: 118, rAU: 96, rAL: 118, browRaise: 0.4, smile: 0.45 },
+  // heroExplain: the teacher — near palm open low ("this number"), far arm
+  // relaxed, head tilted into the audience.
+  heroExplain: { ...base(), lean: -5, headTilt: 6, lAU: -64, lAL: -84, rAU: 16, rAL: 10, browRaise: 0.3, smile: 0.4 },
 };
 
 export function blendPose(a: Pose, b: Pose, t: number): Pose {
@@ -133,12 +147,19 @@ export class Stickman {
     const c = Math.cos(phase * Math.PI * 2);
     const swing = 26 * speed;
     const bob = Math.abs(Math.sin(phase * Math.PI * 4)) * -5;
+    // P1-1 (report): 2-frame contact squash. Foot strikes land at phase ≈ 0
+    // and 0.5 (each |cos| peak). The strike pulse fires for ~0.1 phase
+    // (~84 ms ≈ 2.5 frames @30fps) around each contact: the body compresses
+    // (rootY dips), the knees bend, and the lean deepens — the plant-and-
+    // compress weight shift every animated walk has and every vector walk
+    // lacks. Squared so the pulse is brief and percussive, not a wobble.
+    const strike = Math.pow(Math.max(0, Math.abs(c) - 0.86) / 0.14, 2);
     return {
       ...base(),
-      rootY: bob,
-      lean: 4 + s * 2,
-      lLU: -s * swing - 3, lLL: -Math.max(0, -s) * 18 * speed,
-      rLU: s * swing + 3, rLL: Math.max(0, s) * 18 * speed,
+      rootY: bob + strike * 5,
+      lean: 4 + s * 2 + strike * 3,
+      lLU: -s * swing - 3, lLL: -Math.max(0, -s) * 18 * speed + strike * 12,
+      rLU: s * swing + 3, rLL: Math.max(0, s) * 18 * speed + strike * 12,
       lAU: s * swing * 0.55 - 6, lAL: s * swing * 0.3 - 4,
       rAU: -s * swing * 0.55 + 6, rAL: -s * swing * 0.3 + 4,
       smile: 0.35,

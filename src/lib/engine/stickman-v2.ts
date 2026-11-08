@@ -179,6 +179,10 @@ export function drawStickmanV2(
     nod?: number;
     /** 0..1 mouth openness envelope, driven by word timings (v3, P0-4). */
     talk?: number;
+    /** P1-1 (report): head/face scale multiplier in CLOSE staging — the
+     *  editorial host and other large compositions draw the face ~40% bigger
+     *  so expressions read at distance. 1 = body-proportional (default). */
+    faceScale?: number;
     /** Hand prop (v5, audit P1-3): 'coffee' — the second character's mug;
      * 'thumb' — a thumb stub on the raised fist for the thumbsUp pose. */
     prop?: 'coffee' | 'thumb';
@@ -305,8 +309,12 @@ export function drawStickmanV2(
   const headCX = neckX + Math.sin(tiltR) * (10 + 33 * 0.9);
   const headCY = neckY - Math.cos(tiltR) * (10 + 33 * 0.9);
   const nod = (r.nod ?? 0) * 4;
+  // P1-1 (report): face scale for close staging — applied around the head
+  // centre so the neck attachment point stays put; only the face grows.
+  const faceS = r.faceScale ?? 1;
   ctx.save();
   ctx.translate(headCX, headCY + nod);
+  ctx.scale(faceS, faceS);
   ctx.rotate(tiltR * 0.6);
   // soft head shadow for depth
   ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
