@@ -5,7 +5,7 @@
 
 import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, lerp } from './easing';
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg, FONT_DISPLAY, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
-import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp } from './effects';
+import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp, subjectHalo } from './effects';
 import { Stickman, POSES, blendPose, walkIn, nodPulse } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
 import { SceneCtx } from './scene-context';
@@ -48,6 +48,11 @@ function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   const stage = g.s.stage as string;
   const hx = HOST_X(W, side);
   const hy = HOST_GROUND(H);
+
+  // P1-6 (report): the subject halo — a soft radial lift behind the host so
+  // he reads as lit in a room, not drawn on paper. Before the spotlight so
+  // the two lights compound.
+  subjectHalo(ctx, hx, hy - 280, 470, 0.55);
 
   if (stage === 'spot' || !stage) {
     // soft spotlight pool
@@ -131,7 +136,11 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   const { ctx, W, H, t } = g;
   const hx = HOST_X(W, side);
   const hy = HOST_GROUND(H); // v9 (D-02): H*0.78 → above the caption zone
-  const scale = 1.18;
+  // P1-1 (report): 1.18 → 1.53 (+30%) — the panel's "host reads small on a
+  // phone" verdict. Host scenes draw a 1-row pill (top ≈ 864): the feet+shadow
+  // envelope bottoms at 756+36·1.53 = 811 — 33px clear of the worst-case pill
+  // (guard-verified by the P1 sweep).
+  const scale = 1.53;
   const entrance = g.s.entrance as string | undefined;
   let x = hx;
   let pose;
@@ -252,6 +261,9 @@ export function hostSceneV2(g: SceneCtx): void {
   bokehField(ctx, W, H, t, { intensity: 0.85, seed: 7 });
   lightRays(ctx, W, H, t, { alpha: 0.45 });
   kMotifs(ctx, W, H, t, 0.04);
+  // P1-6 (report): the editorial host's halo — the close-up composition
+  // gets the strongest lift (his face is the film's recurring close shot)
+  subjectHalo(ctx, W * 0.28, H * 0.46, 520, 0.7);
   ctx.strokeStyle = rgba(PALETTE.shadow, 0.07);
   ctx.lineWidth = 1.5;
   [W * 0.36, W * 0.62].forEach((x) => {
@@ -271,9 +283,12 @@ export function hostSceneV2(g: SceneCtx): void {
   // v3 (panel P0-4): nods + articulate mouth on the editorial host too
   const nodP = g.speaking ? nodPulse(g.beatT, g.wordTimes) : 0;
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
+  // P1-1 (report): close staging — the editorial host is the film's only
+  // large-face composition, so the face draws 40% larger than body-proportional
+  // (expressions survive a phone screen); body 1.42 → 1.85 (+30%).
   drawStickmanV2(
-    ctx, hx, HOST_GROUND(H), 1.42, t,
-    { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk },
+    ctx, hx, HOST_GROUND(H), 1.85, t,
+    { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk, faceScale: 1.4 },
     11
   );
 
@@ -532,6 +547,10 @@ export function divergeKScene(g: SceneCtx): void {
   const ky = H * 0.47;
   const S = 210;
 
+  // P1-6 (report): the K formation's halo — the signature shape gets the
+  // signature light: a wide soft radial behind the letterform
+  subjectHalo(ctx, kx, ky, 620, 0.6);
+
   // two diverging lines grow out of one point
   const growP = clamp01((t - 400) / 2300);
   const upP = clamp01((t - 400) / 1900);
@@ -583,16 +602,12 @@ export function divergeKScene(g: SceneCtx): void {
     // v5 (audit P1-3): the K's lower arm personified — a second character
     // (same rig, coffee mug instead of the host's scarf) stands at the coral
     // arm's tip, gently bobbing: the "bottom half of the K" now has a face.
-    // He faces the vertex/host (flip) and appears once the arms complete;
-    // drawn BEFORE the arm labels so THE MOOD stays crisp on top of his soft
-    // ground shadow, and he clears the caption zone (feet ≈ y 734).
-    const bob = Math.sin(t / 850) * 4;
-    const sp2 = clamp01((t - 3000) / 700);
-    if (sp2 > 0) {
-      const pose2 = Stickman.poseAt(t, { gesture: 'close', speaking: false, seed: 9 });
-      drawStickmanV2(ctx, kx + S * 1.15 + 8, ky + S * 1.05 + 6 + bob, 0.55, t,
-        { pose: pose2, alpha: sp2 * 0.96, flip: true, look: -0.7, scarf: false, prop: 'coffee' }, 9);
-    }
+    // P1-1 (report): 0.55 → 0.75 — at 0.55 he read as a distant prop, not a
+    // person; 0.75 reads as a second player. Envelope bottom 734+36·0.75 =
+    // 761 — clear of even a 2-row pill (top 796) by 35px. The figure itself
+    // is drawn AFTER the arm labels (see below) — the P1 panel flagged his
+    // feet kissing THE MOOD's halo; he now stands IN FRONT of the label
+    // (natural depth) with the label pushed out clear of his body.
   }
 
   // labels on the arms — v4 (audit P0-6): hidden in `opening` mode so the
@@ -612,9 +627,13 @@ export function divergeKScene(g: SceneCtx): void {
     setFont(ctx, 46, 700, FONT_DISPLAY);
     ctx.textAlign = 'center';
     ctx.fillStyle = PALETTE.ink;
-    ctx.fillText('the K-shaped economy', 700, 258);
+    // P1-1: title moved (700,258) → (770,205) and 46 → 40px — the +30% host
+    // (head top ≈ 235) now clears the naming title's glyph band (175–217)
+    // by 18px instead of crossing it.
+    setFont(ctx, 40, 700, FONT_DISPLAY);
+    ctx.fillText('the K-shaped economy', 770, 205);
     ctx.fillStyle = PALETTE.gold;
-    roundRect(ctx, 700 - 130, 276, 260, 6, 3);
+    roundRect(ctx, 770 - 130, 221, 260, 6, 3);
     ctx.fill();
     // arm labels — halo-backed, clear of arm tips
     const halo = (x: number, y: number, text: string, color: string): void => {
@@ -625,8 +644,24 @@ export function divergeKScene(g: SceneCtx): void {
       ctx.fillText(text, x, y);
     };
     halo(kx + S * 1.45, ky - S * 1.02, 'THE MARKET', PALETTE.up);
-    halo(kx + S * 1.45, ky + S * 1.28, 'THE MOOD', PALETTE.down);
+    // P1-1 panel round: THE MOOD pushed out (S*1.45 → S*1.62) — the 0.75
+    // second character stands at the arm tip and the label's halo washed
+    // his feet; the label now sits beyond his right edge, and he draws on
+    // top of it anyway (in front, natural depth).
+    halo(kx + S * 1.62, ky + S * 1.28, 'THE MOOD', PALETTE.down);
     ctx.restore();
+  }
+
+  // the second character — AFTER the labels so he stands in front of them
+  // (see the note in the growP block above; P1-1 panel re-review fix)
+  {
+    const bob = Math.sin(t / 850) * 4;
+    const sp2 = clamp01((t - 3000) / 700);
+    if (sp2 > 0 && growP > 0.55) {
+      const pose2 = Stickman.poseAt(t, { gesture: 'close', speaking: false, seed: 9 });
+      drawStickmanV2(ctx, kx + S * 1.15 + 22, ky + S * 1.05 + 6 + bob, 0.75, t,
+        { pose: pose2, alpha: sp2 * 0.96, flip: true, look: -0.7, scarf: false, prop: 'coffee' }, 9);
+    }
   }
 
   // twist chip — v4 (audit P0-6): held from the first scene; in the opening
@@ -674,13 +709,18 @@ export function divergeKScene(g: SceneCtx): void {
   // scaled up (1.05→1.2) — the vision panel measured the left half of the
   // signature frame ~45% empty with a lone small host. The K formation is
   // the hero; the host is its counterweight, not a spectator.
+  // P1-1 (report): 1.2 → 1.56 (+30%) and the ground lifts 756 → 714 so the
+  // feet+shadow envelope (bottom 714+36·1.56 = 770) clears even a worst-case
+  // 2-row pill (top 796, camera envelope 776). The stance is now the
+  // asymmetric heroPresent pose — the signature scene stops looking like a
+  // stock idle.
   const hx = W * 0.24;
-  const hy = H * 0.70; // v9 (D-02): above the caption zone
+  const hy = H * 0.6611; // P1-1: raised with the +30% scale
   // v5 (audit P1-3): as the K completes, the host leans INTO it — the
-  // signature scene now has a third act of body language (present → leanIn)
-  const pose = Stickman.poseAt(t, { gesture: upP < 0.5 ? 'present' : 'leanIn', speaking: g.speaking });
+  // signature scene now has a third act of body language (heroPresent → leanIn)
+  const pose = Stickman.poseAt(t, { gesture: upP < 0.5 ? 'heroPresent' : 'leanIn', speaking: g.speaking });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, hx, hy, 1.2, t, { pose, alpha: clamp01(t / 400), look: 0.9, talk }, 5);
+  drawStickmanV2(ctx, hx, hy, 1.56, t, { pose, alpha: clamp01(t / 400), look: 0.9, talk }, 5);
   softBloom(ctx, W, H, t - 3800, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)
 }
 
@@ -745,13 +785,15 @@ export function channelIntroScene(g: SceneCtx): void {
   }
 
   // host peeking from right, waving — v3 (panel P0-3): v2 renderer
+  // P1-1 (report): 0.98 → 1.27 (+30%); ground 756 → 720 so the envelope
+  // (bottom 766) clears a worst-case 2-row pill (camera-envelope top 776).
   const pose = blendPose(POSES.wave, POSES.wave, 0);
   const wavePose = {
     ...pose,
     rAL: pose.rAL + Math.sin(t / 160) * 14,
   };
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, W * 0.85, H * 0.70, 0.98, t, { pose: wavePose, alpha: clamp01((t - 600) / 500), look: -0.6, talk }, 9);
+  drawStickmanV2(ctx, W * 0.85, H * 0.667, 1.27, t, { pose: wavePose, alpha: clamp01((t - 600) / 500), look: -0.6, talk }, 9);
 }
 
 // ── recapSplit (used at ch5 open and ch10 open) ─────────────────────────────
@@ -811,9 +853,11 @@ export function recapSplitScene(g: SceneCtx): void {
     }
   }
   // host small at bottom right — v3 (panel P0-3): v2 renderer + talk
+  // P1-1 (report): 0.86 → 1.12 (+30%); ground 756 → 730 (envelope bottom
+  // 770, clear of the worst-case 2-row pill band by 6px).
   const pose = Stickman.poseAt(t, { gesture: 'present', speaking: g.speaking });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, W * 0.86, H * 0.70, 0.86, t, { pose, alpha: clamp01((t - 700) / 500), look: -0.4, talk }, 17);
+  drawStickmanV2(ctx, W * 0.86, H * 0.676, 1.12, t, { pose, alpha: clamp01((t - 700) / 500), look: -0.4, talk }, 17);
 }
 
 function miniPanel(
@@ -887,11 +931,18 @@ export function paradoxResolveScene(g: SceneCtx): void {
   }
   ctx.restore();
   // resolves into K + takeaway lines
+  // P1-1/P1-6 pass: the K moves to the left third and the takeaway lines
+  // annotate BESIDE it (right column, y 470-604). The v8 stack put the
+  // lines at y 868-972 — INSIDE the caption pill band (796-956): the dense
+  // guard sweep measured depth 100, i.e. the pill fully plated all three
+  // lines on wide-caption frames. The lines were never registered with the
+  // guard, so the P0 sweep was blind to them; they are now, and the new
+  // position clears the worst-case pill by ~190px.
   const kp = clamp01((t - 2200) / 900);
   if (kp > 0) {
     ctx.save();
     ctx.globalAlpha = kp;
-    drawK3D(ctx, cx, H * 0.6, 120, 1, t);
+    drawK3D(ctx, W * 0.4, H * 0.47, 115, 1, t);
     ctx.restore();
   }
   const lines = [
@@ -904,15 +955,39 @@ export function paradoxResolveScene(g: SceneCtx): void {
     if (lp <= 0) return;
     ctx.save();
     ctx.globalAlpha = lp;
-    ctx.textAlign = 'center';
-    setFont(ctx, 32, 600);
+    ctx.textAlign = 'left';
+    // block-level auto-fit: the longest line must clear the right safe
+    // margin (1040 + 760 = 1800), floor TYPE_FLOOR (28) — never clip
+    let ls = 32;
+    setFont(ctx, ls, 600);
+    while (Math.max(...lines.map((l) => ctx.measureText(l).width)) > 760 && ls > TYPE_FLOOR) {
+      ls -= 1;
+      setFont(ctx, ls, 600);
+    }
     ctx.fillStyle = i === 2 ? PALETTE.goldDeep : PALETTE.inkSoft;
-    ctx.fillText(ln, cx, H * 0.6 + 220 + i * 52);
+    // the guard sees the whole lines block from the first landing line
+    registerRect('paradox:takeawayLines', 1040, 440, 760, 170);
+    ctx.fillText(ln, 1040, 470 + i * 52);
     ctx.restore();
   });
+  // gold rule between the K and the annotations — one unit, visually
+  {
+    const rp = clamp01((t - 2600) / 600);
+    if (rp > 0) {
+      ctx.save();
+      ctx.globalAlpha = rp;
+      ctx.fillStyle = PALETTE.gold;
+      roundRect(ctx, 990, 448, 6, 130, 3);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+  // P1-1 (report): 1.0 → 1.3 (+30%) with the asymmetric aha stance kept;
+  // ground 756 → 720 so the envelope (bottom 767) clears a worst-case 2-row
+  // pill (camera-envelope top 776).
   const pose = Stickman.poseAt(t, { gesture: 'aha', speaking: g.speaking });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, W * 0.14, H * 0.70, 1.0, t, { pose, alpha: clamp01((t - 600) / 500), look: 0.5, talk }, 23);
+  drawStickmanV2(ctx, W * 0.14, H * 0.667, 1.3, t, { pose, alpha: clamp01((t - 600) / 500), look: 0.5, talk }, 23);
 }
 
 export { sourceTag, slideUp, lerp, easeOutQuad };
