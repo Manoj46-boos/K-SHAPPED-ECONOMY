@@ -197,17 +197,46 @@ export function kMotifs(
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.strokeStyle = PALETTE.gold;
-  ctx.lineWidth = 3;
-  for (let i = 0; i < 3; i++) {
+  // P1-6 (report): larger K-motif watermarks — the v8 field was 3 motifs
+  // at 34-64px, which read as specks at 1080p and as NOTHING after the
+  // platform transcode. Four motifs at 52-120px (weight 4) still sit at
+  // whisper alpha, but the brand texture survives a phone screen. Gold
+  // stays capped at low alpha — big AND loud read as a stain, not a mark.
+  ctx.lineWidth = 4;
+  for (let i = 0; i < 4; i++) {
     // v3 (panel P1-2): counter-drift against the camera at ~0.45× — the
     // motifs sit behind the scene plane
-    const x = (W * (0.18 + i * 0.34) + Math.sin(t / 7000 + i * 2) * 30
+    const x = (W * (0.16 + i * 0.25) + Math.sin(t / 7000 + i * 2) * 30
       - camState.dx * (1 - BG_PARALLAX) * 1.4 + W) % W;
-    const y = H * (0.24 + hash01(i * 8.8) * 0.5) + Math.cos(t / 6000 + i) * 22;
-    const s = 34 + hash01(i * 3.3) * 30;
-    drawK(ctx, x, y, s, 3);
+    const y = H * (0.22 + hash01(i * 8.8) * 0.54) + Math.cos(t / 6000 + i) * 22;
+    // P1-6 round 2: floor raised 52 → 64 — the panel read the two smallest
+    // marks (52px) as 'specks'; the family now spans 64-120px
+    const s = 64 + hash01(i * 3.3) * 56;
+    drawK(ctx, x, y, s, 4);
   }
   ctx.restore();
+}
+
+/** P1-6 (report) — the soft radial SUBJECT HALO: a wide, barely-there white
+ *  radial gradient placed behind a scene's subject (the host, the K
+ *  formation) that lifts it off the flat white background. The v8 frames
+ *  read as "subject drawn on paper"; a halo reads as "subject lit in a
+ *  room". Pure add, drawn BEFORE the subject, zero cost. */
+export function subjectHalo(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  r: number,
+  strength = 0.5
+): void {
+  const g = ctx.createRadialGradient(cx, cy, r * 0.12, cx, cy, r);
+  g.addColorStop(0, rgba('#FFFFFF', 0.55 * strength));
+  g.addColorStop(0.55, rgba('#FFFFFF', 0.30 * strength));
+  g.addColorStop(1, rgba('#FFFFFF', 0));
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 /** The signature K — two strokes from one point (used everywhere). */

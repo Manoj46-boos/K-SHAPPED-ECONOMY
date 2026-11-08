@@ -429,14 +429,21 @@ export function paintBg(
   // in the gasPump/recessionGauge renders (measured on real harness
   // frames, not the palette card). 5% keeps the room-change effect
   // without the mud. Gold and teal hold (they read clean in the same test).
+  // P1-6 (report): the wash climbs into the panel's "perceptible" band.
+  // The P1 vision round graded 9.6% "clean but a whisper — the band starts
+  // ~1 point higher" with "plenty of headroom before the light palette is
+  // threatened": teal 0.115 / gold 0.105 / neutral 0.09. Coral goes only to
+  // 0.068, NOT 11% — the R6 dirty-salmon finding was a stacking measurement
+  // on the peach-gradient scenes, and re-verified probes at 0.068 hold the
+  // coral register at pale-peach (hue ~15°, sat ≤ 0.05) — never mud.
   const strength =
     chapterTone === 'neutral'
-      ? 0.05
+      ? 0.09
       : chapterTone === 'gold'
-        ? 0.058
+        ? 0.105
         : chapterTone === 'down'
-          ? 0.05
-          : 0.072;
+          ? 0.068
+          : 0.115;
   glowBlob(ctx, W * 0.82, H * 0.16 + driftY(t), W * 0.5, wash, strength + 0.012 * pulse);
   glowBlob(ctx, W * 0.1, H * 0.9, W * 0.42, wash, strength * 0.73 + 0.010 * (1 - pulse));
 }
