@@ -4,9 +4,10 @@
  */
 
 import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad } from './easing';
-import { PALETTE, FONT_UI, FONT_DISPLAY, rgba, roundRect, setFont } from './theme';
+import { PALETTE, FONT_UI, FONT_DISPLAY, rgba, roundRect, setFont, TYPE_FLOOR } from './theme';
 import { Stickman } from './stickman';
 import { drawStickmanV2 } from './stickman-v2';
+import { registerPill } from './collision';
 
 export interface CaptionWord {
   t: number; // ms, absolute timeline time
@@ -26,17 +27,25 @@ export interface CaptionStyle {
    *  H-128 — the Shorts 9:16 pipeline passes a higher baseY so the caption
    *  clears the YouTube Shorts overlay zone. (v3, panel P2-1) */
   baseY?: number;
+  /** v9 (report P0-2): cap the pill at ONE row on host scenes, where the
+   *  host figure lives in the lower third — a 2-row pill's top edge rises
+   *  to y≈796 and plates the host's feet (defect D-02). Default 2. */
+  maxRows?: number;
+  /** v9 (report P0-7): words per sliding window (default 8; host scenes
+   *  pass 6 so the single row fits the pill width cap). */
+  maxWords?: number;
 }
 
 /**
  * Draw the active caption. Returns nothing; safely no-ops when inactive.
  *
- * v2 (PATCH 4): the old pill could span W-520px at 0.94 alpha — on host
- * scenes it ate ~20-25% of the frame and fought the scene art, and
- * unspoken words sat at 0.42 grey (contrast fail). Now: pill hard-capped
- * at 62% of frame width, one line preferred / two max, a gold brand tab
- * on the left edge, spoken words at full ink, upcoming at 55% ink, and
- * the active word gets a crisp gold underline sweep.
+ * v9 (report P0-7 + D-06): the window is now WORD-CAPPED (8 words; 6 on
+ * host scenes) and breaks rows on CLAUSE boundaries instead of slicing by
+ * pixel width — the old 2-row-then-drop window silently ate the tail of
+ * long sentences ("because most of the…" read as a render bug on 5 of 6
+ * audited Shorts frames). A window that starts mid-sentence now carries a
+ * leading ellipsis so continuation reads as karaoke windowing, never as a
+ * truncated render.
  */
 export function drawCaptions(
   ctx: CanvasRenderingContext2D,
@@ -54,6 +63,8 @@ export function drawCaptions(
   if (!active) return;
 
   const words = active.words;
+  const maxRows = Math.max(1, Math.min(2, style.maxRows ?? 2));
+  const maxWords = Math.max(3, style.maxWords ?? 8);
   // v8: 40→46px, 600→700 weight. The vision panel measured the caption as
   // the smallest reading text on a phone in landscape — the majority view
   // for finance explainers. 46px/1080 = 4.26% of frame height, inside
@@ -64,48 +75,90 @@ export function drawCaptions(
   setFont(ctx, fontSize, 700, FONT_UI);
   const spaceW = ctx.measureText(' ').width;
 
-  // sliding window: 4 spoken words back (v8: was 6 — a shorter read-ahead
-  // makes the karaoke sweep punchier and the pill narrower), fill forward
-  let winStart = 0;
+  // spoken position
   let lastSpoken = -1;
   for (let i = 0; i < words.length; i++) {
     if (tMs >= words[i].t) lastSpoken = i;
   }
-  if (lastSpoken > 4) winStart = lastSpoken - 3;
-  const winWords = words.slice(winStart);
 
-  const rows: { words: CaptionWord[]; width: number }[] = [{ words: [], width: 0 }];
-  let cur = 0;
-  for (const w of winWords) {
-    const ww = ctx.measureText(w.w).width;
-    if (rows[cur].width + ww > maxW && rows[cur].words.length > 0) {
-      // two rows max — never a wall of text. (The v1 `push then break` order
-      // built a phantom third row; this stops BEFORE creating it.)
-      if (rows.length >= 2) break;
-      rows.push({ words: [], width: 0 });
-      cur++;
-    }
-    rows[cur].words.push(w);
-    rows[cur].width += ww + spaceW;
+  // ── v9 window: word-capped, sliding, 2 words of spoken context back ──
+  const len = words.length;
+  let winStart = len <= maxWords ? 0 : Math.max(0, Math.min(lastSpoken - 2, len - maxWords));
+  let winEnd = Math.min(len, winStart + maxWords);
+  // never strand a fully-spoken window behind (early window keeps moving)
+  if (lastSpoken >= 0 && winEnd <= lastSpoken) {
+    winStart = Math.max(0, lastSpoken - 1);
+    winEnd = Math.min(len, winStart + maxWords);
   }
+  const continued = winStart > 0;
+  const ell = continued ? '…' : '';
+  const ellW = continued ? ctx.measureText(ell).width + spaceW * 0.5 : 0;
+  let winWords = words.slice(winStart, winEnd);
 
-  // PANEL-9 R7f (crushed two-row leading): rowH was fontSize+16 (62) with
-  // a 9px karaoke underline landing mid-gap — measured on the rendered
-  // frame, only 4px separated row-0 descenders from the underline and 7px
-  // the underline from row-1 caps, so a two-row pill read as two lines
-  // crashing into each other (quote-card render: "started climbing again"
-  // over "time you're watching"). rowH is now fontSize+22 and the vertical
-  // padding 36→24, which keeps the 2-row pill envelope EXACTLY where it
-  // was (totalH still 160, top still y=796 — every chip placed clear of
-  // CAPTION_ZONE_TOP stays clear) while opening the inter-row space to
-  // ~25px; the sweep is pulled tighter to its own word (0.60, 8px).
+  const measure = (ws: CaptionWord[]): number =>
+    ws.reduce((n, wd) => n + ctx.measureText(wd.w).width + spaceW, 0) - (ws.length ? spaceW : 0);
+
+  // ── rows: break on clause boundaries near the width midpoint ──
+  let rows: CaptionWord[][] = [];
+  if (maxRows === 1) {
+    // host scenes: one row — keep the spoken words, drop unspoken overflow
+    while (winWords.length && measure(winWords) + ellW > maxW && winWords.length > Math.min(3, lastSpoken - winStart + 1)) {
+      winWords = winWords.slice(0, -1);
+    }
+    if (winWords.length) rows = [winWords];
+  } else {
+    const total = measure(winWords);
+    if (total + ellW <= maxW) {
+      rows = [winWords];
+    } else {
+      // candidate breaks: after clause-ending punctuation
+      const breaks: number[] = [];
+      winWords.forEach((wd, i) => {
+        if (i < winWords.length - 1 && /[,;:.!?—–”)%]$/.test(wd.w)) breaks.push(i + 1);
+      });
+      let best = -1;
+      let bestScore = Infinity;
+      for (const b of breaks) {
+        const w1 = measure(winWords.slice(0, b));
+        const w2 = total - w1 - spaceW;
+        if (w1 + ellW <= maxW && w2 <= maxW) {
+          const score = Math.abs(w1 - total / 2);
+          if (score < bestScore) { bestScore = score; best = b; }
+        }
+      }
+      if (best > 0) {
+        rows = [winWords.slice(0, best), winWords.slice(best)];
+      } else {
+        // width fallback (the v2 greedy break, now with a graceful tail drop)
+        const r0: CaptionWord[] = [];
+        const r1: CaptionWord[] = [];
+        let rw = ellW;
+        let cur = 0;
+        for (const wd of winWords) {
+          const ww = ctx.measureText(wd.w).width;
+          if (rw + ww > maxW && (cur === 0 ? r0.length : r1.length) > 0) {
+            if (cur === 1) break;
+            cur = 1;
+          }
+          (cur === 0 ? r0 : r1).push(wd);
+          rw = (cur === 0 ? measure(r0) : measure(r1)) + (cur === 0 ? ellW : 0);
+        }
+        rows = [r0, r1].filter((r) => r.length);
+      }
+    }
+  }
+  if (!rows.length) return;
+
   const rowH = fontSize + 22;
   const totalH = rows.length * rowH + 24;
   const baseY = style.baseY ?? H - 128; // clear of the 8px progress bar + safe margin
-  const widest = Math.max(...rows.map((r) => r.width));
+  const widest = Math.max(...rows.map((r) => measure(r) + (rows.indexOf(r) === 0 ? ellW : 0)));
 
   // pill — fully opaque plate (scene text under it must occlude cleanly,
   // not ghost through), one hairline border, gold brand tab on the left
+  // v9 (report P0-1): the pill rect feeds the collision guard so the harness
+  // can assert scene content never sits under it.
+  registerPill(W / 2 - widest / 2 - 34, baseY - totalH + 4, widest + 68, totalH);
   ctx.save();
   const px = W / 2 - widest / 2 - 34;
   const py = baseY - totalH + 4;
@@ -118,37 +171,32 @@ export function drawCaptions(
   roundRect(ctx, px, py, widest + 68, totalH, 30);
   ctx.stroke();
   ctx.fillStyle = PALETTE.up;                                 // v5: teal tab — the voice
-  // PANEL-9 R7m (tab poking past the pill's rounded edge): the tab ran
-  // py+14..py+totalH-14 at x=px+2 — but the pill's 30px corner arc keeps
-  // its left edge as far right as px+4.6 near the corners, so the tab's
-  // ends escaped the curve by ~3px and read as "an accent bar bleeding
-  // through the rounded edge" (S6 pump render). Inset to py+24 with
-  // height totalH-48 keeps every tab pixel inside the arc.
-  roundRect(ctx, px + 3, py + 24, 7, totalH - 48, 3.5);
+  // PANEL-9 R7m (tab poking past the pill's rounded edge): inset to py+24
+  // with height totalH-48 keeps every tab pixel inside the arc.
+  roundRect(ctx, px + 3, py + 24, 7, Math.max(10, totalH - 48), 3.5);
   ctx.fill();
   ctx.restore();
 
-  // words — spoken = ink, upcoming = 42% ink (v8: was 55% — wider
-  // spoken/unspoken contrast makes the sweep readable at a glance),
-  // active = sweep
+  // words — spoken = ink, upcoming = 85% ink (PANEL-9 R1), active = sweep;
+  // v9: a leading ellipsis marks continuation windows (P0-7)
   ctx.save();
   ctx.textBaseline = 'middle';
   setFont(ctx, fontSize, 700, FONT_UI);
   rows.forEach((row, ri) => {
-    let x = W / 2 - row.width / 2 + spaceW / 2;
+    const rowW = measure(row) + (ri === 0 ? ellW : 0);
+    let x = W / 2 - rowW / 2;
     const y = py + 22 + ri * rowH + fontSize / 2;
-    for (const w of row.words) {
+    if (ri === 0 && continued) {
+      ctx.fillStyle = rgba(PALETTE.inkFaint, 0.9);
+      ctx.textAlign = 'left';
+      ctx.fillText(ell, x, y);
+      x += ellW;
+    }
+    for (const w of row) {
       const spoken = tMs >= w.t;
       const activeW = spoken && tMs <= w.t + w.d + 90;
-      // PANEL-9 R1 (caption contrast): upcoming words were rgba(...,0.42) —
-      // measured ~2.2:1 on white, illegible on phones and read by every
-      // vision judge as a "ghost rendering bug".
-      // R1b (panel re-review REJECTED 0.66): #4F5D59 at 0.66 over white
-      // blends to rgb(139,148,145) ≈ 3.1:1 — still below the 4.5:1 the
-      // panel requires for pre-read text. 0.85 blends to rgb(105,117,114)
-      // ≈ 4.8:1 (WCAG AA pass), while the spoken state stays ink #2E4A43
-      // at ≈9.6:1 — the spoken/unspoken hierarchy survives (≈2:1 between
-      // the two states, plus the karaoke active-word sweep).
+      // PANEL-9 R1: 0.85 blends to ≈4.8:1 on white (WCAG AA) for pre-read
+      // text; the spoken state stays ink at ≈9.6:1.
       ctx.fillStyle = spoken ? PALETTE.ink : rgba('#4F5D59', 0.85);
       ctx.fillText(w.w, x, y);
       if (style.mode === 'karaoke' && activeW) {
@@ -334,8 +382,8 @@ export function drawWatermark(
   ctx.moveTo(0, 1);
   ctx.lineTo(12, 12);
   ctx.stroke();
-  setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 23)
-  ctx.fillStyle = rgba('#55555F', 0.9);
+  setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): TYPE_FLOOR 24→28, now enforced
+  ctx.fillStyle = rgba(PALETTE.inkSoft, 0.9); // v9 (D-08): was hand-hexed #55555F — the v8 "no hand-hexed neutrals" rule applies here too
   ctx.textAlign = 'left';
   ctx.fillText(channelName.toUpperCase(), 24, 8);
   ctx.restore();
@@ -357,7 +405,7 @@ export function drawChapterLabel(
   if (a <= 0) return;
   ctx.save();
   ctx.globalAlpha = a * 0.9;
-  setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 22)
+  setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): TYPE_FLOOR 24→28
   const tw = ctx.measureText(label).width;
   const x = W - 96 - tw - 40;
   ctx.fillStyle = rgba('#FFFFFF', 0.9);
