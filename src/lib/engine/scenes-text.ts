@@ -23,8 +23,16 @@ export function bigTextScene(g: SceneCtx): void {
   paintBg(ctx, W, H, t, g.chapterTone);
   softBloom(ctx, W, H, t, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)
   const lines = (s.lines as string[]) || [];
+  // P1-2 (report): the lines SNAP in as ONE block (80ms + a single 260ms
+  // ramp — both lines solid by ~340ms) instead of the v5 per-line fade
+  // (160 + 620 stagger + 700ms ramp, full at 860ms+). Two reasons: (1) the
+  // director's bigText ANTICIPATION recoil peaks at ~350ms — it must land
+  // on the COMPLETE statement, or the wind-up reads as a fade (the panel's
+  // round-3 note); (2) a statement beat is one thought — "SEVEN COMPANIES.
+  // OUT OF FIVE HUNDRED." lands harder as a single slam than as a two-step
+  // reveal. The per-line stagger survives via the two-tone color split.
   lines.forEach((ln, i) => {
-    const ap = clamp01((t - 160 - i * 620) / 700);
+    const ap = clamp01((t - 80) / 260);
     if (ap <= 0) return;
     ctx.save();
     ctx.globalAlpha = ap;
@@ -57,7 +65,9 @@ export function bigTextScene(g: SceneCtx): void {
   if (hp > 0) {
     const pose = Stickman.poseAt(t, { gesture: 'count2', speaking: false });
     // v3 (panel P0-3): v2 renderer — one body style across the whole film
-    drawStickmanV2(ctx, W * 0.86, H * 0.70, 0.9, t, { pose, alpha: hp, look: -0.6 }, 31);
+    // P1-1 (report): +30% (0.9 → 1.17); ground 756 → 726 (envelope bottom 768,
+    // clear of the worst-case 2-row pill envelope 776).
+    drawStickmanV2(ctx, W * 0.86, H * 0.672, 1.17, t, { pose, alpha: hp, look: -0.6 }, 31);
   }
 }
 
@@ -135,7 +145,8 @@ export function stampCardScene(g: SceneCtx): void {
   if (hp > 0) {
     const pose = { ...POSES.close, headTilt: Math.sin(t / 700) * 4 };
     // v3 (panel P0-3): v2 renderer
-    drawStickmanV2(ctx, W * 0.14, H * 0.70, 1.0, t, { pose, alpha: hp, look: 0.6 }, 32);
+    // P1-1 (report): +30% (1.0 → 1.3); ground → H*0.667 (envelope 767).
+    drawStickmanV2(ctx, W * 0.14, H * 0.667, 1.3, t, { pose, alpha: hp, look: 0.6 }, 32);
   }
 }
 
@@ -230,7 +241,8 @@ export function quoteCardScene(g: SceneCtx): void {
     const gesture = (s.hostGesture as string) || 'think';
     const pose = Stickman.poseAt(t, { gesture, speaking: false });
     // v3 (panel P0-3): v2 renderer
-    drawStickmanV2(ctx, W * 0.85, H * 0.70, 0.94, t, { pose, alpha: hp, look: -0.7 }, 33);
+    // P1-1 (report): +30% (0.94 → 1.22); ground → H*0.672 (envelope 770).
+    drawStickmanV2(ctx, W * 0.85, H * 0.672, 1.22, t, { pose, alpha: hp, look: -0.7 }, 33);
   }
 }
 
@@ -261,7 +273,8 @@ export function takeawaysScene(g: SceneCtx): void {
       speaking: false,
     });
     // v3 (panel P0-3): v2 renderer
-    drawStickmanV2(ctx, W * 0.82, H * 0.70, 1.0, t, { pose, alpha: clamp01(t / 600), look: -0.5 }, 34);
+    // P1-1 (report): +30% (1.0 → 1.3); ground → H*0.667 (envelope 767).
+    drawStickmanV2(ctx, W * 0.82, H * 0.667, 1.3, t, { pose, alpha: clamp01(t / 600), look: -0.5 }, 34);
   } else {
     // focused card zooms; other two minimized to the left rail
     for (let i = 1; i <= 3; i++) {
@@ -367,7 +380,8 @@ export function takeawaysScene(g: SceneCtx): void {
       const gesture = focus === 1 ? 'count1' : focus === 2 ? 'count2' : 'thumbsUp';
       const pose = Stickman.poseAt(t, { gesture, speaking: false });
       // v3 (panel P0-3): v2 renderer
-      drawStickmanV2(ctx, W * 0.13, H * 0.70, 1.0, t,
+      // P1-1 (report): +30% (1.0 → 1.3); ground → H*0.667 (envelope 767).
+      drawStickmanV2(ctx, W * 0.13, H * 0.667, 1.3, t,
         { pose, alpha: hp, look: 0.6, prop: focus === 3 ? 'thumb' : undefined }, 35);
     }
   }
@@ -454,7 +468,8 @@ export function commentPromptScene(g: SceneCtx): void {
   });
   const pose = Stickman.poseAt(t, { gesture: 'pointR', speaking: false });
   // v3 (panel P0-3): v2 renderer
-  drawStickmanV2(ctx, W * 0.88, H * 0.70, 0.96, t, { pose, alpha: clamp01(t / 700), look: -0.5 }, 36);
+  // P1-1 (report): +30% (0.96 → 1.25); ground → H*0.667 (envelope 765).
+  drawStickmanV2(ctx, W * 0.88, H * 0.667, 1.25, t, { pose, alpha: clamp01(t / 700), look: -0.5 }, 36);
 }
 
 // ── endScreen v2: next-video teaser + host, YouTube-safe (PATCH 6) ──────────
@@ -520,7 +535,9 @@ export function endScreenScene(g: SceneCtx): void {
   // v9 (report D-02): H*0.70 → H*0.675 — the guard caught this centered
   // figure's shadow grazing the 2-row pill envelope by 16px at the widest
   // captions; a touch more headroom settles it.
-  drawStickmanV2(ctx, W * 0.44, H * 0.675, 1.0, t, { pose, alpha: clamp01((t - 800) / 600), look: 0.6 }, 37);
+  // P1-1 (report): +30% (1.0 → 1.3); ground → H*0.645 (envelope bottom
+  // 697+47 = 744 — the widest-caption worst case clears by 32px).
+  drawStickmanV2(ctx, W * 0.44, H * 0.645, 1.3, t, { pose, alpha: clamp01((t - 800) / 600), look: 0.6 }, 37);
 
   // ── v8: the WATCH NEXT arrow — the end screen's click mechanism ────────
   // The panel's verdict: "no thumbnail target = the most commercially

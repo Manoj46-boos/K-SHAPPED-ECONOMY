@@ -28,7 +28,10 @@ function hostSmall(
   // wide-pill frame (caught by the P0-1 guard sweep at pie/dot/bars/pump/
   // gauge/AI/odds scenes). Same stage line as the editorial hosts, with
   // worst-case camera margin.
-  groundY = g.H * 0.68, scale = 0.84
+  // P1-1 (report): +30% (0.84 → 1.09); ground H*0.68 → H*0.66 — envelope
+  // bottom 713+39 = 752, clear of the worst-case 2-row pill envelope (776)
+  // by 24px. All hostSmall call sites inherit the bump.
+  groundY = g.H * 0.66, scale = 1.09
 ): void {
   const pose = Stickman.poseAt(g.t, { gesture, speaking: g.speaking });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
@@ -1040,7 +1043,10 @@ export function aiDatacenterScene(g: SceneCtx): void {
     const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
     // v9 (report D-02): H*0.88 → H*0.68 — above the caption zone with
     // worst-case camera margin (guard-verified)
-    drawStickmanV2(ctx, W * 0.9, H * 0.68, 1.05, t,
+    // P1-1 (report): +30% (1.05 → 1.37); ground H*0.68 → H*0.66 — envelope
+    // bottom 713+49 = 762, still clear of the worst-case 2-row pill
+    // envelope (776) by 14px.
+    drawStickmanV2(ctx, W * 0.9, H * 0.66, 1.37, t,
       { pose, alpha: clamp01((t - 900) / 600), look: -0.7, scarf: true, talk }, 27);
   }
 }
