@@ -30,18 +30,24 @@ import { clamp01, easeOutCubic } from './easing';
 import { bokehField, drawK3D, lightRays, sparkles, floatCoins } from './effects';
 import { Stickman } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
-import { gauge } from './charts';
+import { gauge, barRow, lineChart } from './charts';
 
-/** v6 (audit P2-2): every strong moment composes natively — no crop. */
-export type NativeMode = 'k' | 'text' | 'stats' | 'paradox' | 'gauge' | 'pump';
+/** v6 (audit P2-2): every strong moment composes natively — no crop.
+ *  P1-4 (report): + 'bars' (barsCompare) and 'journey' (chartJourney) —
+ *  the two data-scene families the report called out, both reusing the
+ *  long-form's own chart renderers at 9:16 geometry. */
+export type NativeMode = 'k' | 'text' | 'stats' | 'paradox' | 'gauge' | 'pump' | 'bars' | 'journey';
 
 export interface ShortSpec {
   /** timeline ms where the short starts */
   startMs: number;
-  /** duration of the short (ms) */
+  /** duration of the short (ms) — P1-4: 35-45s, not 50s */
   durMs: number;
   /** headline shown in the top band */
   title: string;
+  /** P1-4 (report): hook re-statements — a bold banner re-hooks the
+   *  scroller at ~15s and ~30s (each shows for ~2.4s). */
+  hooks?: string[];
   /** which 1080-wide slice of the 1920 design grid to crop: 0..0.44 (0.22 ≈ center).
    *  Fallback only — v6 renders the six strongest beats natively. */
   cropX: number;
@@ -49,33 +55,46 @@ export interface ShortSpec {
   native?: NativeMode;
 }
 
-/** The six strongest vertical moments in the current script — all native. */
+/** The six strongest vertical moments in the current script — all native.
+ *  P1-4 (report) re-cut: 50s → 35-45s (the measured Shorts sweet spot for
+ *  explainers), NUMBER-FIRST titles (the digit is the hook), and a hook
+ *  re-statement every 15s so the swipe decision has to be made three times. */
 export function pickShortMoments(tl: Timeline): ShortSpec[] {
   const byType = (t: string) => tl.beats.find((b) => b.beat.scene.type === t);
   const mk = (
     type: string,
     title: string,
     native: NativeMode,
+    durMs: number,
+    hooks: string[],
     cropX = 0.22,
     lead = 300
   ): ShortSpec | null => {
     const b = byType(type);
     if (!b) return null;
-    return { startMs: b.startMs + lead, durMs: 50_000, title, cropX, native };
+    return { startMs: b.startMs + lead, durMs, title, hooks, cropX, native };
   };
   const list = [
     // the signature moment: the K draws itself, host presenting
-    mk('divergeK', 'The K-shaped economy, in one shape', 'k'),
+    // P1-4 hooks: every re-statement must add NEW information — the round-1
+    // panel flagged a hook that merely repeated the title's numbers
+    mk('divergeK', '+18% up. 16% “good”.', 'k', 42_000,
+      ['record highs AND a 10-year mood low', 'both lines are real — that’s the K']),
     // hard-cut statement beats — 108px serif lines cannot survive any crop
-    mk('bigText', 'SEVEN stocks drive the market', 'text', 0.24),
-    // the margin wall: 13.4% / $4.42T / 12.4% stacked full-width
-    mk('statCards', 'The numbers, plainly', 'stats', 0.045),
+    mk('bigText', '7 stocks drive the market', 'text', 35_000,
+      ['SEVEN stocks. Count them.', 'the other 493 barely move it'], 0.24),
+    // the margin wall: $4.42T / 12.4% stacked full-width
+    mk('statCards', '$4.42T up top. 12.4% below.', 'stats', 40_000,
+      ['$4.42 TRILLION. Record.', 'workers kept 12.4% of it'], 0.045),
     // PARADOX struck through, resolves into the K
-    mk('paradoxResolve', 'The “paradox” isn’t a paradox', 'paradox', 0.2),
+    mk('paradoxResolve', '2 truths. 0 paradox.', 'paradox', 38_000,
+      ['both lines are real', 'it’s a K — not a paradox'], 0.2),
     // the 48% coin-flip gauge with both camps' quotes
-    mk('recessionGauge', 'Nobody agrees on the recession odds', 'gauge', 0.42),
+    mk('recessionGauge', 'Recession: a 48% coin flip.', 'gauge', 45_000,
+      ['48% say recession', 'the other 52% say growth'], 0.42),
     // same pump, two households, two roads
-    mk('gasPump', 'Same gas price. Different worlds.', 'pump', 0.15),
+    mk('gasPump', '1 pump. 2 worlds.', 'pump', 42_000,
+      ['same gas price for both', 'one budget bends, one breaks'], 0.15),
   ];
   return list.filter((x): x is ShortSpec => x !== null);
 }
@@ -105,7 +124,13 @@ const CAPTION_BASE_NATIVE = 1260;
 /** Presenter ground line in the bottom-left presenter zone. */
 const HOST_GROUND = 1450;
 
-/** v6: the host, bottom-left of the presenter zone, clear of the pill/rail. */
+/** v6: the host, bottom-left of the presenter zone, clear of the pill/rail.
+ *  P1-1/P1-4 (report): 0.9 → 1.12 (+24%) and x 165 → 132 — the 9:16
+ *  presenter zone is tighter than 16:9, but with Shorts captions now
+ *  1-row/6-word (drawShortFrame) the widest pill's left edge sits at x≈196:
+ *  at 1.12/x120 the head's worst-case right edge (max lean, ≈193) stays
+ *  clear of even that, with the feet envelope inside the frame. The panel's
+ *  round-1 note ('only marginally larger') moved the bump from 1.05 to 1.12. */
 function drawShortHost(
   ctx: CanvasRenderingContext2D,
   tl: Timeline,
@@ -123,7 +148,7 @@ function drawShortHost(
   if (line && speaking) {
     talk = talkAt(tMs - line.start, line.words.map((w) => w.t - line.start));
   }
-  drawStickmanV2(ctx, 165, HOST_GROUND, 0.9, tMs, { pose, alpha, look, talk }, seed);
+  drawStickmanV2(ctx, 120, HOST_GROUND, 1.12, tMs, { pose, alpha, look, talk }, seed);
 }
 
 /** Small centered source credit above the channel mark (data scenes). */
@@ -678,6 +703,213 @@ function drawNativeVerticalPump(
   drawShortSource(ctx, s.source as string);
 }
 
+/**
+ * P1-4 (report) — barsCompare, composed NATIVELY for 9:16. The 16:9 scene
+ * lays its comparison bars across a 1300px row — any crop window amputates
+ * the labels. Here the SAME barRow renderer (identical label / track /
+ * gradient / value-pill grammar as the film) runs full-width, stacked in the
+ * hero zone, with the flip counter and remember chip compacted below and
+ * the presenter in the presenter zone.
+ */
+function drawNativeVerticalBars(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  tl: Timeline,
+  tMs: number
+): void {
+  bokehField(ctx, W, H, tMs, { intensity: 0.9, seed: 71, gold: 0.45 });
+  lightRays(ctx, W, H, tMs, { alpha: 0.4 });
+
+  const beat = beatAt(tl, tMs);
+  const t = beat ? Math.max(0, tMs - beat.startMs) : tMs % 4000;
+  const s = scenePropsAt(tl, tMs);
+  const bars = ((s.bars as any[]) || []).slice(0, 4);
+
+  const x = 84;
+  // rail-safe width (ends x 940, clear of the Shorts action rail ~x 980+):
+  // the longest bar's value pill lands past the bar's end, so the bar row
+  // must stop short of the full 912px (round-2 panel caught '+20% best'
+  // running under the rail at w=912)
+  const w = 856;
+  const yMax = (s.yMax as number) || Math.max(...bars.map((b) => b.value), 1) * 1.15;
+  const rowH = 128;
+  const y0 = 402;
+  bars.forEach((b, i) => {
+    const p = clamp01((t - 400 - i * 620) / 900);
+    if (p <= 0) return;
+    // rail-safe tag: the barRow tag chip lands ~300px past the bar's end —
+    // on the longest bar that crosses the Shorts action rail (round-2 panel
+    // caught '+20% best' at x~1080). The chip drops when it wouldn't fit
+    // inside x 940; the value pill (which fits) always stays.
+    let tag: string | undefined = b.tag;
+    if (tag) {
+      setFont(ctx, 28, 600, FONT_UI);
+      const bw = Math.max(30, (b.value / yMax) * w * clamp01(p / 0.55));
+      if (x + bw + 18 + 108 + ctx.measureText(tag).width + 30 > 940) tag = undefined;
+    }
+    barRow(ctx, {
+      x, y: y0 + i * rowH, w, rowH,
+      label: b.label, value: b.value, maxV: yMax,
+      p, tone: b.tone, tag,
+    });
+    if (t > 1300 + i * 620 && t < 1300 + i * 620 + 800) {
+      sparkles(ctx, x + w * 0.5, y0 + i * rowH + 40, tMs, t - (1300 + i * 620), { count: 8, radius: 140 });
+    }
+  });
+
+  // flip counter (ownership rate) — compact card under the bars
+  const fc = s.flipCounter as any | undefined;
+  if (fc) {
+    const ap = clamp01((t - 2600) / 900);
+    if (ap > 0) {
+      const fy = y0 + bars.length * rowH + 8;
+      ctx.save();
+      ctx.globalAlpha = ap;
+      card(ctx, x, fy, w, 118, { r: 24 });
+      setFont(ctx, 58, 700, FONT_DISPLAY);
+      ctx.fillStyle = PALETTE.down;
+      ctx.textAlign = 'left';
+      const v = fc.from + (fc.to - fc.from) * easeOutCubic(ap);
+      ctx.fillText(`${v.toFixed(0)}%`, x + 36, fy + 76);
+      setFont(ctx, 28, 600, FONT_UI); // v9 (D-07): floor
+      ctx.fillStyle = PALETTE.inkSoft;
+      ctx.fillText(fc.label, x + 190, fy + 52);
+      ctx.fillStyle = PALETTE.goldDeep;
+      ctx.fillText(fc.tag, x + 190, fy + 88);
+      ctx.restore();
+    }
+  }
+
+  // remember chip — the scene's kicker, gold language, centred
+  const rc = s.rememberChip as string | undefined;
+  if (rc) {
+    const ap = clamp01((t - 3600) / 800);
+    if (ap > 0) {
+      setFont(ctx, 28, 600, FONT_UI); // v9 (D-07): floor
+      const tw = ctx.measureText(rc).width;
+      const cx = W / 2 - tw / 2 - 28;
+      const cy = 1040;
+      ctx.save();
+      ctx.globalAlpha = ap;
+      ctx.fillStyle = PALETTE.goldWash;
+      roundRect(ctx, cx, cy, tw + 56, 54, 27);
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = PALETTE.gold;
+      roundRect(ctx, cx, cy, tw + 56, 54, 27);
+      ctx.stroke();
+      ctx.fillStyle = PALETTE.goldDeep;
+      ctx.textAlign = 'left';
+      ctx.fillText(rc, cx + 28, cy + 36);
+      ctx.restore();
+    }
+  }
+
+  drawShortSource(ctx, s.source as string);
+  drawShortHost(ctx, tl, tMs, 'present', clamp01((t - 900) / 600), 0.5, 19);
+}
+
+/**
+ * P1-4 (report) — chartJourney, composed NATIVELY for 9:16. The film's own
+ * lineChart renderer (draw-on animation, annotations, bands, dated x-axis)
+ * at full phone width in the hero zone, with the legend above and up to two
+ * extra-stat chips below. The chart IS the hero — no cropping, no letterbox.
+ */
+function drawNativeVerticalJourney(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  tl: Timeline,
+  tMs: number
+): void {
+  bokehField(ctx, W, H, tMs, { intensity: 0.9, seed: 81, gold: 0.4 });
+  lightRays(ctx, W, H, tMs, { alpha: 0.4 });
+
+  const beat = beatAt(tl, tMs);
+  const t = beat ? Math.max(0, tMs - beat.startMs) : tMs % 4000;
+  const s = scenePropsAt(tl, tMs);
+  const bt = beat ? Math.max(0, tMs - beat.startMs) : tMs;
+
+  const series = ((s.series as any[]) || []).map((sr) => ({
+    name: sr.name as string,
+    tone: sr.tone as string,
+    points: sr.points as [number, number][],
+  }));
+  const single = series.length
+    ? series
+    : [{ name: '', tone: 'up', points: (s.points as [number, number][]) || [] }];
+
+  // legend (multi-series only), above the chart
+  if (series.length > 1) {
+    single.forEach((sr, i) => {
+      const lx = 84 + i * 470;
+      const ap = clamp01((t - 250 - i * 180) / 450);
+      ctx.save();
+      ctx.globalAlpha = ap;
+      ctx.fillStyle = TONE(sr.tone).main;
+      roundRect(ctx, lx, 420, 46, 12, 6);
+      ctx.fill();
+      setFont(ctx, 28, 600, FONT_UI); // v9 (D-07): floor
+      ctx.fillStyle = PALETTE.inkSoft;
+      ctx.textAlign = 'left';
+      ctx.fillText(sr.name, lx + 58, 432);
+      ctx.restore();
+    });
+  }
+
+  // the chart — the film's own renderer, hero zone. Width ends at x 940 so
+  // right-edge annotations stay clear of the Shorts action rail (~x 980+).
+  const extraStats = ((s.extraStats as any[]) || []).slice(0, 2);
+  const chartH = extraStats.length ? 470 : 540;
+  lineChart(ctx, {
+    x: 84, y: 460 + (series.length > 1 ? 34 : 0), w: 856, h: chartH,
+    series: single,
+    annotations: (s.annotations as any[]) || [],
+    band: s.band as any,
+    peakBand: s.peakBand as any,
+    p: clamp01(t / 2600),
+    t,
+    yFormat: ((s.yFormat as string) || 'index') as any,
+    xLabels: [
+      { at: 0, label: 'last Oct' },
+      { at: 11, label: 'Mar' },
+      { at: 20, label: 'Jun' },
+      { at: 40, label: 'today' },
+    ],
+    revealFrac: s.phase === 'recovery' ? Math.max(0.75, clamp01((bt - 800) / 4000)) : undefined,
+  });
+
+  // extra stat chips below the chart (rail-safe width, matching the chart)
+  extraStats.forEach((st, i) => {
+    const ap = clamp01((bt - 1400 - i * 500) / 700);
+    if (ap <= 0) return;
+    const c = TONE(st.tone || 'default');
+    const cy = 460 + (series.length > 1 ? 34 : 0) + chartH + 26 + i * 78;
+    ctx.save();
+    ctx.globalAlpha = ap;
+    ctx.fillStyle = c.soft;
+    roundRect(ctx, 84, cy, 856, 66, 33);
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = rgba(c.main, 0.4);
+    roundRect(ctx, 84, cy, 856, 66, 33);
+    ctx.stroke();
+    setFont(ctx, 36, 700, FONT_UI);
+    ctx.fillStyle = c.main;
+    ctx.textAlign = 'left';
+    ctx.fillText(st.big, 120, cy + 46);
+    setFont(ctx, 28, 600, FONT_UI); // v9 (D-07): floor
+    ctx.fillStyle = PALETTE.inkSoft;
+    const label = st.label.length > 42 ? st.label.slice(0, 41) + '…' : st.label;
+    ctx.fillText(label, 250, cy + 43);
+    ctx.restore();
+  });
+
+  drawShortSource(ctx, s.source as string);
+  drawShortHost(ctx, tl, tMs, 'present', clamp01((t - 1000) / 600), 0.5, 23);
+}
+
 const NATIVE_SCENE_TYPES: Record<NativeMode, string> = {
   k: 'divergeK',
   text: 'bigText',
@@ -685,6 +917,8 @@ const NATIVE_SCENE_TYPES: Record<NativeMode, string> = {
   paradox: 'paradoxResolve',
   gauge: 'recessionGauge',
   pump: 'gasPump',
+  bars: 'barsCompare',
+  journey: 'chartJourney',
 };
 
 const NATIVE_DRAWERS: Record<NativeMode, (ctx: CanvasRenderingContext2D, W: number, H: number, tl: Timeline, tMs: number) => void> = {
@@ -694,6 +928,8 @@ const NATIVE_DRAWERS: Record<NativeMode, (ctx: CanvasRenderingContext2D, W: numb
   paradox: drawNativeVerticalParadox,
   gauge: drawNativeVerticalGauge,
   pump: drawNativeVerticalPump,
+  bars: drawNativeVerticalBars,
+  journey: drawNativeVerticalJourney,
 };
 
 /** PANEL-9 R7i (mid-short crop clipping): reverse map scene type → native
@@ -802,12 +1038,56 @@ export function drawShortFrame(
   ctx.fill();
   ctx.restore();
 
+  // 5b) P1-4 (report): HOOK RE-STATEMENTS — at ~15s and ~30s into the Short
+  //     a bold banner re-hooks the scroller (each shows ~2.4s, slides in
+  //     from the left, uses the title band's own plate language). The swipe
+  //     decision has to be made three times, not once.
+  if (spec.hooks?.length) {
+    const HOOK_AT = [15_000, 30_000];
+    const HOOK_DUR = 2_400;
+    spec.hooks.slice(0, HOOK_AT.length).forEach((hook, i) => {
+      const rel = tMs - spec.startMs - HOOK_AT[i];
+      if (rel < 0 || rel > HOOK_DUR) return;
+      const pin = easeOutCubic(clamp01(rel / 420));
+      const out = 1 - clamp01((rel - HOOK_DUR + 320) / 320);
+      ctx.save();
+      ctx.globalAlpha = Math.min(pin, out);
+      setFont(ctx, 44, 700, FONT_DISPLAY);
+      const tw = ctx.measureText(hook).width;
+      const bw = Math.min(tw + 72, W - 96);
+      const bx = -bw + ((W - bw) / 2 + bw) * pin; // slides from off-left to centred
+      const by = 372;
+      ctx.fillStyle = PALETTE.goldWash;
+      roundRect(ctx, bx, by, bw, 86, 24);
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = PALETTE.gold;
+      roundRect(ctx, bx, by, bw, 86, 24);
+      ctx.stroke();
+      ctx.fillStyle = PALETTE.ink;
+      ctx.textAlign = 'center';
+      // fit the hook inside the plate (shrink, never clip)
+      let hs = 44;
+      while (ctx.measureText(hook).width > bw - 64 && hs > 30) {
+        hs -= 2;
+        setFont(ctx, hs, 700, FONT_DISPLAY);
+      }
+      ctx.fillText(hook, bx + bw / 2, by + 56);
+      ctx.restore();
+    });
+  }
+
   // 6) vertical karaoke captions — v6 (audit P2-2): native moments ride at
   //    62% frame height; the crop fallback keeps the raised baseY below the
   //    410–1490 crop band (v4, audit P0-3)
+  //    P1-1/P1-4 (report): Shorts captions are ONE row, six words — the
+  //    swipe-through surface reads at a glance, and the 2-row band (top
+  //    y≈1104) never opens over the presenter zone.
   drawCaptions(ctx, W, H, tMs, tl.captionLines, {
     mode: opts.captions,
     baseY: native ? CAPTION_BASE_NATIVE : 1560,
+    maxRows: 1,
+    maxWords: 6,
   });
 
   // 7) channel mark bottom
