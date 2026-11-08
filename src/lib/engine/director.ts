@@ -139,9 +139,13 @@ function groupAt(tl: Timeline, tMs: number): Group | null {
  * structure. Amplitudes were chosen so bottom-zone content stays clear of
  * the caption pill under the guard's exact-camera mode (setGuardCamera):
  * pushes are capped (+0.035..0.04), trucks are horizontal-only (the pill's
- * y-band never moves), and the two rises were dense-sweep-verified — a rise
- * lifts bottom-zone content toward the pill, so it is only used where the
- * scene keeps its bottom clear (fundSplit) or the sweep proves it.
+ * y-band never moves).
+ * PANEL-10: the LAST rise (ch7 fundSplit) is gone — a rise translates the
+ * whole canvas, so it lifted the scene title into the fixed watermark band
+ * (D-08) and the callback chip into the caption pill (D-09) in the same
+ * breath. Lesson: rises are only safe on scenes with no furniture within
+ * amt px of either band; every hero move is now truck or push/pullback,
+ * and guard v2 (edge + fixed-furniture checks) sweeps all of them.
  */
 const HERO_MOVES: Record<number, { scene: string; move: 'pullback' | 'push' | 'truck' | 'rise'; amt: number }> = {
   0: { scene: 'divergeK', move: 'pullback', amt: 0.055 },       // ch1 — the K reveals itself as the camera retreats
@@ -155,7 +159,14 @@ const HERO_MOVES: Record<number, { scene: string; move: 'pullback' | 'push' | 't
   3: { scene: 'gasPump', move: 'truck', amt: 150 },             // ch4 — pan between the two households
   4: { scene: 'aiDatacenter', move: 'push', amt: 0.04 },        // ch5 — into the scale of the build-out
   5: { scene: 'paradoxResolve', move: 'pullback', amt: 0.05 },  // ch6 — the reveal breathes out
-  6: { scene: 'fundSplit', move: 'rise', amt: 80 },             // ch7 — the twist lifts
+  // PANEL-10 (D-08/D-09): the ch7 'rise' lifted the scene title into the
+  // fixed watermark band and the callback chip into the caption pill — a
+  // rise moves the WHOLE canvas, so any scene with furniture near either
+  // band can never be rise-safe. The twist now TRAVELS instead: a +110
+  // truck (centered, ±55) pans from the fund box toward the host, and the
+  // pill's y-band never moves (the host was re-anchored at W*0.84, so its
+  // envelope clears the right edge under the full camera stack).
+  6: { scene: 'fundSplit', move: 'truck', amt: 110 },           // ch7 — the twist travels
   7: { scene: 'takeaways', move: 'push', amt: 0.035 },          // ch8 — lean into the lesson
   8: { scene: 'endScreen', move: 'pullback', amt: 0.06 },       // ch9 — the wide farewell
 };
@@ -445,10 +456,12 @@ export function drawFrame(
     maxRows: isHostScene ? 1 : 2,
     maxWords: isHostScene ? 6 : 8,
   });
-  // v9 (P0-1): stash this frame's violations for the harness to read
-  if (collisionGuard.enabled) collectViolations();
 
-  // watermark
+  // watermark — PANEL-10 (guard v2): drawn BEFORE collectViolations so its
+  // registerFixed() band is part of this frame's obstacle set (the old
+  // order collected first, so the watermark could never be checked). The
+  // watermark sits top-left; nothing else paints over it, so the reorder
+  // has no visual effect.
   if (opts.watermark) drawWatermark(ctx, W, opts.channelName);
 
   // progress bar + chapter ticks
@@ -456,6 +469,10 @@ export function drawFrame(
     const fracs = tl.chapters.slice(1).map((c) => c.startMs / tl.durationMs);
     drawProgressBar(ctx, W, H, t / tl.durationMs, fracs);
   }
+
+  // v9 (P0-1): stash this frame's violations for the harness to read
+  // (pill + fixed furniture + frame edges — guard v2, PANEL-10)
+  if (collisionGuard.enabled) collectViolations();
 
   // v8 finishing: grain 0.30 (film texture, not noise) and vignette
   // 0.45→0.30 — the vision panel flagged corner darkening on white as

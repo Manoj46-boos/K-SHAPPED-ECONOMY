@@ -184,17 +184,48 @@ for (const [name, r] of picks) {
 if (guard && !process.argv.includes('--no-sweep')) {
   const step = 4000;
   let swept = 0;
+  const report = (t, vs) => {
+    if (vs.length) {
+      guardViolations += vs.length;
+      // PANEL-10: v.id alone hid the check class; guard v2 reports
+      // pill / fixed:<furniture> / edge with depth so the fix targets
+      // the right band the first time.
+      console.error(
+        `  !! COLLISION GUARD — @${(t / 1000).toFixed(1)}s: ` +
+          vs.map((v) => `${v.id}(${v.kind}, ${v.depth}px)`).join(', ')
+      );
+    }
+  };
   for (let t = 0; t < tl.durationMs; t += step) {
     guard.resetGuard(`sweep@${(t / 1000).toFixed(1)}s`);
     drawFrame(ctx, tl, t, OPTS);
-    const vs = guard.collectViolations();
+    report(t, guard.collectViolations());
     swept++;
-    if (vs.length) {
-      guardViolations += vs.length;
-      console.error(`  !! COLLISION GUARD — sweep @${(t / 1000).toFixed(1)}s: ${vs.map((v) => v.id).join(', ')}`);
-    }
   }
-  console.log(`collision sweep: ${swept} frames @ ${step}ms — ${guardViolations ? 'VIOLATIONS FOUND' : 'clean'}`);
+  // PANEL-10 (D-08/D-09 lesson): a 4s grid walks straight past the defects —
+  // the fundSplit chip was plated only from ~40% into a 31s group, and the
+  // title/watermark graze lived in the last 420ms of the group (the exit
+  // lift). Every scene group's FINAL 1.2s is now swept at 120ms, plus its
+  // mid-group worst camera (~70%), which is where hero moves peak. This is
+  // the discipline the v9 "dense-sweep-verified" comments claimed; the tool
+  // now actually does it.
+  const dense = [];
+  for (const b of tl.beats) {
+    const dur = b.endMs - b.startMs;
+    if (dur < 1600) continue;
+    for (let t = Math.max(b.startMs, b.endMs - 1200); t < b.endMs; t += 120) dense.push(t);
+    dense.push(b.startMs + dur * 0.7);
+    dense.push(b.startMs + dur * 0.55);
+  }
+  for (const t of dense.sort((a, b2) => a - b2)) {
+    guard.resetGuard(`dense@${(t / 1000).toFixed(1)}s`);
+    drawFrame(ctx, tl, t, OPTS);
+    report(t, guard.collectViolations());
+    swept++;
+  }
+  console.log(
+    `collision sweep: ${swept} frames (${Math.ceil(tl.durationMs / step)} grid + ${dense.length} dense exit/mid) — ${guardViolations ? 'VIOLATIONS FOUND' : 'clean'}`
+  );
 }
 
 if (guardViolations) {

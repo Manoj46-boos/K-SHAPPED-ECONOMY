@@ -6,7 +6,7 @@
 
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, easeOutQuad, lerp } from './easing';
 import { PALETTE, TONE, card, chip, rgba, roundRect, setFont, fitText, TYPE_FLOOR } from './theme';
-import { registerRect } from './collision';
+import { registerRect, registerFixed } from './collision';
 
 export interface Pt {
   x: number;
@@ -772,17 +772,34 @@ export function sourceTag(
 ): void {
   if (!source) return;
   ctx.save();
+  // PANEL-10 (guard v2, 55 sweep violations): the tag was drawn INSIDE the
+  // scene's camera space, right-anchored at x=1810 — under the chartJourney
+  // stack (truck 75 + draw-pan 32 + drift 22 ≈ 129px + 1.036× scale) its
+  // rect reached x≈1990, 80px past the right edge. A footnote should not
+  // dance with the camera: the tag now draws in SCREEN space (identity
+  // transform), like the watermark and progress bar — it never rides the
+  // camera, so it can never be pushed off-frame, and it registers as fixed
+  // furniture with the guard.
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = alpha;
   setFont(ctx, TYPE_FLOOR, 400);
   ctx.fillStyle = PALETTE.inkFaint;
   ctx.textAlign = 'right';
   const txt = `Source: ${source}`;
-  registerRect('sourceTag', W - 110 - ctx.measureText(txt).width, y - 24, ctx.measureText(txt).width + 20, 32);
+  const tw = ctx.measureText(txt).width;
   ctx.fillText(txt, W - 110, y);
+  registerFixed(`sourceTag:${source.slice(0, 14)}`, W - 130 - tw, y - 26, tw + 40, 38);
   ctx.restore();
 }
 
-/** Scene title with animated underline sweep. */
+/**
+ * PANEL-10 (D-08): every sceneTitle call site moved from y=150 to y=190.
+ * Under the full camera stack (base push 0.052 eased + drift -13 + the
+ * 34px exit lift) a 54px title at y=150 put its cap-height at y≈39 —
+ * inside the fixed watermark band (y 30..76, registered as guard v2 fixed
+ * furniture). At y=190 the worst-case cap lands at ≈79px, clear of the
+ * band, and the drop adds air between the brand row and scene content.
+ */
 export function sceneTitle(
   ctx: CanvasRenderingContext2D,
   text: string,

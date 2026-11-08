@@ -7,7 +7,7 @@ import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad } from './easing';
 import { PALETTE, FONT_UI, FONT_DISPLAY, rgba, roundRect, setFont, TYPE_FLOOR } from './theme';
 import { Stickman } from './stickman';
 import { drawStickmanV2 } from './stickman-v2';
-import { registerPill } from './collision';
+import { registerPill, registerFixed } from './collision';
 
 export interface CaptionWord {
   t: number; // ms, absolute timeline time
@@ -93,6 +93,14 @@ export function drawCaptions(
   const continued = winStart > 0;
   const ell = continued ? '…' : '';
   const ellW = continued ? ctx.measureText(ell).width + spaceW * 0.5 : 0;
+  // PANEL-10 (C-01, completes P0-7): the leading ellipsis shipped alone — a
+  // window that ENDS mid-sentence ("…crossing 30,000 for the first") still
+  // read as a truncated render on every paused frame. A window whose last
+  // word is not the caption line's last word now carries a trailing ellipsis
+  // too, so a paused frame reads as karaoke windowing at BOTH edges.
+  const trails = winEnd < len;
+  const trl = trails ? '…' : '';
+  const trlW = trails ? ctx.measureText(trl).width + spaceW * 0.5 : 0;
   let winWords = words.slice(winStart, winEnd);
 
   const measure = (ws: CaptionWord[]): number =>
@@ -102,13 +110,13 @@ export function drawCaptions(
   let rows: CaptionWord[][] = [];
   if (maxRows === 1) {
     // host scenes: one row — keep the spoken words, drop unspoken overflow
-    while (winWords.length && measure(winWords) + ellW > maxW && winWords.length > Math.min(3, lastSpoken - winStart + 1)) {
+    while (winWords.length && measure(winWords) + ellW + trlW > maxW && winWords.length > Math.min(3, lastSpoken - winStart + 1)) {
       winWords = winWords.slice(0, -1);
     }
     if (winWords.length) rows = [winWords];
   } else {
     const total = measure(winWords);
-    if (total + ellW <= maxW) {
+    if (total + ellW + trlW <= maxW) {
       rows = [winWords];
     } else {
       // candidate breaks: after clause-ending punctuation
@@ -121,7 +129,10 @@ export function drawCaptions(
       for (const b of breaks) {
         const w1 = measure(winWords.slice(0, b));
         const w2 = total - w1 - spaceW;
-        if (w1 + ellW <= maxW && w2 <= maxW) {
+        // PANEL-10: row 1 of a 2-row split never carries the trailing mark
+        // (it continues INSIDE the same pill), so only row 0's ellW counts
+        // in the break fit; row 1 needs room for its own trlW.
+        if (w1 + ellW <= maxW && w2 + trlW <= maxW) {
           const score = Math.abs(w1 - total / 2);
           if (score < bestScore) { bestScore = score; best = b; }
         }
@@ -152,7 +163,11 @@ export function drawCaptions(
   const rowH = fontSize + 22;
   const totalH = rows.length * rowH + 24;
   const baseY = style.baseY ?? H - 128; // clear of the 8px progress bar + safe margin
-  const widest = Math.max(...rows.map((r) => measure(r) + (rows.indexOf(r) === 0 ? ellW : 0)));
+  // PANEL-10: first row carries the leading mark, last row the trailing one
+  // (a single row can carry both).
+  const widest = Math.max(
+    ...rows.map((r, i) => measure(r) + (i === 0 ? ellW : 0) + (i === rows.length - 1 ? trlW : 0))
+  );
 
   // pill — fully opaque plate (scene text under it must occlude cleanly,
   // not ghost through), one hairline border, gold brand tab on the left
@@ -178,12 +193,16 @@ export function drawCaptions(
   ctx.restore();
 
   // words — spoken = ink, upcoming = 85% ink (PANEL-9 R1), active = sweep;
-  // v9: a leading ellipsis marks continuation windows (P0-7)
+  // v9: a leading ellipsis marks continuation windows (P0-7);
+  // PANEL-10: a trailing ellipsis marks the sentence continuing past this
+  // window (completes P0-7 — both edges of a paused frame now read as
+  // windowing, never as a truncated render).
   ctx.save();
   ctx.textBaseline = 'middle';
   setFont(ctx, fontSize, 700, FONT_UI);
   rows.forEach((row, ri) => {
-    const rowW = measure(row) + (ri === 0 ? ellW : 0);
+    const last = ri === rows.length - 1;
+    const rowW = measure(row) + (ri === 0 ? ellW : 0) + (last ? trlW : 0);
     let x = W / 2 - rowW / 2;
     const y = py + 22 + ri * rowH + fontSize / 2;
     if (ri === 0 && continued) {
@@ -207,6 +226,13 @@ export function drawCaptions(
         ctx.fill();
       }
       x += ctx.measureText(w.w).width + spaceW;
+    }
+    // PANEL-10 (C-01): trailing ellipsis on the LAST row when the sentence
+    // continues past this window — the paused-frame twin of the leading mark.
+    if (last && trails) {
+      ctx.fillStyle = rgba(PALETTE.inkFaint, 0.9);
+      ctx.textAlign = 'left';
+      ctx.fillText(trl, x + spaceW * 0.5, y);
     }
   });
   ctx.restore();
@@ -385,8 +411,18 @@ export function drawWatermark(
   setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): TYPE_FLOOR 24→28, now enforced
   ctx.fillStyle = rgba(PALETTE.inkSoft, 0.9); // v9 (D-08): was hand-hexed #55555F — the v8 "no hand-hexed neutrals" rule applies here too
   ctx.textAlign = 'left';
-  ctx.fillText(channelName.toUpperCase(), 24, 8);
+  const wn = channelName.toUpperCase();
+  ctx.fillText(wn, 24, 8);
+  // measure while the watermark face is still active (after restore the
+  // font is whatever the caller last set — PANEL-10 caught this)
+  const tw = ctx.measureText(wn).width;
   ctx.restore();
+  // PANEL-10 (guard v2): the watermark is FIXED furniture — it never rides
+  // the camera, so scene content that the camera lifts or pushes into its
+  // band (the fundSplit title under the ch6 rise did exactly that) is a
+  // plating defect the pill-only guard could not see. Measured band: K mark
+  // x 46..75, y 39..65; caps-height text from x≈82 (translate 58+24).
+  registerFixed('watermark', 40, 30, Math.max(240, 92 + tw), 46);
   void W;
 }
 

@@ -155,7 +155,7 @@ export function chartJourneyScene(g: SceneCtx): void {
   const bt = g.beatT;
   const title = s.title as string;
   const drawP = clamp01(t / 2600);
-  sceneTitle(ctx, title, 110, 150, clamp01(t / 600));
+  sceneTitle(ctx, title, 110, 190, clamp01(t / 600));
   const chartX = 190;
   const chartY = H * 0.22;
   const chartW = W - 190 - 210;
@@ -290,7 +290,7 @@ export function chartJourneyScene(g: SceneCtx): void {
 export function pieChartScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 81, 0.6);
-  sceneTitle(ctx, s.title as string, 110, 150, clamp01(t / 600));
+  sceneTitle(ctx, s.title as string, 110, 190, clamp01(t / 600));
   const cx = W * 0.34;
   const cy = H * 0.52;
   const r = Math.min(W, H) * 0.21;
@@ -334,7 +334,7 @@ export function pieChartScene(g: SceneCtx): void {
 export function dotGridScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 91);
-  sceneTitle(ctx, 'The S&P 500 · one bonus pool, 500 companies', 110, 150, clamp01(t / 600));
+  sceneTitle(ctx, 'The S&P 500 · one bonus pool, 500 companies', 110, 190, clamp01(t / 600));
   dotGrid(ctx, {
     x: 190, y: H * 0.2, w: W - 400, h: H * 0.5,
     total: (s.total as number) || 500,
@@ -401,14 +401,16 @@ export function dotGridScene(g: SceneCtx): void {
     ctx.fillText('each dot = one company', W / 2, (1040 / 1080) * H);
     ctx.restore();
   }
-  hostSmall(g, W * 0.9, 'present', 8);
+  // PANEL-10 (D-10 class): W*0.9 → W*0.84 — dotGrid is a push scene (no
+  // hero move, base 0.052); the envelope crossed x=1920 at full push.
+  hostSmall(g, W * 0.84, 'present', 8);
 }
 
 // ── magChips scene ───────────────────────────────────────────────────────────
 export function magChipsScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 101, 0.55);
-  sceneTitle(ctx, 'The Magnificent Seven', 110, 150, clamp01(t / 600));
+  sceneTitle(ctx, 'The Magnificent Seven', 110, 190, clamp01(t / 600));
   const chipsList = (s.chips as string[]) || [];
   // 7 gold tiles with ticker-style look
   const tw = 210;
@@ -475,7 +477,7 @@ export function magChipsScene(g: SceneCtx): void {
 export function barsCompareScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 111);
-  sceneTitle(ctx, s.title as string, 110, 150, clamp01(t / 600));
+  sceneTitle(ctx, s.title as string, 110, 190, clamp01(t / 600));
   const bars = (s.bars as any[]) || [];
   const barW = W - 620;
   const yMax = (s.yMax as number) || Math.max(...bars.map((b) => b.value), 1) * 1.15;
@@ -552,7 +554,7 @@ export function barsCompareScene(g: SceneCtx): void {
 export function trioConvergeScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 121);
-  sceneTitle(ctx, 'Three surveys. One shape.', 110, 150, clamp01(t / 600));
+  sceneTitle(ctx, 'Three surveys. One shape.', 110, 190, clamp01(t / 600));
   const names = ['Gallup', 'Univ. of Michigan', 'Conference Board'];
   const arcs = [
     { tone: 'down', pts: [[0, 60], [3, 55], [6, 40], [9, 22], [10, 14], [12, 26], [14, 34], [15, 32]] },
@@ -749,7 +751,7 @@ export function kDefScene(g: SceneCtx): void {
 export function credibilityChipsScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 141, 0.6);
-  sceneTitle(ctx, 'This isn\u2019t an internet theory', 110, 150, clamp01(t / 600));
+  sceneTitle(ctx, 'This isn\u2019t an internet theory', 110, 190, clamp01(t / 600));
   const chipsList = (s.chips as string[]) || [];
   const cw = 640;
   chipsList.forEach((c, i) => {
@@ -786,7 +788,7 @@ export function credibilityChipsScene(g: SceneCtx): void {
 export function gasPumpScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 151, 0.5);
-  sceneTitle(ctx, 'Same shock — different roads', 110, 150, clamp01(t / 600));
+  sceneTitle(ctx, 'Same shock — different roads', 110, 190, clamp01(t / 600));
   // the pump (center) — v8: the vision panel called the old beige-screen
   // pump "clip-art from 2012". A modern pump reads as: white body, crisp
   // hairline, a soft-TEAL screen (no dark tones — the theme's upSoft wash)
@@ -870,7 +872,7 @@ export function gasPumpScene(g: SceneCtx): void {
 export function recessionGaugeScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 161);
-  sceneTitle(ctx, 'Recession odds — serious people, different answers', 110, 150, clamp01(t / 600));
+  sceneTitle(ctx, 'Recession odds — serious people, different answers', 110, 190, clamp01(t / 600));
   // debates on left
   const debates = (s.debates as any[]) || [];
   debates.forEach((d, i) => {
@@ -1046,7 +1048,12 @@ export function aiDatacenterScene(g: SceneCtx): void {
     // P1-1 (report): +30% (1.05 → 1.37); ground H*0.68 → H*0.66 — envelope
     // bottom 713+49 = 762, still clear of the worst-case 2-row pill
     // envelope (776) by 14px.
-    drawStickmanV2(ctx, W * 0.9, H * 0.66, 1.37, t,
+    // PANEL-10 (D-10): x W*0.9 → W*0.82. At scale 1.37 the feet+shadow
+    // envelope reached x≈1895 static; the ch5 hero push (base 0.052 + hero
+    // 0.04 ≈ 1.092x at group end) pushed it to ≈2004 — 84px past the right
+    // edge, arm and shadow clipped (vision-verified on the aiDatacenter
+    // frame). At W*0.82 the envelope's worst case lands ≈1831, 89px clear.
+    drawStickmanV2(ctx, W * 0.82, H * 0.66, 1.37, t,
       { pose, alpha: clamp01((t - 900) / 600), look: -0.7, scarf: true, talk }, 27);
   }
 }
@@ -1055,7 +1062,7 @@ export function aiDatacenterScene(g: SceneCtx): void {
 export function statCardsScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 181, 0.55);
-  sceneTitle(ctx, 'The numbers, plainly', 110, 150, clamp01(t / 600));
+  sceneTitle(ctx, 'The numbers, plainly', 110, 190, clamp01(t / 600));
   const cards = (s.cards as any[]) || [];
   const cw = (W - 110 * 2 - 60 * (cards.length - 1)) / cards.length;
   cards.forEach((c, i) => {
@@ -1069,7 +1076,9 @@ export function statCardsScene(g: SceneCtx): void {
     }
   });
   sourceTag(ctx, W, s.source as string, H - 60);
-  hostSmall(g, W * 0.88, 'present', 19);
+  // PANEL-10 (D-10 class): W*0.88 → W*0.84 — the shadow envelope crossed
+  // x=1920 under the base push stack; 0.84 clears it with margin.
+  hostSmall(g, W * 0.84, 'present', 19);
 }
 
 // ── ownerWorker scene ────────────────────────────────────────────────────────
@@ -1154,12 +1163,18 @@ export function ownerWorkerScene(g: SceneCtx): void {
 export function fundSplitScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 201, 0.5);
-  sceneTitle(ctx, 'What\u2019s inside “the S&P 500”?', 110, 150, clamp01(t / 600));
+  // (title row 150->190 as all sceneTitle sites — D-08; see charts.sceneTitle)
+  sceneTitle(ctx, 'What\u2019s inside “the S&P 500”?', 110, 190, clamp01(t / 600));
   // the fund box
   const bx = W * 0.09;
   const by = H * 0.24;
   const bw = 430;
-  const bh = 120;
+  // PANEL-10 (D-11): bh 120 -> 150. The subtitle '500 companies · feels
+  // diversified' at the 28px floor measures ≈540px — it ran ≈180px past the
+  // 430px card's right edge into the split arrows (the vision panel read it
+  // as a chevron cutting the card). It now wraps to two measured lines that
+  // fit bw-72, and the card grew to hold them without violating the floor.
+  const bh = 150;
   const ap = clamp01(t / 700);
   ctx.save();
   ctx.globalAlpha = ap;
@@ -1170,7 +1185,10 @@ export function fundSplitScene(g: SceneCtx): void {
   ctx.fillText('S&P 500 index fund', bx + 36, by + 56);
   setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor
   ctx.fillStyle = PALETTE.inkFaint;
-  ctx.fillText('500 companies · feels diversified', bx + 36, by + 94);
+  // PANEL-10 (D-11): wrap inside bw-72 — never wider than the card, so it
+  // can no longer reach the split arrows' zone at x>=623.
+  const subLines = wrapText(ctx, '500 companies · feels diversified', bw - 72, TYPE_FLOOR, 600).slice(0, 2);
+  subLines.forEach((ln, j) => ctx.fillText(ln, bx + 36, by + 92 + j * 34));
   ctx.restore();
 
   // split arrows
@@ -1270,16 +1288,22 @@ export function fundSplitScene(g: SceneCtx): void {
     if (cp2 > 0) {
       ctx.save();
       ctx.globalAlpha = cp2;
-      setFont(ctx, 26, 600);
+      // PANEL-10 (D-07 sibling): 26 -> TYPE_FLOOR (28) — the chip was the
+      // last sub-floor reading text in the film.
+      setFont(ctx, TYPE_FLOOR, 600);
       const tw = ctx.measureText(cb).width;
-      // PANEL-9 R7e (callback chip plated by the caption pill): it rode at
-      // H-200 (880..934) — the dead center of the caption band, so the pill
-      // plated over its middle and left "sound…" / "…arlier" clipped at the
-      // pill's edges (flagged on the fundSplit render). It now sits in the
-      // deliberate BELOW-pill gap the theme defines (pill bottom ≈ 956,
-      // progress bar at 1072): y 966..1020, 10px clear of the pill and clear
-      // of the right-aligned source tag (x ≥ ~1410 vs chip ≤ ~1265).
-      const chy = 966;
+      // PANEL-10 (D-09): was chy=966, verified only as a STATIC frame. The
+      // ch6 hero move was then changed to a camera 'rise' (P1-2), which
+      // lifted the chip 80px into the caption pill band — the pill plated
+      // its top half on every frame past ~40% of the group. The rise is now
+      // a truck (y never moves), and the chip is re-anchored at 996 in the
+      // below-pill gap: pill bottom ≈956, progress bar ≈1072 — the chip sits
+      // ~40px clear of the pill and ~26px above the bar, and survives the
+      // 34px exit lift with ≥2px to spare (guard v2 sweeps it — it is now
+      // REGISTERED, which is how D-09 escaped the v9 sweep in the first
+      // place: unregistered content is invisible to the guard).
+      const chy = 996;
+      registerRect('fundSplit:callbackChip', W / 2 - tw / 2 - 28, chy, tw + 56, 54);
       ctx.fillStyle = PALETTE.goldWash;
       roundRect(ctx, W / 2 - tw / 2 - 28, chy, tw + 56, 54, 27);
       ctx.fill();
@@ -1289,18 +1313,21 @@ export function fundSplitScene(g: SceneCtx): void {
       ctx.stroke();
       ctx.fillStyle = PALETTE.goldDeep;
       ctx.textAlign = 'left';
-      ctx.fillText(cb, W / 2 - tw / 2, chy + 35);
+      ctx.fillText(cb, W / 2 - tw / 2, chy + 36);
       ctx.restore();
     }
   }
-  hostSmall(g, W * 0.88, 'pointL', 24);
+  // PANEL-10 (D-10 class): host W*0.88 -> W*0.84 — under the truck+push
+  // camera stack the shadow envelope (right edge ≈x1899 static) crossed
+  // x=1920; at W*0.84 the envelope clears the edge under the full stack.
+  hostSmall(g, W * 0.84, 'pointL', 24);
 }
 
 // ── oddsSpread scene ─────────────────────────────────────────────────────────
 export function oddsSpreadScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 211);
-  sceneTitle(ctx, 'Recession odds — the honest range', 110, 150, clamp01(t / 600));
+  sceneTitle(ctx, 'Recession odds — the honest range', 110, 190, clamp01(t / 600));
   const trackY = H * 0.42;
   const trackX = 220;
   const trackW = W - 440;

@@ -98,7 +98,17 @@ export const SCRIPT: ChapterSpec[] = [
         scene: P('splitNumbers', 'c1-market', {
           mode: 'vs-punch',
           cornerNote: 'data as of mid-July 2026 \u00b7 sources for every stat linked below',
-          stats: [],
+          // PANEL-10 (D-03): was `stats: []` — truthy-but-empty, so the
+          // market panel rendered as a BARE CARD for the whole punch beat
+          // (`s.stats || fallback` never engaged). The punch beat now ships
+          // the same three stats as the vs beat: the payoff line lands over
+          // fully-populated panels, and the engine-side fallback guard
+          // (scenes-host) covers any future beat that forgets.
+          stats: [
+            { big: '+18%', label: 'S&P 500 · past year', tone: 'up' },
+            { big: '+20%', label: 'Nasdaq · past year', tone: 'up' },
+            { big: 'RECORD', label: 'corporate profit margins', tone: 'gold' },
+          ],
         }),
       },
       {

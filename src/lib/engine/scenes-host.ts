@@ -382,11 +382,19 @@ export function splitNumbersScene(g: SceneCtx): void {
     // v3 (panel P1-6): the market panel reads the script's `stats` prop
     // (previously allowed-but-unread — the panel's validator caught it);
     // the hardcoded list stays as the fallback.
-    const marketStats: StatItem[] = (s.stats as StatItem[]) || [
-      { big: '+18%', label: 'S&P 500 · past year', tone: 'up' },
-      { big: '+20%', label: 'Nasdaq · past year', tone: 'up' },
-      { big: 'RECORD', label: 'corporate profit margins', tone: 'gold' },
-    ];
+    // PANEL-10 (D-03): `s.stats || FALLBACK` never fired for the vs-punch
+    // beat, which ships `stats: []` — an EMPTY ARRAY is truthy, so the
+    // market panel rendered with ZERO stat rows (a bare card) for the
+    // whole punch beat while THE MOOD kept its numbers. The fallback now
+    // engages for missing, non-array, AND empty stats. The vs-punch beat
+    // also carries the real stats in script-data (explicit over implicit).
+    const propStats = s.stats as StatItem[] | undefined;
+    const marketStats: StatItem[] =
+      Array.isArray(propStats) && propStats.length ? propStats : [
+        { big: '+18%', label: 'S&P 500 · past year', tone: 'up' },
+        { big: '+20%', label: 'Nasdaq · past year', tone: 'up' },
+        { big: 'RECORD', label: 'corporate profit margins', tone: 'gold' },
+      ];
     // v4 (audit P1-5): break the mirror — the market panel rides 44px
     // higher than the mood panel so the divergence is felt in the layout
     // itself, not just in the numbers.
@@ -431,13 +439,19 @@ export function splitNumbersScene(g: SceneCtx): void {
       ctx.textAlign = 'center';
       ctx.fillText(text, W / 2, y + size * 0.35);
     };
-    const slotY = py + panelH + 50; // ≈ 752 — between panels and caption zone
+    // PANEL-10 (D-05): was slotY = py+panelH+50 (≈752) with the punch chip
+    // at 40px (ch=60) — the chip's top at 722 cut 2px INTO the mood panel's
+    // bottom edge (724) on every vs-punch frame. slotY 764 + a 36px punch
+    // line (ch=54) puts the chip at 737..791: 13px clear of the panel, and
+    // 73px clear of this beat's actual 1-row pill (top 864).
+    const slotY = py + panelH + 62; // ≈ 764
     registerRect('splitNumbers:statement', W / 2 - 400, slotY - 40, 800, 80);
     if (mode === 'vs-punch' && t > 700) {
-      // payoff line swaps into the slot
+      // payoff line swaps into the slot (D-05: 40 → 36 — same chip band,
+      // 6px shorter, clears the panel bottom it used to graze)
       const pp = clamp01((t - 700) / 500);
       ctx.globalAlpha = ap * pp;
-      chipLine('TWO COMPLETELY DIFFERENT STORIES.', slotY, 40, PALETTE.goldDeep, PALETTE.goldWash);
+      chipLine('TWO COMPLETELY DIFFERENT STORIES.', slotY, 36, PALETTE.goldDeep, PALETTE.goldWash);
     } else {
       chipLine('SAME COUNTRY. SAME YEAR.', slotY, 34, PALETTE.ink, rgba('#FFFFFF', 0.96));
     }
