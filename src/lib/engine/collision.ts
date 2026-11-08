@@ -42,6 +42,12 @@ interface State {
   /** chapter cards / overlays intentionally cover the frame — suppress */
   overlay: boolean;
   violations: CollisionViolation[];
+  /** P1-2 (report): the director's camera for THIS frame, design-grid space.
+   *  When present (16:9 path), content rects are transformed by the exact
+   *  camera before comparison — hero camera moves (truck/push/pull) no
+   *  longer rely on a static ±20px envelope. Null = envelope mode (Shorts,
+   *  probes). */
+  camera: { dx: number; dy: number; scale: number } | null;
 }
 
 /** Global guard state. The harness flips `enabled` before rendering. */
@@ -52,6 +58,7 @@ export const collisionGuard: State = {
   pill: null,
   overlay: false,
   violations: [],
+  camera: null,
 };
 
 /** Reset per-frame state. Call at the top of drawFrame when enabled. */
@@ -62,6 +69,14 @@ export function resetGuard(frame: string): void {
   collisionGuard.pill = null;
   collisionGuard.overlay = false;
   collisionGuard.violations = [];
+  collisionGuard.camera = null;
+}
+
+/** P1-2: publish this frame's camera (design-grid space) so violations are
+ *  computed against the exact transform the pixels actually received. */
+export function setGuardCamera(dx: number, dy: number, scale: number): void {
+  if (!collisionGuard.enabled) return;
+  collisionGuard.camera = { dx, dy, scale };
 }
 
 /** Mark the frame as intentionally covered (chapter card moments). */
@@ -94,14 +109,28 @@ export function collectViolations(): CollisionViolation[] {
   const g = collisionGuard;
   if (!g.enabled) return [];
   if (!g.pill || g.overlay) return [];
-  const p = {
-    x: g.pill.x - CAMERA_ENVELOPE,
-    y: g.pill.y - CAMERA_ENVELOPE,
-    w: g.pill.w + CAMERA_ENVELOPE * 2,
-    h: g.pill.h + CAMERA_ENVELOPE * 2,
-  };
+  // P1-2: exact camera mode — transform each content rect by the frame's
+  // actual camera (scale about the 1920×1080 centre + translate) and compare
+  // against the pill as-drawn (screen space) with a tiny 4px epsilon for
+  // AA edges. Envelope mode (no camera published — Shorts, probes) keeps
+  // the v9 ±20px worst-case expansion.
+  const cam = g.camera;
+  const p = cam
+    ? { x: g.pill.x - 4, y: g.pill.y - 4, w: g.pill.w + 8, h: g.pill.h + 8 }
+    : {
+        x: g.pill.x - CAMERA_ENVELOPE,
+        y: g.pill.y - CAMERA_ENVELOPE,
+        w: g.pill.w + CAMERA_ENVELOPE * 2,
+        h: g.pill.h + CAMERA_ENVELOPE * 2,
+      };
   const out: CollisionViolation[] = [];
-  for (const r of g.content) {
+  for (const r0 of g.content) {
+    let r = r0;
+    if (cam) {
+      const x2 = (r0.x - 960) * cam.scale + 960 + cam.dx;
+      const y2 = (r0.y - 540) * cam.scale + 540 + cam.dy;
+      r = { id: r0.id, x: x2, y: y2, w: r0.w * cam.scale, h: r0.h * cam.scale };
+    }
     const ox = Math.min(r.x + r.w, p.x + p.w) - Math.max(r.x, p.x);
     const oy = Math.min(r.y + r.h, p.y + p.h) - Math.max(r.y, p.y);
     if (ox > 0 && oy > 0 && Math.min(ox, oy) >= MIN_DEPTH) {
