@@ -431,13 +431,17 @@ export default function StudioPage() {
     [prepared, resolution, fps, renderOptions, stopAudio, toast, addLog, drawAt, fontsReady]
   );
 
-  // ── thumbnail ── (panel P0-1: exports all three Test & Compare variants;
-  // v2's punchline words rendered as a gold blob + clipped at the edge)
+  // ── thumbnail ── (v9, report P0-3: exports all SIX v3 poster variants for
+  // YouTube Test & Compare — one hero K, plated badge, feed-legible emotion;
+  // check each at 320px phone-feed size before committing)
   const downloadThumbnail = useCallback(() => {
-    const variants: Array<{ v: 0 | 1 | 2; name: string }> = [
+    const variants: Array<{ v: 0 | 1 | 2 | 3 | 4 | 5; name: string }> = [
       { v: 0, name: 'A' },
       { v: 1, name: 'B' },
       { v: 2, name: 'C' },
+      { v: 3, name: 'D' },
+      { v: 4, name: 'E' },
+      { v: 5, name: 'F' },
     ];
     variants.forEach(({ v, name }) => {
       const c = document.createElement('canvas');
@@ -459,8 +463,8 @@ export default function StudioPage() {
       }, 'image/png');
     });
     toast({
-      title: 'Thumbnails saved (A · B · C)',
-      description: 'Three 1280×720 variants for YouTube Test & Compare — check each at 120px before committing.',
+      title: 'Thumbnails saved (A · B · C · D · E · F)',
+      description: 'Six 1280×720 poster variants for YouTube Test & Compare — check each at 320px feed size before committing.',
     });
   }, [toast]);
 
