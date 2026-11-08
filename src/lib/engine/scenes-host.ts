@@ -4,12 +4,22 @@
  */
 
 import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, lerp } from './easing';
-import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg, FONT_DISPLAY, CAPTION_ZONE_TOP } from './theme';
+import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg, FONT_DISPLAY, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
 import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp } from './effects';
 import { Stickman, POSES, blendPose, walkIn, nodPulse } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
 import { SceneCtx } from './scene-context';
 import { sourceTag, wrapText } from './charts';
+import { registerRect } from './collision';
+
+// v9 (report D-02): every host ground now sits ABOVE the caption zone.
+// The old grounds (H*0.78–0.80 → feet/shadow at y 842–898) landed inside the
+// opaque caption pill band (2-row pill top ≈ 796) — the pill plated the
+// host's feet and sliced his ground shadow in every editorial host scene
+// (verified defect, panel frame A-hostscene-v2). H*0.70 puts the shadow's
+// lowest pixel (ground + 34) at ~790 — clear of even a 2-row pill by 6px,
+// and clear of the 1-row pill host scenes now draw by ~70px.
+const HOST_GROUND = (H: number): number => H * 0.70;
 
 const HOST_X = (W: number, side: 'center' | 'left' | 'right'): number =>
   side === 'left' ? W * 0.27 : side === 'right' ? W * 0.73 : W * 0.5;
@@ -37,7 +47,7 @@ function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
 
   const stage = g.s.stage as string;
   const hx = HOST_X(W, side);
-  const hy = H * 0.78;
+  const hy = HOST_GROUND(H);
 
   if (stage === 'spot' || !stage) {
     // soft spotlight pool
@@ -96,16 +106,16 @@ function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
       ctx.lineWidth = 12;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(W * 0.16, H * 0.8);
-      ctx.lineTo(W * 0.44, H * 0.66);
+      ctx.moveTo(W * 0.16, hy + 34);
+      ctx.lineTo(W * 0.44, hy - 100);
       ctx.stroke();
     } else if (stage === 'kdescend') {
       ctx.strokeStyle = rgba(PALETTE.down, 0.75);
       ctx.lineWidth = 12;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(W * 0.16, H * 0.66);
-      ctx.lineTo(W * 0.44, H * 0.8);
+      ctx.moveTo(W * 0.16, hy - 100);
+      ctx.lineTo(W * 0.44, hy + 34);
       ctx.stroke();
     }
   }
@@ -120,7 +130,7 @@ function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
 function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   const { ctx, W, H, t } = g;
   const hx = HOST_X(W, side);
-  const hy = H * 0.78;
+  const hy = HOST_GROUND(H); // v9 (D-02): H*0.78 → above the caption zone
   const scale = 1.18;
   const entrance = g.s.entrance as string | undefined;
   let x = hx;
@@ -190,7 +200,7 @@ function hostChips(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   if (chipTxt) {
     const ap = clamp01((t - 900) / 600);
     if (ap > 0) {
-      setFont(ctx, 24, 600);
+      setFont(ctx, 28, 600); // v9 (D-07): floor
       const tw = ctx.measureText(chipTxt).width;
       ctx.save();
       ctx.globalAlpha = ap * 0.85;
@@ -262,7 +272,7 @@ export function hostSceneV2(g: SceneCtx): void {
   const nodP = g.speaking ? nodPulse(g.beatT, g.wordTimes) : 0;
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
   drawStickmanV2(
-    ctx, hx, H * 0.80, 1.42, t,
+    ctx, hx, HOST_GROUND(H), 1.42, t,
     { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk },
     11
   );
@@ -276,8 +286,9 @@ export function hostSceneV2(g: SceneCtx): void {
 
   // kicker chip
   const kick = (g.s.kicker as string) ?? 'THE K-SHAPED ECONOMY · CH 01';
-  setFont(ctx, 26, 600);
+  setFont(ctx, 28, 600); // v9 (D-07): floor
   const kw = ctx.measureText(kick).width;
+  registerRect('hostV2:kicker', hx2, 168, kw + 48, 52);
   const ap = clamp01((t - 150) / 500);
   if (ap > 0) {
     ctx.save();
@@ -296,22 +307,35 @@ export function hostSceneV2(g: SceneCtx): void {
   }
 
   // serif headline (line 2 in gold)
+  // v9 (panel re-review): fixed 88px headlines ran past the right frame
+  // edge on long lines ("vs actually understanding one." clipped mid-word —
+  // gold ink measured at x1912). The headline now auto-shrinks to the
+  // available column (W - hx2 - 110 safe margin), floor 54px.
   const hp = clamp01((t - 300) / 650);
   if (hp > 0) {
     ctx.save();
     ctx.globalAlpha = hp;
-    setFont(ctx, 88, 700, FONT_SERIF);
+    registerRect('hostV2:headline', hx2, 240, W - hx2 - 120, 320);
+    let hSize = 88;
+    setFont(ctx, hSize, 700, FONT_SERIF);
+    const maxHeadW = W - hx2 - 110;
+    while (Math.max(...lines.map((l) => ctx.measureText(l).width)) > maxHeadW && hSize > 54) {
+      hSize -= 3;
+      setFont(ctx, hSize, 700, FONT_SERIF);
+    }
+    setFont(ctx, hSize, 700, FONT_SERIF);
     ctx.fillStyle = PALETTE.ink;
     ctx.fillText(lines[0], hx2, 330);
     ctx.fillStyle = PALETTE.goldDeep;
-    ctx.fillText(lines[1] ?? '', hx2, 428);
-    // hairline + sub copy
+    ctx.fillText(lines[1] ?? '', hx2, 330 + hSize * 1.11);
+    // hairline + sub copy — anchored to the (possibly shrunk) headline
+    const hairY = 330 + hSize * 1.11 + 40;
     ctx.fillStyle = PALETTE.gold;
-    roundRect(ctx, hx2, 468, 96, 6, 3);
+    roundRect(ctx, hx2, hairY, 96, 6, 3);
     ctx.fill();
     setFont(ctx, 34, 400);
     ctx.fillStyle = PALETTE.inkSoft;
-    sub.split('\n').forEach((ln, i) => ctx.fillText(ln, hx2, 540 + i * 44));
+    sub.split('\n').forEach((ln, i) => ctx.fillText(ln, hx2, hairY + 72 + i * 44));
     ctx.restore();
   }
 }
@@ -393,6 +417,7 @@ export function splitNumbersScene(g: SceneCtx): void {
       ctx.fillText(text, W / 2, y + size * 0.35);
     };
     const slotY = py + panelH + 50; // ≈ 752 — between panels and caption zone
+    registerRect('splitNumbers:statement', W / 2 - 400, slotY - 40, 800, 80);
     if (mode === 'vs-punch' && t > 700) {
       // payoff line swaps into the slot
       const pp = clamp01((t - 700) / 500);
@@ -406,7 +431,7 @@ export function splitNumbersScene(g: SceneCtx): void {
   if (cornerNote) {
     const ap = clamp01((t - 1600) / 700);
     if (ap > 0) {
-      setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 23)
+      setFont(ctx, 28, 600); // v9 (D-07): 24→28 floor
       const tw = ctx.measureText(cornerNote).width;
       ctx.save();
       ctx.globalAlpha = ap * 0.9;
@@ -479,7 +504,7 @@ function drawNumberPanel(
     // cold open shipped “called the economy “good” or “excell…””. Two wrap
     // lines max; if the wrapped stack would overrun the panel body the
     // label auto-shrinks onto one line instead (never truncates).
-    setFont(ctx, 25, 600);
+    setFont(ctx, 28, 600); // v9 (D-07): floor
     let lines = wrapText(ctx, st.label, w - 88, 25, 600).slice(0, 2);
     const stackedBottom = 150 + (stats.length - 1) * rowGap + 136;
     if (lines.length > 1 && stackedBottom > h - 18) {
@@ -650,7 +675,7 @@ export function divergeKScene(g: SceneCtx): void {
   // signature frame ~45% empty with a lone small host. The K formation is
   // the hero; the host is its counterweight, not a spectator.
   const hx = W * 0.24;
-  const hy = H * 0.8;
+  const hy = H * 0.70; // v9 (D-02): above the caption zone
   // v5 (audit P1-3): as the K completes, the host leans INTO it — the
   // signature scene now has a third act of body language (present → leanIn)
   const pose = Stickman.poseAt(t, { gesture: upP < 0.5 ? 'present' : 'leanIn', speaking: g.speaking });
@@ -726,7 +751,7 @@ export function channelIntroScene(g: SceneCtx): void {
     rAL: pose.rAL + Math.sin(t / 160) * 14,
   };
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, W * 0.85, H * 0.82, 0.98, t, { pose: wavePose, alpha: clamp01((t - 600) / 500), look: -0.6, talk }, 9);
+  drawStickmanV2(ctx, W * 0.85, H * 0.70, 0.98, t, { pose: wavePose, alpha: clamp01((t - 600) / 500), look: -0.6, talk }, 9);
 }
 
 // ── recapSplit (used at ch5 open and ch10 open) ─────────────────────────────
@@ -788,7 +813,7 @@ export function recapSplitScene(g: SceneCtx): void {
   // host small at bottom right — v3 (panel P0-3): v2 renderer + talk
   const pose = Stickman.poseAt(t, { gesture: 'present', speaking: g.speaking });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, W * 0.86, H * 0.84, 0.86, t, { pose, alpha: clamp01((t - 700) / 500), look: -0.4, talk }, 17);
+  drawStickmanV2(ctx, W * 0.86, H * 0.70, 0.86, t, { pose, alpha: clamp01((t - 700) / 500), look: -0.4, talk }, 17);
 }
 
 function miniPanel(
@@ -887,7 +912,7 @@ export function paradoxResolveScene(g: SceneCtx): void {
   });
   const pose = Stickman.poseAt(t, { gesture: 'aha', speaking: g.speaking });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, W * 0.14, H * 0.82, 1.0, t, { pose, alpha: clamp01((t - 600) / 500), look: 0.5, talk }, 23);
+  drawStickmanV2(ctx, W * 0.14, H * 0.70, 1.0, t, { pose, alpha: clamp01((t - 600) / 500), look: 0.5, talk }, 23);
 }
 
 export { sourceTag, slideUp, lerp, easeOutQuad };

@@ -11,6 +11,7 @@ import { drawGrain, lightVignette, bokehField, scalePunch, camState, kWipe } fro
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
 import { Timeline, beatAt } from './timeline';
 import { SceneCtx, SceneDrawer } from './scene-context';
+import { collisionGuard, resetGuard, setGuardOverlay, collectViolations } from './collision';
 import { hostScene, splitNumbersScene, divergeKScene, channelIntroScene, recapSplitScene, paradoxResolveScene } from './scenes-host';
 import {
   chartTwinScene, chartJourneyScene, pieChartScene, dotGridScene, magChipsScene,
@@ -180,6 +181,9 @@ export function drawFrame(
   const t = clamp01(tMs / Math.max(1, tl.durationMs)) * tl.durationMs;
   ctx.save();
   ctx.clearRect(0, 0, W, H);
+  // v9 (report P0-1): per-frame collision-guard reset (no-op unless the
+  // harness enabled it — zero cost in the studio render path)
+  if (collisionGuard.enabled) resetGuard(`t=${Math.round(t)}ms`);
 
   const beat = beatAt(tl, t);
   const group = groupAt(tl, t);
@@ -265,6 +269,9 @@ export function drawFrame(
   // chapter card overlay (before captions so captions stay readable on top)
   for (const cc of tl.chapterCards) {
     if (t >= cc.startMs && t < cc.endMs) {
+      // chapter cards intentionally cover the frame — the guard must not
+      // read the covered scene content as a collision (P0-1)
+      setGuardOverlay(true);
       const cct = t - cc.startMs;
       const overall = clamp01(t / tl.durationMs);
       // v8: the K-WIPE — the brand's own transition. A giant soft K sweeps
@@ -287,7 +294,18 @@ export function drawFrame(
   }
 
   // captions
-  drawCaptions(ctx, W, H, t, tl.captionLines, { mode: opts.captions });
+  // v9 (report P0-2): host scenes draw a ONE-ROW pill (6-word window) — the
+  // host figure lives in the lower third and a 2-row pill's top edge at
+  // y≈796 used to plate his feet (defect D-02, now also prevented by the
+  // raised host grounds and asserted by the collision guard).
+  const isHostScene = beat.beat.scene.type === 'host';
+  drawCaptions(ctx, W, H, t, tl.captionLines, {
+    mode: opts.captions,
+    maxRows: isHostScene ? 1 : 2,
+    maxWords: isHostScene ? 6 : 8,
+  });
+  // v9 (P0-1): stash this frame's violations for the harness to read
+  if (collisionGuard.enabled) collectViolations();
 
   // watermark
   if (opts.watermark) drawWatermark(ctx, W, opts.channelName);

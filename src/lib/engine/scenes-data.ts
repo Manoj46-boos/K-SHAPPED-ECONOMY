@@ -6,12 +6,13 @@
  */
 
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, lerp } from './easing';
-import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, CAPTION_ZONE_TOP } from './theme';
+import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
 import { bokehField, kMotifs, lightRays, drawK, drawK3D, floatCoins, sparkles } from './effects';
 import { SceneCtx } from './scene-context';
 import { lineChart, pieChart, barRow, dotGrid, gauge, statCard, sourceTag, sceneTitle, wrapText } from './charts';
 import { Stickman, POSES, blendPose } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
+import { registerRect } from './collision';
 
 function bg(g: SceneCtx, seed: number, gold = 0.4): void {
   paintBg(g.ctx, g.W, g.H, g.t, g.chapterTone);
@@ -22,7 +23,12 @@ function bg(g: SceneCtx, seed: number, gold = 0.4): void {
 
 function hostSmall(
   g: SceneCtx, x: number, gesture = 'present', seed = 3,
-  groundY = g.H * 0.86, scale = 0.84
+  // v9 (report D-02): default ground H*0.86 → H*0.68 — the side hosts'
+  // feet+shadows (to y≈985) sat inside the caption pill band on every
+  // wide-pill frame (caught by the P0-1 guard sweep at pie/dot/bars/pump/
+  // gauge/AI/odds scenes). Same stage line as the editorial hosts, with
+  // worst-case camera margin.
+  groundY = g.H * 0.68, scale = 0.84
 ): void {
   const pose = Stickman.poseAt(g.t, { gesture, speaking: g.speaking });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
@@ -60,15 +66,22 @@ export function chartTwinScene(g: SceneCtx): void {
     // badge — title row, right-anchored (R2c: was bottom-left at y≈816,
     // colliding with the "12 mo ago" x-label; same visual band as the
     // title so the headline stat reads at the card's top edge)
+    // v9 (report D-04): the badge now matches its chart's tone — S&P teal,
+    // Nasdaq gold — so the outperformance is color-encoded, not just numbered.
     setFont(ctx, 40, 700);
-    ctx.fillStyle = TONE('up').main;
+    ctx.fillStyle = TONE(i === 0 ? 'up' : 'gold').main;
     ctx.textAlign = 'right';
     ctx.fillText(c.badge, x + cw - 36, cy - 10);
     ctx.textAlign = 'left';
     ctx.restore();
     lineChart(ctx, {
       x: x + 40, y: cy + 30, w: cw - 80, h: ch - 60,
-      series: [{ name: '', tone: i === 0 ? 'up' : 'up', points: c.points }],
+      // v9 (report D-04): both series hard-coded tone 'up' — the twin
+      // charts rendered in IDENTICAL teal and the 3.6-point Nasdaq
+      // outperformance was invisible ("both charts look like the same
+      // chart"). S&P stays teal; Nasdaq — the star of the beat — renders
+      // in display gold so the eye reads winner vs baseline instantly.
+      series: [{ name: '', tone: i === 0 ? 'up' : 'gold', points: c.points }],
       p: clamp01((t - 200 - i * 260) / 2400),
       t,
       yFormat: 'idx100', showYAxis: true, gridLines: 3,
@@ -77,10 +90,13 @@ export function chartTwinScene(g: SceneCtx): void {
       // R2b: yFormat 'index'→'idx100' — the axis now reads as % change vs
       // 12 mo ago (matches the +18.4% / +22% badges) instead of raw
       // 93-129 "price levels" the re-review panel read as invented numbers.
+      // v9 (report P0-5): 'today' → "Jul '26" — the film records in one
+      // month and uploads in another; an axis that says "today" in November
+      // is a four-months-stale claim in a channel whose currency is freshness.
       xLabels: [
         { at: 0, label: '12 mo ago' },
         { at: 20, label: '6 mo ago' },
-        { at: 40, label: 'today' },
+        { at: 40, label: "Jul '26" },
       ],
     });
   });
@@ -99,9 +115,12 @@ export function chartTwinScene(g: SceneCtx): void {
       setFont(ctx, 28, 600);
       const labW = ctx.measureText(eb.label).width;
       const chipW = 36 + bigW + 24 + labW + 36;
+      // v9 (report D-04): the punchline chip matches the Nasdaq gold tone
+      // it quantifies (was teal on a teal-topped chart).
+      const ebTone = TONE('gold').main;
       card(ctx, bx, by, chipW, 84, { r: 26 });
       setFont(ctx, 46, 700);
-      ctx.fillStyle = TONE('up').main;
+      ctx.fillStyle = ebTone;
       ctx.textAlign = 'left';
       ctx.fillText(eb.big, bx + 36, by + 56);
       setFont(ctx, 28, 600);
@@ -286,6 +305,7 @@ export function pieChartScene(g: SceneCtx): void {
     const ap = clamp01((t - 700 - i * 300) / 600);
     if (ap <= 0) return;
     const ly = H * 0.4 + i * 90;
+    registerRect(`pieLegend:${sl.label.slice(0, 12)}`, W * 0.58, ly, 700, 70);
     ctx.save();
     ctx.globalAlpha = ap;
     ctx.fillStyle = TONE(sl.tone).main;
@@ -322,6 +342,11 @@ export function dotGridScene(g: SceneCtx): void {
   // bracket over the highlighted dots + caption
   // v8: "these ten" moved to the bracket's right end (the panel caught it
   // colliding with the scene-title underline above the grid)
+  // v9 (report P0-6): count-up "10 of 500" badge — the panel's read was
+  // that ten same-sized gold dots among 490 grey ones never registered as
+  // a COUNT ("almost 4 dollars of every 10" didn't land). The dots are now
+  // 1.7× with ink rings (charts.ts) and the bracket carries an explicit
+  // count-up so the ratio is stated, not implied.
   const ap = clamp01((t - 2600) / 700);
   if (ap > 0) {
     ctx.save();
@@ -333,20 +358,44 @@ export function dotGridScene(g: SceneCtx): void {
     ctx.moveTo(196, H * 0.2 - 26);
     ctx.lineTo(196 + bracketW, H * 0.2 - 26);
     ctx.stroke();
+    // count-up badge plate: 10 of 500
+    const cp = clamp01((t - 2700) / 800);
+    const n = Math.max(1, Math.round(10 * easeOutCubic(cp)));
+    const badgeTxt = `${n} of 500`;
+    setFont(ctx, 34, 700);
+    const bw = ctx.measureText(badgeTxt).width + 44;
+    const bx = 196 + bracketW + 22;
+    const by = H * 0.2 - 26 - 27;
+    ctx.fillStyle = PALETTE.goldWash;
+    roundRect(ctx, bx, by, bw, 54, 27);
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = rgba(PALETTE.gold, 0.85);
+    roundRect(ctx, bx, by, bw, 54, 27);
+    ctx.stroke();
+    ctx.fillStyle = PALETTE.goldDeep;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(badgeTxt, bx + 22, by + 28);
+    ctx.textBaseline = 'alphabetic';
+    registerRect('dotGrid:countBadge', bx, by, bw, 54);
     setFont(ctx, 30, 700);
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.textAlign = 'left';
-    ctx.fillText('these ten', 196 + bracketW + 26, H * 0.2 - 16);
+    ctx.fillText('these ten', bx + bw + 20, H * 0.2 - 16);
     const caption = s.caption as string;
     setFont(ctx, 38, 700);
     ctx.fillStyle = PALETTE.ink;
     ctx.textAlign = 'center';
     // v3 (panel P0-2): was H*0.82 (y≈885) / H*0.87 (y≈939) — both inside the
     // caption pill band. Move below the pill, above the progress bar.
-    ctx.fillText(caption, W / 2, (988 / 1080) * H);
+    // v9 (report P0-1 guard): 988 grazed a 2-row pill's bottom (956) by 6px
+    // of cap-height — 1004/1038 clears even the tallest pill with 12px spare.
+    registerRect('dotGrid:caption', W / 2 - 500, (1008 / 1080) * H - 40, 1000, 46);
+    ctx.fillText(caption, W / 2, (1008 / 1080) * H);
     setFont(ctx, 26, 600);
     ctx.fillStyle = PALETTE.inkFaint;
-    ctx.fillText('each dot = one company', W / 2, (1022 / 1080) * H);
+    ctx.fillText('each dot = one company', W / 2, (1040 / 1080) * H);
     ctx.restore();
   }
   hostSmall(g, W * 0.9, 'present', 8);
@@ -385,19 +434,25 @@ export function magChipsScene(g: SceneCtx): void {
     ctx.fillStyle = PALETTE.ink;
     ctx.textAlign = 'center';
     ctx.fillText(name, x + tw / 2, y + 74);
-    setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 19)
+    setFont(ctx, 24 + 4, 600); // v9 (D-07): TYPE_FLOOR 24→28 ("MAG n" kicker)
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.fillText('MAG ' + (i + 1), x + tw / 2, y + 40);
     ctx.restore();
   });
   // stats below
+  // v9 (report D-01): the stat stack sat at H*0.56 + i*120 — card 2
+  // ("46% of earnings growth") spanned y 724.8–824.8, and the opaque
+  // caption pill's top edge lands at 796 (2-row) — the pill plated the
+  // number and its label mid-glyph (verified defect, panel frame E-magchips).
+  // H*0.50 puts card 2 at 660–760: 36px clear of even a 2-row pill, with
+  // the collision guard (P0-1) now asserting it stays that way.
   const stats = (s.stats as any[]) || [];
   stats.forEach((st, i) => {
     const ap = clamp01((t - 2400 - i * 700) / 800);
     if (ap <= 0) return;
     ctx.save();
     ctx.globalAlpha = ap;
-    const y = H * 0.56 + i * 120;
+    const y = H * 0.50 + i * 120;
     const c = TONE(st.tone || 'default');
     card(ctx, W * 0.14, y, W * 0.72, 100, { r: 26 });
     setFont(ctx, 56, 700);
@@ -454,7 +509,7 @@ export function barsCompareScene(g: SceneCtx): void {
       setFont(ctx, 27, 600);
       ctx.fillStyle = PALETTE.inkSoft;
       ctx.fillText(fc.label, fx + 210, fy + 58);
-      setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 22)
+      setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor (flip-counter tag)
       ctx.fillStyle = PALETTE.goldDeep;
       ctx.fillText(fc.tag, fx + 210, fy + 92);
       ctx.restore();
@@ -472,6 +527,7 @@ export function barsCompareScene(g: SceneCtx): void {
       // v3 (panel P0-2): was H-190 (y≈890) — inside the caption pill band,
       // which covered it. Anchor ≥70px above CAPTION_ZONE_TOP (chip h≈56).
       const cy = ((CAPTION_ZONE_TOP - 70) / 1080) * H;
+      registerRect('barsCompare:rememberChip', cx, cy, tw + 56, 56);
       ctx.fillStyle = PALETTE.goldWash;
       roundRect(ctx, cx, cy, tw + 56, 56, 28);
       ctx.fill();
@@ -500,6 +556,12 @@ export function trioConvergeScene(g: SceneCtx): void {
     { tone: 'down', pts: [[0, 60], [3, 54], [6, 42], [9, 26], [10, 18], [12, 30], [14, 38], [15, 36]] },
     { tone: 'down', pts: [[0, 60], [3, 56], [6, 44], [9, 28], [10, 20], [12, 32], [14, 39], [15, 37]] },
   ];
+  // v9 (report P0-6): the trio asserted "same shape" without showing a
+  // single value — the panel read the minis as decorative squiggles. Each
+  // card now carries its survey's REAL first→latest reading (the same
+  // numbers the full charts showed earlier in the chapter): Gallup −45→−33,
+  // UMich 52.2→60.1, Conference Board 88.2→92.3.
+  const realValues = ['−45 → −33', '52.2 → 60.1', '88.2 → 92.3'];
   arcs.forEach((a, i) => {
     const ap = clamp01((t - 300 - i * 320) / 700);
     if (ap <= 0) return;
@@ -514,6 +576,17 @@ export function trioConvergeScene(g: SceneCtx): void {
     ctx.fillStyle = PALETTE.ink;
     ctx.textAlign = 'center';
     ctx.fillText(names[i], x + w / 2, y + 52);
+    // the real first→latest reading, bottom of card
+    const vp = clamp01((t - 1800 - i * 320) / 600);
+    ctx.globalAlpha = ap * vp;
+    setFont(ctx, 30, 700);
+    ctx.fillStyle = PALETTE.ink;
+    ctx.fillText(realValues[i], x + w / 2, y + h + 6);
+    ctx.globalAlpha = ap;
+    setFont(ctx, 22 + 6, 600); // v9 (D-07): floor — "index, low→latest" caption
+    ctx.fillStyle = PALETTE.inkFaint;
+    ctx.fillText('index · low → latest', x + w / 2, y + h + 34);
+    registerRect(`trio:${names[i]}`, x, y, w, h + 40);
     ctx.restore();
     lineChart(ctx, {
       x: x + 36, y: y + 84, w: w - 72, h: h - 90,
@@ -839,6 +912,7 @@ export function recessionGaugeScene(g: SceneCtx): void {
       const cx0 = W * 0.35;
       const x = cx0 - tw / 2 - 28;
       const y = 626;
+      registerRect('gauge:promptChip', x, y, tw + 56, 56);
       ctx.fillStyle = PALETTE.upSoft;
       roundRect(ctx, x, y, tw + 56, 56, 28);
       ctx.fill();
@@ -866,6 +940,7 @@ export function recessionGaugeScene(g: SceneCtx): void {
     const gx = W * 0.74;
     const x = gx - tw / 2 - 28;
     const y = 736;
+    registerRect('gauge:coinChip', x, y, tw + 56, 56);
     ctx.fillStyle = PALETTE.goldWash;
     roundRect(ctx, x, y, tw + 56, 56, 28);
     ctx.fill();
@@ -963,7 +1038,9 @@ export function aiDatacenterScene(g: SceneCtx): void {
   {
     const pose = Stickman.poseAt(t, { gesture: 'present', speaking: g.speaking });
     const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-    drawStickmanV2(ctx, W * 0.9, H * 0.88, 1.05, t,
+    // v9 (report D-02): H*0.88 → H*0.68 — above the caption zone with
+    // worst-case camera margin (guard-verified)
+    drawStickmanV2(ctx, W * 0.9, H * 0.68, 1.05, t,
       { pose, alpha: clamp01((t - 900) / 600), look: -0.7, scarf: true, talk }, 27);
   }
 }
@@ -1085,7 +1162,7 @@ export function fundSplitScene(g: SceneCtx): void {
   ctx.fillStyle = PALETTE.ink;
   ctx.textAlign = 'left';
   ctx.fillText('S&P 500 index fund', bx + 36, by + 56);
-  setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 23)
+  setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor
   ctx.fillStyle = PALETTE.inkFaint;
   ctx.fillText('500 companies · feels diversified', bx + 36, by + 94);
   ctx.restore();
@@ -1230,7 +1307,7 @@ export function oddsSpreadScene(g: SceneCtx): void {
   ctx.fill();
   for (let v = 0; v <= 100; v += 25) {
     const x = trackX + (v / 100) * trackW;
-    setFont(ctx, 24, 600); // v8.1: TYPE_FLOOR sweep (was 23)
+    setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor
     ctx.fillStyle = PALETTE.inkFaint;
     ctx.textAlign = 'center';
     ctx.fillText(`${v}%`, x, trackY + 52);

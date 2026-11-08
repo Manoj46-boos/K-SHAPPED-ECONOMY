@@ -57,7 +57,7 @@ export function bigTextScene(g: SceneCtx): void {
   if (hp > 0) {
     const pose = Stickman.poseAt(t, { gesture: 'count2', speaking: false });
     // v3 (panel P0-3): v2 renderer — one body style across the whole film
-    drawStickmanV2(ctx, W * 0.86, H * 0.84, 0.9, t, { pose, alpha: hp, look: -0.6 }, 31);
+    drawStickmanV2(ctx, W * 0.86, H * 0.70, 0.9, t, { pose, alpha: hp, look: -0.6 }, 31);
   }
 }
 
@@ -135,7 +135,7 @@ export function stampCardScene(g: SceneCtx): void {
   if (hp > 0) {
     const pose = { ...POSES.close, headTilt: Math.sin(t / 700) * 4 };
     // v3 (panel P0-3): v2 renderer
-    drawStickmanV2(ctx, W * 0.14, H * 0.84, 1.0, t, { pose, alpha: hp, look: 0.6 }, 32);
+    drawStickmanV2(ctx, W * 0.14, H * 0.70, 1.0, t, { pose, alpha: hp, look: 0.6 }, 32);
   }
 }
 
@@ -170,7 +170,7 @@ export function quoteCardScene(g: SceneCtx): void {
   roundRect(ctx, x + 44, y + 40, 8, ch - 80, 4);
   ctx.fill();
   // kicker
-  setFont(ctx, 27, 700);
+  setFont(ctx, 28, 700); // v9 (D-07): floor
   ctx.fillStyle = soft ? PALETTE.inkFaint : PALETTE.goldDeep;
   ctx.textAlign = 'left';
   ctx.fillText((s.kicker as string).toUpperCase(), x + 84, y + 78);
@@ -230,7 +230,7 @@ export function quoteCardScene(g: SceneCtx): void {
     const gesture = (s.hostGesture as string) || 'think';
     const pose = Stickman.poseAt(t, { gesture, speaking: false });
     // v3 (panel P0-3): v2 renderer
-    drawStickmanV2(ctx, W * 0.85, H * 0.84, 0.94, t, { pose, alpha: hp, look: -0.7 }, 33);
+    drawStickmanV2(ctx, W * 0.85, H * 0.70, 0.94, t, { pose, alpha: hp, look: -0.7 }, 33);
   }
 }
 
@@ -261,7 +261,7 @@ export function takeawaysScene(g: SceneCtx): void {
       speaking: false,
     });
     // v3 (panel P0-3): v2 renderer
-    drawStickmanV2(ctx, W * 0.82, H * 0.84, 1.0, t, { pose, alpha: clamp01(t / 600), look: -0.5 }, 34);
+    drawStickmanV2(ctx, W * 0.82, H * 0.70, 1.0, t, { pose, alpha: clamp01(t / 600), look: -0.5 }, 34);
   } else {
     // focused card zooms; other two minimized to the left rail
     for (let i = 1; i <= 3; i++) {
@@ -367,7 +367,7 @@ export function takeawaysScene(g: SceneCtx): void {
       const gesture = focus === 1 ? 'count1' : focus === 2 ? 'count2' : 'thumbsUp';
       const pose = Stickman.poseAt(t, { gesture, speaking: false });
       // v3 (panel P0-3): v2 renderer
-      drawStickmanV2(ctx, W * 0.13, H * 0.82, 1.0, t,
+      drawStickmanV2(ctx, W * 0.13, H * 0.70, 1.0, t,
         { pose, alpha: hp, look: 0.6, prop: focus === 3 ? 'thumb' : undefined }, 35);
     }
   }
@@ -431,7 +431,7 @@ export function commentPromptScene(g: SceneCtx): void {
     const y = H * (0.52 + (i % 2) * 0.14) + Math.cos(t / 1100 + i) * 10;
     ctx.save();
     ctx.globalAlpha = bp * 0.95;
-    setFont(ctx, 27, 600);
+    setFont(ctx, 28, 600); // v9 (D-07): floor
     const tw = ctx.measureText(c).width;
     ctx.fillStyle = i % 2 ? PALETTE.upSoft : PALETTE.goldWash;
     roundRect(ctx, x - tw / 2 - 26, y - 34, tw + 52, 62, 30);
@@ -454,7 +454,7 @@ export function commentPromptScene(g: SceneCtx): void {
   });
   const pose = Stickman.poseAt(t, { gesture: 'pointR', speaking: false });
   // v3 (panel P0-3): v2 renderer
-  drawStickmanV2(ctx, W * 0.88, H * 0.84, 0.96, t, { pose, alpha: clamp01(t / 700), look: -0.5 }, 36);
+  drawStickmanV2(ctx, W * 0.88, H * 0.70, 0.96, t, { pose, alpha: clamp01(t / 700), look: -0.5 }, 36);
 }
 
 // ── endScreen v2: next-video teaser + host, YouTube-safe (PATCH 6) ──────────
@@ -494,7 +494,7 @@ export function endScreenScene(g: SceneCtx): void {
   ctx.lineTo(nx + 420, ny + 190); ctx.lineTo(nx + 500, ny + 110);
   ctx.lineTo(nx + 580, ny + 80);
   ctx.stroke();
-  setFont(ctx, 25, 700);
+  setFont(ctx, 28, 700); // v9 (D-07): floor
   ctx.fillStyle = PALETTE.goldDeep;
   ctx.textAlign = 'left';
   ctx.fillText('NEXT WEEK', nx + 24, ny + 330);
@@ -517,7 +517,10 @@ export function endScreenScene(g: SceneCtx): void {
     ...POSES.pointR,
     rAL: POSES.pointR.rAL + Math.sin(t / 900) * 4,
   };
-  drawStickmanV2(ctx, W * 0.44, H * 0.86, 1.0, t, { pose, alpha: clamp01((t - 800) / 600), look: 0.6 }, 37);
+  // v9 (report D-02): H*0.70 → H*0.675 — the guard caught this centered
+  // figure's shadow grazing the 2-row pill envelope by 16px at the widest
+  // captions; a touch more headroom settles it.
+  drawStickmanV2(ctx, W * 0.44, H * 0.675, 1.0, t, { pose, alpha: clamp01((t - 800) / 600), look: 0.6 }, 37);
 
   // ── v8: the WATCH NEXT arrow — the end screen's click mechanism ────────
   // The panel's verdict: "no thumbnail target = the most commercially

@@ -15,6 +15,7 @@
 
 import { PALETTE, rgba, roundRect } from './theme';
 import { clamp01 } from './easing';
+import { registerRect } from './collision';
 
 const D2R = Math.PI / 180;
 
@@ -187,6 +188,14 @@ export function drawStickmanV2(
   const pose = r.pose;
   const alpha = r.alpha ?? 1;
   if (alpha <= 0.001) return;
+  // v9 (report P0-1 / D-02): register the figure's feet + ground-shadow
+  // envelope so the collision guard can assert the caption pill never
+  // plates a host's footing again. Shadow: rx 118, ry 26 centered at
+  // groundY+8 (groundShadowV2), feet within ±40px of cx at groundY.
+  registerRect(
+    `stickman@${Math.round(cx)},${Math.round(groundY)}`,
+    cx - 122 * scale, groundY - 12 * scale, 244 * scale, 48 * scale
+  );
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.translate(cx, groundY);
