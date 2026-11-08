@@ -67,6 +67,12 @@ const { SCRIPT } = require(path.join(BUILD, 'script-data.js'));
 const { splitSentences } = require(path.join(BUILD, 'easing.js'));
 const { buildTimeline } = require(path.join(BUILD, 'timeline.js'));
 const { drawFrame } = require(path.join(BUILD, 'director.js'));
+// v9 (report P0-1): the collision guard — every picked frame is asserted
+// clean of caption-pill vs scene-content overlaps, and a full sweep runs
+// unless disabled. The build FAILS (exit 1) if any violation ships.
+const guard = fs.existsSync(path.join(BUILD, 'collision.js'))
+  ? require(path.join(BUILD, 'collision.js'))
+  : null;
 
 // ── synthetic TTS manifest: ~150 wpm, word timings for captions/gestures ────
 function estWords(text) {
@@ -111,9 +117,21 @@ const OPTS = {
 // ── pick frames: cold open, first data, each chapter's strongest moment ──────
 const targets = [];
 const t0 = Date.now();
+let guardViolations = 0;
 
 function render(name, tMs) {
+  if (guard) {
+    guard.collisionGuard.enabled = true;
+    guard.resetGuard(name);
+  }
   drawFrame(ctx, tl, tMs, OPTS);
+  if (guard) {
+    const vs = guard.collectViolations();
+    if (vs.length) {
+      guardViolations += vs.length;
+      console.error(`  !! COLLISION GUARD — ${name}: ${vs.map((v) => v.id).join(', ')}`);
+    }
+  }
   const p = path.join(OUT, name);
   fs.writeFileSync(p, canvas.toBuffer('image/png'));
   return p;
@@ -160,6 +178,28 @@ for (const [name, r] of picks) {
   if (!r) { console.log('skip', name); continue; }
   targets.push(render(`${name}.png`, Math.round(r.t)));
   console.log(`rendered ${name} @ ${(r.t / 1000).toFixed(1)}s (${r.label})`);
+}
+
+// ── v9 (report P0-1): full-film collision sweep — every 4s by default ───────
+if (guard && !process.argv.includes('--no-sweep')) {
+  const step = 4000;
+  let swept = 0;
+  for (let t = 0; t < tl.durationMs; t += step) {
+    guard.resetGuard(`sweep@${(t / 1000).toFixed(1)}s`);
+    drawFrame(ctx, tl, t, OPTS);
+    const vs = guard.collectViolations();
+    swept++;
+    if (vs.length) {
+      guardViolations += vs.length;
+      console.error(`  !! COLLISION GUARD — sweep @${(t / 1000).toFixed(1)}s: ${vs.map((v) => v.id).join(', ')}`);
+    }
+  }
+  console.log(`collision sweep: ${swept} frames @ ${step}ms — ${guardViolations ? 'VIOLATIONS FOUND' : 'clean'}`);
+}
+
+if (guardViolations) {
+  console.error(`\n✗ COLLISION GUARD FAILED: ${guardViolations} violation(s) — fix the scene layout before rendering.`);
+  process.exit(1);
 }
 
 console.log(`done in ${((Date.now() - t0) / 1000).toFixed(1)}s → ${targets.length} frames in ${path.relative(REPO, OUT)}/`);
