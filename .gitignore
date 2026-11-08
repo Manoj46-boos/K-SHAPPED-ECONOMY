@@ -73,3 +73,8 @@ GeneralUser_GS.sf2
 .render-check-build/
 harness-frames/
 harness-frames-after/
+
+# P1-5 voice A/B — the creator's own recordings + timing tracks are
+# per-machine working material, never repo content (the tool regenerates
+# the prep from the TTS cache any time).
+voice-ab/
