@@ -6,7 +6,7 @@
 
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, easeOutQuad, lerp } from './easing';
 import { PALETTE, TONE, card, chip, rgba, roundRect, setFont, fitText, TYPE_FLOOR } from './theme';
-import { registerRect, registerFixed } from './collision';
+import { registerRect, registerFixed, registerText } from './collision';
 
 export interface Pt {
   x: number;
@@ -71,12 +71,29 @@ function yBounds(opts: LineChartOpts): [number, number] {
   return [min - pad, max + pad];
 }
 
+/** v10 (panel CHART-1): "nice" axis steps — 1 / 2 / 2.5 / 5 × 10^k. The v8
+ *  grid divided the range into exactly `gridLines` bands, so the twin charts
+ *  labeled y at +22 / +13 / +4 / −5 — non-round numbers a Bloomberg viewer
+ *  reads as auto-generated. Nice steps put every label on a 5/10/25-multiple;
+ *  the tick count then floats (≤ 8) instead of the label values. */
+function niceStep(raw: number): number {
+  if (raw <= 0 || !Number.isFinite(raw)) return 1;
+  const exp = Math.pow(10, Math.floor(Math.log10(raw)));
+  const f = raw / exp;
+  const nice = f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10;
+  return nice * exp;
+}
+
 export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): void {
   const {
     x, y, w, h, series, p, t, yFormat = 'index',
     gridLines = 4, lineWidth = 5.5, showYAxis = true,
   } = opts;
   const [yMin, yMax] = yBounds(opts);
+  // v10.1 (panel 11 re-review): the plot frame is CONTENT — a side host's
+  // full-body envelope must never plate the data area (the chartJourney
+  // host stood on the plot's right margin before the chart narrowed).
+  registerRect(`lineChart:plot@${Math.round(x)}`, x, y, w, h + 8);
 
   // x-axis time labels (PANEL-9 R2) — drawn FIRST so gridlines/area/lines
   // all sit above them; bottom-anchored under the plot area.
@@ -109,18 +126,34 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     ctx.restore();
   }
 
-  // grid + y labels — v8: axis text 22→24px (TYPE_FLOOR: the panel measured
-  // axis labels below mobile legibility in landscape; 24px is the floor
-  // every reading text now respects)
+  // grid + y labels — v10 (panel CHART-1): NICE TICKS. Ticks land on
+  // 1/2/2.5/5×10^k multiples (round numbers only), capped at 8 lines, with
+  // the plot floor always drawn as the solid baseline. The axis a finance
+  // audience reads instantly.
   ctx.save();
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
-  for (let i = 0; i <= gridLines; i++) {
-    const gy = y + (h * i) / gridLines;
-    const val = yMax - ((yMax - yMin) * i) / gridLines;
+  const span = yMax - yMin;
+  let step = niceStep(span / Math.max(2, gridLines));
+  while (span / step > 8) step *= 2; // cap tick count
+  const v0 = Math.ceil(yMin / step) * step;
+  const label = (v: number): string =>
+    yFormat === 'ndx' ? Math.round(v / 100) / 10 + 'k'
+    : yFormat === 'eci' ? Math.round(v).toString()
+    : yFormat === 'pct' ? v.toFixed(1) + '%'
+    : yFormat === 'idx100'
+      ? (v >= 100 ? '+' : '') + Math.round(v - 100) + '%'
+      : Math.round(v).toString();
+  // collect tick values first (float-noise safe)
+  const ticks: number[] = [];
+  for (let v = v0; v <= yMax + step * 1e-6; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
+  if (!ticks.length) ticks.push(Math.round((yMin + yMax) / 2));
+  for (const v of ticks) {
+    const gy = y + h - ((v - yMin) / span) * h;
+    const isBase = v === ticks[ticks.length - 1];
     ctx.strokeStyle = rgba(PALETTE.grid, 0.35);
     ctx.lineWidth = 1.5;
-    ctx.setLineDash(i === gridLines ? [] : [6, 8]);
+    ctx.setLineDash(isBase ? [] : [6, 8]);
     ctx.beginPath();
     ctx.moveTo(x, gy);
     ctx.lineTo(x + w, gy);
@@ -129,21 +162,10 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     if (showYAxis) {
       setFont(ctx, TYPE_FLOOR, 400); // v9 (D-07): 24→28 floor
       ctx.fillStyle = PALETTE.inkFaint;
-      const label =
-        yFormat === 'ndx' ? Math.round(val / 100) / 10 + 'k'
-        : yFormat === 'eci' ? Math.round(val).toString()
-        : yFormat === 'pct' ? val.toFixed(1) + '%'
-        // PANEL-9 R2b: 'idx100' was declared in the union but never
-        // implemented — chartTwin fell through to raw "93..129" numbers
-        // that read like invented price levels. The data is a 12-month
-        // index rebased to 100, so the honest axis is % change vs start,
-        // which also matches the +18.4% / +22% badges above each chart.
-        : yFormat === 'idx100'
-          ? (val >= 100 ? '+' : '') + Math.round(val - 100) + '%'
-          : Math.round(val).toString();
-      ctx.fillText(label, x - 14, gy);
+      ctx.fillText(label(v), x - 14, gy);
     }
   }
+  void gridLines;
 
   // context band (e.g. "typical range")
   if (opts.band) {
@@ -210,26 +232,30 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
 
   // series lines
   series.forEach((s, si) => {
-    const tone = TONE(s.tone).main;
+    const tone = TONE(s.tone);
+    // v10 (panel COLOR-3): vivid stroke ink — one step brighter than the
+    // text-safe tone, so the LINE survives the transcode on a phone while
+    // every label keeps its AA contrast.
+    const strokeCol = tone.vivid ?? tone.main;
     const pts = toPx(s, x, y, w, h, yMin, yMax);
     const nVisible = Math.max(2, Math.floor(pts.length * reveal));
     const vis = pts.slice(0, nVisible);
     // glow underlay
-    ctx.strokeStyle = rgba(tone, 0.16);
+    ctx.strokeStyle = rgba(strokeCol, 0.16);
     ctx.lineWidth = lineWidth * 2.6;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     strokePath(ctx, vis);
     // main line
-    ctx.strokeStyle = tone;
+    ctx.strokeStyle = strokeCol;
     ctx.lineWidth = lineWidth;
     strokePath(ctx, vis);
     // head glow while drawing
     if (reveal < 0.999 && vis.length > 1) {
       const head = vis[vis.length - 1];
       const g = ctx.createRadialGradient(head.x, head.y, 0, head.x, head.y, 26);
-      g.addColorStop(0, rgba(tone, 0.55));
-      g.addColorStop(1, rgba(tone, 0));
+      g.addColorStop(0, rgba(strokeCol, 0.55));
+      g.addColorStop(1, rgba(strokeCol, 0));
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(head.x, head.y, 26, 0, Math.PI * 2);
@@ -238,7 +264,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       ctx.beginPath();
       ctx.arc(head.x, head.y, 7, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = tone;
+      ctx.fillStyle = strokeCol;
       ctx.beginPath();
       ctx.arc(head.x, head.y, 5, 0, Math.PI * 2);
       ctx.fill();
@@ -250,7 +276,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       ctx.beginPath();
       ctx.arc(last.x, last.y, 9 + pulse * 2, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = tone;
+      ctx.fillStyle = strokeCol;
       ctx.beginPath();
       ctx.arc(last.x, last.y, 6.5, 0, Math.PI * 2);
       ctx.fill();
@@ -509,6 +535,9 @@ export function dotGrid(
   }
 ): void {
   const { x, y, w, h, total, highlight, p, t } = opts;
+  // v10.1: the dot field is CONTENT — the host-vs-content guard asserts the
+  // side host's body envelope never plates the data field.
+  registerRect(`dotGrid:field@${Math.round(x)}`, x, y, w, h);
   const cols = 25;
   const rows = Math.ceil(total / cols);
   const cw = w / cols;
@@ -685,7 +714,9 @@ export function statCard(
   ctx.globalAlpha = Math.min(1, ap * 1.6);
   ctx.translate(0, rise);
   const c = TONE(tone).main;
-  card(ctx, x, y, w, h, { r: opts.compact ? 22 : 30 });
+  // v10 (panel COLOR-4): tone-tinted card shadow — the card reads as lit by
+  // its own number (teal card, teal-whisper shadow) instead of neutral slate
+  card(ctx, x, y, w, h, { r: opts.compact ? 22 : 30, tint: c });
   const bigSize = opts.compact ? 58 : 88;
   const bigBase = opts.compact ? 84 : 138;
   const labelSize = TYPE_FLOOR; // v9 (D-07): compact 24 / full 27 → 28 floor
@@ -723,13 +754,20 @@ export function statCard(
     if (tagP > 0) {
       ctx.globalAlpha = tagP;
       setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor
-      const tw = ctx.measureText(tag).width;
-      ctx.fillStyle = TONE(tone === 'down' ? 'down' : tone).soft;
-      const tagY = opts.compact ? y + h - 40 : y + h - 58;
-      roundRect(ctx, x + 34, tagY, tw + 30, 38, 19);
-      ctx.fill();
-      ctx.fillStyle = c;
-      ctx.fillText(tag, x + 49, tagY + 26);
+      // v10.1 (panel 11 re-review): the statCards row narrowed for the side
+      // host's column — a long tag ("2nd-highest share since 1947") no longer
+      // fits one chip row at the 28px floor, and the old single-line chip
+      // overran the card's right edge. Wrap to ≤2 measured rows, stacked.
+      const tagLines = wrapText(ctx, tag, w - 68, TYPE_FLOOR, 600).slice(0, 2);
+      const tagY = (opts.compact ? y + h - 40 : y + h - 58) - (tagLines.length - 1) * 44;
+      tagLines.forEach((ln, li) => {
+        const tw = ctx.measureText(ln).width;
+        ctx.fillStyle = TONE(tone === 'down' ? 'down' : tone).soft;
+        roundRect(ctx, x + 34, tagY + li * 44, tw + 30, 38, 19);
+        ctx.fill();
+        ctx.fillStyle = c;
+        ctx.fillText(ln, x + 49, tagY + li * 44 + 26);
+      });
     }
   }
   ctx.restore();
@@ -789,6 +827,11 @@ export function sourceTag(
   const tw = ctx.measureText(txt).width;
   ctx.fillText(txt, W - 110, y);
   registerFixed(`sourceTag:${source.slice(0, 14)}`, W - 130 - tw, y - 26, tw + 40, 38);
+  // v10 (PANEL-11): the tag is READING TEXT — a scene caption landing on it
+  // (gasPump, verified defect) is a text-text collision the fixed-furniture
+  // check cannot see unless the caption is also registered. Register it in
+  // the text set too, so any registerText'd caption is checked against it.
+  registerText(`sourceTag:${source.slice(0, 14)}`, W - 130 - tw, y - 26, tw + 40, 38, true);
   ctx.restore();
 }
 
@@ -815,6 +858,9 @@ export function sceneTitle(
   ctx.fillStyle = PALETTE.ink;
   ctx.textAlign = 'left';
   registerRect(`sceneTitle:${text.slice(0, 16)}`, x, y - 50, Math.min(ctx.measureText(text).width, maxW), 76);
+  // v10 (PANEL-11): the title is reading text — the dotGrid badge plating it
+  // was a shipped defect the rect-only guard could not see.
+  registerText(`sceneTitle:${text.slice(0, 16)}`, x, y - 50, Math.min(ctx.measureText(text).width, maxW), 76);
   fitText(ctx, text, x, y, maxW, 54, 600);
   const tw = Math.min(ctx.measureText(text).width, maxW);
   const sw = tw * easeOutCubic(ap);

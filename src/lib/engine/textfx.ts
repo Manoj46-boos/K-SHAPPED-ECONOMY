@@ -173,22 +173,31 @@ export function drawCaptions(
   // not ghost through), one hairline border, gold brand tab on the left
   // v9 (report P0-1): the pill rect feeds the collision guard so the harness
   // can assert scene content never sits under it.
+  // v10 (panel TYPE-3): de-SaaS'd — radius 30→18 (broadcast plate, not app
+  // bubble), a whisper drop shadow so the plate lifts off the scene, and
+  // the teal tab becomes a gold-anchored two-tone mark (gold base + teal
+  // active tip) that ties to the gold karaoke sweep.
   registerPill(W / 2 - widest / 2 - 34, baseY - totalH + 4, widest + 68, totalH);
   ctx.save();
   const px = W / 2 - widest / 2 - 34;
   const py = baseY - totalH + 4;
   ctx.globalAlpha = 1;
+  ctx.fillStyle = rgba(PALETTE.shadow, 0.06);
+  roundRect(ctx, px + 1, py + 4, widest + 68, totalH, 18);
+  ctx.fill();
   ctx.fillStyle = '#FFFFFF';
-  roundRect(ctx, px, py, widest + 68, totalH, 30);
+  roundRect(ctx, px, py, widest + 68, totalH, 18);
   ctx.fill();
   ctx.lineWidth = 2;
-  ctx.strokeStyle = rgba(PALETTE.muted, 0.5);                // v5: cool-grey hairline
-  roundRect(ctx, px, py, widest + 68, totalH, 30);
+  ctx.strokeStyle = rgba('#9FB4AE', 0.55);
+  roundRect(ctx, px, py, widest + 68, totalH, 18);
   ctx.stroke();
-  ctx.fillStyle = PALETTE.up;                                 // v5: teal tab — the voice
-  // PANEL-9 R7m (tab poking past the pill's rounded edge): inset to py+24
-  // with height totalH-48 keeps every tab pixel inside the arc.
+  // the voice mark — gold base bar + teal active tip
+  ctx.fillStyle = PALETTE.gold;
   roundRect(ctx, px + 3, py + 24, 7, Math.max(10, totalH - 48), 3.5);
+  ctx.fill();
+  ctx.fillStyle = PALETTE.up;
+  roundRect(ctx, px + 3, py + 24, 7, Math.max(10, (totalH - 48) * 0.42), 3.5);
   ctx.fill();
   ctx.restore();
 
@@ -292,25 +301,45 @@ export function drawChapterCard(
   ctx.fillText(title, W / 2, H / 2 + 22);
   // progress dots — v4 (audit P1-5): the active chapter dot is enlarged
   // and ringed so the row reads as navigation, not decoration
+  // v10 (panel TYPE-5): dots became a RAIL — bigger dots (9px), a hairline
+  // connector between them, and the traveled span in gold. "Tiny low-
+  // contrast dots, nearly invisible on a phone" was the panel's read;
+  // a connected rail reads as progress even when the dots themselves blur.
   const total = Math.max(2, totalChapters);
-  const dotR = 7;
-  const gap = 26;
+  const dotR = 9;
+  const gap = 32;
   const startX = W / 2 - ((total - 1) * gap) / 2;
+  const dotY = H / 2 + 96;
+  // connector rail — the traveled span in gold, the rest in grid
+  if (total > 1) {
+    ctx.strokeStyle = rgba(PALETTE.grid, 0.55);
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(startX, dotY);
+    ctx.lineTo(startX + (total - 1) * gap, dotY);
+    ctx.stroke();
+    const activeX = startX + (index - 1) * gap;
+    ctx.strokeStyle = PALETTE.gold;
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(startX, dotY);
+    ctx.lineTo(activeX, dotY);
+    ctx.stroke();
+  }
   for (let i = 0; i < total; i++) {
     const filled = i / (total - 1) <= progress;
     const active = i === index - 1;
     const x = startX + i * gap;
-    const y = H / 2 + 96;
     if (active) {
       ctx.beginPath();
-      ctx.arc(x, y, dotR + 6, 0, Math.PI * 2);
-      ctx.strokeStyle = rgba(PALETTE.gold, 0.55);
+      ctx.arc(x, dotY, dotR + 6, 0, Math.PI * 2);
+      ctx.strokeStyle = rgba(PALETTE.gold, 0.65);
       ctx.lineWidth = 2.5;
       ctx.stroke();
     }
     ctx.beginPath();
-    ctx.arc(x, y, active ? dotR + 3 : filled ? dotR : dotR * 0.62, 0, Math.PI * 2);
-    ctx.fillStyle = filled ? (active ? PALETTE.goldDeep : PALETTE.gold) : rgba(PALETTE.grid, 0.5);
+    ctx.arc(x, dotY, active ? dotR + 3 : filled ? dotR : dotR * 0.62, 0, Math.PI * 2);
+    ctx.fillStyle = filled ? (active ? PALETTE.goldDeep : PALETTE.gold) : rgba(PALETTE.grid, 0.6);
     ctx.fill();
   }
   // v5 (audit P1-5): the host peeks in from the left edge with a signpost

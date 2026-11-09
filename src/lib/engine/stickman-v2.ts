@@ -14,7 +14,7 @@
  */
 
 import { PALETTE, rgba, roundRect } from './theme';
-import { clamp01 } from './easing';
+import { clamp, clamp01 } from './easing';
 import { registerRect } from './collision';
 
 const D2R = Math.PI / 180;
@@ -186,6 +186,11 @@ export function drawStickmanV2(
     /** Hand prop (v5, audit P1-3): 'coffee' — the second character's mug;
      * 'thumb' — a thumb stub on the raised fist for the thumbsUp pose. */
     prop?: 'coffee' | 'thumb';
+    /** v10.1 (panel 11 re-review): register the FULL-BODY envelope as a
+     * 'host' rect for the guard's host-vs-content check. Side hosts /
+     * walk hosts set this; diagram characters (ownerWorker figures, the
+     * coffee guy) do NOT — they stand ON their data by design. */
+    hostBody?: boolean;
   },
   seed = 0
 ): void {
@@ -200,6 +205,17 @@ export function drawStickmanV2(
     `stickman@${Math.round(cx)},${Math.round(groundY)}`,
     cx - 122 * scale, groundY - 12 * scale, 244 * scale, 48 * scale
   );
+  // v10.1 (panel 11 re-review): the feet-only envelope let the statCards
+  // host plate a stat card's number+tag unseen — the body above the feet
+  // was never registered. Full-body envelope (head to shadow) as cls 'host'
+  // for opted-in callers; the guard checks it against every content rect.
+  if (r.hostBody) {
+    registerRect(
+      `hostBody@${Math.round(cx)},${Math.round(groundY)}`,
+      cx - 128 * scale, groundY - 296 * scale, 256 * scale, 332 * scale,
+      'host'
+    );
+  }
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.translate(cx, groundY);
@@ -207,6 +223,13 @@ export function drawStickmanV2(
   // v6 idle life: a 2.4s breath sway (±0.23°) around the ground contact —
   // the freeze between sentences read as a mannequin without it.
   ctx.rotate(Math.sin(t / 2400 + seed * 1.7) * 0.004);
+  // v10 (panel CHAR-2): WEIGHT SHIFT — a slow 4.6s hip settle (±1.8px) plus
+  // a 6.2s counter-lean. The breath sway alone still read "held mannequin"
+  // between gestures: real presenters shift weight. Sub-pixel at phone
+  // scale, unmistakable in motion. Deterministic in t, scrub-safe.
+  const weight = Math.sin(t / 4600 + seed * 2.3) * 1.8;
+  ctx.translate(weight, 0);
+  ctx.rotate(Math.sin(t / 6200 + seed * 0.9) * 0.003);
 
   const U_LEG = 72, L_LEG = 66, TORSO = 96, U_ARM = 58, L_ARM = 54;
   const pelvisY = -U_LEG - L_LEG + pose.rootY;
@@ -241,6 +264,14 @@ export function drawStickmanV2(
     ctx.beginPath();
     ctx.ellipse(neckX, neckY + 4, 13, 8, leanR * 0.6, 0, Math.PI * 2);
     ctx.fill();
+    // v10 (panel CHAR-3): a goldDeep outline on the knot — at side-host
+    // scale the solid knot read as "a stain"; the two-tone knot reads as
+    // a tied scarf at any size.
+    ctx.strokeStyle = PALETTE.goldDeep;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.ellipse(neckX, neckY + 4, 13, 8, leanR * 0.6, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.strokeStyle = PALETTE.goldDeep;
     ctx.lineWidth = 7;
     ctx.lineCap = 'round';
@@ -329,7 +360,12 @@ export function drawStickmanV2(
   ctx.fill();
   ctx.stroke();
   // eyes + glints
-  const look = clamp01((r.look ?? 0) * 0.5 + 0.5) * 2 - 1;
+  // v10 (panel CHAR-2): GAZE WANDER — the look value drifts ±0.15 on a 7.4s
+  // cycle. A fixed pupil for 40 seconds is the "cardboard cutout" tell;
+  // the eye leading the head is what makes an illustrated character feel
+  // operated. Clamped to the existing look range; deterministic in t.
+  const lookBase = clamp01((r.look ?? 0) * 0.5 + 0.5) * 2 - 1;
+  const look = clamp(lookBase + Math.sin(t / 7400 + seed * 1.4) * 0.15, -1, 1);
   const eyeDX = look * 7;
   // v6: deterministic blink — 120ms every ~4.2s, phase-shifted per seed so
   // two hosts never blink in unison. A blink is 90% of "alive".

@@ -6,16 +6,20 @@
  */
 
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, lerp } from './easing';
-import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
+import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
 import { bokehField, kMotifs, lightRays, drawK, drawK3D, floatCoins, sparkles } from './effects';
 import { SceneCtx } from './scene-context';
 import { lineChart, pieChart, barRow, dotGrid, gauge, statCard, sourceTag, sceneTitle, wrapText } from './charts';
 import { Stickman, POSES, blendPose } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
-import { registerRect } from './collision';
+import { registerRect, registerText } from './collision';
 
-function bg(g: SceneCtx, seed: number, gold = 0.4): void {
+// v10 (panel COLOR-2): bg() takes an optional PLATE tone — data scenes sit on
+// a soft tinted plate instead of raw white. Host/statement scenes keep the
+// open stage (the plate is a "data room" device; the stage is a "stage").
+function bg(g: SceneCtx, seed: number, gold = 0.4, plate?: 'up' | 'down' | 'gold' | 'neutral'): void {
   paintBg(g.ctx, g.W, g.H, g.t, g.chapterTone);
+  if (plate) scenePlate(g.ctx, g.W, g.H, plate);
   bokehField(g.ctx, g.W, g.H, g.t, { intensity: 0.75, seed, gold });
   lightRays(g.ctx, g.W, g.H, g.t, { alpha: 0.45 });
   kMotifs(g.ctx, g.W, g.H, g.t, 0.04);
@@ -33,15 +37,31 @@ function hostSmall(
   // by 24px. All hostSmall call sites inherit the bump.
   groundY = g.H * 0.66, scale = 1.09
 ): void {
-  const pose = Stickman.poseAt(g.t, { gesture, speaking: g.speaking });
+  // v10 (panel CHAR-1/CHAR-3): the side host CYCLES through a gesture set
+  // instead of holding one pose for the whole scene — "two poses: shrug,
+  // arms-out" was the panel's read, and it was right: every hostSmall call
+  // site passed a single static gesture. A 12s deterministic cycle with a
+  // smooth crossfade gives the side host the same articulated life the
+  // main host got in P0-4. scarf OFF at side scale — the knot read as "a
+  // stain" at 1.09×; the scarf is a HERO-scale brand cue (1.3× and up).
+  const pointIn = x < g.W / 2 ? 'pointR' : 'pointL';
+  const cycle: string[] = [gesture, 'talkB', gesture, pointIn];
+  const ph = (g.t / 3000 + seed) % 4;
+  const idx = Math.floor(ph);
+  const w = ph - idx > 0.86 ? (ph - idx - 0.86) / 0.14 : 0;
+  const poseA = Stickman.poseAt(g.t, { gesture: cycle[idx % 4], speaking: g.speaking });
+  const poseB = Stickman.poseAt(g.t, { gesture: cycle[(idx + 1) % 4], speaking: g.speaking });
+  const pose = w > 0 ? blendPose(poseA, poseB, w) : poseA;
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(g.ctx, x, groundY, scale, g.t, { pose, alpha: clamp01((g.t - 500) / 500), look: g.W / 2 > x ? 0.5 : -0.5, talk }, seed);
+  // v10.1: hostBody — the guard's host-vs-content pass needs the full body,
+  // not just the feet band (the statCards host plated a card unseen).
+  drawStickmanV2(g.ctx, x, groundY, scale, g.t, { pose, alpha: clamp01((g.t - 500) / 500), look: g.W / 2 > x ? 0.5 : -0.5, talk, scarf: false, hostBody: true }, seed);
 }
 
 // ── chartTwin: S&P + Nasdaq mini charts ─────────────────────────────────────
 export function chartTwinScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
-  bg(g, 61);
+  bg(g, 61, 0.4, 'up'); // v10: the data room plate
   const cw = W * 0.38;
   // PANEL-9 R2c (bottom-band clearance): the v8 stack put the per-chart
   // badges at y≈816 and the extraBadge card at y 886-978 — INSIDE the
@@ -144,7 +164,7 @@ export function chartTwinScene(g: SceneCtx): void {
 // ── chartJourney: the generic annotated line chart scene ────────────────────
 export function chartJourneyScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
-  bg(g, 71);
+  bg(g, 71, 0.4, 'up'); // v10: the data room plate
   // v3 (panel P1-1): SceneCtx.t is GROUP-relative — it spans every beat
   // sharing a sceneKey — but props come from the CURRENT beat. In any
   // multi-beat group the animation clock is pre-advanced when later beats
@@ -158,7 +178,7 @@ export function chartJourneyScene(g: SceneCtx): void {
   sceneTitle(ctx, title, 110, 190, clamp01(t / 600));
   const chartX = 190;
   const chartY = H * 0.22;
-  const chartW = W - 190 - 210;
+  const chartW = W - 190 - 420;
   const extraStats = (s.extraStats as any[]) || [];
   // v3 (panel P0-2 follow-up): with 2 stat rows the v2 stack reached
   // y 883-949 — under the caption pill. The chart yields a little height on
@@ -289,7 +309,7 @@ export function chartJourneyScene(g: SceneCtx): void {
 // ── pieChart scene wrapper ──────────────────────────────────────────────────
 export function pieChartScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
-  bg(g, 81, 0.6);
+  bg(g, 81, 0.6, 'gold'); // v10: the data room plate (gold — the wealth scene)
   sceneTitle(ctx, s.title as string, 110, 190, clamp01(t / 600));
   const cx = W * 0.34;
   const cy = H * 0.52;
@@ -303,27 +323,34 @@ export function pieChartScene(g: SceneCtx): void {
     centerBig: s.centerBig as string,
   });
   // legend + host on right
+  // v10.1 (panel 11 re-review, host-vs-content): the legend used to start at
+  // W*0.58 with its % column at +560 — content ran to x≈1763, deep under the
+  // side host's envelope (70px, guard-caught). The legend now starts at
+  // W*0.52 (clear of the pie, right edge 879) and compacts to ≤450 wide;
+  // the % value right-anchors at x+440. Host envelope (W*0.85) clears by 54px.
   const legend = (s.slices as any[]) || [];
   legend.forEach((sl, i) => {
     const ap = clamp01((t - 700 - i * 300) / 600);
     if (ap <= 0) return;
     const ly = H * 0.4 + i * 90;
-    registerRect(`pieLegend:${sl.label.slice(0, 12)}`, W * 0.58, ly, 700, 70);
+    const lx = W * 0.52;
+    registerRect(`pieLegend:${sl.label.slice(0, 12)}`, lx, ly, 450, 70);
     ctx.save();
     ctx.globalAlpha = ap;
     ctx.fillStyle = TONE(sl.tone).main;
-    roundRect(ctx, W * 0.58, ly, 52, 52, 14);
+    roundRect(ctx, lx, ly, 52, 52, 14);
     ctx.fill();
     setFont(ctx, 30, 600);
     ctx.fillStyle = PALETTE.ink;
     ctx.textAlign = 'left';
-    const lines = wrapText(ctx, sl.label, 420, 30, 600);
-    lines.forEach((ln, j) => ctx.fillText(ln, W * 0.58 + 76, ly + 34 + j * 40));
+    const lines = wrapText(ctx, sl.label, 300, 30, 600);
+    lines.forEach((ln, j) => ctx.fillText(ln, lx + 76, ly + 34 + j * 40));
     setFont(ctx, 38, 700);
     // v8.1: the bright fill gold (#C9A227) fails AA at 38px — text-sized
     // gold numerals use goldInk (4.8:1); the swatch chip stays bright.
     ctx.fillStyle = sl.tone === 'gold' ? PALETTE.goldInk : TONE(sl.tone).main;
-    ctx.fillText(`${Math.round(sl.value)}%`, W * 0.58 + 560, ly + 40);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${Math.round(sl.value)}%`, lx + 440, ly + 40);
     ctx.restore();
   });
   hostSmall(g, W * 0.85, 'pointL', 6);
@@ -333,77 +360,89 @@ export function pieChartScene(g: SceneCtx): void {
 // ── dotGrid scene ────────────────────────────────────────────────────────────
 export function dotGridScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
-  bg(g, 91);
+  bg(g, 91, 0.4, 'up'); // v10: the data room plate
   sceneTitle(ctx, 'The S&P 500 · one bonus pool, 500 companies', 110, 190, clamp01(t / 600));
+  // v10 (PANEL-11 D-01 — VERIFIED DEFECT RETIRED): the v9 frame drew a gold
+  // bracket at y=190 — the exact baseline band of the scene title — with a
+  // "10 of 500" badge and "these ten" text on top of the headline and its
+  // gold underline (vision-verified on the harness render: "the underline
+  // passes behind the badge's bottom-left corner"). The grid now yields the
+  // title band (starts at H*0.235), the ten gold dots are grouped by a soft
+  // translucent highlight BAND (grouping without text), and the count-up
+  // moved INTO the caption line at the bottom — the ratio is stated in the
+  // one place nothing can collide with.
+  const gridY = H * 0.235;
+  const gridH = H * 0.46;
   dotGrid(ctx, {
-    x: 190, y: H * 0.2, w: W - 400, h: H * 0.5,
+    x: 190, y: gridY, w: W - 660, h: gridH,
     total: (s.total as number) || 500,
     highlight: (s.highlight as number) || 10,
     p: clamp01(t / 3400),
     t,
   });
-  // bracket over the highlighted dots + caption
-  // v8: "these ten" moved to the bracket's right end (the panel caught it
-  // colliding with the scene-title underline above the grid)
-  // v9 (report P0-6): count-up "10 of 500" badge — the panel's read was
-  // that ten same-sized gold dots among 490 grey ones never registered as
-  // a COUNT ("almost 4 dollars of every 10" didn't land). The dots are now
-  // 1.7× with ink rings (charts.ts) and the bracket carries an explicit
-  // count-up so the ratio is stated, not implied.
-  const ap = clamp01((t - 2600) / 700);
-  if (ap > 0) {
-    ctx.save();
-    ctx.globalAlpha = ap;
-    ctx.strokeStyle = PALETTE.gold;
-    ctx.lineWidth = 4;
-    const bracketW = 10 * ((W - 400) / 25);
-    ctx.beginPath();
-    ctx.moveTo(196, H * 0.2 - 26);
-    ctx.lineTo(196 + bracketW, H * 0.2 - 26);
-    ctx.stroke();
-    // count-up badge plate: 10 of 500
-    const cp = clamp01((t - 2700) / 800);
-    const n = Math.max(1, Math.round(10 * easeOutCubic(cp)));
-    const badgeTxt = `${n} of 500`;
-    setFont(ctx, 34, 700);
-    const bw = ctx.measureText(badgeTxt).width + 44;
-    const bx = 196 + bracketW + 22;
-    const by = H * 0.2 - 26 - 27;
-    ctx.fillStyle = PALETTE.goldWash;
-    roundRect(ctx, bx, by, bw, 54, 27);
-    ctx.fill();
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = rgba(PALETTE.gold, 0.85);
-    roundRect(ctx, bx, by, bw, 54, 27);
-    ctx.stroke();
-    ctx.fillStyle = PALETTE.goldDeep;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(badgeTxt, bx + 22, by + 28);
-    ctx.textBaseline = 'alphabetic';
-    registerRect('dotGrid:countBadge', bx, by, bw, 54);
-    setFont(ctx, 30, 700);
-    ctx.fillStyle = PALETTE.goldDeep;
-    ctx.textAlign = 'left';
-    ctx.fillText('these ten', bx + bw + 20, H * 0.2 - 16);
-    const caption = s.caption as string;
-    setFont(ctx, 38, 700);
-    ctx.fillStyle = PALETTE.ink;
-    ctx.textAlign = 'center';
-    // v3 (panel P0-2): was H*0.82 (y≈885) / H*0.87 (y≈939) — both inside the
-    // caption pill band. Move below the pill, above the progress bar.
-    // v9 (report P0-1 guard): 988 grazed a 2-row pill's bottom (956) by 6px
-    // of cap-height — 1004/1038 clears even the tallest pill with 12px spare.
-    registerRect('dotGrid:caption', W / 2 - 500, (1008 / 1080) * H - 40, 1000, 46);
-    ctx.fillText(caption, W / 2, (1008 / 1080) * H);
-    setFont(ctx, 26, 600);
-    ctx.fillStyle = PALETTE.inkFaint;
-    ctx.fillText('each dot = one company', W / 2, (1040 / 1080) * H);
-    ctx.restore();
+  // the highlight band — a rounded gold wash cradling the ten gold dots
+  // (row 0, cols 0-9). Drawn AFTER the grid so it tints the dots' backs.
+  {
+    const bandP = clamp01((t - 2600) / 700);
+    if (bandP > 0) {
+      ctx.save();
+      ctx.globalAlpha = bandP;
+      const cw = (W - 660) / 25;
+      const rowH = gridH / Math.ceil(((s.total as number) || 500) / 25);
+      const bx = 190 - 14;
+      const by = gridY - 12;
+      const bw = 10 * cw + 28;
+      const bh = rowH + 24;
+      ctx.fillStyle = rgba(PALETTE.gold, 0.10);
+      roundRect(ctx, bx, by, bw, bh, 16);
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = rgba(PALETTE.gold, 0.55);
+      roundRect(ctx, bx, by, bw * bandP, bh, 16);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+  // caption block — count-up + statement, one line, nothing above to hit
+  {
+    const ap = clamp01((t - 2600) / 700);
+    if (ap > 0) {
+      ctx.save();
+      ctx.globalAlpha = ap;
+      const cp = clamp01((t - 2700) / 800);
+      const n = Math.max(1, Math.round(10 * easeOutCubic(cp)));
+      const count = `${n} of 500`;
+      const caption = s.caption as string;
+      setFont(ctx, 38, 700);
+      const cw = ctx.measureText(count).width;
+      setFont(ctx, 34, 700);
+      const tw = ctx.measureText(caption).width;
+      const gap = 26;
+      const total = cw + gap + tw;
+      const x0 = W / 2 - total / 2;
+      const y = (1008 / 1080) * H;
+      registerText('dotGrid:caption', x0, y - 40, total, 48);
+      setFont(ctx, 38, 700);
+      ctx.textAlign = 'left';
+      ctx.fillStyle = PALETTE.goldDeep;
+      ctx.fillText(count, x0, y);
+      setFont(ctx, 34, 700);
+      ctx.fillStyle = PALETTE.ink;
+      ctx.fillText(caption, x0 + cw + gap, y);
+      setFont(ctx, 26, 600);
+      ctx.fillStyle = PALETTE.inkFaint;
+      ctx.textAlign = 'center';
+      ctx.fillText('each dot = one company', W / 2, (1040 / 1080) * H);
+      ctx.restore();
+    }
   }
   // PANEL-10 (D-10 class): W*0.9 → W*0.84 — dotGrid is a push scene (no
   // hero move, base 0.052); the envelope crossed x=1920 at full push.
-  hostSmall(g, W * 0.84, 'present', 8);
+  // v10.1 (panel 11 re-review, host-vs-content): W*0.84 → W*0.86 — the full
+  // body envelope (cls 'host') must clear the dot grid's registered field;
+  // the grid also narrows (W-400 → W-460) so data and presenter each own
+  // their column. Edge worst case at 0.86: (1651+133-960)*1.092+960 ≈ 1860.
+  hostSmall(g, W * 0.86, 'present', 8);
 }
 
 // ── magChips scene ───────────────────────────────────────────────────────────
@@ -476,7 +515,7 @@ export function magChipsScene(g: SceneCtx): void {
 // ── barsCompare scene ────────────────────────────────────────────────────────
 export function barsCompareScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
-  bg(g, 111);
+  bg(g, 111, 0.4, 'gold'); // v10: the data room plate (gold — the winner chart)
   sceneTitle(ctx, s.title as string, 110, 190, clamp01(t / 600));
   const bars = (s.bars as any[]) || [];
   const barW = W - 620;
@@ -547,7 +586,13 @@ export function barsCompareScene(g: SceneCtx): void {
     }
   }
   sourceTag(ctx, W, s.source as string, H - 60);
-  hostSmall(g, W * 0.9, 'present', 13);
+  // v10.1 (panel 11 re-review, host-vs-content): the biggest bar's tag
+  // chip ("a bigger share…", ends ≈x1598+) ran 34px under the W*0.9 side
+  // host's envelope (guard-caught @528-541s). Same answer as chartTwin:
+  // the host takes the empty top-right corner ABOVE the bars (envelope
+  // y≈48-263, x≈1590-1751 — clear of the title and every bar row), looking
+  // down at the data; the right column belongs to the tag chips.
+  hostSmall(g, W * 0.87, 'present', 13, H * 0.225, 0.66);
 }
 
 // ── trioConverge scene ───────────────────────────────────────────────────────
@@ -743,7 +788,13 @@ export function kDefScene(g: SceneCtx): void {
     ctx.fillText('bottom: worse', kx + S * 1.3, ky + S * 1.15);
     ctx.restore();
   }
-  hostSmall(g, W * 0.24, 'pointR', 15);
+  // v10.1 (panel 11 re-review, host-vs-content): the host used to stand at
+  // W*0.24 — INSIDE the definition card's rect (154-774 × 259-559); his body
+  // plated the wrapped definition text (169px deep, guard-caught). The card
+  // owns the left column, the K owns the right (stem at x=1344); the host
+  // now presents from the gap between them (envelope 911-1189), pointing at
+  // the formation — 137px clear of the card, 155px clear of the K.
+  hostSmall(g, 1050, 'pointR', 15);
   sourceTag(ctx, W, s.source as string, H - 60);
 }
 
@@ -787,41 +838,93 @@ export function credibilityChipsScene(g: SceneCtx): void {
 // ── gasPump scene ────────────────────────────────────────────────────────────
 export function gasPumpScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
-  bg(g, 151, 0.5);
+  bg(g, 151, 0.4, 'up'); // v10: the data room plate
   sceneTitle(ctx, 'Same shock — different roads', 110, 190, clamp01(t / 600));
-  // the pump (center) — v8: the vision panel called the old beige-screen
-  // pump "clip-art from 2012". A modern pump reads as: white body, crisp
-  // hairline, a soft-TEAL screen (no dark tones — the theme's upSoft wash)
-  // with ink digits on a white price plate. Same silhouette, same price
-  // roll animation, ten lines of change.
+  // v10 (PANEL-11 D-02 + panel PROP-1): TWO retired defects in one rebuild.
+  // (1) D-02: the scene caption at y≈992 intersected the source tag at
+  // y≈1020 ("shock" crossing "Source:" — vision-verified). The caption now
+  // lives at y≈700, in the open band under the household cards, and is
+  // registered as reading text. (2) PROP-1: the pump was "a rounded
+  // rectangle with the word GAS on it" — a name tag, not an illustration.
+  // The rebuilt pump has a plinth, a side face, a bezelled screen with a
+  // live $/GAL readout, a price plate, and a hose that SAGS under gravity
+  // into a holstered nozzle — a prop you can read as a pump at 320px.
   const px = W * 0.5;
-  const py = H * 0.3;
+  const py = H * 0.30;
   const ap = clamp01(t / 800);
   ctx.save();
   ctx.globalAlpha = ap;
-  // pump body
-  card(ctx, px - 110, py, 220, 330, { r: 26 });
-  // teal screen wash (was goldWash beige)
-  ctx.fillStyle = PALETTE.upSoft;
-  roundRect(ctx, px - 82, py + 28, 164, 110, 18);
+  // ground shadow — the pump STANDS on the stage
+  const gs = ctx.createRadialGradient(px, py + 352, 10, px, py + 352, 150);
+  gs.addColorStop(0, rgba(PALETTE.shadow, 0.18));
+  gs.addColorStop(0.6, rgba(PALETTE.shadow, 0.07));
+  gs.addColorStop(1, rgba(PALETTE.shadow, 0));
+  ctx.fillStyle = gs;
+  ctx.beginPath();
+  ctx.ellipse(px, py + 352, 150, 26, 0, 0, Math.PI * 2);
   ctx.fill();
-  setFont(ctx, 44, 700);
+  // plinth base
+  ctx.fillStyle = '#FFFFFF';
+  ctx.strokeStyle = rgba(PALETTE.shadow, 0.35);
+  ctx.lineWidth = 3;
+  roundRect(ctx, px - 132, py + 300, 264, 46, 12);
+  ctx.fill();
+  ctx.stroke();
+  // pump body
+  card(ctx, px - 104, py, 208, 306, { r: 22 });
+  // side face (right) — one flat tone darker: instant 3D on white
+  ctx.save();
+  ctx.beginPath();
+  roundRect(ctx, px - 104, py, 208, 306, 22);
+  ctx.clip();
+  ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
+  ctx.fillRect(px + 78, py, 30, 306);
+  ctx.restore();
+  // screen bezel + teal screen
+  ctx.fillStyle = rgba(PALETTE.shadow, 0.16);
+  roundRect(ctx, px - 78, py + 24, 156, 118, 14);
+  ctx.fill();
+  ctx.fillStyle = PALETTE.upSoft;
+  roundRect(ctx, px - 72, py + 30, 144, 106, 10);
+  ctx.fill();
+  setFont(ctx, 40, 700);
   ctx.fillStyle = PALETTE.up;
   ctx.textAlign = 'center';
-  ctx.fillText('GAS', px, py + 92);
-  // price digits roll — on a clean white plate now
+  ctx.fillText('GAS', px, py + 78);
+  setFont(ctx, 24, 600);
+  ctx.fillStyle = rgba(PALETTE.up, 0.75);
+  ctx.fillText('PRICE / GALLON', px, py + 112);
+  // price digits roll — on the screen, tabular feel
   const roll = (t / 300) % 10;
-  setFont(ctx, 40, 700);
+  setFont(ctx, 44, 700);
   ctx.fillStyle = PALETTE.ink;
-  ctx.fillText(`$${(3.2 + Math.abs(Math.sin(roll)) * 0.9).toFixed(2)}`, px, py + 190);
-  // hose
+  ctx.fillText(`$${(3.2 + Math.abs(Math.sin(roll)) * 0.9).toFixed(2)}`, px, py + 168);
+  // brand dot row (the pump's little identity)
+  for (let d = 0; d < 3; d++) {
+    ctx.fillStyle = d === 1 ? PALETTE.gold : rgba(PALETTE.up, 0.55);
+    ctx.beginPath();
+    ctx.arc(px - 26 + d * 26, py + 206, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // hose — leaves the RIGHT side, sags under gravity, returns to a holster
   ctx.strokeStyle = PALETTE.ink;
-  ctx.lineWidth = 9;
+  ctx.lineWidth = 8;
   ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(px + 110, py + 60);
-  ctx.quadraticCurveTo(px + 180, py + 120, px + 140, py + 210);
+  ctx.moveTo(px + 104, py + 70);
+  ctx.quadraticCurveTo(px + 196, py + 150, px + 150, py + 232);
+  ctx.quadraticCurveTo(px + 128, py + 266, px + 96, py + 258);
   ctx.stroke();
+  // nozzle handle at the hose end
+  ctx.save();
+  ctx.translate(px + 96, py + 258);
+  ctx.rotate(-0.5);
+  ctx.fillStyle = PALETTE.ink;
+  roundRect(ctx, -9, -26, 18, 34, 6);
+  ctx.fill();
+  roundRect(ctx, -5, 8, 10, 14, 4);
+  ctx.fill();
+  ctx.restore();
   ctx.restore();
   floatCoins(ctx, px, py + 40, t, 4, 60);
 
@@ -836,7 +939,7 @@ export function gasPumpScene(g: SceneCtx): void {
     ctx.globalAlpha = cap;
     ctx.translate(0, (1 - easeOutCubic(cap)) * 40);
     const tone = TONE(c.tone);
-    card(ctx, x, y, 480, 300, { r: 30 });
+    card(ctx, x, y, 480, 300, { r: 30, tint: tone.main }); // v10: tone-lit card
     setFont(ctx, 27, 700);
     ctx.fillStyle = tone.main;
     ctx.textAlign = 'left';
@@ -854,6 +957,9 @@ export function gasPumpScene(g: SceneCtx): void {
     });
     ctx.restore();
   });
+  // v10 (D-02): the caption — moved from y≈992 (ON the source tag) to the
+  // open band under the pump+cards (clear of the plinth at 670 and the pill
+  // at 796), registered as reading text.
   const cap2 = clamp01((t - 3000) / 700);
   if (cap2 > 0) {
     ctx.save();
@@ -861,8 +967,9 @@ export function gasPumpScene(g: SceneCtx): void {
     ctx.textAlign = 'center';
     setFont(ctx, 34, 700);
     ctx.fillStyle = PALETTE.ink;
-    // v3 (panel P0-2): was H*0.82 (y≈885) — inside the caption pill band.
-    ctx.fillText(`${s.caption as string} — same country, same price shock`, W / 2, (992 / 1080) * H);
+    const line = `${s.caption as string} — same country, same price shock`;
+    registerText('gasPump:caption', W / 2 - 560, 730 - 34, 1120, 48);
+    ctx.fillText(line, W / 2, 730);
     ctx.restore();
   }
   sourceTag(ctx, W, s.source as string, H - 60);
@@ -988,34 +1095,115 @@ export function aiDatacenterScene(g: SceneCtx): void {
   }
   ctx.restore();
 
-  // isometric server racks scrolling
+  // v10 (panel PROP-2 — full rebuild): the v9 racks were flat white rounded
+  // rects with dots — the vision panel read them as "three blank Post-it
+  // notes / unrendered placeholder boxes", the lowest-scored element in the
+  // whole film. A rack a viewer can READ at 320px needs: unit slots (server
+  // chassis lines), a visible DEPTH (right side face + top face, consistent
+  // vanishing direction), two LED columns with independent blink phases, a
+  // pulsing gold LOAD bar per rack, and a floor shadow. Same deterministic
+  // lane scroll, same light palette — just drawn as an object, not a plate.
   const scroll = (t / 260) % 3;
+  const ap = clamp01(t / 600);
+  // v10.1: rw 150 → 168, rh 195 → 212 — the pair judge read the rebuilt
+  // racks as "improved but sparse"; bigger bodies carry more slot lines and
+  // the load meter reads at phone scale.
+  const rw0 = (depth: number) => 168 * depth;
   for (let i = 0; i < 5; i++) {
     const lane = ((i + scroll) % 5) - 2;
-    const depth = 1 - Math.abs(lane) / 3.4;
-    const x = W / 2 + lane * 300;
-    const y = horizon + 40 + Math.abs(lane) * 26;
-    const rw = 150 * depth;
-    const rh = 190 * depth;
-    const ap = clamp01(t / 600);
+    const depth = 1 - Math.abs(lane) / 3.4; // 0.41 (far) .. 1 (near)
+    const x = W / 2 + lane * 305;
+    const y = horizon + 46 + Math.abs(lane) * 24;
+    // v10.1 (panel 11 re-review, host-vs-content): the AISLE. The walk-host
+    // (W*0.82, full-body envelope x≈1399-1749) stood INSIDE the scrolling
+    // rack field — the near rack's side-face and LED rails read through his
+    // body as "a detached gray arm" and its gold LEDs as "a floating tie"
+    // (vision-verified). Racks that would enter the aisle pocket simply
+    // don't draw: the presenter owns a clear lane and the racks scroll past
+    // it. The skip margin (rw/2 + 200) keeps every rack edge ≥25px outside
+    // the host envelope — the guard's host-vs-content pass verifies it.
+    if (Math.abs(x - W * 0.82) < rw0(depth) / 2 + 200) continue;
+    // v10.1: |lane| ≥ 2.7 racks sat at the far corners (x < 135 / x > 1783)
+    // and their envelopes crossed the frame edge under the ch5 hero push
+    // (guard-caught @405s, 45px). The field now clips at |lane| 2.7 —
+    // worst pushed right edge ≈1905, inside the 10px edge pad.
+    if (Math.abs(lane) >= 2.7) continue;
+    const rw = rw0(depth);
+    const rh = 212 * depth;
+    // v10.1: register the front face — the host-vs-content guard now
+    // machine-verifies that no rack ever enters the aisle pocket.
+    registerRect(`rack@${Math.round(x)}`, x - rw / 2, y - rh, rw, rh);
+    const fx = rw * 0.30; // side-face depth, same for every rack (one VP)
+    const fy = rh * 0.12;
     ctx.save();
-    ctx.globalAlpha = ap * (0.5 + depth * 0.5);
-    // rack body (3D-ish box)
-    ctx.fillStyle = rgba('#FFFFFF', 0.9);
-    roundRect(ctx, x - rw / 2, y - rh, rw, rh, 10);
+    ctx.globalAlpha = ap * (0.55 + depth * 0.45);
+    // floor shadow
+    ctx.fillStyle = rgba(PALETTE.shadow, 0.10 + depth * 0.06);
+    ctx.beginPath();
+    ctx.ellipse(x + fx * 0.4, y + 4, rw * 0.72, 9 * depth, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // right side face — parallelogram, one shade down
+    ctx.fillStyle = rgba(PALETTE.grid, 0.45);
+    ctx.beginPath();
+    ctx.moveTo(x + rw / 2, y - rh);
+    ctx.lineTo(x + rw / 2 + fx, y - rh + fy);
+    ctx.lineTo(x + rw / 2 + fx, y + fy);
+    ctx.lineTo(x + rw / 2, y);
+    ctx.closePath();
+    ctx.fill();
+    // top face — one shade up
+    ctx.fillStyle = rgba('#FFFFFF', 0.95);
+    ctx.beginPath();
+    ctx.moveTo(x - rw / 2, y - rh);
+    ctx.lineTo(x - rw / 2 + fx, y - rh + fy);
+    ctx.lineTo(x + rw / 2 + fx, y - rh + fy);
+    ctx.lineTo(x + rw / 2, y - rh);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = rgba(PALETTE.grid, 0.7);
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    // front face — white body, crisp border
+    ctx.fillStyle = rgba('#FFFFFF', 0.96);
+    roundRect(ctx, x - rw / 2, y - rh, rw, rh, 7 * depth);
     ctx.fill();
     ctx.lineWidth = 2;
-    ctx.strokeStyle = rgba(PALETTE.grid, 0.8);
-    roundRect(ctx, x - rw / 2, y - rh, rw, rh, 10);
+    ctx.strokeStyle = rgba(PALETTE.shadow, 0.38);
+    roundRect(ctx, x - rw / 2, y - rh, rw, rh, 7 * depth);
     ctx.stroke();
-    // blinking lights
-    for (let k = 0; k < 6; k++) {
-      const on = Math.sin(t / 200 + i * 3 + k * 1.7) > 0.2;
-      ctx.fillStyle = on ? (k % 3 === 0 ? PALETTE.gold : PALETTE.up) : rgba(PALETTE.grid, 0.5);
+    // unit slots — horizontal chassis lines (7 units)
+    ctx.strokeStyle = rgba(PALETTE.grid, 0.55);
+    ctx.lineWidth = 1.2;
+    for (let u = 1; u <= 6; u++) {
+      const uy = y - rh + (rh * u) / 7;
       ctx.beginPath();
-      ctx.arc(x - rw / 2 + 18 + (k % 3) * 22, y - rh + 24 + Math.floor(k / 3) * 34, 5.5, 0, Math.PI * 2);
+      ctx.moveTo(x - rw / 2 + 5, uy);
+      ctx.lineTo(x + rw / 2 - 5, uy);
+      ctx.stroke();
+    }
+    // LED columns — two rails, independent phases
+    for (let k = 0; k < 12; k++) {
+      const col = k % 2;
+      const row = Math.floor(k / 2);
+      const on = Math.sin(t / (170 + col * 90) + i * 3 + k * 1.7) > 0.15;
+      ctx.fillStyle = on
+        ? (k % 3 === 0 ? PALETTE.gold : PALETTE.upVivid)
+        : rgba(PALETTE.grid, 0.5);
+      const lx = x - rw / 2 + 10 + col * (rw - 26);
+      const ly = y - rh + 12 + row * (rh - 26) / 6;
+      ctx.beginPath();
+      ctx.arc(lx, ly, Math.max(1.6, 3.2 * depth), 0, Math.PI * 2);
       ctx.fill();
     }
+    // v10.1: the LOAD METER — a visible track + gold fill (was a lone 4px
+    // stripe the judge read as absent). Track first, fill rides it.
+    const load = 0.35 + 0.3 * Math.sin(t / 640 + i * 1.9);
+    ctx.fillStyle = rgba(PALETTE.grid, 0.45);
+    roundRect(ctx, x - rw / 2 + 8, y - 13, rw - 16, 7, 3.5);
+    ctx.fill();
+    ctx.fillStyle = rgba(PALETTE.gold, 0.85);
+    roundRect(ctx, x - rw / 2 + 8, y - 13, (rw - 16) * load, 7, 3.5);
+    ctx.fill();
     ctx.restore();
   }
 
@@ -1054,7 +1242,7 @@ export function aiDatacenterScene(g: SceneCtx): void {
     // edge, arm and shadow clipped (vision-verified on the aiDatacenter
     // frame). At W*0.82 the envelope's worst case lands ≈1831, 89px clear.
     drawStickmanV2(ctx, W * 0.82, H * 0.66, 1.37, t,
-      { pose, alpha: clamp01((t - 900) / 600), look: -0.7, scarf: true, talk }, 27);
+      { pose, alpha: clamp01((t - 900) / 600), look: -0.7, scarf: true, talk, hostBody: true }, 27);
   }
 }
 
@@ -1064,7 +1252,13 @@ export function statCardsScene(g: SceneCtx): void {
   bg(g, 181, 0.55);
   sceneTitle(ctx, 'The numbers, plainly', 110, 190, clamp01(t / 600));
   const cards = (s.cards as any[]) || [];
-  const cw = (W - 110 * 2 - 60 * (cards.length - 1)) / cards.length;
+  // v10.1 (panel 11 re-review, host-vs-content): the card row used to span
+  // the full width (110→1810) and the side host (W*0.84) plated the third
+  // card's number + tag chip ("a premium explainer would never let the
+  // mascot collide with critical data" — vision-verified on both the pair
+  // judge AND the blind judge). Cards now yield the right column: the row
+  // ends at x=1450 and the host (W*0.85) owns 1492-1772 clear.
+  const cw = (1450 - 110 - 60 * (cards.length - 1)) / cards.length;
   cards.forEach((c, i) => {
     statCard(ctx, {
       x: 110 + i * (cw + 60), y: H * 0.24, w: cw, h: 360,
@@ -1078,7 +1272,10 @@ export function statCardsScene(g: SceneCtx): void {
   sourceTag(ctx, W, s.source as string, H - 60);
   // PANEL-10 (D-10 class): W*0.88 → W*0.84 — the shadow envelope crossed
   // x=1920 under the base push stack; 0.84 clears it with margin.
-  hostSmall(g, W * 0.84, 'present', 19);
+  // v10.1: W*0.84 → W*0.85 — full-body envelope clears the narrowed card
+  // row (right edge 1450) by ~42px; edge worst case (1632+139-960)*1.092+960
+  // ≈ 1883, 37px inside.
+  hostSmall(g, W * 0.85, 'present', 19);
 }
 
 // ── ownerWorker scene ────────────────────────────────────────────────────────
@@ -1137,16 +1334,47 @@ export function ownerWorkerScene(g: SceneCtx): void {
       ctx.lineTo(hx + 170, hy + 20);
       ctx.stroke();
     }
+    // v10 (panel CHAR-4): the class SYMBOL is the scarf. The v9 frame drew
+    // the same gold scarf on BOTH figures — "if the tie is your class symbol,
+    // this panel contradicts itself" (vision panel). The OWNER (left, on the
+    // rising line) keeps the scarf; the WORKER (right, on flat ground) does
+    // not — and his pose is now facepalm (dismay), not the default shrug
+    // every other background figure uses.
     const pose = side === 'left'
       ? blendPose(POSES.climb, POSES.climb, 0)
-      : POSES.shrug;
+      : POSES.facepalm;
     // v3 (panel P0-3): v2 renderer — the shareholder/worker figures match the
     // presenter's body style (they read as the same world)
     drawStickmanV2(ctx, hx, hy - (side === 'left' ? 44 : 0), 0.86, t, {
       pose: side === 'left' ? { ...pose, lean: 12 } : pose,
       alpha: clamp01((t - i * 700 - 200) / 500),
       look: 0.3,
+      scarf: side === 'left', // v10: the owner wears the brand; the worker doesn't
     }, 21 + i);
+    // v10: the worker's line gets a terminal down-tick — the trend the VO
+    // names ("not a paycheck for whoever doesn't"), drawn where the eye lands
+    if (side === 'right') {
+      const tp = clamp01((t - 2400) / 600);
+      if (tp > 0) {
+        ctx.save();
+        ctx.globalAlpha = tp * 0.9;
+        ctx.strokeStyle = PALETTE.downVivid;
+        ctx.lineWidth = 8;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(hx + 130, hy + 20);
+        ctx.lineTo(hx + 130 + 60 * easeOutCubic(tp), hy + 20 + 46 * easeOutCubic(tp));
+        ctx.stroke();
+        // arrowhead
+        ctx.beginPath();
+        ctx.moveTo(hx + 130 + 60 * easeOutCubic(tp), hy + 20 + 46 * easeOutCubic(tp));
+        ctx.lineTo(hx + 118 + 60 * easeOutCubic(tp), hy + 8 + 46 * easeOutCubic(tp));
+        ctx.moveTo(hx + 130 + 60 * easeOutCubic(tp), hy + 20 + 46 * easeOutCubic(tp));
+        ctx.lineTo(hx + 148 + 60 * easeOutCubic(tp), hy + 14 + 46 * easeOutCubic(tp));
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
     setFont(ctx, 30, 600);
     ctx.fillStyle = PALETTE.inkSoft;
     // R7d: baselines 726 / 768 (was 918 / 962) — above CAPTION_ZONE_TOP,
@@ -1326,7 +1554,7 @@ export function fundSplitScene(g: SceneCtx): void {
 // ── oddsSpread scene ─────────────────────────────────────────────────────────
 export function oddsSpreadScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
-  bg(g, 211);
+  bg(g, 211, 0.4, 'up'); // v10: the data room plate
   sceneTitle(ctx, 'Recession odds — the honest range', 110, 190, clamp01(t / 600));
   const trackY = H * 0.42;
   const trackX = 220;

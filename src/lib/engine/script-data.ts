@@ -197,7 +197,11 @@ export const SCRIPT: ChapterSpec[] = [
           ],
           annotations: [
             { at: 11, label: 'low-23,000s · March', tone: 'down', dy: 40 },
-            { at: 20, label: 'crosses 30,000 · June — first time ever', tone: 'gold', dy: -46 },
+            // v10 (panel CHART-2): dy −46 → +56 — the pill drew ABOVE the
+            // point where the line rises steeply through it ("callout
+            // overlaps the line itself", vision-verified); below-right is
+            // open water inside the peak band.
+            { at: 20, label: 'crosses 30,000 · June — first time ever', tone: 'gold', dy: 56 },
             { at: 30, label: '+30% off the low in ~10 weeks', tone: 'up', dy: -70 },
           ],
           peakBand: { from: 26, to: 40, label: 'all-time-high zone' },

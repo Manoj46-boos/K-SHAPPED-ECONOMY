@@ -40,14 +40,31 @@ export interface CollisionViolation {
   pill: GuardRect; // the obstacle rect, camera-envelope expanded
   depth: number; // overlap depth in px (max of x/y penetration)
   /** PANEL-10 (guard v2): which class of check produced this — 'pill',
-   *  'fixed:<id>' (unmoving furniture, e.g. the watermark), or 'edge'. */
-  kind: 'pill' | 'fixed' | 'edge';
+   *  'fixed:<id>' (unmoving furniture, e.g. the watermark), or 'edge'.
+   *  v10 (PANEL-11): 'text:<id>' — a reading-text vs reading-text overlap.
+   *  v10.1 (panel 11 re-review): 'host' — a side-host body envelope plating
+   *  scene content (statCards host over the 12.4% card, aiDatacenter host
+   *  in the scrolling rack field). */
+  kind: 'pill' | 'fixed' | 'edge' | 'text' | 'host';
 }
 
 interface State {
   enabled: boolean;
   frame: string;
-  content: Array<GuardRect & { id: string }>;
+  /** v10.1: 'host' entries are full-body side-host envelopes (hostSmall /
+   *  the aiDatacenter walk host, opted in via drawStickmanV2 hostBody);
+   *  everything else is scene content. The host-vs-content pass below
+   *  compares the two classes — a side host must never plate a card, chart
+   *  or dot field. */
+  content: Array<GuardRect & { id: string; cls?: 'content' | 'host' }>;
+  /** v10 (PANEL-11 D-01/D-02): READING-text rects — the subset of content
+   *  that carries words the viewer must read (scene titles, source tags,
+   *  big captions, count badges). Checked against EACH OTHER, because the
+   *  two shipped defects this class produced (dotGrid's "10 of 500" badge
+   *  plating the scene title; gasPump's caption intersecting the source
+   *  tag) were content-vs-content — invisible to a pill-only guard.
+   *  `screen` marks identity-transform text that never rides the camera. */
+  texts: Array<GuardRect & { id: string; screen: boolean }>;
   pill: GuardRect | null;
   /** PANEL-10 (guard v2): fixed furniture (watermark band) in screen space. */
   fixed: Array<GuardRect & { id: string }>;
@@ -67,6 +84,7 @@ export const collisionGuard: State = {
   enabled: false,
   frame: '',
   content: [],
+  texts: [],
   pill: null,
   fixed: [],
   overlay: false,
@@ -79,6 +97,7 @@ export function resetGuard(frame: string): void {
   if (!collisionGuard.enabled) return;
   collisionGuard.frame = frame;
   collisionGuard.content = [];
+  collisionGuard.texts = [];
   collisionGuard.pill = null;
   collisionGuard.fixed = [];
   collisionGuard.overlay = false;
@@ -99,13 +118,35 @@ export function setGuardOverlay(on: boolean): void {
   collisionGuard.overlay = on;
 }
 
-/** Register a painted content rect (design-grid px). No-op when disabled. */
-export function registerRect(id: string, x: number, y: number, w: number, h: number): void {
+/** Register a painted content rect (design-grid px). No-op when disabled.
+ *  v10.1: `cls: 'host'` marks a full-body side-host envelope — those are
+ *  checked against every content rect (see collectViolations). */
+export function registerRect(
+  id: string, x: number, y: number, w: number, h: number,
+  cls: 'content' | 'host' = 'content'
+): void {
   const g = collisionGuard;
   if (!g.enabled || w <= 0 || h <= 0) return;
   // Ignore degenerate far-offscreen rects (camera bleed fills etc.)
   if (x > 1920 || y > 1080 || x + w < 0 || y + h < 0) return;
-  g.content.push({ id, x, y, w, h });
+  g.content.push({ id, x, y, w, h, cls });
+}
+
+/** v10 (PANEL-11): register a READING-text rect. Same registry rules as
+ *  registerRect, plus the text-vs-text check in collectViolations. Use for
+ *  any painted words the viewer must read that are NOT inside a card/chip
+ *  (those already plate safely): scene titles, source tags, scene captions,
+ *  count badges, kicker chips.
+ *  `screen: true` for text painted in SCREEN space (identity transform,
+ *  never rides the camera — e.g. the source tag): it joins the text-text
+ *  check untransformed and is NOT treated as camera-riding content. */
+export function registerText(id: string, x: number, y: number, w: number, h: number, screen = false): void {
+  const g = collisionGuard;
+  if (!g.enabled || w <= 0 || h <= 0) return;
+  if (x > 1920 || y > 1080 || x + w < 0 || y + h < 0) return;
+  const entry = { id, x, y, w, h, screen };
+  if (!screen) g.content.push({ id, x, y, w, h });
+  g.texts.push(entry);
 }
 
 /** Register the caption pill's rect (called by drawCaptions itself). */
@@ -141,11 +182,11 @@ export function collectViolations(): CollisionViolation[] {
   const obstacles: Ob[] = [];
   if (g.pill && !g.overlay) obstacles.push(g.pill as Ob);
   for (const f of g.fixed) obstacles.push({ ...f, kind: 'fixed' } as Ob);
-  if (!obstacles.length && !g.camera) return [];
 
   const cam = g.camera;
   const out: CollisionViolation[] = [];
 
+  if (obstacles.length || cam) {
   for (const r0 of g.content) {
     let r = r0;
     if (cam) {
@@ -156,7 +197,11 @@ export function collectViolations(): CollisionViolation[] {
     // obstacle overlaps — pill in exact mode gets a 4px AA epsilon (envelope
     // mode: the ±20px worst-case camera); fixed furniture never moves, so
     // exact mode adds nothing and envelope mode uses the camera term.
+    // v10: an obstacle never collides with ITSELF — the source tag is
+    // registered as both fixed furniture and reading text, and its own two
+    // rects are coincident by design.
     for (const ob of obstacles) {
+      if (ob.id === r0.id) continue;
       const eps = cam ? (ob.kind === 'pill' ? 4 : 0) : CAMERA_ENVELOPE;
       const p = {
         x: ob.x - eps,
@@ -200,6 +245,85 @@ export function collectViolations(): CollisionViolation[] {
       }
     }
   }
+  }
   g.violations = out;
+
+  // ── v10.1 (panel 11 re-review): SIDE-HOST vs CONTENT. The statCards host
+  // plated the third stat card's number + badge and the aiDatacenter host
+  // stood inside the scrolling rack field (rack side-faces read as "a
+  // detached arm", the scarf knot as "floating") — host-vs-content, a class
+  // invisible to every check above. hostSmall / the walk host register a
+  // FULL-BODY envelope (cls 'host'); every other registered rect is content.
+  // Both classes ride the scene camera, so scene-space comparison is exact
+  // at any camera position. Thresholds: ≥12px depth, ≥900px² — generous
+  // enough to ignore a fingertip graze, strict enough to catch any body
+  // plating a card, chart or dot field.
+  const hosts = g.content.filter((r) => r.cls === 'host');
+  for (const hst of hosts) {
+    for (const c of g.content) {
+      if (c.cls === 'host') continue;
+      // v10.1: the SAME figure's feet+shadow band (registered by
+      // drawStickmanV2) sits inside its full-body envelope by construction —
+      // same stickman, not a defect. Skip fully-contained stickman bands.
+      if (
+        c.id.startsWith('stickman@') &&
+        hst.x <= c.x && c.x + c.w <= hst.x + hst.w &&
+        hst.y <= c.y && c.y + c.h <= hst.y + hst.h
+      ) continue;
+      const ox = Math.min(hst.x + hst.w, c.x + c.w) - Math.max(hst.x, c.x);
+      const oy = Math.min(hst.y + hst.h, c.y + c.h) - Math.max(hst.y, c.y);
+      if (ox >= 12 && oy >= 12 && ox * oy >= 900) {
+        out.push({
+          frame: g.frame,
+          id: `${hst.id}⇄${c.id}`,
+          rect: { x: hst.x, y: hst.y, w: hst.w, h: hst.h },
+          pill: { x: c.x, y: c.y, w: c.w, h: c.h },
+          depth: Math.round(Math.min(ox, oy)),
+          kind: 'host',
+        });
+      }
+    }
+  }
+
+  // ── v10 (PANEL-11): reading-text vs reading-text. The dotGrid badge sat
+  // ON the scene title and the gasPump caption crossed the source tag —
+  // both content-vs-content, both invisible to the obstacle checks above.
+  // Same thresholds (≥10px depth, ≥400px² area). Camera-exact for rects
+  // that ride the camera; screen-space text (source tags) compares
+  // untransformed — that is where it actually paints. n² over a per-frame
+  // text set of ~6–14 — trivial at harness time.
+  const texts = g.texts;
+  const toScreen = (r0: GuardRect & { screen?: boolean }): GuardRect =>
+    cam && !r0.screen
+      ? {
+          x: (r0.x - 960) * cam.scale + 960 + cam.dx,
+          y: (r0.y - 540) * cam.scale + 540 + cam.dy,
+          w: r0.w * cam.scale,
+          h: r0.h * cam.scale,
+        }
+      : { x: r0.x, y: r0.y, w: r0.w, h: r0.h };
+  for (let i = 0; i < texts.length; i++) {
+    for (let j = i + 1; j < texts.length; j++) {
+      const a = texts[i];
+      const b = texts[j];
+      // same call-site family never self-collides (wrapped rows etc.)
+      if (a.id.split(':')[0] === b.id.split(':')[0]) continue;
+      const ra = toScreen(a);
+      const rb = toScreen(b);
+      const ox = Math.min(ra.x + ra.w, rb.x + rb.w) - Math.max(ra.x, rb.x);
+      const oy = Math.min(ra.y + ra.h, rb.y + rb.h) - Math.max(ra.y, rb.y);
+      if (ox > 0 && oy > 0 && Math.min(ox, oy) >= MIN_DEPTH && ox * oy >= 400) {
+        out.push({
+          frame: g.frame,
+          id: a.id,
+          rect: { x: ra.x, y: ra.y, w: ra.w, h: ra.h },
+          pill: { x: rb.x, y: rb.y, w: rb.w, h: rb.h },
+          depth: Math.round(Math.min(ox, oy)),
+          kind: 'text',
+        });
+      }
+    }
+  }
+
   return out;
 }

@@ -540,13 +540,20 @@ export function reverbLoopCircular(loop: Loop, mix = 0.2): void {
  * v3 (panel P0-5) — gentle presence lift for the VO (one-pole shelf).
  * A subtle +2–3 dB lift above ~2 kHz takes the boxiness off Edge TTS
  * without touching the music bed. One multiply per sample.
+ * v10 (panel AUDIO-1): two-stage chain — first a ~65 Hz rumble cut (one-pole
+ * low-pass subtracted; kills the Edge MP3's room-tone floor and any DC
+ * drift without touching the voice band), THEN the presence lift, raised
+ * +3.0→+3.2 dB. Narration sits forward; the bed stays put.
  */
 export function makeVoShelf(): (x: number) => number {
-  const amt = 0.30; // v5: +3 dB presence — the 96 kbps Edge MP3 is dull above 2 kHz
+  const amt = 0.32; // +3.2 dB presence — the 96 kbps Edge MP3 is dull above 2 kHz
   let hp = 0;
+  let lp = 0; // rumble state (~65 Hz one-pole at 48 kHz)
   return (x: number) => {
-    hp += 0.24 * (x - hp); // one-pole high-pass state
-    return x + amt * (x - hp); // add back a slice of the treble difference
+    lp += 0.0085 * (x - lp);
+    const xv = x - lp; // remove rumble / DC
+    hp += 0.24 * (xv - hp); // one-pole high-pass state
+    return xv + amt * (xv - hp); // add back a slice of the treble difference
   };
 }
 

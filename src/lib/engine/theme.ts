@@ -44,6 +44,19 @@ export interface Palette {
   upSoft: string;
   down: string;
   downSoft: string;
+  /** v10 (panel COLOR-3): the VIVID data-ink ramp. Frames measured 72–93%
+   *  near-white at saturation < 10 — the "washed after transcode" read.
+   *  These are for NON-TEXT strokes only (chart lines, K arms, bar fills,
+   *  gauge zones): one step brighter than up/down so data ink survives the
+   *  platform re-encode on a phone. Never used for text (contrast on white
+   *  is ~3:1 — text keeps up/down, which clear AA). */
+  upVivid: string;
+  downVivid: string;
+  /** v10: display headline ink — one step deeper than ink for 60px+ display
+   *  lines only (bigText line 1, chapter-card titles). 11.9:1 on white;
+   *  gives the statement beats the weight the panel asked for without
+   *  touching body text. */
+  inkDeep: string;
   muted: string;
   chipBg: string;
   white: string;
@@ -91,6 +104,10 @@ export const PALETTE: Palette = {
   upSoft: '#D9EFEA',
   down: '#C2542E',
   downSoft: '#FAE7E1',
+  // v10 (panel COLOR-3): the vivid data-ink ramp — strokes only, never text
+  upVivid: '#00937F',
+  downVivid: '#E85C31',
+  inkDeep: '#243B35',
   muted: '#B2C4C1',
   chipBg: '#FFFFFF',
   white: '#FFFFFF',
@@ -132,16 +149,17 @@ export const FONT_UI =
 export const FONT_UI_SEMI =
   '"Inter", "Segoe UI Variable Display", "Segoe UI Semibold", "Segoe UI", Roboto, sans-serif';
 
-export const TONE = (tone?: string): { main: string; soft: string } => {
+export const TONE = (tone?: string): { main: string; soft: string; vivid?: string } => {
   switch (tone) {
     case 'up':
-      return { main: PALETTE.up, soft: PALETTE.upSoft };
+      // v10: vivid stroke color rides along — callers opt in for line/bar ink
+      return { main: PALETTE.up, soft: PALETTE.upSoft, vivid: PALETTE.upVivid };
     case 'down':
-      return { main: PALETTE.down, soft: PALETTE.downSoft };
+      return { main: PALETTE.down, soft: PALETTE.downSoft, vivid: PALETTE.downVivid };
     case 'gold':
       // v8: display gold for fills + big numerals (was goldDeep — read
       // as brown on the pie; see goldDisplay note above)
-      return { main: PALETTE.goldDisplay, soft: PALETTE.goldWash };
+      return { main: PALETTE.goldDisplay, soft: PALETTE.goldWash, vivid: PALETTE.goldDisplay };
     default:
       return { main: PALETTE.ink, soft: PALETTE.bgSoft };
   }
@@ -224,25 +242,40 @@ export function roundRect(
   ctx.closePath();
 }
 
-/** Premium soft layered shadow card. */
+/** Premium soft layered shadow card.
+ *  v10 (panel COLOR-4): `tint` — tone-colored shadows. A white card floating
+ *  on white with a slate shadow reads neutral everywhere; a card carrying a
+ *  coral stat gets a whisper of coral in its shadow, which the eye reads as
+ *  the card being LIT by its content. Same alphas, hue follows the tone. */
 export function card(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   w: number,
   h: number,
-  opts: { r?: number; alpha?: number; border?: boolean; glow?: string } = {}
+  opts: { r?: number; alpha?: number; border?: boolean; glow?: string; tint?: string } = {}
 ): void {
-  const { r = 26, alpha = 1, border = true, glow } = opts;
+  const { r = 26, alpha = 1, border = true, glow, tint } = opts;
   registerRect(`card@${Math.round(x)},${Math.round(y)}`, x, y, w, h);
   ctx.save();
   ctx.globalAlpha = alpha;
   // layered soft shadow — v8: cool slate (was warm taupe #8C8474)
-  ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
-  roundRect(ctx, x + 2, y + 9, w, h, r);
+  // v10: tinted variant when the caller passes the content tone
+  // v10.1 (panel 11 re-review, COLOR-4): the v10 tint shipped at the old
+  // 0.10/0.07 alphas — below perceptual threshold; the pair judge read the
+  // AFTER shadow as "essentially the same flat gray". Tinted cards now cast
+  // a clearly readable tone shadow (0.18/0.12, +2px drop) — still a
+  // whisper, but one the eye can actually see; neutral cards step to
+  // 0.13/0.09 so the whole film's shadow grammar stays consistent.
+  const sh = tint ?? PALETTE.shadow;
+  const a1 = tint ? 0.18 : 0.13;
+  const a2 = tint ? 0.12 : 0.09;
+  const dy1 = tint ? 11 : 10;
+  ctx.fillStyle = rgba(sh, a1);
+  roundRect(ctx, x + 2, y + dy1, w, h, r);
   ctx.fill();
-  ctx.fillStyle = rgba(PALETTE.shadow, 0.07);
-  roundRect(ctx, x + 1, y + 4, w, h, r);
+  ctx.fillStyle = rgba(sh, a2);
+  roundRect(ctx, x + 1, y + 5, w, h, r);
   ctx.fill();
   if (glow) {
     ctx.fillStyle = glow;
@@ -388,6 +421,36 @@ export function glowBlob(
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
+}
+
+/** v10 (panel COLOR-2) — the editorial SCENE PLATE: a full-width, barely-
+ *  tinted rounded plate that data scenes sit on. The v8 frames floated white
+ *  cards on raw white — measured 72–93% near-white per frame, which the
+ *  panel read as "a spreadsheet on a lightbox". A soft tone wash (upSoft /
+ *  goldWash at ~55% on white) behind the whole scene gives charts a ROOM to
+ *  live in; white cards then pop forward instead of dissolving. Drawn right
+ *  after paintBg, before the bokeh (motes float over the plate = depth).
+ *  Never registered with the guard — it is background, not reading content. */
+export function scenePlate(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  tone: 'up' | 'down' | 'gold' | 'neutral' = 'neutral'
+): void {
+  const soft =
+    tone === 'up' ? PALETTE.upSoft
+    : tone === 'down' ? PALETTE.downSoft
+    : tone === 'gold' ? PALETTE.goldWash
+    : '#EAF4F1';
+  ctx.save();
+  ctx.fillStyle = rgba(soft, 0.5);
+  roundRect(ctx, 64, 118, W - 128, H - 322, 42);
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = rgba(PALETTE.cardBorder, 0.9);
+  roundRect(ctx, 64, 118, W - 128, H - 322, 42);
+  ctx.stroke();
+  ctx.restore();
 }
 
 /** Paints the standard scene background: pure white base + breathing wash.

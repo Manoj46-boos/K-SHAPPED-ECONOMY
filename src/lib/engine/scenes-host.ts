@@ -567,36 +567,63 @@ export function divergeKScene(g: SceneCtx): void {
 
   // two diverging lines grow out of one point
   const growP = clamp01((t - 400) / 2300);
-  const upP = clamp01((t - 400) / 1900);
-  const dnP = clamp01((t - 1100) / 1900);
+  // v10.1 (panel 11 re-review): the overlay arms used their OWN growth
+  // curves (upP/dnP over 1900ms) while drawK3D's inner arms follow
+  // grow*2-0.6 / grow*2-1.1 — the overlay kept growing ~300ms past the K's
+  // finished legs and poked past their tips at a hair different angle:
+  // "two parallel diagonal terminations" + a smudged tip cap
+  // (vision-verified). The overlay now uses drawK's EXACT arm fractions
+  // (always coincident with the legs) and hands off to the ink face —
+  // alpha 1→0 as the K lands (kA), so each diagonal terminates in exactly
+  // ONE colored endpoint while growing and ONE ink endpoint once landed.
+  const kA = clamp01((growP - 0.55) / 0.45);
+  const upArmK = clamp01(growP * 2 - 0.6);
+  const dnArmK = clamp01(growP * 2 - 1.1);
 
   ctx.save();
   ctx.lineCap = 'round';
   // up line (gold) with traveling dot
-  if (upP > 0) {
-    ctx.strokeStyle = PALETTE.up;
-    ctx.lineWidth = 13;
-    ctx.beginPath();
-    ctx.moveTo(kx, ky + S * 0.1);
-    ctx.lineTo(kx + S * 1.15 * upP, ky - S * 1.05 * upP);
-    ctx.stroke();
-    glowBlob(ctx, kx + S * 1.15 * upP, ky - S * 1.05 * upP, 42, PALETTE.up, 0.4);
-  }
-  // down line (coral)
-  if (dnP > 0) {
-    ctx.strokeStyle = PALETTE.down;
-    ctx.lineWidth = 13;
-    ctx.beginPath();
-    ctx.moveTo(kx, ky + S * 0.1);
-    ctx.lineTo(kx + S * 1.15 * dnP, ky + S * 1.05 * dnP);
-    ctx.stroke();
-    glowBlob(ctx, kx + S * 1.15 * dnP, ky + S * 1.05 * dnP, 42, PALETTE.down, 0.4);
+  // v10 (panel COLOR-3): the K's arms are the film's signature STROKES —
+  // they take the vivid data-ink ramp (one step brighter than text teal) so
+  // the formation survives the transcode; all arm LABELS stay on the
+  // text-safe tones.
+  if ((upArmK > 0 || dnArmK > 0) && kA < 1) {
+    ctx.globalAlpha = 1 - kA;
+    // v10.1 (panel 11 re-review, round 2): the judge read BOTH versions' arms
+    // as "pale, low-contrast grey strokes" — at 13px on a 1920 frame the
+    // signature stroke is 2px at phone scale, and the subject halo behind
+    // the K washes the perceived saturation. The arms now carry their own
+    // white halo under-stroke (34px, like the arm labels) and draw at 24px —
+    // near the K face's own 30px weight. Simultaneous contrast against the
+    // white halo makes the vivid ink read at full strength.
+    const arm = (frac: number, vivid: string, dir: number): void => {
+      if (frac <= 0) return;
+      const ex = kx + S * 1.15 * frac;
+      const ey = ky + dir * S * 1.05 * frac;
+      ctx.lineCap = 'round';
+      // white halo under-stroke
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 34;
+      ctx.beginPath();
+      ctx.moveTo(kx, ky + S * 0.1);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      // vivid signature stroke
+      ctx.strokeStyle = vivid;
+      ctx.lineWidth = 24;
+      ctx.beginPath();
+      ctx.moveTo(kx, ky + S * 0.1);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      glowBlob(ctx, ex, ey, 34, vivid, 0.35);
+    };
+    arm(upArmK, PALETTE.upVivid, -1);
+    arm(dnArmK, PALETTE.downVivid, 1);
   }
   ctx.restore();
 
   // the full K fades in as the lines complete (the lines ARE the K)
   if (growP > 0.55) {
-    const kA = clamp01((growP - 0.55) / 0.45);
     ctx.save();
     ctx.globalAlpha = kA;
     drawK3D(ctx, kx, ky, S, 1, t);
@@ -673,7 +700,10 @@ export function divergeKScene(g: SceneCtx): void {
     const sp2 = clamp01((t - 3000) / 700);
     if (sp2 > 0 && growP > 0.55) {
       const pose2 = Stickman.poseAt(t, { gesture: 'close', speaking: false, seed: 9 });
-      drawStickmanV2(ctx, kx + S * 1.15 + 22, ky + S * 1.05 + 6 + bob, 0.75, t,
+      // v10.1: +22 → +48 along the arm — the arm tip's glow blob crowded
+      // his mug/arm region ("the small figure's mug/arm crowds the K's lower
+      // arm tip and its red cap", vision-verified); 26px more clearance.
+      drawStickmanV2(ctx, kx + S * 1.15 + 48, ky + S * 1.05 + 6 + bob, 0.75, t,
         { pose: pose2, alpha: sp2 * 0.96, flip: true, look: -0.7, scarf: false, prop: 'coffee' }, 9);
     }
   }
@@ -732,7 +762,9 @@ export function divergeKScene(g: SceneCtx): void {
   const hy = H * 0.6611; // P1-1: raised with the +30% scale
   // v5 (audit P1-3): as the K completes, the host leans INTO it — the
   // signature scene now has a third act of body language (heroPresent → leanIn)
-  const pose = Stickman.poseAt(t, { gesture: upP < 0.5 ? 'heroPresent' : 'leanIn', speaking: g.speaking });
+  // v10.1: keys off upArmK (drawK's own arm curve — the overlay's old upP
+  // is gone; same beat of the animation, same threshold semantics).
+  const pose = Stickman.poseAt(t, { gesture: upArmK < 0.5 ? 'heroPresent' : 'leanIn', speaking: g.speaking });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
   drawStickmanV2(ctx, hx, hy, 1.56, t, { pose, alpha: clamp01(t / 400), look: 0.9, talk }, 5);
   softBloom(ctx, W, H, t - 3800, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)

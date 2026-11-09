@@ -114,7 +114,7 @@ function renderFrame(tMs, { guardOverlay = false } = {}) {
       ctx.fillStyle = 'rgba(194,84,46,0.92)';
       ctx.font = '700 30px Inter';
       ctx.textAlign = 'left';
-      ctx.fillText(`⚠ ${v.id} ⚠ caption-zone overlap`, v.rect.x, Math.max(40, v.rect.y - 14));
+      ctx.fillText(`⚠ ${v.id} ⚠ ${v.kind} overlap`, v.rect.x, Math.max(40, v.rect.y - 14));
       ctx.restore();
     }
     return vs;

@@ -38,10 +38,26 @@ export function bigTextScene(g: SceneCtx): void {
     ctx.globalAlpha = ap;
     ctx.textAlign = 'center';
     const scale = 0.94 + 0.06 * easeOutBack(ap);
-    ctx.translate(W / 2, H * 0.36 + i * 130);
+    // v10 (panel TYPE-2): EDITORIAL SIZE HIERARCHY — line 1 is the statement
+    // in inkDeep (the display ink, 11.9:1), line 2 the punchline in goldDeep.
+    // v10.1 (panel 11 re-review): the v10 step (108 → 88, a 19% ratio) still
+    // read as "two lines near-equal in scale" — a couplet, not a headline.
+    // The hierarchy is now unambiguous: line 1 at 118px (auto-fit to 1660),
+    // line 2 at 62px/600 — a 1.9× editorial ratio, statement + kicker.
+    const size = i === 0 ? 118 : 62;
+    ctx.translate(W / 2, H * 0.36 + i * 118);
     ctx.scale(scale, scale);
-    setFont(ctx, 108, 700, FONT_DISPLAY);
-    ctx.fillStyle = i === 1 ? PALETTE.goldDeep : PALETTE.ink;
+    if (i === 0) {
+      setFont(ctx, size, 700, FONT_DISPLAY);
+      let s = size;
+      while (ctx.measureText(ln).width > 1660 && s > 72) {
+        s -= 2;
+        setFont(ctx, s, 700, FONT_DISPLAY);
+      }
+    } else {
+      setFont(ctx, size, 600, FONT_DISPLAY);
+    }
+    ctx.fillStyle = i === 1 ? PALETTE.goldDeep : PALETTE.inkDeep;
     ctx.fillText(ln, 0, 0);
     ctx.restore();
   });
@@ -434,8 +450,13 @@ export function commentPromptScene(g: SceneCtx): void {
 
   // floating comment bubbles — v8: white cards with teal/gold borders
   // (the panel called the old warm-tan fills "dirty paper scraps")
+  // v10 (panel TYPE-4): bubbles get SENDER IDENTITY — a small tone-colored
+  // avatar dot at the left inside each bubble, and a TAIL anchoring them to
+  // the comment field. "Real comment UI has a sender identity" was the
+  // panel's read; tag-chip → comment. The trailing ellipsis text is gone
+  // (read as a truncation bug).
   const comments = [
-    'the market side, honestly', 'a bit of both…', 'sentiment side 100%',
+    'the market side, honestly', 'a bit of both, honestly', 'sentiment side 100%',
     'gas prices got me', 'my portfolio disagrees with my mood',
   ];
   comments.forEach((c, i) => {
@@ -443,27 +464,39 @@ export function commentPromptScene(g: SceneCtx): void {
     if (bp <= 0) return;
     const x = W * (0.14 + (i % 3) * 0.3) + Math.sin(t / 1300 + i * 2.1) * 14;
     const y = H * (0.52 + (i % 2) * 0.14) + Math.cos(t / 1100 + i) * 10;
+    const toneCol = i % 2 ? PALETTE.up : PALETTE.gold;
     ctx.save();
     ctx.globalAlpha = bp * 0.95;
     setFont(ctx, 28, 600); // v9 (D-07): floor
     const tw = ctx.measureText(c).width;
+    const AV = 30; // avatar column
     ctx.fillStyle = i % 2 ? PALETTE.upSoft : PALETTE.goldWash;
-    roundRect(ctx, x - tw / 2 - 26, y - 34, tw + 52, 62, 30);
+    roundRect(ctx, x - tw / 2 - 26 - AV, y - 34, tw + 52 + AV, 62, 30);
     ctx.fill();
     ctx.lineWidth = 2.5;
-    ctx.strokeStyle = rgba(i % 2 ? PALETTE.up : PALETTE.gold, 0.6);
-    roundRect(ctx, x - tw / 2 - 26, y - 34, tw + 52, 62, 30);
+    ctx.strokeStyle = rgba(toneCol, 0.6);
+    roundRect(ctx, x - tw / 2 - 26 - AV, y - 34, tw + 52 + AV, 62, 30);
     ctx.stroke();
-    // tail
+    // tail — anchors the bubble into the field
     ctx.beginPath();
-    ctx.moveTo(x - 10, y + 26);
+    ctx.moveTo(x - 12, y + 26);
     ctx.lineTo(x - 2, y + 44);
     ctx.lineTo(x + 10, y + 26);
+    ctx.closePath();
     ctx.fillStyle = i % 2 ? PALETTE.upSoft : PALETTE.goldWash;
     ctx.fill();
+    // sender avatar — a tone dot with a white core
+    ctx.beginPath();
+    ctx.arc(x - tw / 2 - 26 - AV + 30, y - 3, 11, 0, Math.PI * 2);
+    ctx.fillStyle = rgba(toneCol, 0.85);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x - tw / 2 - 26 - AV + 30, y - 3, 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fill();
     ctx.fillStyle = PALETTE.ink;
-    ctx.textAlign = 'center';
-    ctx.fillText(c, x, y + 6);
+    ctx.textAlign = 'left';
+    ctx.fillText(c, x - tw / 2 + 6, y + 6);
     ctx.restore();
   });
   const pose = Stickman.poseAt(t, { gesture: 'pointR', speaking: false });
@@ -488,13 +521,20 @@ export function endScreenScene(g: SceneCtx): void {
   floatCoins(ctx, W * 0.3, H * 0.32, t, 5, 200);
 
   // ── LEFT 55% — next-video teaser card (the real click driver) ──
+  // v10 (panel GROWTH-1 — end-screen rebalance): the v9 frame parked the
+  // card top-left and left the bottom 45% of the frame an empty void
+  // ("a mostly blank screen with a postage stamp card" — and end screens
+  // are where the money is). The card grows to 700×420 and sits lower;
+  // WATCH NEXT moves directly under it as its caption; the channel lockup
+  // rises to the top band; and a subscribe strip occupies the below-pill
+  // gap so every vertical band of the frame carries a job.
   const ap = clamp01(t / 800);
   const nx = W * 0.06;
-  const ny = H * 0.24;
+  const ny = H * 0.25;
   ctx.save();
   ctx.globalAlpha = ap;
   ctx.translate(0, (1 - easeOutCubic(ap)) * 40);
-  card(ctx, nx, ny, 660, 400, { r: 30 });
+  card(ctx, nx, ny, 700, 420, { r: 30 });
   // v8: card interior upSoft (teal wash) — the vision panel read the old
   // cream interior as the last big 'aged paper' wash in the film
   ctx.fillStyle = PALETTE.upSoft;
@@ -520,7 +560,21 @@ export function endScreenScene(g: SceneCtx): void {
   });
   ctx.restore();
 
-  // ── host waving, presenting the card from its right (inside safe zone) ──
+  // ── v10.1 (panel 11 re-review): right-zone BRAND MARK — the pair judge
+  // read the right half as "still largely vacant". A large soft gold K3D
+  // (10% alpha, background layer) fills the void with the channel's own
+  // mark; YouTube's end-screen elements overlay it cleanly at upload.
+  {
+    const kp = clamp01((t - 500) / 1200);
+    if (kp > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.10 * kp;
+      drawK3D(ctx, W * 0.74, H * 0.40, 300, kp, t);
+      ctx.restore();
+    }
+  }
+
+  // host waving, presenting the card from its right (inside safe zone) ──
   // v3 (P0-3): v2 renderer. v4 (vision panel, flagged twice): the host stood
   // at W*0.30 — directly UNDER the teaser card, and his head + waving arm
   // crossed the NEXT WEEK title text near “Concentration”. He now stands
@@ -551,48 +605,84 @@ export function endScreenScene(g: SceneCtx): void {
     if (ap > 0) {
       ctx.save();
       ctx.globalAlpha = ap;
-      const ax = W * 0.26;
-      const ay = H * 0.70;
-      setFont(ctx, 56, 700, FONT_UI);
+      const ax = nx + 350; // v10: centred under the (wider) card
+      const ay = ny + 420 + 76; // v10: rides directly under the card
+      // v10.1 (panel 11 re-review, GROWTH-1): the outlined display word read
+      // as "clashing with the clean system typography everywhere else" —
+      // a stroked wordmark is a different type system. The CTA is now a
+      // solid broadcast CHIP: teal plate, white 700 label, gold chevron
+      // riding inside the chip's right end. Same slot under the card.
+      const chipW = 470, chipH = 74;
+      const chx = ax - chipW / 2, chy = ay - chipH / 2 - 4;
+      ctx.fillStyle = rgba(PALETTE.shadow, 0.16);
+      roundRect(ctx, chx + 2, chy + 8, chipW, chipH, 37);
+      ctx.fill();
+      ctx.fillStyle = PALETTE.up;
+      roundRect(ctx, chx, chy, chipW, chipH, 37);
+      ctx.fill();
+      setFont(ctx, 42, 700, FONT_UI);
       ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
       ctx.fillStyle = '#FFFFFF';
-      ctx.strokeStyle = PALETTE.up;
-      ctx.lineWidth = 10;
-      ctx.lineJoin = 'round';
-      ctx.strokeText('WATCH NEXT', ax, ay);
-      ctx.fillText('WATCH NEXT', ax, ay);
-      // the arrow — a chunky chevron aimed at YouTube's element zone
-      ctx.strokeStyle = PALETTE.up;
-      ctx.lineWidth = 14;
+      ctx.fillText('WATCH NEXT', ax - 34, ay + 14);
+      // the arrow — a chunky gold chevron INSIDE the chip
+      const bounce = Math.sin(t / 480) * 6;
+      ctx.strokeStyle = PALETTE.gold;
+      ctx.lineWidth = 13;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      const bounce = Math.sin(t / 480) * 8;
       ctx.beginPath();
-      ctx.moveTo(ax + 200, ay - 26 + bounce * 0.4);
-      ctx.lineTo(ax + 268, ay - 4 + bounce * 0.4);
-      ctx.lineTo(ax + 200, ay + 18 + bounce * 0.4);
+      ctx.moveTo(ax + 132, ay - 22 + bounce * 0.4);
+      ctx.lineTo(ax + 186, ay + 2 + bounce * 0.4);
+      ctx.lineTo(ax + 132, ay + 26 + bounce * 0.4);
       ctx.stroke();
-      // gold pulse dot riding the arrow (life + direction)
-      ctx.fillStyle = PALETTE.gold;
-      ctx.beginPath();
-      ctx.arc(ax + 268 + 18, ay - 4 + bounce * 0.4, 9, 0, Math.PI * 2);
-      ctx.fill();
       ctx.restore();
     }
   }
 
-  // ── channel name + tagline, bottom-center-left ──
+  // v10 (panel GROWTH-1): the SUBSCRIBE STRIP — the below-pill gap (pill
+  // bottom ≈ 956, progress bar 1072) was dead void on the v9 end screen.
+  // A quiet channel-mark + subscribe line occupies it without fighting the
+  // pill or YouTube's right-zone elements.
+  {
+    const sp = clamp01((t - 2200) / 700);
+    if (sp > 0) {
+      ctx.save();
+      ctx.globalAlpha = sp * 0.95;
+      const sx = 150;
+      const sy = 1006;
+      // small gold K mark
+      ctx.strokeStyle = PALETTE.gold;
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(sx, sy - 15); ctx.lineTo(sx, sy + 13);
+      ctx.moveTo(sx, sy - 1); ctx.lineTo(sx + 13, sy - 14);
+      ctx.moveTo(sx, sy - 1); ctx.lineTo(sx + 13, sy + 12);
+      ctx.stroke();
+      setFont(ctx, 30, 700);
+      ctx.fillStyle = PALETTE.ink;
+      ctx.textAlign = 'left';
+      ctx.fillText('SUBSCRIBE', sx + 34, sy - 4);
+      setFont(ctx, 28, 600);
+      ctx.fillStyle = PALETTE.inkFaint;
+      ctx.fillText('— data-driven breakdowns, every week', sx + 34 + ctx.measureText('SUBSCRIBE').width + 76, sy - 4);
+      ctx.restore();
+    }
+  }
+
+  // ── channel name + tagline, top band above the card ──
   const tp = clamp01((t - 500) / 700);
   if (tp > 0) {
     ctx.save();
     ctx.globalAlpha = tp;
     ctx.textAlign = 'center';
-    setFont(ctx, 44, 700);
+    setFont(ctx, 48, 700);
     ctx.fillStyle = PALETTE.ink;
-    ctx.fillText(channelName.toUpperCase(), W * 0.30, H * 0.20);
+    ctx.fillText(channelName.toUpperCase(), W * 0.28, H * 0.155);
     setFont(ctx, 27, 600);
     ctx.fillStyle = PALETTE.inkSoft;
-    ctx.fillText('data-driven breakdowns, every week', W * 0.30, H * 0.20 + 48);
+    ctx.fillText('data-driven breakdowns, every week', W * 0.28, H * 0.155 + 46);
     ctx.restore();
   }
 

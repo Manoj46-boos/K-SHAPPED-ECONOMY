@@ -202,17 +202,21 @@ export function kMotifs(
   // platform transcode. Four motifs at 52-120px (weight 4) still sit at
   // whisper alpha, but the brand texture survives a phone screen. Gold
   // stays capped at low alpha — big AND loud read as a stain, not a mark.
+  // v10 (panel VFX-4): motifs pulled inward — at the old positions a
+  // half-cut K bled off the right edge on wide scenes and read as an
+  // export artifact ("a cropped K glyph looks like a bug", ownerWorker
+  // frame). Every motif now sits fully inside the 140px safe margin.
   ctx.lineWidth = 4;
   for (let i = 0; i < 4; i++) {
     // v3 (panel P1-2): counter-drift against the camera at ~0.45× — the
     // motifs sit behind the scene plane
-    const x = (W * (0.16 + i * 0.25) + Math.sin(t / 7000 + i * 2) * 30
+    const x = (W * (0.18 + i * 0.21) + Math.sin(t / 7000 + i * 2) * 30
       - camState.dx * (1 - BG_PARALLAX) * 1.4 + W) % W;
-    const y = H * (0.22 + hash01(i * 8.8) * 0.54) + Math.cos(t / 6000 + i) * 22;
+    const y = H * (0.24 + hash01(i * 8.8) * 0.44) + Math.cos(t / 6000 + i) * 22;
     // P1-6 round 2: floor raised 52 → 64 — the panel read the two smallest
     // marks (52px) as 'specks'; the family now spans 64-120px
     const s = 64 + hash01(i * 3.3) * 56;
-    drawK(ctx, x, y, s, 4);
+    drawK(ctx, Math.min(Math.max(x, 170), W - 170), Math.min(Math.max(y, 190), H - 260), s, 4);
   }
   ctx.restore();
 }
@@ -283,7 +287,12 @@ export function drawK(
  *  the gold sheen narrowed to a specular band (0.5→0.30 alpha, half the
  *  height) — the pixel audit measured the old broad sweep at hue 46° /
  *  sat 0.78 as it crossed the ink face, which read as a brown wash, not a
- *  specular highlight. */
+ *  specular highlight.
+ *  v10 (panel MOTION-2): three additions — (1) a slow parallax WOBBLE
+ *  (±0.5° on 3.8s) so the extrusion reads as a rotated 3D object, not a
+ *  stamped stack; (2) a soft floor-contact shadow so the letterform
+ *  STANDS on the stage instead of floating; (3) a gold rim pass under the
+ *  face strokes so the silhouette carries a lit edge. All deterministic. */
 export function drawK3D(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -292,10 +301,31 @@ export function drawK3D(
   grow: number,
   t: number
 ): void {
-  const layers = 6;
+  ctx.save();
+  // (2) floor shadow — soft, offset toward the light's opposite corner
+  if (grow > 0.15) {
+    const g = ctx.createRadialGradient(x, y + s * 1.3, 4, x, y + s * 1.3, s * 1.15);
+    g.addColorStop(0, rgba(PALETTE.shadow, 0.13));
+    g.addColorStop(0.6, rgba(PALETTE.shadow, 0.05));
+    g.addColorStop(1, rgba(PALETTE.shadow, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(x, y + s * 1.3, s * 1.15, s * 0.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // (1) the wobble — a slow ±0.5° parallax rotation around the letter's
+  // optical centre; the extrusion offset then reads as a moving light
+  ctx.translate(x, y);
+  ctx.rotate(Math.sin(t / 3800) * 0.009);
+  ctx.translate(-x, -y);
+  // v10.1 (panel 11 re-review): 6 layers @5.4px offset read at render
+  // scale as "soft gray ghost edges / doubled strokes" on the stem and
+  // junction (vision-verified on the cold-open crop). 4 layers @4.2px keep
+  // the dimensional read but stay CRISP — a lit edge, not a double line.
+  const layers = 4;
   for (let i = layers; i >= 1; i--) {
     const f = i / layers;
-    const off = i * 5.4;
+    const off = i * 4.2;
     ctx.save();
     ctx.translate(off, -off * 0.35);
     const shade = lerp(0.5, 0.95, f);
@@ -303,6 +333,10 @@ export function drawK3D(
     drawK(ctx, x, y, s, 30 - i * 1.4, rgba(PALETTE.shadow, 0.10 * shade), grow);
     ctx.restore();
   }
+  // (3) gold rim — a wide soft gold pass UNDER the face; the ink face
+  // covers its centre and the gold peeks only at the silhouette edge
+  // v10.1: 0.22 → 0.16 — a lit edge, not a halo.
+  drawK(ctx, x, y, s, 38, rgba(PALETTE.gold, 0.16), grow);
   // face strokes
   drawK(ctx, x, y, s, 30, PALETTE.ink, grow);
   // gold sheen — a narrow specular band, not a wash
@@ -312,6 +346,7 @@ export function drawK3D(
   ctx.rect(x - s * 1.4, y - s * 1.3 + sweep * s * 2.6, s * 2.8, s * 0.28);
   ctx.clip();
   drawK(ctx, x, y, s, 30, rgba(PALETTE.gold, 0.30), grow);
+  ctx.restore();
   ctx.restore();
 }
 
