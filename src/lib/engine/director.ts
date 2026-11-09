@@ -5,12 +5,12 @@
  * grain, vignette, and the global light fades.
  */
 
-import { clamp01, easeInOutSine, easeOutCubic } from './easing';
+import { clamp01, easeInQuad, easeInOutSine, easeOutCubic } from './easing';
 import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI } from './theme';
 import { drawGrain, lightVignette, bokehField, scalePunch, camState, kWipe } from './effects';
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
 import { Timeline, beatAt } from './timeline';
-import { SceneCtx, SceneDrawer } from './scene-context';
+import { SceneCtx, SceneDrawer, REACTIONS, reactionAt } from './scene-context';
 import { collisionGuard, resetGuard, setGuardOverlay, setGuardCamera, collectViolations } from './collision';
 import { hostScene, splitNumbersScene, divergeKScene, channelIntroScene, recapSplitScene, paradoxResolveScene } from './scenes-host';
 import {
@@ -190,7 +190,9 @@ function cameraV2(
   gt: number,
   groupDur: number,
   sceneType: string,
-  chapterIdx: number
+  chapterIdx: number,
+  groupIdx: number,
+  sceneKey: string
 ): void {
   const p = clamp01(gt / Math.max(1, groupDur));
   // scenes that present a single subject push in; comparison scenes pull out
@@ -222,18 +224,54 @@ function cameraV2(
     else if (hero.move === 'truck') camX += hero.amt * (e - 0.5);
     else if (hero.move === 'rise') camY -= hero.amt * e;
   }
-  // P1-2: scene EXIT — the last 420ms of a group lifts and recedes; the
-  // paired enter-dissolve in drawFrame lands the next scene through light.
-  // Short groups (< 1.4s) never exit-animate (no flicker on fast cuts).
-  // Panel re-review: the first pass (30px, ease-in²) was invisible at the
-  // mid-exit still; the lift now runs 34px with a ^1.5 ramp so motion is
-  // present from the exit's first third, not only its last 2 frames.
+  // PANEL-12 / P2-6 (report §14.6): THE REACTION SHOT — a held-expression
+  // beat on the twist (c8-fund), the paradox resolve (c7-paradox) and the
+  // final takeaway (c9-three). The camera pushes toward the host's head
+  // zone (pivot = his chest, so the head RISES into frame while the feet
+  // stay clear of the caption band), while the scene's host renders at
+  // faceScale 1.4 with the talk envelope paused — the same clock (both
+  // consume reactionAt(), a pure function of sceneKey/gt/groupDur, so
+  // they can never drift apart).
+  // Amplitudes are calibrated per scene against the collision guard's
+  // EXACT-camera pass: the paradox/takeaway frames carry wide reading
+  // columns (1800px) that a 1.3× push would shove past the frame edge,
+  // so those run gentler and let the face close-up carry the emotion;
+  // fundSplit's right-column host can take the full travel. The guard
+  // sweep (tools/render-check.mjs, dense exit/mid grid) is the referee.
+  const rP = reactionAt(sceneKey, gt, groupDur);
+  if (rP > 0) {
+    const spec = REACTIONS[sceneKey];
+    const rs = 1 + spec.amp * rP;
+    camX = camX * rs + (960 - spec.px) * (rs - 1);
+    camY = camY * rs + (540 - spec.py) * (rs - 1);
+    camScale *= rs;
+  }
+  // P1-2 + PANEL-12/P2-2 (report §14.2): scene EXIT — a 3-GRAMMAR
+  // ROTATION, stable and ordered by group index (deterministic):
+  //   0 — the ivory lift (the house style; kept)
+  //   1 — truck-out: the camera slides left and breathes out as the scene
+  //       recedes (replaces the lift on every third group)
+  //   2 — the K-wipe-through: the brand's own sweep CLOSES a scene (it
+  //       already opens every chapter) — drawn over the frame in
+  //       drawFrame's exit block; the camera itself holds still.
+  // The exit-lift monotony was the panel's finding: one repeated gesture
+  // is not a rotation, and the visual interrupt cadence must match the
+  // score's. Short groups (< 1.4s) never exit-animate (no flicker).
   if (groupDur > 1400) {
     const exitP = clamp01((gt - (groupDur - 420)) / 420);
     if (exitP > 0) {
       const e = Math.pow(exitP, 1.5);
-      camY -= 34 * e;
-      camScale *= 1 - 0.015 * e;
+      const exitStyle = ((groupIdx % 3) + 3) % 3;
+      if (exitStyle === 0) {
+        // the house lift — lift 34px, recede 1.5%
+        camY -= 34 * e;
+        camScale *= 1 - 0.015 * e;
+      } else if (exitStyle === 1) {
+        // truck-out — slide 26px left, breathe out 1.2%
+        camX -= 26 * easeInQuad(exitP);
+        camScale *= 1 - 0.012 * exitP;
+      }
+      // exitStyle 2: the K-wipe closes the scene; camera holds
     }
   }
   // publish BEFORE the scene draws — the bg planes counter-drift off this
@@ -355,9 +393,19 @@ export function drawFrame(
   ctx.scale(sx, sy);
   // camera v2: scene-aware push/pull + consistent drift (PATCH 5)
   // P1-2: + chapter hero moves, bigText anticipation, scene exits
-  cameraV2(ctx, gt, groupDur, beat.beat.scene.type, beat.chapter);
+  // PANEL-12 / P2-2+P2-6: + exit-grammar rotation (groupIdx) and the
+  // reaction-shot push (sceneKey) — both deterministic in (gt, groupDur)
+  const groupIdx = groupsFor(tl).indexOf(group);
+  cameraV2(ctx, gt, groupDur, beat.beat.scene.type, beat.chapter, groupIdx, beat.beat.scene.sceneKey);
   // 1-2% scale punch that decays over 160ms right after each hard cut
-  const punch = scalePunch(gt);
+  // PANEL-12 / P2-3 (report §14.3): bigText and stampCard land the film's
+  // loudest words — their punch amplifies 0.035 → 0.05 so the cut itself
+  // carries the slam.
+  const punchAmp =
+    beat.beat.scene.type === 'bigText' || beat.beat.scene.type === 'stampCard'
+      ? 0.05
+      : 0.035;
+  const punch = scalePunch(gt, 200, punchAmp);
   if (punch !== 1) {
     ctx.translate(960, 540);
     ctx.scale(punch, punch);
@@ -385,17 +433,23 @@ export function drawFrame(
   }
   ctx.restore();
 
-  // P1-2 (report): the exit/enter dissolves — every scene ENDS by lifting
-  // into light (up to 50% ivory over the last 420ms, ^1.6 so motion reads
-  // from the exit's first third — the panel's still-audit found the v1
-  // square ramp invisible mid-exit) and every scene ARRIVES out of it
-  // (decays over 240ms). Scenes used to cut off mid-life; now every cut is
-  // a deliberate beat.
+  // P1-2 (report) + PANEL-12/P2-2: the exit/enter dissolves — grammar-aware.
+  // Style 0 keeps the full ivory lift (the house style). Styles 1 and 2
+  // ride a reduced veil (0.22 — a breath, not a cover) because their
+  // camera/wipe already carries the exit; style 2 adds the K-WIPE-THROUGH:
+  // the brand's sweep closes the scene exactly as it opens every chapter.
+  // Every scene still ARRIVES out of the ivory (decays over 240ms).
   {
+    const exitStyle = ((groupsFor(tl).indexOf(group) % 3) + 3) % 3;
     let white = 0;
     if (groupDur > 1400) {
       const exitP = clamp01((gt - (groupDur - 420)) / 420);
-      white = Math.max(white, 0.5 * Math.pow(exitP, 1.6));
+      const cap = exitStyle === 0 ? 0.5 : 0.22;
+      white = Math.max(white, cap * Math.pow(exitP, 1.6));
+      if (exitStyle === 2 && exitP > 0) {
+        // the brand sweep closes a scene instead of only opening chapters
+        kWipe(ctx, W, H, exitP * 420 * 1.6, 672);
+      }
     }
     const enterP = clamp01(gt / 240);
     white = Math.max(white, 0.45 * (1 - enterP));

@@ -323,7 +323,8 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       const lx = Math.min(Math.max(px, x + tw / 2 + 18), x + w - tw / 2 - 18);
       registerRect(`annotation:${a.label.slice(0, 14)}`, lx - tw / 2 - 16, ly - 34, tw + 32, 46);
       ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
-      roundRect(ctx, lx - tw / 2 - 16 + 1, ly - 34 + 3, tw + 32, 46, 23);
+      // PANEL-12 / P3-3: one-light rule (−5, +7), matching theme.chip
+      roundRect(ctx, lx - tw / 2 - 16 - 5, ly - 34 + 7, tw + 32, 46, 23);
       ctx.fill();
       ctx.fillStyle = '#fff';
       roundRect(ctx, lx - tw / 2 - 16, ly - 34, tw + 32, 46, 23);

@@ -267,15 +267,19 @@ export function card(
   // a clearly readable tone shadow (0.18/0.12, +2px drop) — still a
   // whisper, but one the eye can actually see; neutral cards step to
   // 0.13/0.09 so the whole film's shadow grammar stays consistent.
+  // PANEL-12 / P3-3 (report §15.3): ONE LIGHT, EVERYWHERE. The film's
+  // shadows fell in a mix of directions (+2/+10, +1/+5…). Every shadow
+  // now offsets to the lower-LEFT (light from the upper right): the two
+  // card passes at (−6, +12) and (−5, +7). Consistent light is the
+  // cheapest depth cue in 2D — and its absence was the loudest.
   const sh = tint ?? PALETTE.shadow;
   const a1 = tint ? 0.18 : 0.13;
   const a2 = tint ? 0.12 : 0.09;
-  const dy1 = tint ? 11 : 10;
   ctx.fillStyle = rgba(sh, a1);
-  roundRect(ctx, x + 2, y + dy1, w, h, r);
+  roundRect(ctx, x - 6, y + 12, w, h, r);
   ctx.fill();
   ctx.fillStyle = rgba(sh, a2);
-  roundRect(ctx, x + 1, y + 5, w, h, r);
+  roundRect(ctx, x - 5, y + 7, w, h, r);
   ctx.fill();
   if (glow) {
     ctx.fillStyle = glow;
@@ -371,8 +375,9 @@ export function chip(
   const w = tw + padX * 2 + dotW;
   const h = size + padY * 2;
   registerRect(`chip:${text.slice(0, 14)}`, x, y, w, h);
+  // PANEL-12 / P3-3: the chip shadow joins the one-light rule (−5, +7)
   ctx.fillStyle = rgba(PALETTE.shadow, 0.08);
-  roundRect(ctx, x + 1, y + 3, w, h, h / 2);
+  roundRect(ctx, x - 5, y + 7, w, h, h / 2);
   ctx.fill();
   ctx.fillStyle = bg;
   roundRect(ctx, x, y, w, h, h / 2);

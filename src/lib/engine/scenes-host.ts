@@ -9,6 +9,7 @@ import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp, sub
 import { Stickman, POSES, blendPose, walkIn, nodPulse } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
 import { SceneCtx } from './scene-context';
+import { reactionAt } from './scene-context';
 import { sourceTag, wrapText } from './charts';
 import { registerRect } from './collision';
 
@@ -144,11 +145,13 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   const entrance = g.s.entrance as string | undefined;
   let x = hx;
   let pose;
+  let walkPhase: number | undefined;
   if (entrance === 'walk') {
     const walkDur = 900;
     const r = walkIn(t, hx - 560, hx, walkDur);
     x = r.x;
     pose = r.walking ? r.pose : Stickman.poseAt(t, { gesture: g.s.gesture ?? 'present', speaking: g.speaking });
+    if (r.walking) walkPhase = r.phase;
   } else {
     pose = Stickman.poseAt(t, { gesture: g.s.gesture ?? 'present', speaking: g.speaking });
     const expr = expressionPose(g.s.expression as string | undefined);
@@ -158,7 +161,14 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
   const lookRight = g.s.lookRight ? 1 : g.s.lookLeft ? -1 : side === 'left' ? 0.8 : side === 'right' ? -0.8 : 0;
   const fade = entrance === 'walk' ? clamp01(t / 300) : clamp01(t / 420);
-  drawStickmanV2(ctx, x, hy, scale, t, { pose, alpha: fade, look: lookRight, nod: nodP, scarf: true, talk }, 11);
+  // PANEL-12: walkPhase feeds the scarf velocity-coupling (P1-4) and the
+  // contact-dust motes (P2-5); parallax: true rides the foreground plane
+  // at 1.25× camera motion (P2-1)
+  drawStickmanV2(
+    ctx, x, hy, scale, t,
+    { pose, alpha: fade, look: lookRight, nod: nodP, scarf: true, talk, walkPhase, parallax: true },
+    11
+  );
 }
 
 /** Kicker / ribbon / chip below or above host. */
@@ -273,13 +283,24 @@ export function hostSceneV2(g: SceneCtx): void {
   // ── host at the left third, walking in then presenting ──
   const entrance = g.s.entrance as string | undefined;
   const hxTarget = W * 0.28;
-  const walkP = entrance === 'walk' ? clamp01(t / 900) : 1;
-  const ease = easeOutCubic(walkP);
-  const hx = entrance === 'walk' ? hxTarget - 560 * (1 - ease) : hxTarget;
-  const pose = Stickman.poseAt(t, {
-    gesture: walkP < 0.98 ? 'idle' : (g.s.gesture ?? 'present'),
-    speaking: g.speaking,
-  });
+  // PANEL-12 / P1-1: the editorial host now uses walkIn() too — the old
+  // branch eased his POSITION while holding an idle pose, which is the
+  // foot-slide defect wearing a different hat (a gliding figure). Same
+  // fix, same distance-keyed stride phase.
+  let hx = hxTarget;
+  let pose: import('./stickman').Pose;
+  let walkPhase: number | undefined;
+  if (entrance === 'walk' && t < 900) {
+    const r = walkIn(t, hxTarget - 560, hxTarget, 900);
+    hx = r.x;
+    pose = r.pose;
+    if (r.walking) walkPhase = r.phase;
+  } else {
+    pose = Stickman.poseAt(t, {
+      gesture: (g.s.gesture ?? 'present'),
+      speaking: g.speaking,
+    });
+  }
   // v3 (panel P0-4): nods + articulate mouth on the editorial host too
   const nodP = g.speaking ? nodPulse(g.beatT, g.wordTimes) : 0;
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
@@ -288,7 +309,7 @@ export function hostSceneV2(g: SceneCtx): void {
   // (expressions survive a phone screen); body 1.42 → 1.85 (+30%).
   drawStickmanV2(
     ctx, hx, HOST_GROUND(H), 1.85, t,
-    { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk, faceScale: 1.4 },
+    { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk, faceScale: 1.4, walkPhase, parallax: true },
     11
   );
 
@@ -766,7 +787,7 @@ export function divergeKScene(g: SceneCtx): void {
   // is gone; same beat of the animation, same threshold semantics).
   const pose = Stickman.poseAt(t, { gesture: upArmK < 0.5 ? 'heroPresent' : 'leanIn', speaking: g.speaking });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, hx, hy, 1.56, t, { pose, alpha: clamp01(t / 400), look: 0.9, talk }, 5);
+  drawStickmanV2(ctx, hx, hy, 1.56, t, { pose, alpha: clamp01(t / 400), look: 0.9, talk, parallax: true }, 5);
   softBloom(ctx, W, H, t - 3800, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)
 }
 
@@ -834,12 +855,14 @@ export function channelIntroScene(g: SceneCtx): void {
   // P1-1 (report): 0.98 → 1.27 (+30%); ground 756 → 720 so the envelope
   // (bottom 766) clears a worst-case 2-row pill (camera-envelope top 776).
   const pose = blendPose(POSES.wave, POSES.wave, 0);
+  // PANEL-12 / P1-4 (report §13.4): the greeting wave slows from t/160 to
+  // t/560 — 6.25 Hz read as nerves; 1.8 Hz reads as friendly.
   const wavePose = {
     ...pose,
-    rAL: pose.rAL + Math.sin(t / 160) * 14,
+    rAL: pose.rAL + Math.sin(t / 560) * 14,
   };
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, W * 0.85, H * 0.667, 1.27, t, { pose: wavePose, alpha: clamp01((t - 600) / 500), look: -0.6, talk }, 9);
+  drawStickmanV2(ctx, W * 0.85, H * 0.667, 1.27, t, { pose: wavePose, alpha: clamp01((t - 600) / 500), look: -0.6, talk, parallax: true }, 9);
 }
 
 // ── recapSplit (used at ch5 open and ch10 open) ─────────────────────────────
@@ -903,7 +926,7 @@ export function recapSplitScene(g: SceneCtx): void {
   // 770, clear of the worst-case 2-row pill band by 6px).
   const pose = Stickman.poseAt(t, { gesture: 'present', speaking: g.speaking });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, W * 0.86, H * 0.676, 1.12, t, { pose, alpha: clamp01((t - 700) / 500), look: -0.4, talk }, 17);
+  drawStickmanV2(ctx, W * 0.86, H * 0.676, 1.12, t, { pose, alpha: clamp01((t - 700) / 500), look: -0.4, talk, parallax: true }, 17);
 }
 
 function miniPanel(
@@ -1031,9 +1054,22 @@ export function paradoxResolveScene(g: SceneCtx): void {
   // P1-1 (report): 1.0 → 1.3 (+30%) with the asymmetric aha stance kept;
   // ground 756 → 720 so the envelope (bottom 767) clears a worst-case 2-row
   // pill (camera-envelope top 776).
+  // PANEL-12 / P2-6 (report §14.6): THE REACTION SHOT — during the reaction
+  // window the face draws 1.4× (expressions carry the beat), the talk
+  // envelope pauses (a held expression), and the camera pushes toward the
+  // head zone (director.cameraV2 consumes the same reactionAt() clock).
+  const rP = reactionAt(g.s.sceneKey, g.t, g.d);
   const pose = Stickman.poseAt(t, { gesture: 'aha', speaking: g.speaking });
-  const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, W * 0.14, H * 0.667, 1.3, t, { pose, alpha: clamp01((t - 600) / 500), look: 0.5, talk }, 23);
+  const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) * (1 - rP) : 0;
+  drawStickmanV2(
+    ctx, W * 0.14, H * 0.667, 1.3, t,
+    {
+      pose, alpha: clamp01((t - 600) / 500), look: 0.5, talk,
+      faceScale: 1 + 0.4 * rP,
+      parallax: true,
+    },
+    23
+  );
 }
 
 export { sourceTag, slideUp, lerp, easeOutQuad };

@@ -265,10 +265,14 @@ export function collectViolations(): CollisionViolation[] {
       // v10.1: the SAME figure's feet+shadow band (registered by
       // drawStickmanV2) sits inside its full-body envelope by construction —
       // same stickman, not a defect. Skip fully-contained stickman bands.
+      // PANEL-12: +1px epsilon — with the parallax shift the envelope
+      // coordinates pick up sub-pixel float noise, and the exact-equality
+      // containment check started flagging a figure against its own feet
+      // band (ULP-level false positive, verified on the c3-twin climber).
       if (
         c.id.startsWith('stickman@') &&
-        hst.x <= c.x && c.x + c.w <= hst.x + hst.w &&
-        hst.y <= c.y && c.y + c.h <= hst.y + hst.h
+        hst.x - 1 <= c.x && c.x + c.w <= hst.x + hst.w + 1 &&
+        hst.y - 1 <= c.y && c.y + c.h <= hst.y + hst.h + 1
       ) continue;
       const ox = Math.min(hst.x + hst.w, c.x + c.w) - Math.max(hst.x, c.x);
       const oy = Math.min(hst.y + hst.h, c.y + c.h) - Math.max(hst.y, c.y);

@@ -223,7 +223,7 @@ function drawNativeVerticalText(
     ctx.stroke();
     ctx.restore();
   }
-  if (t > 1800) sparkles(ctx, W / 2, bandCy, tMs, t - 1800, { count: 10, radius: 240 });
+  if (t > 1800) sparkles(ctx, W / 2, bandCy, tMs, 1800, { count: 10, radius: 240 }); // PANEL-12/P2-4: dead t0 fixed
 
   // host counting on fingers, in the presenter zone
   const hp = clamp01((t - 2200) / 600);
@@ -699,7 +699,7 @@ function drawNativeVerticalPump(
     ctx.restore();
   });
 
-  if (t > 3000) sparkles(ctx, px, py + 180, tMs, t - 3000, { count: 8, radius: 150 });
+  if (t > 3000) sparkles(ctx, px, py + 180, tMs, 3000, { count: 8, radius: 150 }); // PANEL-12/P2-4: dead t0 fixed
   drawShortSource(ctx, s.source as string);
 }
 

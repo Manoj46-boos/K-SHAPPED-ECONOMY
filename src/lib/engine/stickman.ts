@@ -5,7 +5,7 @@
  * breathing, blinking, brow expressions, and a signature gold scarf.
  */
 
-import { clamp01, easeInOutSine, easeOutCubic, hash01, lerp, mix } from './easing';
+import { clamp01, easeOutCubic, hash01, lerp, mix, springTo } from './easing';
 import { PALETTE, rgba } from './theme';
 
 const D2R = Math.PI / 180;
@@ -114,12 +114,24 @@ export class Stickman {
     let pose: Pose;
     if (opts.speaking && (gesture === 'present' || gesture === 'idle' || gesture === 'close')) {
       // gentle talk cycle among three open poses
+      // PANEL-12 / P1-2 (report §13.2): every pose transition now runs
+      // through the closed-form analytic SPRING instead of the v2 12%
+      // linear window. The blend weight itself springs 0→1 over 620ms
+      // (stiffness 150 / damping 19): a slow wind-up start (anticipation),
+      // a ~4% overshoot past the target joint angles, and the settle —
+      // the three ingredients of "operated" motion, in one stateless
+      // term. Continuity at the cycle boundary is exact (the previous
+      // cycle's settled pose IS the spring's `from`), so scrubbing stays
+      // frame-accurate and the 754-frame guard sweep stays valid.
       const cyc = ['talkA', 'talkB', 'talkC'];
-      const idx = Math.floor(t / 2900 + seed) % cyc.length;
-      const nextIdx = (idx + 1) % cyc.length;
-      const ph = (t / 2900 + seed) % 1;
-      const w = ph > 0.88 ? easeInOutSine(clamp01((ph - 0.88) / 0.12)) : 0;
-      pose = blendPose(POSES[cyc[idx]], POSES[cyc[nextIdx]], w);
+      const raw = t / 2900 + seed;
+      const idx = ((Math.floor(raw) % 3) + 3) % 3;
+      const phT = raw - Math.floor(raw);
+      const prev = POSES[cyc[(idx + 2) % 3]];
+      const cur = POSES[cyc[idx]];
+      const TRANS = 620; // ms per pose transition
+      const k = clamp01((phT * 2900) / TRANS);
+      pose = blendPose(prev, cur, clamp01(springTo(0, 1, k * TRANS, 150, 19)));
     } else if (opts.speaking && gesture === 'pointR') {
       pose = POSES.pointR;
     } else if (opts.speaking && gesture === 'pointL') {
@@ -133,18 +145,37 @@ export class Stickman {
     const sway = Math.sin(t / 1900 + seed * 7.3) * 2.2;
     const breathe = Math.sin(t / 2400 + seed * 3.1) * 2.4;
     const jitter = opts.speaking ? Math.sin(t / 610 + seed) * 1.1 : 0;
-    return {
+    const leaned = {
       ...pose,
       lean: pose.lean + sway * 0.4,
       rootY: pose.rootY + breathe + (opts.speaking ? jitter : 0),
       headTilt: pose.headTilt + sway * 0.25,
     };
+    // PANEL-12 / P1-3 (report §13.3) — FOLLOW-THROUGH: the head chases
+    // the torso. A one-pole lag in closed form is a phase-shifted lookup:
+    // the head's tilt picks up a transient proportional to how far the
+    // CURRENT lean has traveled from its lagged (mostly-static) value —
+    // so when the torso leans, the head arrives ~120ms later. This is the
+    // last joint that still moved like a mannequin.
+    const leanLagged = leaned.lean * 0.82 + 0.18 * (POSES[gesture]?.lean ?? 0);
+    return {
+      ...leaned,
+      headTilt: leaned.headTilt + (leaned.lean - leanLagged) * 0.6,
+    };
   }
 
-  /** walk-cycle pose: phase 0..1 one full stride pair */
+  /** walk-cycle pose: phase 0..1 one full stride pair
+   *  PANEL-12 / P1-5 (report §13.5): WALK ASYMMETRY + ARM LAG.
+   *  (1) The right leg runs +0.03 of phase behind the left and at −8%
+   *  swing amplitude — human gait is never symmetric, and the perfectly
+   *  mirrored v2 cycle was the "clockwork" tell.
+   *  (2) The arms evaluate the stride 0.05 of phase BEHIND the legs —
+   *  the counterbalance read that makes a walk feel weighted. */
   static walkPose(phase: number, speed = 1): Pose {
     const s = Math.sin(phase * Math.PI * 2);
     const c = Math.cos(phase * Math.PI * 2);
+    const sR = Math.sin((phase + 0.03) * Math.PI * 2) * 0.92; // desync'd right leg
+    const sA = Math.sin((phase - 0.05) * Math.PI * 2);        // lagging arms
     const swing = 26 * speed;
     const bob = Math.abs(Math.sin(phase * Math.PI * 4)) * -5;
     // P1-1 (report): 2-frame contact squash. Foot strikes land at phase ≈ 0
@@ -159,9 +190,9 @@ export class Stickman {
       rootY: bob + strike * 5,
       lean: 4 + s * 2 + strike * 3,
       lLU: -s * swing - 3, lLL: -Math.max(0, -s) * 18 * speed + strike * 12,
-      rLU: s * swing + 3, rLL: Math.max(0, s) * 18 * speed + strike * 12,
-      lAU: s * swing * 0.55 - 6, lAL: s * swing * 0.3 - 4,
-      rAU: -s * swing * 0.55 + 6, rAL: -s * swing * 0.3 + 4,
+      rLU: sR * swing + 3, rLL: Math.max(0, sR) * 18 * speed + strike * 12,
+      lAU: sA * swing * 0.55 - 6, lAL: sA * swing * 0.3 - 4,
+      rAU: -sA * swing * 0.55 + 6, rAL: -sA * swing * 0.3 + 4,
       smile: 0.35,
       browRaise: 0.1,
       _unused: c,
@@ -354,7 +385,15 @@ export function drawStickman(
   ctx.restore();
 }
 
-/** Walking host: returns x position and walk pose for a walk-in entrance. */
+/** Walking host: returns x position and walk pose for a walk-in entrance.
+ *  PANEL-12 / P1-1 (report §13.1) — THE FOOT-SLIDE FIX (mandatory).
+ *  The stride phase used to advance with WALL-CLOCK time (t/420), so the
+ *  feet skated whenever the entrance eased — the single defect that flags
+ *  animation as machine-made within seconds. Stride phase now advances
+ *  with EASED DISTANCE TRAVELED; because easeOutCubic has a closed-form
+ *  integral the mapping is exact, and d(x)/d(phase) ≡ stridePx means the
+ *  planted foot has ZERO horizontal screen motion during contact. Still a
+ *  pure function of t — scrub-determinism preserved. */
 export function walkIn(
   t: number,
   from: number,
@@ -362,12 +401,17 @@ export function walkIn(
   dur: number
 ): { x: number; pose: Pose; walking: boolean; phase: number } {
   const p = dur > 0 ? clamp01(t / dur) : 1;
-  const ease = easeOutCubic(p);
-  const x = lerp(from, to, ease);
+  const e = easeOutCubic(p);
+  const x = lerp(from, to, e);
   const walking = p < 0.98;
   const speed = 1.15;
-  const phase = (t / 420) % 1;
-  const pose = walking ? Stickman.walkPose(phase, speed) : Stickman.poseAt(t - dur, { gesture: 'idle', speaking: false });
+  // FIX: phase advances with EASED DISTANCE, not time.
+  // stridePx = ground distance per full stride pair (2 steps) at rig speed.
+  const stridePx = 170 * speed;
+  const phase = ((to - from) * e) / stridePx; // feet plant, never slide
+  const pose = walking
+    ? Stickman.walkPose(phase, speed)
+    : Stickman.poseAt(t - dur, { gesture: 'idle', speaking: false });
   return { x, pose, walking, phase };
 }
 

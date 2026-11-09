@@ -69,6 +69,44 @@ export function window4(t: number, a: number, b: number, c: number, d: number): 
   return 1 - easeInOutSine(clamp01((t - c) / Math.max(1, d - c)));
 }
 
+/**
+ * PANEL-12 / P1-2 (report §13.2) — the closed-form analytic spring.
+ *
+ * Under-damped spring step from `from` to `to` over tMs, with zero state:
+ * a pure function of its arguments, so scrub-determinism is preserved
+ * EXACTLY (the constraint that rules the whole engine). One term buys the
+ * three things pose transitions were missing — anticipation (the slow
+ * wind-up start), overshoot past the target, and the settle — without an
+ * iterative integrator that would break frame-accurate scrubbing.
+ *
+ * stiffness ~170 / damping ~21 is a "confident presenter" tune: a fast
+ * settle (~600ms) with a small (~4%) overshoot. Raising damping kills the
+ * overshoot; lowering stiffness reads as underwater.
+ */
+export function springTo(
+  from: number,
+  to: number,
+  tMs: number,
+  stiffness = 170,
+  damping = 21
+): number {
+  const w0 = Math.sqrt(stiffness); // rad/s
+  const zeta = damping / (2 * w0);
+  const t = tMs / 1000;
+  if (zeta < 1) {
+    const wd = w0 * Math.sqrt(1 - zeta * zeta);
+    const decay = Math.exp(-zeta * w0 * t);
+    return (
+      to +
+      (from - to) *
+        decay *
+        (Math.cos(wd * t) + ((zeta * w0) / wd) * Math.sin(wd * t))
+    );
+  }
+  const decay = Math.exp(-w0 * t);
+  return to + (from - to) * (1 + w0 * t) * decay;
+}
+
 /** Staggered index reveal helper: returns 0..1 for item i entering at time t. */
 export function stagger(
   t: number,

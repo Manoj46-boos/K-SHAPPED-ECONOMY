@@ -7,6 +7,7 @@ import { clamp01, easeInOutSine, easeOutBack, easeOutCubic, easeOutQuad } from '
 import { PALETTE, TONE, card, rgba, roundRect, setFont, paintBg, FONT_DISPLAY, FONT_UI } from './theme';
 import { bokehField, lightRays, softBloom, sparkles, drawK3D, kMotifs, floatCoins } from './effects';
 import { SceneCtx } from './scene-context';
+import { reactionAt } from './scene-context';
 import { Stickman, POSES, blendPose } from './stickman';
 import { drawStickmanV2 } from './stickman-v2';
 import { wrapText } from './charts';
@@ -76,14 +77,27 @@ export function bigTextScene(g: SceneCtx): void {
     ctx.stroke();
     ctx.restore();
   }
-  if (t > 1800) sparkles(ctx, W / 2, H * 0.42, t, t - 1800, { count: 10, radius: 260 });
+  // PANEL-12 / P2-3 (report §14.3): THE IMPACT FRAME — bigText lands the
+  // film's loudest words, so it gets the film's loudest frame: a 2-frame
+  // white accent at 8% alpha right after the slam (the block is solid at
+  // t=340). Whisper-loud, not a strobe — 2 frames @30fps sits far below
+  // the 3-per-second flash threshold by construction.
+  if (t >= 340 && t < 340 + 66) {
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+  if (t > 1800) sparkles(ctx, W / 2, H * 0.42, t, 1800, { count: 10, radius: 260 }); // PANEL-12/P2-4: dead t0 fixed — the burst now fires
   const hp = clamp01((t - 2200) / 600);
   if (hp > 0) {
     const pose = Stickman.poseAt(t, { gesture: 'count2', speaking: false });
     // v3 (panel P0-3): v2 renderer — one body style across the whole film
     // P1-1 (report): +30% (0.9 → 1.17); ground 756 → 726 (envelope bottom 768,
     // clear of the worst-case 2-row pill envelope 776).
-    drawStickmanV2(ctx, W * 0.86, H * 0.672, 1.17, t, { pose, alpha: hp, look: -0.6 }, 31);
+    // PANEL-12 / P2-1: foreground parallax.
+    drawStickmanV2(ctx, W * 0.86, H * 0.672, 1.17, t, { pose, alpha: hp, look: -0.6, parallax: true }, 31);
   }
 }
 
@@ -154,7 +168,16 @@ export function stampCardScene(g: SceneCtx): void {
     ctx.fillStyle = PALETTE.inkSoft;
     ctx.fillText(s.sub as string, cx, cy + 160);
     ctx.restore();
-    if (cp >= 1) sparkles(ctx, cx, cy, t, t - 1400, { count: 14, radius: 320 });
+    if (cp >= 1) sparkles(ctx, cx, cy, t, 1400, { count: 10, radius: 320 }); // PANEL-12/P2-4: dead t0 fixed — the burst now fires
+  }
+  // PANEL-12 / P2-3 (report §14.3): THE IMPACT FRAME — the stamp SLAMS at
+  // t=500 (ap completes); a 2-frame white accent at 8% lands the hit.
+  if (t >= 500 && t < 500 + 66) {
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
   }
   // host nodding
   const hp = clamp01((t - 900) / 600);
@@ -162,7 +185,8 @@ export function stampCardScene(g: SceneCtx): void {
     const pose = { ...POSES.close, headTilt: Math.sin(t / 700) * 4 };
     // v3 (panel P0-3): v2 renderer
     // P1-1 (report): +30% (1.0 → 1.3); ground → H*0.667 (envelope 767).
-    drawStickmanV2(ctx, W * 0.14, H * 0.667, 1.3, t, { pose, alpha: hp, look: 0.6 }, 32);
+    // PANEL-12 / P2-1: foreground parallax.
+    drawStickmanV2(ctx, W * 0.14, H * 0.667, 1.3, t, { pose, alpha: hp, look: 0.6, parallax: true }, 32);
   }
 }
 
@@ -258,7 +282,8 @@ export function quoteCardScene(g: SceneCtx): void {
     const pose = Stickman.poseAt(t, { gesture, speaking: false });
     // v3 (panel P0-3): v2 renderer
     // P1-1 (report): +30% (0.94 → 1.22); ground → H*0.672 (envelope 770).
-    drawStickmanV2(ctx, W * 0.85, H * 0.672, 1.22, t, { pose, alpha: hp, look: -0.7 }, 33);
+    // PANEL-12 / P2-1: foreground parallax.
+    drawStickmanV2(ctx, W * 0.85, H * 0.672, 1.22, t, { pose, alpha: hp, look: -0.7, parallax: true }, 33);
   }
 }
 
@@ -393,12 +418,26 @@ export function takeawaysScene(g: SceneCtx): void {
     if (hp > 0) {
       // v5 (audit P1-3): takeaways 1–2 count on fingers; the third — the
       // earned-optimism payoff — gets the raised thumb
-      const gesture = focus === 1 ? 'count1' : focus === 2 ? 'count2' : 'thumbsUp';
+      // PANEL-12 / P2-6 (report §14.6): the FINAL-TAKEAWAY REACTION SHOT —
+      // during the reaction window the face draws 1.4× and the gesture
+      // holds (the earned beat), while the camera pushes toward the head
+      // zone (director.cameraV2, same reactionAt() clock).
+      const rP = reactionAt(g.s.sceneKey, g.t, g.d);
+      const gesture =
+        rP > 0.5 ? 'aha'
+        : focus === 1 ? 'count1'
+        : focus === 2 ? 'count2'
+        : 'thumbsUp';
       const pose = Stickman.poseAt(t, { gesture, speaking: false });
       // v3 (panel P0-3): v2 renderer
       // P1-1 (report): +30% (1.0 → 1.3); ground → H*0.667 (envelope 767).
       drawStickmanV2(ctx, W * 0.13, H * 0.667, 1.3, t,
-        { pose, alpha: hp, look: 0.6, prop: focus === 3 ? 'thumb' : undefined }, 35);
+        {
+          pose, alpha: hp, look: 0.6,
+          prop: focus === 3 && rP <= 0.5 ? 'thumb' : undefined,
+          faceScale: 1 + 0.4 * rP,
+          parallax: true,
+        }, 35);
     }
   }
 }
@@ -502,7 +541,8 @@ export function commentPromptScene(g: SceneCtx): void {
   const pose = Stickman.poseAt(t, { gesture: 'pointR', speaking: false });
   // v3 (panel P0-3): v2 renderer
   // P1-1 (report): +30% (0.96 → 1.25); ground → H*0.667 (envelope 765).
-  drawStickmanV2(ctx, W * 0.88, H * 0.667, 1.25, t, { pose, alpha: clamp01(t / 700), look: -0.5 }, 36);
+  // PANEL-12 / P2-1: foreground parallax.
+  drawStickmanV2(ctx, W * 0.88, H * 0.667, 1.25, t, { pose, alpha: clamp01(t / 700), look: -0.5, parallax: true }, 36);
 }
 
 // ── endScreen v2: next-video teaser + host, YouTube-safe (PATCH 6) ──────────
@@ -614,8 +654,10 @@ export function endScreenScene(g: SceneCtx): void {
       // riding inside the chip's right end. Same slot under the card.
       const chipW = 470, chipH = 74;
       const chx = ax - chipW / 2, chy = ay - chipH / 2 - 4;
+      // PANEL-12 / P3-3: one-light rule — the CTA chip's shadow falls
+      // lower-left like every other shadow in the film
       ctx.fillStyle = rgba(PALETTE.shadow, 0.16);
-      roundRect(ctx, chx + 2, chy + 8, chipW, chipH, 37);
+      roundRect(ctx, chx - 6, chy + 12, chipW, chipH, 37);
       ctx.fill();
       ctx.fillStyle = PALETTE.up;
       roundRect(ctx, chx, chy, chipW, chipH, 37);

@@ -5,10 +5,11 @@
  * odds spread.
  */
 
-import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, lerp } from './easing';
+import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, lerp, springTo } from './easing';
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
 import { bokehField, kMotifs, lightRays, drawK, drawK3D, floatCoins, sparkles } from './effects';
 import { SceneCtx } from './scene-context';
+import { reactionAt } from './scene-context';
 import { lineChart, pieChart, barRow, dotGrid, gauge, statCard, sourceTag, sceneTitle, wrapText } from './charts';
 import { Stickman, POSES, blendPose } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
@@ -35,7 +36,17 @@ function hostSmall(
   // P1-1 (report): +30% (0.84 → 1.09); ground H*0.68 → H*0.66 — envelope
   // bottom 713+39 = 752, clear of the worst-case 2-row pill envelope (776)
   // by 24px. All hostSmall call sites inherit the bump.
-  groundY = g.H * 0.66, scale = 1.09
+  groundY = g.H * 0.66, scale = 1.09,
+  // PANEL-12 / P2-6: reaction opts — during the reaction window the side
+  // host swaps to the 'aha' gesture, the face draws 1.4× and the talk
+  // envelope pauses (the camera push lives in director.cameraV2, driven
+  // by the same reactionAt() clock).
+  reaction = 0,
+  // PANEL-12 / P2-1: parallax opt-OUT for figures that stand ON data
+  // (the chartTwin / barsCompare climbers ride a bar's tip — if the figure
+  // parallax-shifts while its bar holds still, his footing slides). Hosts
+  // on the open stage keep the foreground plane.
+  parallax = true
 ): void {
   // v10 (panel CHAR-1/CHAR-3): the side host CYCLES through a gesture set
   // instead of holding one pose for the whole scene — "two poses: shrug,
@@ -48,14 +59,31 @@ function hostSmall(
   const cycle: string[] = [gesture, 'talkB', gesture, pointIn];
   const ph = (g.t / 3000 + seed) % 4;
   const idx = Math.floor(ph);
-  const w = ph - idx > 0.86 ? (ph - idx - 0.86) / 0.14 : 0;
+  // PANEL-12 / P1-2: the side-host gesture crossfade re-blends through the
+  // analytic spring — same motion grammar as the main host's talk cycle.
+  const tInto = Math.min(ph - idx, 1 - (ph - idx)) * 3000;
+  const k = clamp01(tInto / 620);
   const poseA = Stickman.poseAt(g.t, { gesture: cycle[idx % 4], speaking: g.speaking });
   const poseB = Stickman.poseAt(g.t, { gesture: cycle[(idx + 1) % 4], speaking: g.speaking });
-  const pose = w > 0 ? blendPose(poseA, poseB, w) : poseA;
-  const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
+  const w = k > 0 ? clamp01(springTo(0, 1, k * 620, 150, 19)) : 0;
+  let pose = w > 0 ? blendPose(poseA, poseB, w) : poseA;
+  if (reaction > 0.5) pose = Stickman.poseAt(g.t, { gesture: 'aha', speaking: false });
+  const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) * (1 - reaction) : 0;
   // v10.1: hostBody — the guard's host-vs-content pass needs the full body,
   // not just the feet band (the statCards host plated a card unseen).
-  drawStickmanV2(g.ctx, x, groundY, scale, g.t, { pose, alpha: clamp01((g.t - 500) / 500), look: g.W / 2 > x ? 0.5 : -0.5, talk, scarf: false, hostBody: true }, seed);
+  // PANEL-12 / P0-5: faceScale 1.15 — side hosts render at 1.09× body scale;
+  // the face needs the help more than the body does (report §12.5).
+  // PANEL-12 / P2-1: parallax — the figure rides the foreground plane.
+  drawStickmanV2(
+    g.ctx, x, groundY, scale, g.t,
+    {
+      pose, alpha: clamp01((g.t - 500) / 500), look: g.W / 2 > x ? 0.5 : -0.5, talk,
+      scarf: false, hostBody: true,
+      faceScale: 1 + 0.15 + 0.25 * reaction,
+      parallax,
+    },
+    seed
+  );
 }
 
 // ── chartTwin: S&P + Nasdaq mini charts ─────────────────────────────────────
@@ -150,7 +178,10 @@ export function chartTwinScene(g: SceneCtx): void {
       ctx.fillStyle = PALETTE.inkSoft;
       ctx.fillText(eb.label, bx + 36 + bigW + 24, by + 51);
       ctx.restore();
-      if (ap >= 1) sparkles(ctx, bx + chipW / 2, by + 42, t, t - 2600, { count: 10, radius: 220 });
+      // PANEL-12 / P2-4: t0 was `t - 2600` — a RELATIVE offset, so age was
+      // always 2600ms > the 900ms life: the burst never drew. t0 is now the
+      // burst's start time (constant) so the brand particles actually fire.
+      if (ap >= 1) sparkles(ctx, bx + chipW / 2, by + 42, t, 2600, { count: 10, radius: 220 });
     }
   }
   sourceTag(ctx, W, s.source as string, H - 60);
@@ -158,7 +189,7 @@ export function chartTwinScene(g: SceneCtx): void {
   // directly on the right chart's "today" x-label. Relocated to the empty
   // top-right quadrant above the chart cards, smaller, looking down at
   // the data; the full label strip along the card bottoms stays clear.
-  hostSmall(g, W * 0.87, 'present', 3, H * 0.225, 0.66);
+  hostSmall(g, W * 0.87, 'present', 3, H * 0.225, 0.66, 0, false);
 }
 
 // ── chartJourney: the generic annotated line chart scene ────────────────────
@@ -508,7 +539,8 @@ export function magChipsScene(g: SceneCtx): void {
     ctx.fillText(st.label, W * 0.14 + 320, y + 62);
     ctx.restore();
   });
-  if (t > 3200) sparkles(ctx, W / 2, H * 0.62, t, t - 3200, { count: 12, radius: 300, gold: true });
+  // PANEL-12 / P2-4: dead t0 fixed (was t - 3200 → age always 3200, never drew)
+  if (t > 3200) sparkles(ctx, W / 2, H * 0.62, t, 3200, { count: 12, radius: 300, gold: true });
   sourceTag(ctx, W, s.source as string, H - 60);
 }
 
@@ -592,7 +624,7 @@ export function barsCompareScene(g: SceneCtx): void {
   // the host takes the empty top-right corner ABOVE the bars (envelope
   // y≈48-263, x≈1590-1751 — clear of the title and every bar row), looking
   // down at the data; the right column belongs to the tag chips.
-  hostSmall(g, W * 0.87, 'present', 13, H * 0.225, 0.66);
+  hostSmall(g, W * 0.87, 'present', 13, H * 0.225, 0.66, 0, false);
 }
 
 // ── trioConverge scene ───────────────────────────────────────────────────────
@@ -1074,9 +1106,12 @@ export function aiDatacenterScene(g: SceneCtx): void {
   paintBg(ctx, W, H, t, g.chapterTone);
   bokehField(ctx, W, H, t, { intensity: 1.15, seed: 171, gold: 0.5 });
   // perspective floor grid
+  // PANEL-12 / P3-2 (report §15.2): the floor must register as a FLOOR —
+  // verticals 0.4 → 0.55 alpha, plus a horizon hairline. A floor grid you
+  // can barely see is a texture; one you can see is a room.
   const horizon = H * 0.56;
   ctx.save();
-  ctx.strokeStyle = rgba(PALETTE.grid, 0.4);
+  ctx.strokeStyle = rgba(PALETTE.grid, 0.55);
   ctx.lineWidth = 1.6;
   for (let i = 0; i <= 14; i++) {
     const fx = (i / 14) * W;
@@ -1093,6 +1128,13 @@ export function aiDatacenterScene(g: SceneCtx): void {
     ctx.lineTo(W, fy);
     ctx.stroke();
   }
+  ctx.globalAlpha = 1;
+  // the horizon line — where the floor ends and the air begins
+  ctx.strokeStyle = rgba(PALETTE.grid, 0.6);
+  ctx.beginPath();
+  ctx.moveTo(0, horizon);
+  ctx.lineTo(W, horizon);
+  ctx.stroke();
   ctx.restore();
 
   // v10 (panel PROP-2 — full rebuild): the v9 racks were flat white rounded
@@ -1136,11 +1178,18 @@ export function aiDatacenterScene(g: SceneCtx): void {
     const fx = rw * 0.30; // side-face depth, same for every rack (one VP)
     const fy = rh * 0.12;
     ctx.save();
-    ctx.globalAlpha = ap * (0.55 + depth * 0.45);
-    // floor shadow
+    // PANEL-12 / P3-2 (report §15.2): DEPTH FOG pushed — the far end now
+    // recedes to 0.45 (was 0.55 floor) so the field reads as receding
+    // INTO the room instead of sitting flat on it.
+    ctx.globalAlpha = ap * (0.45 + 0.55 * depth);
+    // contact AO — PANEL-12 / P3.2: the floor shadow becomes a per-rack
+    // AMBIENT OCCLUSION contact whose squash follows lane depth (ry =
+    // 6 + 5×depth) and whose center skews toward the vanishing point
+    // (offsetX = (W/2 − x) × 0.06): every rack grounds in the floor's own
+    // perspective, and the AO direction agrees with the film's one light.
     ctx.fillStyle = rgba(PALETTE.shadow, 0.10 + depth * 0.06);
     ctx.beginPath();
-    ctx.ellipse(x + fx * 0.4, y + 4, rw * 0.72, 9 * depth, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + (W / 2 - x) * 0.06, y + 4, rw * 0.72, 6 + 5 * depth, 0, 0, Math.PI * 2);
     ctx.fill();
     // right side face — parallelogram, one shade down
     ctx.fillStyle = rgba(PALETTE.grid, 0.45);
@@ -1223,7 +1272,7 @@ export function aiDatacenterScene(g: SceneCtx): void {
       p: clamp01((t - 800 - i * 900) / 900), t,
     });
   });
-  if (t > 3600) sparkles(ctx, W * 0.41, H * 0.3, t, t - 3600, { count: 10, radius: 160 });
+  if (t > 3600) sparkles(ctx, W * 0.41, H * 0.3, t, 3600, { count: 10, radius: 160 }); // PANEL-12/P2-4: dead t0 fixed
   // v8: the host — the vision panel flagged this scene "no character, no
   // motion cue, lowest energy on the sheet". The presenter now walks the
   // datacenter floor (bottom-right, presenting the racks) with the talk
@@ -1242,7 +1291,14 @@ export function aiDatacenterScene(g: SceneCtx): void {
     // edge, arm and shadow clipped (vision-verified on the aiDatacenter
     // frame). At W*0.82 the envelope's worst case lands ≈1831, 89px clear.
     drawStickmanV2(ctx, W * 0.82, H * 0.66, 1.37, t,
-      { pose, alpha: clamp01((t - 900) / 600), look: -0.7, scarf: true, talk, hostBody: true }, 27);
+      {
+        pose, alpha: clamp01((t - 900) / 600), look: -0.7, scarf: true, talk, hostBody: true,
+        // PANEL-12 / P3.2: the walk host's ground-shadow ellipse skews by
+        // the floor's own (W/2 − x) × 0.06 term — he stands IN the room's
+        // perspective, not on a decal. PANEL-12 / P2-1: foreground parallax.
+        shadowSkew: (W / 2 - W * 0.82) * 0.06,
+        parallax: true,
+      }, 27);
   }
 }
 
@@ -1340,13 +1396,17 @@ export function ownerWorkerScene(g: SceneCtx): void {
     // rising line) keeps the scarf; the WORKER (right, on flat ground) does
     // not — and his pose is now facepalm (dismay), not the default shrug
     // every other background figure uses.
-    const pose = side === 'left'
-      ? blendPose(POSES.climb, POSES.climb, 0)
-      : POSES.facepalm;
+    // PANEL-12 / P0-6 (report §12.6): UNIFY THE CAST — both figures now run
+    // the STANDARD rig unchanged (the bespoke {lean: 12} override is gone;
+    // the climb pose carries its own lean). Same ink, same alpha-stepped far
+    // limbs, same hand glyphs, same twin shoes as the host — differentiated
+    // ONLY by accessory (scarf vs none) and pose. One template, variations
+    // by proportion and accessory — never by line style.
+    const pose = side === 'left' ? POSES.climb : POSES.facepalm;
     // v3 (panel P0-3): v2 renderer — the shareholder/worker figures match the
     // presenter's body style (they read as the same world)
     drawStickmanV2(ctx, hx, hy - (side === 'left' ? 44 : 0), 0.86, t, {
-      pose: side === 'left' ? { ...pose, lean: 12 } : pose,
+      pose,
       alpha: clamp01((t - i * 700 - 200) / 500),
       look: 0.3,
       scarf: side === 'left', // v10: the owner wears the brand; the worker doesn't
@@ -1548,7 +1608,10 @@ export function fundSplitScene(g: SceneCtx): void {
   // PANEL-10 (D-10 class): host W*0.88 -> W*0.84 — under the truck+push
   // camera stack the shadow envelope (right edge ≈x1899 static) crossed
   // x=1920; at W*0.84 the envelope clears the edge under the full stack.
-  hostSmall(g, W * 0.84, 'pointL', 24);
+  // PANEL-12 / P2-6 (report §14.6): the TWIST reaction shot — the side host
+  // takes the 'aha' beat (face 1.4×, talk paused) while the camera pushes
+  // toward him (director.cameraV2, same reactionAt() clock).
+  hostSmall(g, W * 0.84, 'pointL', 24, undefined, undefined, reactionAt(g.s.sceneKey, g.t, g.d));
 }
 
 // ── oddsSpread scene ─────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 /** Shared scene drawing context. */
 import { BeatSpec } from './script-data';
+import { window4 } from './easing';
 
 export interface SceneCtx {
   ctx: CanvasRenderingContext2D;
@@ -30,3 +31,48 @@ export interface SceneCtx {
 }
 
 export type SceneDrawer = (g: SceneCtx) => void;
+
+// ── PANEL-12 / P2-6 (report §14.6): REACTION SHOTS ───────────────────────────
+// The missing emotional grammar: three held-expression beats per film — on
+// the twist (c8-fund), the paradox resolve (c7-paradox) and the final
+// takeaway (c9-three). The camera pushes toward the host's head zone while
+// faceScale renders at 1.4 and the talk envelope pauses. Keyed by sceneKey
+// (NOT type — the takeaways chapters have four groups and only the payoff
+// one gets the beat).
+//
+// `amp` is the camera push (calibrated per scene so the collision guard's
+// exact-camera pass stays clean — see the tuning notes in director.ts).
+// `px/py` is the push pivot: the host's chest zone, chosen so the head
+// RISES into frame while the feet stay clear of the caption band.
+export interface ReactionSpec {
+  atFrac: number;
+  durMs: number;
+  amp: number;
+  px: number;
+  py: number;
+}
+export const REACTIONS: Record<string, ReactionSpec> = {
+  // Amps are calibrated against the collision guard's exact-camera pass:
+  // c7-paradox carries a 1800px reading column and c9-three a 1190px card,
+  // so their pushes stay gentle and the faceScale-1.4 close-up carries the
+  // emotion; c8-fund's right-column host takes the full travel.
+  'c7-paradox': { atFrac: 0.3, durMs: 2000, amp: 0.05, px: 350, py: 550 },
+  'c8-fund': { atFrac: 0.42, durMs: 2000, amp: 0.1, px: 1100, py: 600 },
+  'c9-three': { atFrac: 0.4, durMs: 2000, amp: 0.08, px: 500, py: 560 },
+};
+
+/**
+ * The reaction envelope 0..1 for this frame — a pure function of
+ * (sceneKey, group time, group duration), so the camera push in
+ * director.cameraV2 and the face/talk changes in the scene drawer key off
+ * the SAME clock and can never drift apart. 320ms ease in / hold / 320ms
+ * ease out; the window clamps to stay inside the group.
+ */
+export function reactionAt(sceneKey: string, gt: number, d: number): number {
+  const spec = REACTIONS[sceneKey];
+  if (!spec) return 0;
+  const dur = Math.min(spec.durMs, Math.max(900, d * 0.3));
+  let start = Math.max(1400, d * spec.atFrac);
+  start = Math.min(start, Math.max(800, d - dur - 250));
+  return window4(gt, start, start + 320, start + dur - 320, start + dur);
+}

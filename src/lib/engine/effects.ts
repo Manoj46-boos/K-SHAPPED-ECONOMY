@@ -3,7 +3,7 @@
  * film grain tile, soft vignette (bright edges), sparkle bursts, K motif glow.
  */
 
-import { clamp01, drift, easeOutCubic, hash01, hashRange, lerp } from './easing';
+import { clamp01, drift, easeOutCubic, hash01, hashRange } from './easing';
 import { PALETTE, rgba, glowBlob } from './theme';
 
 // ── v3 (panel P1-2): parallax camera state ─────────────────────────────────────
@@ -122,7 +122,11 @@ export function lightRays(
   ctx.rotate(rot);
   for (let i = 0; i < 5; i++) {
     const wRay = 90 + i * 70;
-    const a = (0.03 + hash01(i) * 0.03) * alpha;
+    // PANEL-12 / P2-5 (report §14.5): 0.03–0.06 → 0.07–0.10. The old band
+    // was sub-visible after the platform transcode — a render cost with no
+    // visible result is a tax, not an effect. The new band registers on a
+    // phone while staying inside the light register (no blown highlights).
+    const a = (0.07 + hash01(i) * 0.03) * alpha;
     const g = ctx.createLinearGradient(0, 0, 0, H * 1.3);
     g.addColorStop(0, rgba('#FFF9E8', a));
     g.addColorStop(1, rgba('#FFF9E8', 0));
@@ -148,6 +152,13 @@ export function lightVignette(ctx: CanvasRenderingContext2D, W: number, H: numbe
 }
 
 // ── Sparkle burst (count-up completions, record moments) ────────────────────
+// PANEL-12 / P2-4 (report §14.4) — THE BRAND PARTICLE. The burst used to
+// be a generic 4-point star polygon — "a PowerPoint star", the panel said.
+// It is now the channel's OWN mark: a ~12px mini-K glyph (drawK at
+// lineWidth 2.2), rotating via the existing hash01 rotation and easing out
+// along the same radius curve. Same cost, same determinism — and every
+// celebration moment in the film becomes brand-reinforcing. Count is
+// capped at 10 per burst (10+ reads as confetti noise at phone scale).
 export function sparkles(
   ctx: CanvasRenderingContext2D,
   cx: number,
@@ -157,31 +168,22 @@ export function sparkles(
   opts: { count?: number; radius?: number; gold?: boolean } = {}
 ): void {
   const { count = 14, radius = 120, gold = true } = opts;
+  const n = Math.min(count, 10); // ≤10 per burst
   const age = t - t0;
   if (age < 0 || age > 900) return;
   const p = age / 900;
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < n; i++) {
     const ang = hash01(i * 12.9) * Math.PI * 2;
     const dist = radius * (0.3 + hash01(i * 4.4) * 0.7) * easeOutCubic(p);
     const x = cx + Math.cos(ang) * dist;
     const y = cy + Math.sin(ang) * dist - p * 30;
     const a = (1 - p) * 0.8;
-    const s = (5 + hash01(i * 7.7) * 7) * (1 - p * 0.6);
+    const s = (5 + hash01(i * 7.7) * 6) * (1 - p * 0.6); // 10–22px mini-K
     ctx.save();
     ctx.globalAlpha = a;
-    ctx.fillStyle = gold ? PALETTE.goldDeep : PALETTE.up;
     ctx.translate(x, y);
     ctx.rotate(hash01(i * 3.1) * Math.PI);
-    ctx.beginPath();
-    for (let k = 0; k < 4; k++) {
-      const a2 = (k / 4) * Math.PI * 2;
-      const r1 = s;
-      const r2 = s * 0.32;
-      ctx.lineTo(Math.cos(a2) * r1, Math.sin(a2) * r1);
-      ctx.lineTo(Math.cos(a2 + Math.PI / 4) * r2, Math.sin(a2 + Math.PI / 4) * r2);
-    }
-    ctx.closePath();
-    ctx.fill();
+    drawK(ctx, 0, 0, s, 2.2, gold ? PALETTE.goldDeep : PALETTE.up, 1);
     ctx.restore();
   }
 }
@@ -282,17 +284,55 @@ export function drawK(
   ctx.restore();
 }
 
-/** 3D-extruded K (layered strokes for depth) — the hero moment.
- *  v8: the extrusion stack lightened (9→6 layers, 0.16→0.10 alpha) and
- *  the gold sheen narrowed to a specular band (0.5→0.30 alpha, half the
- *  height) — the pixel audit measured the old broad sweep at hue 46° /
- *  sat 0.78 as it crossed the ink face, which read as a brown wash, not a
- *  specular highlight.
- *  v10 (panel MOTION-2): three additions — (1) a slow parallax WOBBLE
- *  (±0.5° on 3.8s) so the extrusion reads as a rotated 3D object, not a
- *  stamped stack; (2) a soft floor-contact shadow so the letterform
- *  STANDS on the stage instead of floating; (3) a gold rim pass under the
- *  face strokes so the silhouette carries a lit edge. All deterministic. */
+/**
+ * PANEL-12 / P3.1 (report §15.1) — a TRUE oblique extrusion for the K.
+ *
+ * The v2 "3D" was an offset-copy stack (4 faded duplicates) — the panel
+ * read its edges as "soft gray ghost lines / doubled strokes". This is a
+ * real extrusion of the K outline: the K is three strokes; every stroke
+ * segment is a quad of its two endpoints ± the width normal; each quad's
+ * side walls are extruded along ONE fixed vector d = (0.35, −0.14) × depth
+ * and filled in the shadow tone, and the ink face lands on top. The walls
+ * are inset by half the stroke width so the squared corners stay inside
+ * the face's round caps. The floor-contact shadow, the parallax wobble,
+ * the gold rim and the specular sweep all stay — they already worked.
+ * Deterministic, ~30 lines, same call signature.
+ */
+const K_EXTRUDE_D = { x: 0.35, y: -0.14 }; // oblique depth vector (upper-right light)
+
+function extrudeStroke(
+  ctx: CanvasRenderingContext2D,
+  x0: number, y0: number, x1: number, y1: number,   // stroke segment
+  w: number, depth: number, col: string
+): void {
+  const nx = -(y1 - y0), ny = x1 - x0;
+  const L = Math.hypot(nx, ny) || 1;
+  const ux = (nx / L) * (w / 2), uy = (ny / L) * (w / 2); // width normal
+  // inset by half the stroke width so the squared wall ends stay inside
+  // the face's round caps (no ghost corners poking past the letterform)
+  const tx = ((x1 - x0) / L) * (w / 2), ty = ((y1 - y0) / L) * (w / 2);
+  const ax = x0 + tx, ay = y0 + ty, bx = x1 - tx, by = y1 - ty;
+  const dx = K_EXTRUDE_D.x * depth, dy = K_EXTRUDE_D.y * depth;
+  ctx.fillStyle = col;
+  // side wall on the +normal side…
+  ctx.beginPath();
+  ctx.moveTo(ax + ux, ay + uy);
+  ctx.lineTo(bx + ux, by + uy);
+  ctx.lineTo(bx + ux + dx, by + uy + dy);
+  ctx.lineTo(ax + ux + dx, ay + uy + dy);
+  ctx.closePath();
+  ctx.fill();
+  // …and on the −normal side. The face draws after and covers whichever
+  // wall folds back under it — only the outward wall reads.
+  ctx.beginPath();
+  ctx.moveTo(ax - ux, ay - uy);
+  ctx.lineTo(bx - ux, by - uy);
+  ctx.lineTo(bx - ux + dx, by - uy + dy);
+  ctx.lineTo(ax - ux + dx, ay - uy + dy);
+  ctx.closePath();
+  ctx.fill();
+}
+
 export function drawK3D(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -302,7 +342,7 @@ export function drawK3D(
   t: number
 ): void {
   ctx.save();
-  // (2) floor shadow — soft, offset toward the light's opposite corner
+  // floor shadow — soft, offset toward the light's opposite corner
   if (grow > 0.15) {
     const g = ctx.createRadialGradient(x, y + s * 1.3, 4, x, y + s * 1.3, s * 1.15);
     g.addColorStop(0, rgba(PALETTE.shadow, 0.13));
@@ -313,29 +353,29 @@ export function drawK3D(
     ctx.ellipse(x, y + s * 1.3, s * 1.15, s * 0.2, 0, 0, Math.PI * 2);
     ctx.fill();
   }
-  // (1) the wobble — a slow ±0.5° parallax rotation around the letter's
-  // optical centre; the extrusion offset then reads as a moving light
+  // the wobble — a slow ±0.5° parallax rotation around the letter's
+  // optical centre; the extrusion then reads as a rotated 3D object
   ctx.translate(x, y);
   ctx.rotate(Math.sin(t / 3800) * 0.009);
   ctx.translate(-x, -y);
-  // v10.1 (panel 11 re-review): 6 layers @5.4px offset read at render
-  // scale as "soft gray ghost edges / doubled strokes" on the stem and
-  // junction (vision-verified on the cold-open crop). 4 layers @4.2px keep
-  // the dimensional read but stay CRISP — a lit edge, not a double line.
-  const layers = 4;
-  for (let i = layers; i >= 1; i--) {
-    const f = i / layers;
-    const off = i * 4.2;
-    ctx.save();
-    ctx.translate(off, -off * 0.35);
-    const shade = lerp(0.5, 0.95, f);
-    ctx.globalAlpha = 0.9;
-    drawK(ctx, x, y, s, 30 - i * 1.4, rgba(PALETTE.shadow, 0.10 * shade), grow);
-    ctx.restore();
+  // the TRUE extrusion — side walls of each stroke quad along ONE fixed
+  // vector, in the shadow tone (replaces the 4-layer copy loop entirely)
+  const stemF = Math.min(1, grow * 2);
+  const upArm = clamp01(grow * 2 - 0.6);
+  const dnArm = clamp01(grow * 2 - 1.1);
+  const depth = s * 0.14;
+  const wallCol = rgba(PALETTE.shadow, 0.16);
+  const W_K = 30;
+  extrudeStroke(ctx, x, y - s * stemF, x, y + s * stemF, W_K, depth, wallCol);
+  if (upArm > 0) {
+    extrudeStroke(ctx, x, y + s * 0.1, x + s * 1.15 * upArm, y - s * 1.05 * upArm, W_K, depth, wallCol);
   }
-  // (3) gold rim — a wide soft gold pass UNDER the face; the ink face
+  if (dnArm > 0) {
+    extrudeStroke(ctx, x, y + s * 0.1, x + s * 1.15 * dnArm, y + s * 1.05 * dnArm, W_K, depth, wallCol);
+  }
+  // gold rim — a wide soft gold pass UNDER the face; the ink face
   // covers its centre and the gold peeks only at the silhouette edge
-  // v10.1: 0.22 → 0.16 — a lit edge, not a halo.
+  // (a lit edge, not a halo)
   drawK(ctx, x, y, s, 38, rgba(PALETTE.gold, 0.16), grow);
   // face strokes
   drawK(ctx, x, y, s, 30, PALETTE.ink, grow);
@@ -401,11 +441,13 @@ export function softBloom(
  * 200ms (v8: was 2%/160ms — the panel found 2% below perception next to
  * the new 5% camera moves; the punch must clear the camera or it reads
  * as nothing). Multiply into the camera scale right after a cut.
+ * PANEL-12 / P2-3 (report §14.3): `amp` — bigText and stampCard land the
+ * film's loudest words, so their cut-punch runs 0.035 → 0.05.
  */
-export function scalePunch(age: number, dur = 200): number {
+export function scalePunch(age: number, dur = 200, amp = 0.035): number {
   if (age < 0 || age > dur) return 1;
   const p = age / dur;
-  return 1 + 0.035 * Math.sin(p * Math.PI) * (1 - p);
+  return 1 + amp * Math.sin(p * Math.PI) * (1 - p);
 }
 
 // ── v8: the K-WIPE — the brand-owned chapter transition ────────────────────
@@ -459,7 +501,12 @@ export function kWipe(
   ctx.restore();
 }
 
-/** Deterministic floating gold coins (for pump / wealth scenes). */
+/** Deterministic floating gold coins (for pump / wealth scenes).
+ *  PANEL-12 / P2-5 (report §14.5): coins, not bubbles — an edge ring
+ *  (goldDeep stroke) gives each disc a struck-metal rim, and a spin
+ *  (scaleX = cos(t/260 + i), floored at ±0.18 so the coin never vanishes
+ *  edge-on) with the highlight riding the spin converts flat circles
+ *  into tumbling coins. Three lines of geometry, same determinism. */
 export function floatCoins(
   ctx: CanvasRenderingContext2D,
   cx: number,
@@ -474,15 +521,27 @@ export function floatCoins(
     const x = cx + hashRange(i * 9.1, -spread, spread);
     const y = cy - ph * 130;
     const r = 10 + hash01(i * 4.7) * 8;
+    const spin = Math.cos(t / 260 + i);
+    const sx = Math.abs(spin) < 0.18 ? (spin < 0 ? -0.18 : 0.18) : spin;
     ctx.save();
     ctx.globalAlpha = a;
+    ctx.translate(x, y);
+    ctx.scale(sx, 1);
+    // struck body
     ctx.fillStyle = PALETTE.gold;
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fill();
+    // edge ring — the coin's rim
+    ctx.strokeStyle = PALETTE.goldDeep;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, r - 1, 0, Math.PI * 2);
+    ctx.stroke();
+    // highlight — rides the spin because it lives in the scaled space
     ctx.fillStyle = PALETTE.goldWash;
     ctx.beginPath();
-    ctx.arc(x - r * 0.25, y - r * 0.25, r * 0.55, 0, Math.PI * 2);
+    ctx.arc(-r * 0.25, -r * 0.25, r * 0.55, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
