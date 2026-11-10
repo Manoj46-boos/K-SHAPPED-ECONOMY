@@ -32,7 +32,11 @@ function walkStrike(phase: number): number {
 // (verified defect, panel frame A-hostscene-v2). H*0.70 puts the shadow's
 // lowest pixel (ground + 34) at ~790 — clear of even a 2-row pill by 6px,
 // and clear of the 1-row pill host scenes now draw by ~70px.
-const HOST_GROUND = (H: number): number => H * 0.70;
+// AUDIT-PHASE-2: H*0.70 -> H*0.62 — host stands lower in frame; face is
+// closer to optical center; closer to camera (effectively larger face at
+// any rig scale). Shadow envelope bottoms ~698 + 34 = 732, still clear of
+// the 1-row caption pill (top 864) by 132px.
+const HOST_GROUND = (H: number): number => H * 0.62;
 
 const HOST_X = (W: number, side: 'center' | 'left' | 'right'): number =>
   side === 'left' ? W * 0.27 : side === 'right' ? W * 0.73 : W * 0.5;
@@ -172,7 +176,10 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   // phone" verdict. Host scenes draw a 1-row pill (top ≈ 864): the feet+shadow
   // envelope bottoms at 756+36·1.53 = 811 — 33px clear of the worst-case pill
   // (guard-verified by the P1 sweep).
-  const scale = 1.53;
+  // AUDIT-PHASE-2: 1.53 -> 2.05 — figure fills more of the frame; face
+  // reaches ~40px at 320px (legibility threshold). Ground lowered to
+  // H*0.62 keeps the envelope clear of the caption pill.
+  const scale = 2.05;
   const entrance = g.s.entrance as string | undefined;
   let x = hx;
   let pose;
@@ -382,7 +389,8 @@ export function hostSceneV2(g: SceneCtx): void {
       wordTimes: g.gWordTimes,
       pointBias: 'right', // AUDIT-3 / §1.5: present toward the type block
     });
-    const r = walkIn(t, hxTarget - 560, hxTarget, 1600, arrive, 1.85);
+    // AUDIT-PHASE-2: rigScale 1.85 -> 2.40 (matches the new draw scale)
+    const r = walkIn(t, hxTarget - 560, hxTarget, 1600, arrive, 2.40);
     hx = r.x;
     pose = r.walking ? r.pose : arrive;
     if (r.walking) walkPhase = r.phase;
@@ -400,7 +408,8 @@ export function hostSceneV2(g: SceneCtx): void {
         wordTimes: g.gWordTimes,
         pointBias: 'right', // AUDIT-3 / §1.5
       });
-      const r = walkIn(st, fromX, toX, 900, arrive, 1.85);
+      // AUDIT-PHASE-2: rigScale 1.85 -> 2.40
+      const r = walkIn(st, fromX, toX, 900, arrive, 2.40);
       hx = r.x;
       pose = r.walking
         ? r.pose
@@ -427,8 +436,11 @@ export function hostSceneV2(g: SceneCtx): void {
   // (expressions survive a phone screen); body 1.42 → 1.85 (+30%).
   // BLUEPRINT Phase 1: the editorial host's walk carries the landing
   // squash too (walkStrike off the same walkPhase).
+  // AUDIT-PHASE-2: 1.85 -> 2.40 — figure fills more of the editorial
+  // composition; face reaches ~50px at 320px (well above legibility).
+  // Ground lowered (HOST_GROUND H*0.62) keeps the figure envelope clear.
   drawStickmanV2(
-    ctx, hx, HOST_GROUND(H), 1.85, t,
+    ctx, hx, HOST_GROUND(H), 2.40, t,
     { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk, faceScale: 1.4, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true },
     11
   );
@@ -1377,7 +1389,9 @@ export function paradoxResolveScene(g: SceneCtx): void {
     ctx, W * 0.14, H * 0.667, 1.3, t,
     {
       pose, alpha: clamp01((t - 600) / 500), look: 0.5, talk,
-      faceScale: 1 + 0.65 * rP,
+      // AUDIT-PHASE-3: faceScale peak 1.65 -> 1.8 — the paradox reaction
+      // beat finally reads as a face close-up at phone scale.
+      faceScale: 1 + 0.8 * rP,
       parallax: true,
     },
     23

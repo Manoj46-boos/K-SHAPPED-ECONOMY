@@ -15,12 +15,20 @@
 /** The Phase 1 amplitude register (report Table 7). */
 export const AMP = {
   /** Line-boil jitter per joint endpoint, px (was ±0.85 — under the 2px
-   *  static floor at 320px). ±2.2 survives the 6x downscale. */
-  boilPx: 2.2,
-  /** Contrapposto idle weight shift, px (was ±3.0). */
-  weightShift: 7.5,
-  /** Shoulder counter-rotation, deg (was ±1.6). */
-  shoulderCounterDeg: 4.0,
+   *  static floor at 320px). ±2.2 survives the 6x downscale.
+   *  AUDIT-PHASE-2: raised 2.2 -> 4.5 — crosses the drawn-ink threshold at
+   *  320px (downsamples to ±1.4px, the level at which the eye reads
+   *  "drawn, not vector"; was 0.66px, below threshold = puppet read). */
+  boilPx: 4.5,
+  /** Contrapposto idle weight shift, px (was ±3.0).
+   *  AUDIT-PHASE-2: raised 7.5 -> 15 — contrapposto reads at 320px
+   *  (sub-pixel motion becomes visible motion; was 1.2px at feed,
+   *  now 2.4px). */
+  weightShift: 15,
+  /** Shoulder counter-rotation, deg (was ±1.6).
+   *  AUDIT-PHASE-2: raised 4.0 -> 7.0 — shoulder line counters
+   *  visibly at phone scale. */
+  shoulderCounterDeg: 7.0,
   /** Walk pelvis bob, px (was 9) — one readable bump per step. */
   walkBobPx: 16,
   /** Contact-squash depth, px (was 12) — the plant must LAND. */
@@ -31,8 +39,10 @@ export const AMP = {
   toeUpDeg: 26,
   /** Heel-strike pitch, deg (was -14). */
   toeDownDeg: -22,
-  /** Micro-shake on reveals, px (was 4.4) — impacts must register. */
-  microShakePx: 9,
+  /** Micro-shake on reveals, px (was 4.4) — impacts must register.
+   *  AUDIT-PHASE-4: 9 -> 18 — reveals register as hits, not ticks; the
+   *  doubled amplitude reads as impact, not camera drift. */
+  microShakePx: 18,
   /** K brand-object wobble, deg (was ±2 on a 4s period — "stately to the
    *  point of still"). ±5 on 2.6s: the object breathes. */
   kWobbleDeg: 5,
@@ -44,22 +54,30 @@ export const AMP = {
    * envelope for the shipped full-bleed layouts — the travel reads, the
    * edges survive. (A flat 1 → 1.16 push crops 16% of every margin and
    * fails the guard sweep; see director.cameraV2.) */
-  scenePush: 0.16,
+  scenePush: 0.22,
   /** bigText dolly (was 0.13) — slams need scale. */
   bigTextDolly: 0.22,
   /** Anticipation recoil before bigText (was 0.032) — the wind-up must be
    *  felt. */
   anticipation: 0.06,
-  /** Reaction-shot camera push per beat (was 0.05-0.10). */
-  reactionAmp: { paradox: 0.22, fund: 0.28, three: 0.24 } as Record<string, number>,
+  /** Reaction-shot camera push per beat (was 0.05-0.10).
+   *  AUDIT-PHASE-3: doubled across all three beats — paradox 0.22 -> 0.45,
+   *  fund 0.28 -> 0.55, three 0.24 -> 0.50. The camera now pushes halfway
+   *  to the host's head; the face reaches 30-40% of frame width during
+   *  the reaction window (was ~15%). Fixes the audit's worst frame
+   *  (paradoxResolve 3/10) — the "plot twist reaction does not exist"
+   *  verdict. */
+  reactionAmp: { paradox: 0.45, fund: 0.55, three: 0.50 } as Record<string, number>,
   /** Brow-raise travel, px (was x5) — faces must act at 320px. */
   browTravelPx: 14,
   /** Phase 5: reaction windows tighten to a beat, not a hold. */
   reactionWindowMs: 1200,
   /** Phase 5: the whip-truck on scene entry (was 40px). */
   whipPx: 90,
-  /** Phase 5: hard-cut scale punch on ALL scene changes (was 0.035). */
-  cutPunch: 0.05,
+  /** Phase 5: hard-cut scale punch on ALL scene changes (was 0.035).
+   *  AUDIT-PHASE-4: 0.05 -> 0.08 — hard cuts land with weight; scene
+   *  changes feel intentional, not accidental. */
+  cutPunch: 0.08,
 };
 
 /** Phase 2 ink register (report §11 Phase 2): the phone feed rewards dark
@@ -76,15 +94,20 @@ export const INK = {
   legFar: [17, 13, 10] as [number, number, number],
   /** Torso taper: hips → shoulders (was 15/22). */
   torso: [19, 30] as [number, number],
-  /** Head outline stroke (was 9). */
-  headStroke: 12,
+  /** Head outline stroke (was 9). AUDIT-PHASE-2: 12 -> 14 — the face's
+   *  outline carries the head's identity at 320px (was 2.4px at feed,
+   *  now 2.8px). */
+  headStroke: 14,
 };
 
-/** Phase 3: the K's 3D language (report §11 Phase 3). */
+/** Phase 3: the K's 3D language (report §11 Phase 3).
+ *  AUDIT-PHASE-4: depthFrac 0.26 -> 0.40 — the extrusion becomes visibly
+ *  deep, not hinted. The audit verdict was "a flat decal with offset
+ *  shadows"; 40% of a 210px K is an 84px wall at 1080p (vs 55px before). */
 export const K3D = {
   /** Extrusion depth as a fraction of letter size (was 0.14 — "a sliver,
    *  not volume"). */
-  depthFrac: 0.26,
+  depthFrac: 0.40,
   /** The vanishing point every K stroke extrudes toward (design-space
    *  1920x1080). Parallel offsets read as a drop-shadow layer style;
    *  convergence reads as perspective. */

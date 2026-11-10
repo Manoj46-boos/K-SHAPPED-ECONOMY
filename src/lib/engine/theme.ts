@@ -69,20 +69,18 @@ export const PALETTE: Palette = {
   // tracks (39 sites) — the vision panel read them as "aged paper / dirty
   // beige" in every frame they touched. Every neutral below is now a cool
   // slate-teal: the same warmth-free family as the accent system.
-  bgTop: '#FFFFFF',
-  // BLUEPRINT Phase 4 (report §11): bgBottom deepens #F4F9F8 -> #E9F1ED
-  // — the frame gains a ground and loses the "floating on a lightbox"
-  // read. This is the palette's only structural change; the single change
-  // that attacks the 72-93% near-white measurement everywhere the wash
-  // renders.
-  bgBottom: '#E9F1ED',
-  bgSoft: '#F8FCFB',
-  // v8.2: ink lifted from #1B2B27 to a slate-teal no vision judge reads
-  // as 'near-black charcoal' (the compliance recheck flagged the old ink
-  // as a black-family element). 9.7:1 on white — still AAA at every size,
-  // still crisp line art, but visibly the brand's own green-slate, not
-  // generic black.
-  ink: '#2E4A43',
+  // AUDIT-PHASE-1: ivory canvas deepens to warm cream (#FFFFFF -> #F4EFE1)
+  // — drops mean luminance ~16 points, every frame reads as warm cream
+  // instead of whiteboard. Brand identity preserved (still Morning Ivory).
+  bgTop: '#F4EFE1',
+  // AUDIT-PHASE-1: bgBottom deepens #E9F1ED -> #D7E5DF — the ground
+  // gradient strengthens; figure gains a floor to stand on.
+  bgBottom: '#D7E5DF',
+  bgSoft: '#EAF1ED',
+  // AUDIT-PHASE-1: ink deepens #2E4A43 -> #1F3328 — deeper ink raises
+  // perceived ink-mass weight without changing the hue family. Still
+  // slate-teal, still AAA contrast, just visibly heavier.
+  ink: '#1F3328',
   inkSoft: '#4F5D59',
   inkFaint: '#65736F',
   card: '#FFFFFF',
@@ -102,7 +100,10 @@ export const PALETTE: Palette = {
    *  gold (same value as `gold`); small TEXT gold stays goldInk #8F6E12
    *  (4.8:1) and mid-size gold text uses goldInk too — nothing text-sized
    *  renders in the bright fill gold. */
-  goldDisplay: '#C9A227',
+  // AUDIT-PHASE-1: display gold brightens #C9A227 -> #D9B224 — survives
+  // the platform transcode at 320 px; pie wedges and big numerals read
+  // as gold, not brown.
+  goldDisplay: '#D9B224',
   goldInk: '#8F6E12',
   goldWash: '#F7F0DC',
   up: '#0B6E63',

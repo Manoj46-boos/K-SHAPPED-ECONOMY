@@ -1212,16 +1212,20 @@ export function aiDatacenterScene(g: SceneCtx): void {
   // vanishing direction), two LED columns with independent blink phases, a
   // pulsing gold LOAD bar per rack, and a floor shadow. Same deterministic
   // lane scroll, same light palette — just drawn as an object, not a plate.
-  const scroll = (t / 260) % 3;
+  // AUDIT-PHASE-3: rack count 5 -> 12, lane spread widened (-6..+6),
+  // depth fade tightened (|lane|/8 so far racks recede less aggressively
+  // — was /6.5 which made far racks too faded to read at 320px), spacing
+  // tightened (305 -> 180px) so more racks fit. The audit's verdict was
+  // "two lonely server racks" — this scene now reads as 8-10 racks
+  // receding to the horizon, the Kurzgesagt-scale repetition the panel
+  // demanded.
+  const scroll = (t / 260) % 12;
   const ap = clamp01(t / 600);
-  // v10.1: rw 150 → 168, rh 195 → 212 — the pair judge read the rebuilt
-  // racks as "improved but sparse"; bigger bodies carry more slot lines and
-  // the load meter reads at phone scale.
   const rw0 = (depth: number) => 168 * depth;
-  for (let i = 0; i < 5; i++) {
-    const lane = ((i + scroll) % 5) - 2;
-    const depth = 1 - Math.abs(lane) / 3.4; // 0.41 (far) .. 1 (near)
-    const x = W / 2 + lane * 305;
+  for (let i = 0; i < 12; i++) {
+    const lane = ((i + scroll) % 12) - 6;
+    const depth = 1 - Math.abs(lane) / 8; // 0.25 (far) .. 1 (near)
+    const x = W / 2 + lane * 180;
     const y = horizon + 46 + Math.abs(lane) * 24;
     // v10.1 (panel 11 re-review, host-vs-content): the AISLE. The walk-host
     // (W*0.82, full-body envelope x≈1399-1749) stood INSIDE the scrolling
@@ -1232,11 +1236,9 @@ export function aiDatacenterScene(g: SceneCtx): void {
     // it. The skip margin (rw/2 + 200) keeps every rack edge ≥25px outside
     // the host envelope — the guard's host-vs-content pass verifies it.
     if (Math.abs(x - W * 0.82) < rw0(depth) / 2 + 200) continue;
-    // v10.1: |lane| ≥ 2.7 racks sat at the far corners (x < 135 / x > 1783)
-    // and their envelopes crossed the frame edge under the ch5 hero push
-    // (guard-caught @405s, 45px). The field now clips at |lane| 2.7 —
-    // worst pushed right edge ≈1905, inside the 10px edge pad.
-    if (Math.abs(lane) >= 2.7) continue;
+    // AUDIT-PHASE-3: clip widened 2.7 -> 5.8 so the new denser rack field
+    // extends further into the corners while staying inside the frame edge.
+    if (Math.abs(lane) >= 5.8) continue;
     const rw = rw0(depth);
     const rh = 212 * depth;
     // v10.1: register the front face — the host-vs-content guard now

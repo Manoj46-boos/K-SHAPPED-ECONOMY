@@ -146,9 +146,11 @@ export function bokehField(
     // ink to register. Rings now carry their OWN alpha ramp (0.26–0.62,
     // depth-weighted so far discs stay quieter): a field of confident,
     // varied discs — still light-register, never confetti.
+    // AUDIT-PHASE-1: ring alpha floor 0.40 -> 0.55 — lens artifacts
+    // survive the 320 px downsample instead of vanishing.
     const ringA = Math.min(
       isGold ? 0.55 : 0.62,
-      (isGold ? 0.40 + hash01(i * 9.2) * 0.15 : 0.40 + hash01(i * 9.2) * 0.22) *
+      (isGold ? 0.55 + hash01(i * 9.2) * 0.15 : 0.55 + hash01(i * 9.2) * 0.22) *
         intensity * (0.55 + depth * 0.45)
     );
     ctx.beginPath();
@@ -247,7 +249,9 @@ export function lightRays(
     // BLUEPRINT Phase 4 (report §11): 0.07-0.10 -> 0.14-0.18 — "no light
     // in the room" becomes a room with light. Still inside the light
     // register (overlay composite, warm ivory, no blown highlights).
-    const a = (0.14 + hash01(i) * 0.04) * alpha;
+    // AUDIT-PHASE-1: light rays alpha 0.14–0.18 -> 0.22–0.30 — the room
+    // gains visible light; no longer a lightbox.
+    const a = (0.22 + hash01(i) * 0.08) * alpha;
     const g = ctx.createLinearGradient(0, 0, 0, H * 1.3);
     g.addColorStop(0, rgba('#FFF9E8', a));
     g.addColorStop(1, rgba('#FFF9E8', 0));
@@ -520,24 +524,25 @@ export function drawK3D(
   // .scale-1 rides the depth) — the letter's volume answers the lens.
   const depth = s * K3D.depthFrac * (0.9 + 0.1 * clamp01(grow)) * (0.85 + 0.15 * camState.scale);
   // the per-stroke depth vectors: each stroke's walls run TOWARD the
-  // vanishing point (K3D.vp), magnitude = depth, shortened as the stroke
-  // approaches the VP (true perspective convergence — the constant vector
-  // was the drop-shadow tell).
+  // vanishing point (K3D.vp), magnitude = depth.
+  // AUDIT-PHASE-4: perspective shortening REMOVED — the old persp factor
+  // made the stem's walls shorter than the arms' walls (visually
+  // inconsistent, "the vanishing logic is inconsistent" audit verdict).
+  // All three strokes now extrude the SAME depth magnitude — the K reads
+  // as a solid extruded object, not a perspective trick.
   const strokeD = (x0: number, y0: number, x1: number, y1: number): { x: number; y: number } => {
     const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
     const vx = K3D.vp.x - mx, vy = K3D.vp.y - my;
     const vl = Math.hypot(vx, vy) || 1;
-    // perspective shortening: near the VP the walls converge (shorter);
-    // full depth at 1400px+ from the VP, 45% of it at ~630px.
-    const persp = Math.min(1.1, Math.max(0.45, vl / 1400));
-    const mag = depth * persp;
-    return { x: (vx / vl) * mag, y: (vy / vl) * mag };
+    return { x: (vx / vl) * depth, y: (vy / vl) * depth };
   };
-  // SOLID tones (Phase 3): the lit wall in the object's own ink, the
-  // shadow wall a 45% tint toward the background — an opaque value step,
-  // not two transparent ghosts.
-  const colLit = PALETTE.ink;
-  const colShadow = hexLerp(PALETTE.ink, PALETTE.bgTop, 0.45);
+  // AUDIT-PHASE-4: SOLID GOLD material — the lit wall in the object's
+  // OWN gold (signature material), the shadow wall in gold-oxide
+  // (#8F6E12). The audit verdict was "a slate-teal letter with a gold
+  // outline" — the K now reads as unmistakably a GOLD OBJECT, not a
+  // slate-teal letter with gold trim. One material, one signature.
+  const colLit = PALETTE.goldDisplay;
+  const colShadow = PALETTE.goldDeep;
   const W_K = 30;
   extrudeStroke(ctx, x, y - s * stemF, x, y + s * stemF, W_K, depth, colLit, colShadow,
     strokeD(x, y - s * stemF, x, y + s * stemF));
@@ -552,9 +557,54 @@ export function drawK3D(
   // gold rim — a wide soft gold pass UNDER the face; the ink face
   // covers its centre and the gold peeks only at the silhouette edge
   // (a lit edge, not a halo)
-  drawK(ctx, x, y, s, 38, rgba(PALETTE.gold, 0.16), grow);
-  // face strokes
-  drawK(ctx, x, y, s, 30, PALETTE.ink, grow);
+    // AUDIT-PHASE-1: gold rim alpha 0.16 -> 0.55 — the K's gold rim
+    // becomes a lit edge, not a hint.
+    drawK(ctx, x, y, s, 38, rgba(PALETTE.gold, 0.55), grow);
+  // face strokes — AUDIT-PHASE-4: now in the signature gold material
+  drawK(ctx, x, y, s, 30, PALETTE.goldDisplay, grow);
+  // AUDIT-PHASE-4: BRUSHED-METAL STRIATION — alternating 0.4/0.6 alpha
+  // vertical bands clipped to the K's face. The K reads as brushed gold
+  // (a signature material), not a flat gold fill.
+  if (grow > 0.6) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x - s * 1.4, y - s * 1.3, s * 2.8, s * 2.6);
+    ctx.clip();
+    for (let bx = -s * 1.4; bx < s * 1.4; bx += 6) {
+      ctx.strokeStyle = rgba(PALETTE.goldDeep, ((Math.floor(bx / 6) % 2) === 0) ? 0.18 : 0.06);
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x + bx, y - s * 1.3);
+      ctx.lineTo(x + bx, y + s * 1.3);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  // AUDIT-PHASE-4: ANTHROPOMORPHIZATION — the K gets a FACE. Two ink-dot
+  // eyes and a small smile arc below the vertex (where the three strokes
+  // meet). The K becomes a CHARACTER the audience recognizes and looks
+  // forward to seeing — the Kurzgesagt-duck move. Only renders once the
+  // K is fully grown (grow > 0.7) so the reveal ritual lands first.
+  if (grow > 0.7) {
+    const faceAlpha = clamp01((grow - 0.7) / 0.3);
+    ctx.save();
+    ctx.globalAlpha = faceAlpha;
+    ctx.fillStyle = PALETTE.ink;
+    // eyes — two dots above the vertex
+    ctx.beginPath();
+    ctx.arc(x - s * 0.18, y - s * 0.05, s * 0.08, 0, Math.PI * 2);
+    ctx.arc(x + s * 0.18, y - s * 0.05, s * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+    // smile — a small arc below the vertex
+    ctx.strokeStyle = PALETTE.ink;
+    ctx.lineWidth = Math.max(2, s * 0.05);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x - s * 0.15, y + s * 0.18);
+    ctx.quadraticCurveTo(x, y + s * 0.28, x + s * 0.15, y + s * 0.18);
+    ctx.stroke();
+    ctx.restore();
+  }
   // gold sheen — a narrow specular band, not a wash
   const sweep = (t / 2400) % 1;
   ctx.save();
@@ -776,10 +826,12 @@ export function floatCoins(
 // ── AUDIT-2 / §10.4 (report Phase 3): THE IMPACT GRAMMAR ────────────────────
 /** Micro-shake — a 2px, 80ms camera jitter on data reveals. Deterministic
  *  per quantized frame (pure function of t). Apply to ctx.translate BEFORE
- *  the scene draws. */
+ *  the scene draws.
+ *  AUDIT-PHASE-4: duration 80 -> 60ms, amplitude via AMP.microShakePx 9 -> 18.
+ *  Faster + harder = impact; slower + smaller = camera drift. */
 export function microShake(t: number, t0: number): { dx: number; dy: number } {
   const age = t - t0;
-  if (age < 0 || age > 80) return { dx: 0, dy: 0 };
+  if (age < 0 || age > 60) return { dx: 0, dy: 0 };
   const decay = Math.sin((age / 80) * Math.PI);
   const f = Math.floor(t / 33.33);
   // BLUEPRINT Phase 1 (Table 7): 4.4 -> 9 px (AMP.microShakePx) — the
@@ -792,7 +844,9 @@ export function microShake(t: number, t0: number): { dx: number; dy: number } {
 
 /** Impact ring — an expanding gold ring from the numeral, ~520ms, decaying
  *  stroke. The second member of the impact grammar (shake + ring + one
- *  double-radius glow frame at the strike). */
+ *  double-radius glow frame at the strike).
+ *  AUDIT-PHASE-4: 520ms -> 380ms, stroke 14px -> 22px. A faster, thicker
+ *  ring reads as a slam; a slower, thinner ring reads as a ripple. */
 export function impactRing(
   ctx: CanvasRenderingContext2D,
   cx: number,
@@ -802,15 +856,15 @@ export function impactRing(
   r = 150
 ): void {
   const age = t - t0;
-  if (age < 0 || age > 520) return;
-  const p = age / 520;
+  if (age < 0 || age > 380) return;
+  const p = age / 380;
   // re-review calibration: the first pass fired at 0.55 peak alpha and
   // read "near-invisible against the pale plate" — the ring opens to 0.85
   // with a thicker decaying stroke so the slam COMMUNICATES.
   ctx.save();
   ctx.globalAlpha = (1 - p) * 0.85;
   ctx.strokeStyle = PALETTE.gold;
-  ctx.lineWidth = Math.max(2.5, 14 * (1 - p));
+  ctx.lineWidth = Math.max(2.5, 22 * (1 - p));
   ctx.beginPath();
   ctx.arc(cx, cy, r * (0.22 + 0.78 * easeOutCubic(p)), 0, Math.PI * 2);
   ctx.stroke();
@@ -832,16 +886,21 @@ export function hazeBands(
   const { rearY = H * 0.3, midY = H * 0.52, tone = PALETTE.bgSoft } = opts;
   ctx.save();
   // rear band — 4%: the far elements sink into the air
+  // AUDIT-PHASE-3: rear haze 0.05 -> 0.12 — the rear band becomes visible
+  // atmospheric recession; far racks now read as further away, not at the
+  // same plane as the near content.
   let g = ctx.createLinearGradient(0, rearY - H * 0.17, 0, rearY + H * 0.05);
   g.addColorStop(0, rgba(tone, 0));
-  g.addColorStop(0.72, rgba(tone, 0.05));
+  g.addColorStop(0.72, rgba(tone, 0.12));
   g.addColorStop(1, rgba(tone, 0));
   ctx.fillStyle = g;
   ctx.fillRect(0, rearY - H * 0.17, W, H * 0.22);
   // mid band — 8%: the depth seam between mid-ground and fore
+  // AUDIT-PHASE-3: mid haze 0.09 -> 0.20 — the depth seam between the
+  // rack field and the stat cards becomes a real atmospheric break.
   g = ctx.createLinearGradient(0, midY - H * 0.075, 0, midY + H * 0.075);
   g.addColorStop(0, rgba(tone, 0));
-  g.addColorStop(0.5, rgba(tone, 0.09));
+  g.addColorStop(0.5, rgba(tone, 0.20));
   g.addColorStop(1, rgba(tone, 0));
   ctx.fillStyle = g;
   ctx.fillRect(0, midY - H * 0.075, W, H * 0.15);

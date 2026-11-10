@@ -502,7 +502,10 @@ export function takeawaysScene(g: SceneCtx): void {
         {
           pose, alpha: hp, look: 0.6,
           prop: focus === 3 && rP <= 0.5 ? 'thumb' : undefined,
-          faceScale: 1 + 0.65 * rP,
+          // AUDIT-PHASE-3: faceScale peak 1.65 -> 1.8 — the face draws
+          // larger during the reaction close-up; sclera eyes, brow
+          // arches, talk envelope read at feed scale.
+          faceScale: 1 + 0.8 * rP,
           parallax: true,
         }, 35);
     }

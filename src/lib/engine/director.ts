@@ -707,7 +707,10 @@ export function drawFrame(
   // the widened ±80 tiles (see getGrainTiles) this is the "genuinely
   // visible on ivory plates" shimmer the report asked for; the flicker
   // finally reads as film, not noise.
-  drawGrain(ctx, W, H, 0.60, t);
+  // AUDIT-PHASE-1: grain alpha 0.60 -> 0.85 — measured below perceptual
+  // threshold at 0.60; raised so the grain is actually visible in a
+  // side-by-side A/B against a no-grain frame.
+  drawGrain(ctx, W, H, 0.85, t);
   lightVignette(ctx, W, H, 0.30);
 
   // global fades: from white at start, to white at end

@@ -62,7 +62,7 @@ export const POSES: Record<string, Pose> = {
   // counter-angled. Premium stick figures are never symmetric at rest;
   // symmetric A-poses / V-cheers are the “mannequin salesman” tell the
   // re-verification panel flagged on both BEFORE host frames.
-  idle: { ...base(), lean: 1.5, lLU: -7, lLL: 0, rLU: 8, rLL: 5, lAU: -9, lAL: -6, rAU: 6, rAL: 3 },
+  idle: { ...base(), lean: 6, pelvisTilt: 9, shoulderTilt: -5, lLU: -10, lLL: 4, rLU: 12, rLL: 8, lAU: -12, lAL: -8, rAU: 14, rAL: 8 },
   talkA: { ...base(), lAU: -14, lAL: -10, rAU: 26, rAL: 34, smile: 0.3, lean: 2, lLU: -7, rLU: 9, rLL: 5 },
   talkB: { ...base(), rAU: 30, rAL: 66, lAU: -10, lAL: -8, smile: 0.25, lean: -1.5, lLU: -8, lLL: 4, rLU: 6 },
   talkC: { ...base(), lAU: -20, lAL: -28, rAU: 54, rAL: 70, smile: 0.3, lean: 3, lLU: -8, rLU: 9, rLL: 6 },

@@ -617,6 +617,30 @@ export function drawStickmanV2(
   // BLUEPRINT Phase 2 (INK): torso taper 15/22 -> 19/30 (prof 24/35) —
   // the chest mass the stocky silhouette needs at phone scale.
   taper(ctx, 0, pelvisY + 4, neckX, neckY, prof ? 24 : INK.torso[0], prof ? 35 : INK.torso[1], ink);
+  // AUDIT-PHASE-2: SIGNATURE TORSO BAND — a gold band across the chest.
+  // The host becomes identifiable by silhouette color in any thumbnail
+  // or feed scroll (the Alan-Becker chosen-one-color rule). Brand-
+  // reinforcing; rides the lean angle so it stays anatomically on the
+  // chest through poses. Draws at 75% alpha so it never fights the
+  // scarf's brand primacy.
+  if (r.scarf !== false) {
+    const bandY = pelvisY - TORSO * 0.55;
+    const bandW = (prof ? 24 : INK.torso[0]) * 0.9 + 8;
+    ctx.save();
+    ctx.translate(neckX * 0.5, bandY);
+    ctx.rotate(leanR2);
+    ctx.fillStyle = rgba(PALETTE.gold, 0.75);
+    ctx.beginPath();
+    ctx.moveTo(-bandW, -6);
+    ctx.lineTo(bandW, -6);
+    ctx.lineTo(bandW * 0.85, 6);
+    ctx.lineTo(-bandW * 0.85, 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = rgba(PALETTE.goldDeep, 0.5);
+    ctx.fillRect(-bandW * 0.85, 4, bandW * 1.7, 2);
+    ctx.restore();
+  }
 
   // AUDIT-2 / 1.4 (report §10.2, C6) — THE COLLAR BREAK. The gold knot
   // flowed into the head circle with no separation ("the head looks
@@ -743,7 +767,11 @@ export function drawStickmanV2(
   ctx.beginPath();
   ctx.arc(3, 5, 34, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = PALETTE.bgTop;
+  // AUDIT-PHASE-2: head fill switches from bgTop (white) to warm cream
+  // (#E8D5B7) — the head reads as a SOLID MASS at any scale, not a thin
+  // outline on white. Carries the silhouette the way Alan Becker's
+  // stickman heads do (filled, not outlined).
+  ctx.fillStyle = '#E8D5B7';
   ctx.strokeStyle = ink;
   ctx.lineWidth = INK.headStroke; // BLUEPRINT Phase 2: 9 -> 12 — the face's
   // outline carries the head's identity at 320px (2.4px there, vs 1.9 before)
