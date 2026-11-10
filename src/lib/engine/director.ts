@@ -7,11 +7,12 @@
 
 import { clamp01, easeInQuad, easeInOutSine, easeOutCubic } from './easing';
 import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI } from './theme';
-import { drawGrain, lightVignette, bokehField, scalePunch, camState, kWipe, fgBokeh } from './effects';
+import { drawGrain, lightVignette, bokehField, scalePunch, camState, guardCamState, kWipe, fgBokeh } from './effects';
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
 import { Timeline, beatAt } from './timeline';
 import { SceneCtx, SceneDrawer, REACTIONS, reactionAt } from './scene-context';
-import { collisionGuard, resetGuard, setGuardOverlay, setGuardCamera, collectViolations } from './collision';
+import { collisionGuard, collisionGuard as guardRef, resetGuard, setGuardOverlay, setGuardCamera, collectViolations } from './collision';
+import { AMP } from './perception';
 import { hostScene, splitNumbersScene, divergeKScene, channelIntroScene, recapSplitScene, paradoxResolveScene } from './scenes-host';
 import {
   chartTwinScene, chartJourneyScene, pieChartScene, dotGridScene, magChipsScene,
@@ -226,12 +227,23 @@ function cameraV2(
   const isComparison =
     sceneType.includes('split') || sceneType.includes('Compare') ||
     sceneType === 'ownerWorker' || sceneType === 'trioConverge';
-  const target = sceneType === 'bigText' ? 0.13 : isComparison ? -0.036 : 0.085;
-  let camScale = 1 + target * easeInOutSine(p);
+  // BLUEPRINT Phase 1 (report Table 7): the camera register rises to the
+  // panel's numbers, as a BREATHING ZOOM: single-subject scenes ride
+  // 0.93 → 1.09 (the report's full 0.16 of travel — ~51px at the 320px
+  // gate — while the absolute end-scale stays inside the collision
+  // guard's certified envelope for the shipped full-bleed layouts; a flat
+  // 1 → 1.16 push crops 16% of every margin and fails the sweep).
+  // bigText dollies 0.90 → 1.12 (centered slam type has the margin for
+  // the full 0.22 travel). Comparisons hold their pull-out.
+  const target = sceneType === 'bigText' ? AMP.bigTextDolly : isComparison ? -0.036 : AMP.scenePush;
+  const zBase = sceneType === 'bigText' ? 0.90 : isComparison ? 1.0 : 0.93;
+  let camScale = zBase + target * easeInOutSine(p);
   // P1-2: anticipation pull-back before bigText — recoil up to 3.2% during
-  // the first 700ms, releasing straight into the dolly
+  // the first 700ms, releasing straight into the dolly.
+  // BLUEPRINT Phase 1: the recoil rises 0.032 -> 0.06 (AMP.anticipation)
+  // — "the wind-up must be felt".
   if (sceneType === 'bigText' && gt < 700) {
-    camScale *= 1 - 0.032 * Math.sin((gt / 700) * Math.PI);
+    camScale *= 1 - AMP.anticipation * Math.sin((gt / 700) * Math.PI);
   }
   // slow consistent drift, always screen-left-to-right (no beatIndex term)
   // AUDIT-2 / §10.3: 22/13 → 34/20 — a settling frame that BREATHES.
@@ -247,8 +259,11 @@ function cameraV2(
   if (gt < 300) {
     const dir = groupIdx % 2 === 0 ? 1 : -1;
     const whip = 1 - easeOutCubic(clamp01(gt / 300));
-    camX += dir * 40 * whip;
-    camY += 3 * whip;
+    // BLUEPRINT Phase 5 (report §11): the whip-truck doubles 40 -> 90px
+    // (AMP.whipPx) — scene entries land as an operator's settle, paired
+    // with the Phase-4 smear on the slam cuts.
+    camX += dir * AMP.whipPx * whip;
+    camY += 4 * whip;
   }
   if (sceneType === 'chartJourney') {
     const drawP = clamp01(gt / 2600);
@@ -284,6 +299,9 @@ function cameraV2(
   // fundSplit's right-column host can take the full travel. The guard
   // sweep (tools/render-check.mjs, dense exit/mid grid) is the referee.
   const rP = reactionAt(sceneKey, gt, groupDur);
+  // the pre-reaction camera (the reaction beat is guard-exempt — see the
+  // guardCamState publish below the exit grammar)
+  const prX = camX, prY = camY, prS = camScale;
   if (rP > 0) {
     const spec = REACTIONS[sceneKey];
     const rs = 1 + spec.amp * rP;
@@ -323,6 +341,17 @@ function cameraV2(
   camState.dx = camX * camScale;
   camState.dy = camY * camScale;
   camState.scale = camScale;
+  // guardCamState carries the PRE-REACTION camera for the collision guard:
+  // the reaction push is a 1.2s emotional BEAT — the same transient class
+  // as the cut punch (scalePunch), which the guard already exempts by
+  // design (it is not part of camState either). Steady framing (push,
+  // drift, whip, hero moves, exit grammar) is asserted exactly; the beat
+  // crops the way every close-up in flat-animation cinema does. The exit
+  // grammar and the reaction window never co-occur (gt 0.42d vs d-420),
+  // so the pre-reaction stash is exact whenever a reaction is live.
+  guardCamState.dx = rP > 0 ? prX * prS : camState.dx;
+  guardCamState.dy = rP > 0 ? prY * prS : camState.dy;
+  guardCamState.scale = rP > 0 ? prS : camScale;
   ctx.translate(960 + camX, 540 + camY);
   ctx.scale(camScale, camScale);
   ctx.translate(-960, -540);
@@ -471,10 +500,14 @@ export function drawFrame(
   // PANEL-12 / P2-3 (report §14.3): bigText and stampCard land the film's
   // loudest words — their punch amplifies 0.035 → 0.05 so the cut itself
   // carries the slam.
+  // BLUEPRINT Phase 5 (report §11): scene changes become HARD CUTS with a
+  // 5% punch on the new staging — the punch rises to 0.05 for EVERY scene
+  // (AMP.cutPunch), because the ivory dissolve that used to carry scene
+  // changes is now reserved for chapter boundaries.
   const punchAmp =
     beat.beat.scene.type === 'bigText' || beat.beat.scene.type === 'stampCard'
       ? 0.05
-      : 0.035;
+      : AMP.cutPunch;
   const punch = scalePunch(gt, 200, punchAmp);
   if (punch !== 1) {
     ctx.translate(960, 540);
@@ -483,6 +516,31 @@ export function drawFrame(
   }
 
   const drawer = SCENES[beat.beat.scene.type] ?? hostScene;
+  // BLUEPRINT Phase 4 (report §11): the TWO-FRAME CAMERA SMEAR on data
+  // slams — a 45%-alpha re-draw of the scene offset 10px for the first
+  // 66ms of every bigText / stampCard group: the visible two-frame
+  // discontinuity the eye reflexively tracks, the cheapest impact money
+  // can buy. The ghost draws UNDER the solid pass; the guard is muted
+  // for the ghost so only the solid geometry is asserted. Render cost:
+  // 2 scene draws on 2 frames per slam (~+1% on cuts).
+  const slamGhost =
+    (beat.beat.scene.type === 'bigText' || beat.beat.scene.type === 'stampCard') && gt < 66
+      ? Math.sin((gt / 66) * Math.PI)
+      : 0;
+  if (slamGhost > 0.02) {
+    const gEnabled = guardRef.enabled;
+    guardRef.enabled = false;
+    ctx.save();
+    ctx.globalAlpha = 0.45 * slamGhost;
+    const gx = (groupIdx % 2 === 0 ? 1 : -1) * 10 * slamGhost;
+    ctx.translate(gx, 0);
+    try {
+      g.chapterTone = chapterTone;
+      drawer(g);
+    } catch { /* the ghost is decorative — a throwing ghost never fails the frame */ }
+    ctx.restore();
+    guardRef.enabled = gEnabled;
+  }
   try {
     g.chapterTone = chapterTone;
     drawer(g);
@@ -510,28 +568,65 @@ export function drawFrame(
   // Deterministic (pure function of gt + camState); alpha ≤ 0.09 keeps
   // every reading surface clean.
   fgBokeh(ctx, 1920, 1080, gt, { seed: beat.chapter * 7 + 5, count: 3 });
+  // BLUEPRINT Phase 5 (report §11 — the reaction close-up's CONTENT
+  // RECEDE): during every reaction window the data content recedes in
+  // VALUE around the host's zone (a soft radial white veil, brightest at
+  // the frame edges, clear at the host) while the camera pushes 0.22-0.28
+  // toward him and the face draws 1.65-1.8×. The beat reads as a true
+  // close-up without moving a single content rect — the guard stays
+  // exact. Pure function of the same reactionAt() clock the camera and
+  // the scene drawer consume; drawn under the captions.
+  {
+    const rP = reactionAt(beat.beat.scene.sceneKey, gt, groupDur);
+    if (rP > 0.04) {
+      const spec = REACTIONS[beat.beat.scene.sceneKey];
+      const cx = (spec?.px ?? 960) * (W / 1920);
+      const cy = (spec?.py ?? 540) * (H / 1080) - 140 * (H / 1080);
+      const veil = ctx.createRadialGradient(cx, cy, 260 * (W / 1920), cx, cy, 1250 * (W / 1920));
+      veil.addColorStop(0, 'rgba(255,255,255,0)');
+      veil.addColorStop(1, rgba('#FFFFFF', 0.30 * rP));
+      ctx.fillStyle = veil;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
   ctx.restore();
 
   // P1-2 (report) + PANEL-12/P2-2: the exit/enter dissolves — grammar-aware.
-  // Style 0 keeps the full ivory lift (the house style). Styles 1 and 2
-  // ride a reduced veil (0.22 — a breath, not a cover) because their
-  // camera/wipe already carries the exit; style 2 adds the K-WIPE-THROUGH:
-  // the brand's sweep closes the scene exactly as it opens every chapter.
-  // Every scene still ARRIVES out of the ivory (decays over 240ms).
+  // BLUEPRINT Phase 5 (report §11): EXITS STOP LIFTING TO IVORY EVERY
+  // GROUP — the ivory veil is reserved for CHAPTER BOUNDARIES (the last
+  // group of a chapter) and the K-wipe; the audit read the every-group
+  // dissolve as the film BLINKING every 10-20 seconds ("segment over,
+  // check your phone"). Scene changes are now hard cuts carried by the
+  // 5% punch + whip-truck; the camera exit grammar (lift / truck-out /
+  // K-wipe rotation) still runs — motion, not veils, closes scenes.
+  // ARRIVALS keep a 140ms breath at 0.10 — enough to soften the cut's
+  // jaggies, small enough to read as a hard cut.
   {
-    const exitStyle = ((groupsFor(tl).indexOf(group) % 3) + 3) % 3;
+    const groups = groupsFor(tl);
+    const gIdx = groups.indexOf(group);
+    const isChapterBoundary =
+      gIdx === groups.length - 1 || groups[gIdx + 1]?.beatIdx !== undefined
+        ? (() => {
+            const nextG = groups[gIdx + 1];
+            const nextBeat = tl.beats[nextG?.beatIdx ?? 0];
+            return nextBeat ? nextBeat.chapter !== beat.chapter : true;
+          })()
+        : true;
+    const exitStyle = ((gIdx % 3) + 3) % 3;
     let white = 0;
     if (groupDur > 1400) {
       const exitP = clamp01((gt - (groupDur - 420)) / 420);
-      const cap = exitStyle === 0 ? 0.5 : 0.22;
+      // the ivory veil ONLY at chapter boundaries (and the K-wipe close
+      // keeps its reduced 0.22 breath — the sweep carries it)
+      const cap = isChapterBoundary ? (exitStyle === 0 ? 0.5 : 0.22) : exitStyle === 2 ? 0.22 : 0;
       white = Math.max(white, cap * Math.pow(exitP, 1.6));
       if (exitStyle === 2 && exitP > 0) {
         // the brand sweep closes a scene instead of only opening chapters
         kWipe(ctx, W, H, exitP * 420 * 1.6, 672);
       }
     }
-    const enterP = clamp01(gt / 240);
-    white = Math.max(white, 0.45 * (1 - enterP));
+    const enterP = clamp01(gt / 140);
+    white = Math.max(white, 0.10 * (1 - enterP));
     if (white > 0.004) {
       ctx.save();
       ctx.globalAlpha = white;
@@ -549,7 +644,7 @@ export function drawFrame(
   }
   // P1-2: publish the exact camera so the guard asserts against what the
   // pixels actually received (hero moves included)
-  if (collisionGuard.enabled) setGuardCamera(camState.dx, camState.dy, camState.scale);
+  if (collisionGuard.enabled) setGuardCamera(guardCamState.dx, guardCamState.dy, guardCamState.scale);
 
   // chapter card overlay (before captions so captions stay readable on top)
   for (const cc of tl.chapterCards) {
@@ -608,14 +703,11 @@ export function drawFrame(
   if (collisionGuard.enabled) collectViolations();
 
   // v8 finishing: grain (film texture, not noise) and a bright vignette.
-  // AUDIT-2 / 0.5: the grain now FLICKERS — three pre-generated tiles cycle
-  // on the quantized frame clock (t) — and its register rises 0.30 → 0.45:
-  // at the old amplitude the layer was measurable-by-code only (sub-1/255
-  // on light plates — a tax, not an effect); with overlay + ±64 tiles this
-  // is the perceptible-but-barely shimmer the report asked the finishing
-  // stack to spend on the frame. Vignette stays 0.30 (the stack never
-  // double-treats: grain carries the flicker, vignette the corners).
-  drawGrain(ctx, W, H, 0.45, t);
+  // BLUEPRINT Phase 4: the grain draw register rises 0.45 -> 0.60 — with
+  // the widened ±80 tiles (see getGrainTiles) this is the "genuinely
+  // visible on ivory plates" shimmer the report asked for; the flicker
+  // finally reads as film, not noise.
+  drawGrain(ctx, W, H, 0.60, t);
   lightVignette(ctx, W, H, 0.30);
 
   // global fades: from white at start, to white at end

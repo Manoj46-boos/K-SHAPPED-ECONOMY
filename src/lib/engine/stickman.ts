@@ -7,6 +7,7 @@
 
 import { clamp01, drift, easeOutCubic, hash01, hashStr, lerp, mix, springTo } from './easing';
 import { PALETTE, rgba } from './theme';
+import { AMP } from './perception';
 
 const D2R = Math.PI / 180;
 
@@ -33,6 +34,16 @@ export interface Pose {
    *  sliding flat. Default 0 everywhere except walkPose. */
   lToe?: number;
   rToe?: number;
+  /** BLUEPRINT Phase 2 (report §11): pelvis tilt, deg (+ = right hip
+   *  rises, weight onto the left leg). The missing rotation term that
+   *  separates a puppet from a body — walkPose keys it, the v2 renderer
+   *  tilts the hip anchors and the torso base. Blendable like every other
+   *  key (blendPose lerps it), so all existing poses default to 0 and stay
+   *  compatible. */
+  pelvisTilt?: number;
+  /** BLUEPRINT Phase 2: shoulder-line counter-rotation, deg — the shoulder
+   *  line counters the pelvis (the classical contrapposto S-curve). */
+  shoulderTilt?: number;
 }
 
 const base = (): Pose => ({
@@ -41,6 +52,7 @@ const base = (): Pose => ({
   lLU: -4, lLL: 0, rLU: 4, rLL: 0,
   browRaise: 0, browAngle: 0, smile: 0,
   lLift: 0, rLift: 0, lToe: 0, rToe: 0,
+  pelvisTilt: 0, shoulderTilt: 0,
 });
 
 export const POSES: Record<string, Pose> = {
@@ -96,6 +108,22 @@ export const POSES: Record<string, Pose> = {
   // contact — you moved the presenter to the object and forgot the
   // pointing").
   leanOnK: { ...base(), lean: 10, headTilt: -4, lLU: -9, lLL: 6, rLU: 11, rLL: -7, lAU: -20, lAL: -26, rAU: 84, rAL: 102, browRaise: 0.25, smile: 0.5 },
+  // ── BLUEPRINT Phase 2 (report §11): the three REACTION pose keys the
+  // film's emotional beats were missing — the twist, the resolve and the
+  // final takeaway shared the presenting smile before (“a static mask
+  // wearing a smile… at the twist, the host is grinning like he's greeting
+  // guests at a trade show”). Each is blendable with every existing pose;
+  // browRaise ≥ 0.55 trips the sclera-eye rig in stickman-v2.
+  // shock: the twist beat (c8-fund) — full recoil: head back 6°, arms flung
+  // asymmetric, brows at the ceiling, mouth driven open by the reaction
+  // envelope (the 2× jaw in drawMouthV2).
+  shock: { ...base(), lean: -6, headTilt: -6, rootY: 3, lAU: -104, lAL: -128, rAU: 118, rAL: 142, lLU: -11, lLL: 4, rLU: 12, rLL: -8, browRaise: 0.95, smile: 0.02, pelvisTilt: 4.5, shoulderTilt: -3.5 },
+  // wry: the paradox resolve (c7-paradox) — the knowing half-smile: one brow
+  // up, one down, head tilted, hand low like “well, actually”.
+  wry: { ...base(), lean: 5, headTilt: 7, lAU: -16, lAL: -12, rAU: 38, rAL: 96, lLU: -8, rLU: 9, rLL: 5, browRaise: 0.62, browAngle: -10, smile: 0.45, pelvisTilt: 3.2, shoulderTilt: -2.6 },
+  // warm: the final takeaway (c9-three) — earned optimism, chest open,
+  // soft raised brows, the big smile.
+  warm: { ...base(), lean: -3, headTilt: -3, lAU: -34, lAL: -44, rAU: 30, rAL: 44, lLU: -9, rLU: 10, rLL: 6, browRaise: 0.42, smile: 0.85, pelvisTilt: -3.0, shoulderTilt: 2.4 },
 };
 
 export function blendPose(a: Pose, b: Pose, t: number): Pose {
@@ -270,80 +298,100 @@ export class Stickman {
 
   /** walk-cycle pose: phase 0..1 one full stride pair
    *  PANEL-12 / P1-5 (report §13.5): WALK ASYMMETRY + ARM LAG.
-   *  (1) The right leg runs +0.03 of phase behind the left and at −8%
-   *  swing amplitude — human gait is never symmetric.
+   *  (1) The right leg runs +0.03 of phase behind the left and at 92%
+   *  swing amplitude - human gait is never symmetric.
    *  (2) The arms evaluate the stride 0.05 of phase BEHIND the legs.
-   *  AUDIT-2 / 1.5 (report §10.2, M5): WALK 2.0 — swing-foot arcs,
-   *  ±2° hip counter-rotation, shoulder counter-sway.
-   *  AUDIT-3 / §2.6 (report Phase 2.6): WALK 3.0 — the three gaps the
-   *  contact-sheet judges named on the BEFORE render: “dead arms, no hip
-   *  drop, stride collapse at the tail”:
-   *  (5) ARM COUNTER-SWING AMPLIFIED 0.55× → 0.95× of the leg swing,
-   *      with +24° elbow flexion on the forward swing only — a bent
-   *      forward arm / straight trailing arm reads as a person; a slow
-   *      pendulum reads as a mannequin (the #1 BEFORE-sheet tell).
-   *  (6) BOB 5 → 9 px in the correct CONTACT-LOW / PASSING-HIGH shape
-   *      (one dip per step, not the old double-frequency flutter), with
-   *      the contact strike squash deepened 9 → 12 px — the planted foot
-   *      now visibly receives the body’s weight (the “hovercraft” fix).
-   *  (7) HEEL-STRIKE → TOE-OFF foot pitch (lToe/rToe): the shoe rotates
-   *      −14° at heel-strike through +16° at toe-off, so each foot ROLLS
-   *      through the stride. The flat sliding shoe was the last “tweened
-   *      procedural walk” tell on the sheet. */
+   *  AUDIT-2 / 1.5 (report §10.2, M5): WALK 2.0 - swing-foot arcs.
+   *  AUDIT-3 / §2.6 (report Phase 2.6): WALK 3.0 - trapezoid entrance,
+   *  amplified counter-swing with elbow flexion, contact bob/squash,
+   *  heel-strike->toe-off shoe pitch.
+   *  BLUEPRINT (report §11, Phases 1+2) - WALK 4.0:
+   *  (8) ANATOMIC PHASING - leg angles keyed to -cos(2*pi*phi): the
+   *      stride is WIDEST at each contact and the legs cross at passing.
+   *      The old sin keying spread the legs at mid-swing, so the stride
+   *      happened BETWEEN the contacts - the "mannequin slid along a
+   *      rail" read at its root.
+   *  (9) GROUND-ANCHORED PELVIS - rootY is the stance leg's vertical
+   *      reach (analytic, exact, scrub-safe): the body is LOW at contact
+   *      (spread legs) and TALL at passing, and the planted foot stays on
+   *      the ground line BY CONSTRUCTION. The bob fudge terms are gone.
+   *  (10) PELVIS TILT +/-4.5 deg + SHOULDER COUNTER +/-3.5 deg (Phase 2's
+   *      two missing rotation terms) - hips and shoulders counter-rotate
+   *      through the stride; the walk finally has a torso opinion.
+   *  Amplitudes come from perception.ts (AMP): swing lift 15px, toe pitch
+   *  +26/-22 deg rolling the Phase-2 wedge shoe. */
   static walkPose(phase: number, speed = 1): Pose {
-    const s = Math.sin(phase * Math.PI * 2);
-    const c = Math.cos(phase * Math.PI * 2);
-    const sR = Math.sin((phase + 0.03) * Math.PI * 2) * 0.92; // desync'd right leg
-    const sA = Math.sin((phase - 0.05) * Math.PI * 2);        // lagging arms
+    const ph = ((phase % 1) + 1) % 1;
+    const s = Math.sin(ph * Math.PI * 2);
+    const c = Math.cos(ph * Math.PI * 2);
+    const phR = ph - 0.03;                          // right leg's 0.03 lag
+    const cR = Math.cos((ph - 0.47) * Math.PI * 2); // right leg's swing key
+    const sR = Math.sin((ph - 0.47) * Math.PI * 2) * 0.92;
+    const cA = Math.cos((ph - 0.05) * Math.PI * 2); // arms lag legs 0.05
+    const sA = Math.sin((ph - 0.05) * Math.PI * 2);
     const swing = 26 * speed;
-    // (6) the double-bump: LOW at each contact (|sin| = 0), HIGH at each
-    // passing position (|sin| = 1) — pelvis absorbs at the plant, rises
-    // over the stance leg. One bump per step, 9 px of travel.
-    const pass = Math.abs(Math.sin(phase * Math.PI * 2));
-    const bob = -9 * (1 - pass);
-    // P1-1 (report): contact squash — fires ~0.1 phase around each plant.
-    const strike = Math.pow(Math.max(0, Math.abs(c) - 0.86) / 0.14, 2);
-    // AUDIT-2 / 1.5: the swing arcs — LEFT contacts at φ=0/0.5, RIGHT at
-    // φ≈0.47/0.97 (its +0.03 lag); each lift peaks mid-swing.
-    const liftL = Math.max(0, Math.sin(phase * Math.PI * 2)) * 9 * speed;
-    const liftR = Math.max(0, Math.sin((phase - 0.47) * Math.PI * 2)) * 9 * speed;
-    // (7) the foot roll: during each swing the shoe pitches from +16°
-    // (toe-off push) to −14° (heel-strike); during stance it settles flat
-    // then rises to the next toe-off. Keyed to the same phase windows as
-    // the lifts so shoe and lift always agree.
-    const toeFor = (ph: number): number => {
-      const sp = ((ph % 1) + 1) % 1;
+    // (9) strike pulses fire AT each foot's contact: LEFT lands at
+    // phi=0.5 (its swing window is (0, 0.5)); RIGHT at phi~=0.97 (its
+    // 0.47-lagged swing ends). ~0.1 phase wide, squared.
+    const strikeL = Math.pow(Math.max(0, (-c - 0.86) / 0.14), 2);
+    const strikeR = Math.pow(Math.max(0, (-cR * 0.92 - 0.86) / 0.14), 2);
+    // swing arcs (AMP.swingLiftPx): zero at the contacts, peak mid-swing
+    const liftL = Math.max(0, s) * AMP.swingLiftPx * speed;
+    const liftR = Math.max(0, Math.sin((ph - 0.47) * Math.PI * 2)) * AMP.swingLiftPx * speed;
+    // (8) anatomically phased legs: the swing leg sweeps back(-A) ->
+    // vertical -> forward(+A); stance mirrors. Knees: swing clearance
+    // mid-swing (22 deg), absorption at contact (16 deg) - both shorten
+    // the leg, which the pelvis anchor turns into visible drop.
+    const lLU = -c * swing - 3;
+    const rLU = -cR * swing * 0.92 + 3;
+    const lLL = lLU - Math.max(0, s) * 22 * speed - strikeL * 16;
+    const rLL = rLU - Math.max(0, sR) * 22 * speed - strikeR * 16;
+    // (9) GROUND-ANCHORED pelvis: rootY = (U+L) - max vertical reach of
+    // the two legs (v2 rig lengths - the walk renders through v2). The
+    // stance leg defines the height; the swing lift removes the swinging
+    // leg from contention. Pure function of the pose's own angles.
+    const U = 64, L = 58;
+    const reachL = Math.cos(lLU * D2R) * U + Math.cos(lLL * D2R) * L - liftL;
+    const reachR = Math.cos(rLU * D2R) * U + Math.cos(rLL * D2R) * L - liftR;
+    const rootY = (U + L) - Math.max(reachL, reachR);
+    // (10) the rig terms - hips and shoulders counter-rotate (Phase 2)
+    const pelvisTilt = Math.sin(ph * Math.PI * 2 + Math.PI / 2) * 4.5 * speed;
+    const shoulderTilt = -Math.sin(ph * Math.PI * 2 + Math.PI / 2) * 3.5 * speed;
+    // (7) the foot roll, AMP register: +26 toe-off -> -22 heel-strike
+    // during swing; settles flat in stance, rises to the next toe-off.
+    const toeFor = (p: number): number => {
+      const sp = ((p % 1) + 1) % 1;
       if (sp < 0.5) {
-        // swing: toe-off (+16) → heel-strike (−14)
-        return 16 - 30 * (sp * 2);
+        return AMP.toeUpDeg - (AMP.toeUpDeg - AMP.toeDownDeg) * (sp * 2);
       }
-      // stance: −10 settling flat by 20%, then rising to +10 at toe-off
       const u = (sp - 0.5) * 2;
-      return u < 0.2 ? -10 * (1 - u / 0.2) : 10 * ((u - 0.2) / 0.8);
+      const settle = AMP.toeDownDeg * 0.7;
+      return u < 0.2 ? settle * (1 - u / 0.2) : settle + (AMP.toeUpDeg - settle) * ((u - 0.2) / 0.8);
     };
-    const toeL = toeFor(phase);
-    const toeR = toeFor(phase + 0.53);
-    // (5) the amplified counter-swing + forward-swing elbow flexion
+    const toeL = toeFor(ph);        // left swings (0, 0.5)
+    const toeR = toeFor(ph + 0.53); // right swings (0.47, 0.97)
+    // (5) amplified counter-swing + forward-swing elbow flexion - arm
+    // angles oppose the same-side leg (re-phased with the legs)
     const armAmp = 0.95;
-    const lAUw = sA * swing * armAmp - 7 + c * 3;
-    const rAUw = -sA * swing * armAmp + 7 - c * 3;
+    const lAUw = -cA * swing * armAmp - 7 + sA * 3;
+    const rAUw = cA * swing * armAmp + 7 - sA * 3;
     return {
       ...base(),
-      // P1-5 weight drop + AUDIT-3 (6): strike squash 9 → 12.
-      rootY: bob + strike * 12,
-      lean: 4 + s * 2 + strike * 3 + 3 - c * 2,
-      lLU: -s * swing - 3, lLL: -Math.max(0, -s) * 18 * speed + strike * 12,
-      rLU: sR * swing + 3, rLL: Math.max(0, sR) * 18 * speed + strike * 12,
+      rootY,
+      lean: 4 + s * 2 + (strikeL + strikeR) * 3 + 3 - c * 2,
+      lLU, lLL, rLU, rLL,
       lAU: lAUw,
-      lAL: lAUw + Math.max(0, sA) * 24 - 2,
+      lAL: lAUw + Math.max(0, -cA) * 24 - 2,
       rAU: rAUw,
-      rAL: rAUw + Math.max(0, -sA) * 24 + 2,
+      rAL: rAUw + Math.max(0, cA) * 24 + 2,
       smile: 0.35,
       browRaise: 0.1,
       lLift: liftL,
       rLift: liftR,
       lToe: toeL,
       rToe: toeR,
+      pelvisTilt,
+      shoulderTilt,
     } as Pose;
   }
 
@@ -506,7 +554,9 @@ export function drawStickman(
   ctx.fill();
 
   // brows
-  const bRaise = pose.browRaise * 5;
+  // BLUEPRINT Phase 1: brow travel x5 -> x14 (AMP) — the brow line must
+  // ACT at 320px, not move a sub-pixel sliver.
+  const bRaise = pose.browRaise * AMP.browTravelPx;
   const bAngle = pose.browAngle * D2R;
   ctx.strokeStyle = ink;
   ctx.lineWidth = 4;

@@ -5,7 +5,7 @@
 
 import { clamp01, easeInOutSine, easeOutBack, easeOutCubic, easeOutQuad } from './easing';
 import { PALETTE, TONE, card, rgba, roundRect, setFont, paintBg, scenePlate, glowBlob, FONT_DISPLAY, FONT_UI } from './theme';
-import { bokehField, lightRays, softBloom, sparkles, drawK3D, kMotifs, floatCoins, impactRing, microShake } from './effects';
+import { bokehField, lightRays, softBloom, sparkles, drawK3D, kMotifs, floatCoins, impactRing, microShake, camState } from './effects';
 import { SceneCtx } from './scene-context';
 import { reactionAt } from './scene-context';
 import { Stickman, POSES, blendPose } from './stickman';
@@ -491,14 +491,18 @@ export function takeawaysScene(g: SceneCtx): void {
         : focus === 1 ? 'count1'
         : focus === 2 ? 'count2'
         : 'thumbsUp';
-      const pose = Stickman.poseAt(t, { gesture, speaking: false });
+      let pose = Stickman.poseAt(t, { gesture, speaking: false });
+      // BLUEPRINT Phase 2 (report §11): the final takeaway's dedicated pose
+      // key — WARM, the earned optimism (chest open, soft raised brows,
+      // the big smile), blended by the envelope; the face draws to 1.65×.
+      if (rP > 0.02) pose = blendPose(pose, POSES.warm, rP);
       // v3 (panel P0-3): v2 renderer
       // P1-1 (report): +30% (1.0 → 1.3); ground → H*0.667 (envelope 767).
       drawStickmanV2(ctx, W * 0.155, H * 0.667, 1.3, t,
         {
           pose, alpha: hp, look: 0.6,
           prop: focus === 3 && rP <= 0.5 ? 'thumb' : undefined,
-          faceScale: 1 + 0.4 * rP,
+          faceScale: 1 + 0.65 * rP,
           parallax: true,
         }, 35);
     }
@@ -639,7 +643,13 @@ export function endScreenScene(g: SceneCtx): void {
   const ny = H * 0.25;
   ctx.save();
   ctx.globalAlpha = ap;
-  ctx.translate(0, (1 - easeOutCubic(ap)) * 40);
+  // BLUEPRINT Phase 5 (report §11 — "an end screen with parallax cards"):
+  // the card rides the MID plane at 0.45x the camera (the far brand mark
+  // below rides 0.12x, the coins 1.35x) — the farewell frame separates
+  // into layers as the ch9 hero pullback breathes, instead of one flat
+  // composition. Pure function of camState; the card is unregistered
+  // background-grade furniture, so the guard is untouched.
+  ctx.translate(camState.dx * 0.45, camState.dy * 0.45 + (1 - easeOutCubic(ap)) * 40);
   card(ctx, nx, ny, 700, 420, { r: 30 });
   // v8: card interior upSoft (teal wash) — the vision panel read the old
   // cream interior as the last big 'aged paper' wash in the film
@@ -674,6 +684,9 @@ export function endScreenScene(g: SceneCtx): void {
     const kp = clamp01((t - 500) / 1200);
     if (kp > 0) {
       ctx.save();
+      // BLUEPRINT Phase 5: the FAR plane — 0.12x the camera (vs the card's
+      // 0.45x mid plane): the layers separate under the pullback.
+      ctx.translate(camState.dx * 0.12, camState.dy * 0.12);
       ctx.globalAlpha = 0.10 * kp;
       drawK3D(ctx, W * 0.74, H * 0.40, 300, kp, t);
       ctx.restore();

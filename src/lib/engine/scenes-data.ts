@@ -40,10 +40,17 @@ function hostSmall(
   // by 24px. All hostSmall call sites inherit the bump.
   groundY = g.H * 0.66, scale = 1.09,
   // PANEL-12 / P2-6: reaction opts — during the reaction window the side
-  // host swaps to the 'aha' gesture, the face draws 1.4× and the talk
+  // host swaps to a reaction gesture, the face enlarges and the talk
   // envelope pauses (the camera push lives in director.cameraV2, driven
   // by the same reactionAt() clock).
+  // BLUEPRINT Phase 2+5 (report §11): the reaction is a POSE KEY now —
+  // 'shock' on the twist (face 1.8×, 2× jaw gasp), 'wry' on the paradox
+  // resolve, 'warm' on the final takeaway — blended over the cycle pose
+  // by the envelope, never a hard swap.
   reaction = 0,
+  reactionPose = 'aha',
+  faceTarget = 1.4,
+  jawX = 1,
   // PANEL-12 / P2-1: parallax opt-OUT for figures that stand ON data
   // (the chartTwin / barsCompare climbers ride a bar's tip — if the figure
   // parallax-shifts while its bar holds still, his footing slides). Hosts
@@ -77,19 +84,33 @@ function hostSmall(
   const poseB = Stickman.poseAt(g.t, { gesture: cycle[(idx + 1) % 4], speaking: g.speaking, ...sentOpts });
   const w = k > 0 ? clamp01(springTo(0, 1, k * 620, 150, 19)) : 0;
   let pose = w > 0 ? blendPose(poseA, poseB, w) : poseA;
-  if (reaction > 0.5) pose = Stickman.poseAt(g.t, { gesture: 'aha', speaking: false });
-  const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) * (1 - reaction) : 0;
+  // BLUEPRINT Phase 2: the dedicated reaction pose key, BLENDED by the
+  // envelope (the old >0.5 hard swap read as a glitch mid-cycle).
+  if (reaction > 0.02 && POSES[reactionPose]) {
+    pose = blendPose(pose, POSES[reactionPose], clamp01(reaction * 1.15));
+  }
+  // BLUEPRINT Phase 2 (judge round-2 calibration): the reaction beat holds
+  // the mouth OPEN in a gasp (talk 0.88 drives the round-O shape, and the
+  // jaw2x multiplier doubles it) — a paused/closed mouth on a shock face
+  // read as "presenting", not reacting.
+  const talk = Math.max(
+    g.speaking ? talkAt(g.beatT, g.wordTimes) * (1 - reaction) : 0,
+    0.88 * reaction
+  );
   // v10.1: hostBody — the guard's host-vs-content pass needs the full body,
   // not just the feet band (the statCards host plated a card unseen).
   // PANEL-12 / P0-5: faceScale 1.15 — side hosts render at 1.09× body scale;
   // the face needs the help more than the body does (report §12.5).
   // PANEL-12 / P2-1: parallax — the figure rides the foreground plane.
+  // BLUEPRINT Phase 5: faceTarget drives the reaction close-up (1.8 on
+  // the twist); jawX drives the 2× gasp.
   drawStickmanV2(
     g.ctx, x, groundY, scale, g.t,
     {
       pose, alpha: clamp01((g.t - 500) / 500), look: g.W / 2 > x ? 0.5 : -0.5, talk,
       scarf: false, hostBody: true,
-      faceScale: 1 + 0.15 + 0.25 * reaction,
+      faceScale: 1 + 0.15 + (faceTarget - 1.15) * reaction,
+      jaw2x: 1 + (jawX - 1) * reaction,
       parallax,
     },
     seed
@@ -199,7 +220,7 @@ export function chartTwinScene(g: SceneCtx): void {
   // directly on the right chart's "today" x-label. Relocated to the empty
   // top-right quadrant above the chart cards, smaller, looking down at
   // the data; the full label strip along the card bottoms stays clear.
-  hostSmall(g, W * 0.87, 'present', 3, H * 0.225, 0.66, 0, false);
+  hostSmall(g, W * 0.87, 'present', 3, H * 0.225, 0.66, 0, 'aha', 1.4, 1, false);
 }
 
 // ── chartJourney: the generic annotated line chart scene ────────────────────
@@ -634,7 +655,7 @@ export function barsCompareScene(g: SceneCtx): void {
   // the host takes the empty top-right corner ABOVE the bars (envelope
   // y≈48-263, x≈1590-1751 — clear of the title and every bar row), looking
   // down at the data; the right column belongs to the tag chips.
-  hostSmall(g, W * 0.87, 'present', 13, H * 0.225, 0.66, 0, false);
+  hostSmall(g, W * 0.87, 'present', 13, H * 0.225, 0.66, 0, 'aha', 1.4, 1, false);
 }
 
 // ── trioConverge scene ───────────────────────────────────────────────────────
@@ -760,29 +781,46 @@ export function kDefScene(g: SceneCtx): void {
   const travel = clamp01((t - 600) / 2200);
   const dotGap = lerp(0, 1, easeInOutCubic(travel));
   ctx.save();
-  // stem
-  ctx.strokeStyle = PALETTE.ink;
-  ctx.lineWidth = 26;
-  ctx.lineCap = 'round';
-  const stemP = clamp01(t / 700);
-  ctx.beginPath();
-  ctx.moveTo(kx, ky - S * stemP);
-  ctx.lineTo(kx, ky + S * stemP);
-  ctx.stroke();
-  // arms
-  if (travel > 0.15) {
-    ctx.strokeStyle = PALETTE.up;
-    ctx.lineWidth = 20;
-    const ap2 = clamp01((travel - 0.15) / 0.85);
-    ctx.beginPath();
-    ctx.moveTo(kx, ky + S * 0.1);
-    ctx.lineTo(kx + S * 1.15 * ap2, ky - S * 1.05 * ap2);
-    ctx.stroke();
-    ctx.strokeStyle = PALETTE.down;
-    ctx.beginPath();
-    ctx.moveTo(kx, ky + S * 0.1);
-    ctx.lineTo(kx + S * 1.15 * ap2, ky + S * 1.05 * ap2);
-    ctx.stroke();
+  // BLUEPRINT Phase 3 (report §11 — ONE 3D LANGUAGE): kDef stops re-drawing
+  // the K as flat 26/20px strokes — the audit's only outright continuity
+  // defect ("the dimensional language established in the cold open is
+  // dropped entirely. Continuity failure."). The SAME drawK3D the cold
+  // open establishes — same extrusion depth, same solid wall tones, same
+  // ±5°/2.6s wobble clock — so the brand object has ONE dimensionality
+  // across the whole film. The vivid formation arms ride the growth and
+  // hand off to the ink face exactly as divergeK stages it.
+  const grow = clamp01((t - 200) / 2600);
+  const kA2 = clamp01((grow - 0.55) / 0.45);
+  if (grow > 0.3 && kA2 < 1) {
+    ctx.save();
+    ctx.globalAlpha = 1 - kA2;
+    ctx.lineCap = 'round';
+    const armK = (frac: number, vivid: string, dir: number): void => {
+      if (frac <= 0) return;
+      const ex = kx + S * 1.15 * frac;
+      const ey = ky + dir * S * 1.05 * frac;
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 30;
+      ctx.beginPath();
+      ctx.moveTo(kx, ky + S * 0.1);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      ctx.strokeStyle = vivid;
+      ctx.lineWidth = 22;
+      ctx.beginPath();
+      ctx.moveTo(kx, ky + S * 0.1);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+    };
+    armK(clamp01(grow * 2 - 0.6), PALETTE.upVivid, -1);
+    armK(clamp01(grow * 2 - 1.1), PALETTE.downVivid, 1);
+    ctx.restore();
+  }
+  if (grow > 0.55) {
+    ctx.save();
+    ctx.globalAlpha = kA2;
+    drawK3D(ctx, kx, ky, S, 1, t);
+    ctx.restore();
   }
   // travelers
   ctx.fillStyle = PALETTE.up;
@@ -1398,7 +1436,7 @@ export function statCardsScene(g: SceneCtx): void {
   // of the card bodies (envelope left ≈1477 vs card right edge 1450, with
   // camera margin at every sweep step). Presenting the data, not the
   // empty air beside it.
-  hostSmall(g, W * 0.845, 'pointL', 19, g.H * 0.66, 1.09, 0, true);
+  hostSmall(g, W * 0.845, 'pointL', 19, g.H * 0.66, 1.09, 0, 'aha', 1.4, 1, true);
 }
 
 // ── ownerWorker scene ────────────────────────────────────────────────────────
@@ -1707,7 +1745,11 @@ export function fundSplitScene(g: SceneCtx): void {
   // PANEL-12 / P2-6 (report §14.6): the TWIST reaction shot — the side host
   // takes the 'aha' beat (face 1.4×, talk paused) while the camera pushes
   // toward him (director.cameraV2, same reactionAt() clock).
-  hostSmall(g, W * 0.835, 'pointL', 24, undefined, undefined, reactionAt(g.s.sceneKey, g.t, g.d));
+  // PANEL-12 / P2-6: THE TWIST REACTION SHOT — the side host takes the
+  // 'shock' beat (true close-up: face 1.8×, 2× jaw gasp, sclera eyes)
+  // while the camera pushes 0.28 toward him (director.cameraV2, same
+  // reactionAt() clock).
+  hostSmall(g, W * 0.835, 'pointL', 24, undefined, undefined, reactionAt(g.s.sceneKey, g.t, g.d), 'shock', 1.8, 2);
 }
 
 // ── oddsSpread scene ─────────────────────────────────────────────────────────

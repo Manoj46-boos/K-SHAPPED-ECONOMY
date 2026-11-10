@@ -28,6 +28,7 @@ import { PALETTE, rgba, roundRect } from './theme';
 import { clamp, clamp01, hash01 } from './easing';
 import { registerRect } from './collision';
 import { camState } from './effects';
+import { AMP, INK } from './perception';
 
 const D2R = Math.PI / 180;
 
@@ -64,7 +65,11 @@ function drawMouthV2(
   ctx: CanvasRenderingContext2D,
   eyeDX: number,
   smile: number,
-  talk: number
+  talk: number,
+  /** BLUEPRINT Phase 2: jaw multiplier for the reaction beats — the
+   *  shock pose drives a 2x jaw opening (a gasp reads at distance; a
+   *  polite 4px ellipse does not). 1 = normal speech. */
+  jawX = 1
 ): void {
   const mx = eyeDX * 0.6;
   ctx.lineCap = 'round';
@@ -79,16 +84,16 @@ function drawMouthV2(
     const w = 6.5 + (talk - 0.85) * 12;
     ctx.fillStyle = PALETTE.ink;
     ctx.beginPath();
-    ctx.ellipse(mx, 15, w, w * 1.3, 0, 0, Math.PI * 2);
+    ctx.ellipse(mx, 15, w, w * 1.3 * jawX, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#FDFCF8';
     ctx.beginPath();
-    ctx.ellipse(mx, 15 - w * 0.55, w * 0.5, w * 0.24, 0, 0, Math.PI * 2);
+    ctx.ellipse(mx, 15 - w * 0.55 * jawX, w * 0.5, w * 0.24 * jawX, 0, 0, Math.PI * 2);
     ctx.fill();
   } else if (talk > 0.55) {
     // wide-open articulate jaw (the v3 shape, retuned)
     const w = 7.5 + talk * 3;
-    const h = 4 + (talk - 0.55) * 16;
+    const h = (4 + (talk - 0.55) * 16) * jawX;
     ctx.fillStyle = PALETTE.ink;
     ctx.beginPath();
     ctx.ellipse(mx, 15, w, h, 0, 0, Math.PI * 2);
@@ -100,7 +105,7 @@ function drawMouthV2(
   } else if (talk > 0.18) {
     // small-open — mid-energy speech: a modest rounded opening
     const w = 6 + talk * 4;
-    const h = 2.5 + talk * 6.5;
+    const h = (2.5 + talk * 6.5) * jawX;
     ctx.fillStyle = PALETTE.ink;
     ctx.beginPath();
     ctx.ellipse(mx, 15, w, h, 0, 0, Math.PI * 2);
@@ -142,9 +147,12 @@ function boilOff(): { dx: number; dy: number } {
   if (boilT < 0) return { dx: 0, dy: 0 };
   const phase = Math.floor(boilT / BOIL_MS) % 3;
   const j = boilJoint++;
+  // BLUEPRINT Phase 1 (AMP.boilPx): ±0.85 -> ±2.2 px — the drawn-ink
+  // wobble must survive the 6x downscale to the 320px feed; at ±0.85 it
+  // was 0.22px there, i.e. a clean vector, i.e. a puppet.
   return {
-    dx: (hash01(j * 17.31 + phase * 7.7) - 0.5) * 1.7,
-    dy: (hash01(j * 29.7 + phase * 11.3 + 5) - 0.5) * 1.7,
+    dx: (hash01(j * 17.31 + phase * 7.7) - 0.5) * AMP.boilPx * 2,
+    dy: (hash01(j * 29.7 + phase * 11.3 + 5) - 0.5) * AMP.boilPx * 2,
   };
 }
 
@@ -398,6 +406,11 @@ export function drawStickmanV2(
      *  PERSON, not the host at another scale). The signature-scene coffee
      *  character uses it; default = the host template. */
     variant?: 'prof';
+    /** BLUEPRINT Phase 2 (report §11): the reaction-beat jaw multiplier —
+     *  the shock/wry/warm poses drive a 2x jaw opening on the twist so the
+     *  gasp reads at 320px. Drive from the reaction envelope at the call
+     *  site (1 + 1*rP on the twist beat). */
+    jaw2x?: number;
   },
   seed = 0
 ): void {
@@ -415,6 +428,9 @@ export function drawStickmanV2(
   // transform stack below, after translate(cx, groundY). Pure function of
   // caller data.
   const squash = r.squash ?? 0;
+  // BLUEPRINT Phase 2: the jaw multiplier reaches the mouth (the shock
+  // reaction's 2x gasp).
+  const jaw2x = r.jaw2x ?? 1;
   // P2-1: foreground parallax — the figure translates at 1.40× the camera
   // drift (the stage already rides the camera's 1.0×).
   // AUDIT-2 / §10.3 (D1): 0.25 → 0.40. At the old factor the differential
@@ -452,7 +468,7 @@ export function drawStickmanV2(
   // AUDIT-3 / §2.4: the squash rides the figure transform ABOUT the
   // ground-contact origin (translate happens before scale, so the feet
   // stay planted while the body compresses).
-  if (squash > 0.001) ctx.scale(1 + 0.05 * squash, 1 - 0.06 * squash);
+  if (squash > 0.001) ctx.scale(1 + 0.06 * squash, 1 - 0.09 * squash);
   ctx.scale(r.flip ? -scale : scale, scale);
   // v6 idle life: a 2.4s breath sway (±0.23°) around the ground contact —
   // the freeze between sentences read as a mannequin without it.
@@ -460,11 +476,12 @@ export function drawStickmanV2(
   // v10 (panel CHAR-2): WEIGHT SHIFT — a slow 4.6s hip settle.
   // AUDIT-3 / §2.2 (report Phase 2.2 — CONTRAPPOSTO IDLE): the terms were
   // sub-pixel at phone scale (±1.8px at scale 1.0), which is why the
-  // BEFORE renders still read “mannequin between sentences”. Amplitude
-  // rises to ±3.0px and the shift now DRIVES a shoulder counter-angle
-  // (±1.6° on the arm roots against the hip) — hips and shoulders oppose
-  // each other, the classical contrapposto line, visible at 320px.
-  const weight = Math.sin(t / 4600 + seed * 2.3) * 3.0;
+  // BEFORE renders still read “mannequin between sentences”. 
+  // BLUEPRINT Phase 1 (report Table 7): the idle register rises to the
+  // panel's numbers — weight ±7.5px (AMP.weightShift) driving a ±4.0°
+  // shoulder counter (AMP.shoulderCounterDeg). Hips and shoulders oppose
+  // each other on a line a phone viewer can finally SEE.
+  const weight = Math.sin(t / 4600 + seed * 2.3) * AMP.weightShift;
   const counter = Math.sin(t / 4600 + seed * 2.3);
   ctx.translate(weight, 0);
   ctx.rotate(Math.sin(t / 6200 + seed * 0.9) * 0.003);
@@ -472,9 +489,15 @@ export function drawStickmanV2(
   // pose objects are never mutated)
   const pose: import('./stickman').Pose = {
     ...pose0,
-    lAU: pose0.lAU - counter * 1.6,
-    rAU: pose0.rAU + counter * 1.6,
+    lAU: pose0.lAU - counter * AMP.shoulderCounterDeg,
+    rAU: pose0.rAU + counter * AMP.shoulderCounterDeg,
   };
+  // BLUEPRINT Phase 2: the two rotation terms the rig never had —
+  // PELVIS TILT (the hip line tilts; the torso grows from the tilted
+  // pelvis) and SHOULDER TILT (the shoulder anchors counter it). Walked
+  // figures carry them from walkPose; idle poses default to 0.
+  const hipT = (pose.pelvisTilt ?? 0) * D2R;
+  const shT = (pose.shoulderTilt ?? 0) * D2R;
   // PANEL-12 / P0-5 (report §12.5): PROPORTIONS — shorter legs, bigger
   // head, stockier torso. TORSO 96→88, U_LEG 72→64, L_LEG 66→58: the v2
   // figure was 7.2 heads tall on pin legs — the panel read "coat hanger".
@@ -482,52 +505,82 @@ export function drawStickmanV2(
   // the face keeps its ink weight at the shorter scale.
   const U_LEG = 64, L_LEG = 58, TORSO = 88, U_ARM = 58, L_ARM = 54;
   const pelvisY = -U_LEG - L_LEG + pose.rootY;
-  const leanR = pose.lean * D2R;
-  const neckX = Math.sin(leanR) * TORSO;
-  const neckY = pelvisY - Math.cos(leanR) * TORSO;
+  // BLUEPRINT Phase 2: the hip anchors ride the pelvis tilt — right hip
+  // rises when pelvisTilt is positive (weight onto the left leg), left
+  // hip drops; the torso grows from the tilted hip line (its lean picks
+  // up half the tilt) so the upper body answers the hips.
+  const hipRise = Math.sin(hipT) * 6.5;
+  const hipLX = -6 * Math.cos(hipT), hipRX = 6 * Math.cos(hipT);
+  const hipLY = pelvisY + hipRise, hipRY = pelvisY - hipRise;
+  const leanR2 = pose.lean * D2R + hipT * 0.5;
+  const leanR = leanR2;
+  const neckX = Math.sin(leanR2) * TORSO;
+  const neckY = (hipLY + hipRY) / 2 - Math.cos(leanR2) * TORSO;
 
   // ground (v2 layered shadow; P3-2 skew + P3-3 one-light offset inside)
   if ((r.shadow ?? 1) > 0) groundShadowV2(ctx, 0, 0, 1, r.shadowSkew ?? 0, r.shadowRot ?? 0);
 
   const ink = PALETTE.ink;
   // AUDIT-3 / Finding 1 (report §3.2 + Phase 1.1): ONE INK VALUE PER
-  // CHARACTER. The AUDIT-2 attempt replaced the old 0.62 alpha with a
-  // 28% value step (hexLerp toward the background) — still a two-tone
-  // limb system, and the 100-judge re-verification of the BEFORE render
-  // convicted it again, independently, three times: “the gray-to-dark
-  // two-tone limbs look like a rigging error… one arm gray, the other
-  // dark… at feed scale the character loses a limb”. The report's fix is
-  // exactly one line and it is the highest-leverage change in the audit:
-  // draw far limbs in the SAME ink. Depth comes from overlap, contact and
-  // the ground shadow — never from splitting limb values (the Alan
-  // Becker reference rule the owner chose).
+  // CHARACTER (see the long note above — depth from overlap and contact,
+  // never from splitting limb values).
   const farInk = ink;
   ctx.save();
   ctx.globalAlpha = alpha;
-  const farFoot = limb2(ctx, -6, pelvisY, pose.lLU, pose.lLL, U_LEG, L_LEG, 12, 10, 9, farInk, pose.lLift ?? 0);
-  const farHand = limb2(ctx, neckX - 4, neckY + 3, pose.lAU, pose.lAL, U_ARM, L_ARM, 9, 8, 7, farInk);
-  handGlyph(ctx, farHand.ex, farHand.ey, pose.lAL, 10, farInk, scale < 1);
+  // BLUEPRINT Phase 2 (report §11, INK register): the phone feed rewards
+  // DARK MASS on pale ground — limb weights rise so the figure carries
+  // the frame's identity at 320px (far leg 12/10/9 -> 17/13/10, far arm
+  // 9/8/7 -> 13/10/8).
+  const farFoot = limb2(ctx, hipLX, hipLY, pose.lLU, pose.lLL, U_LEG, L_LEG, INK.legFar[0], INK.legFar[1], INK.legFar[2], farInk, pose.lLift ?? 0);
+  const farHand = limb2(ctx, neckX - 4 + Math.sin(shT) * -4, neckY + 3 + Math.sin(shT) * 9, pose.lAU, pose.lAL, U_ARM, L_ARM, INK.armFar[0], INK.armFar[1], INK.armFar[2], farInk);
+  handGlyph(ctx, farHand.ex, farHand.ey, pose.lAL, 10, farInk, scale < 0.85);
   ctx.restore();
 
   // NEAR leg (support) — P0-3: both feet now get a shoe, slightly
-  // oversized and forward-set. The far foot used to get NOTHING: at
-  // phone scale a one-shoed figure reads as an error, and the panel
-  // called the oversized forward shoe "an instant silhouette hook from
-  // the ankles down".
-  const nearFoot = limb2(ctx, 6, pelvisY, pose.rLU, pose.rLL, U_LEG, L_LEG, 15, 12, 10, ink, pose.rLift ?? 0);
+  // oversized and forward-set.
+  // BLUEPRINT Phase 2 (INK): near leg 15/12/10 -> 21/16/12 — the support
+  // leg is the figure's anchor mass.
+  const nearFoot = limb2(ctx, hipRX, hipRY, pose.rLU, pose.rLL, U_LEG, L_LEG, INK.legNear[0], INK.legNear[1], INK.legNear[2], ink, pose.rLift ?? 0);
   // AUDIT-2 / 0.1: the far shoe steps with its limb (farInk); the near
   // shoe stays full ink — depth, not a second colour system.
   // AUDIT-3 / Walk 3.0 (§2.6): the shoe PITCHES with the stride (lToe/rToe
-  // from walkPose) — heel-strike (toe up) through toe-off (toe down), so
-  // the foot rolls through the step instead of sliding flat.
-  const shoe = (f: { ex: number; ey: number }, col: string, rotDeg = 0): void => {
+  // from walkPose) — heel-strike (toe up) through toe-off (toe down).
+  // BLUEPRINT Phase 2 (report §11): the 18x8.5 ELLIPSE becomes a DRAWN
+  // WEDGE with a heel counter, instep and toe box — 29px long at rig
+  // scale so the ±26° toe roll finally has a lever arm (the audit's
+  // “blob feet, no toe” and the walk panel's “flat paddle” both die
+  // here). Rotates about the ankle; the sole rides the ground line.
+  const shoeWedge = (f: { ex: number; ey: number }, col: string, rotDeg = 0): void => {
+    ctx.save();
+    ctx.translate(f.ex, f.ey - 4);
+    ctx.rotate(rotDeg * D2R);
     ctx.fillStyle = col;
     ctx.beginPath();
-    ctx.ellipse(f.ex + 11, f.ey - 3, 18, 8.5, rotDeg * D2R, 0, Math.PI * 2);
+    // heel counter — rounded back of the shoe
+    ctx.moveTo(-7.5, -4);
+    ctx.quadraticCurveTo(-10.5, 1, -8, 7);
+    // sole — flat contact line with a hint of toe-spring at the front
+    ctx.lineTo(13, 8.2);
+    ctx.quadraticCurveTo(20.5, 8.4, 22, 5.4);
+    // toe box — the rounded front cap that reads as a SHOE
+    ctx.quadraticCurveTo(23.4, 2.2, 20.5, 0.4);
+    // instep — dips up to the ankle
+    ctx.quadraticCurveTo(13, -1.4, 4, -3.6);
+    ctx.quadraticCurveTo(-3, -5.4, -7.5, -4);
+    ctx.closePath();
     ctx.fill();
+    // the sole line — a slightly darker pass under the wedge so the
+    // ground contact reads (one light, shadow tone)
+    ctx.strokeStyle = rgba(PALETTE.shadow, 0.55);
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.moveTo(-7.5, 7.6);
+    ctx.quadraticCurveTo(6, 8.6, 19, 6.6);
+    ctx.stroke();
+    ctx.restore();
   };
-  shoe(farFoot, farInk, pose.lToe ?? 0);
-  shoe(nearFoot, ink, pose.rToe ?? 0);
+  shoeWedge(farFoot, farInk, pose.lToe ?? 0);
+  shoeWedge(nearFoot, ink, pose.rToe ?? 0);
 
   // PANEL-12 / P2-5 (report §14.5) — CONTACT DUST on foot-plant. Three
   // motes per plant, 200ms life, shadow-color at 0.25 alpha, keyed to the
@@ -561,7 +614,9 @@ export function drawStickmanV2(
   // stockier silhouette that reads as a different build, not a scaled
   // copy of the host (Finding C-3, “copy-paste coworker”).
   const prof = r.variant === 'prof';
-  taper(ctx, 0, pelvisY + 4, neckX, neckY, prof ? 19.5 : 15, prof ? 27.5 : 22, ink);
+  // BLUEPRINT Phase 2 (INK): torso taper 15/22 -> 19/30 (prof 24/35) —
+  // the chest mass the stocky silhouette needs at phone scale.
+  taper(ctx, 0, pelvisY + 4, neckX, neckY, prof ? 24 : INK.torso[0], prof ? 35 : INK.torso[1], ink);
 
   // AUDIT-2 / 1.4 (report §10.2, C6) — THE COLLAR BREAK. The gold knot
   // flowed into the head circle with no separation ("the head looks
@@ -613,13 +668,18 @@ export function drawStickmanV2(
   if ((r.smear ?? 0) > 0.25) {
     ctx.save();
     ctx.globalAlpha = alpha * 0.35 * (r.smear ?? 0);
-    limb2(ctx, neckX + 4, neckY + 3, pose.rAU + 2.4, pose.rAL + 3.2, U_ARM, L_ARM, 13, 11, 9, ink);
+    limb2(ctx, neckX + 4, neckY + 3, pose.rAU + 2.4, pose.rAL + 3.2, U_ARM, L_ARM, INK.armNear[0], INK.armNear[1], INK.armNear[2], ink);
     ctx.restore();
   }
-  const hand = limb2(ctx, neckX + 4, neckY + 3, pose.rAU, pose.rAL, U_ARM, L_ARM, 13, 11, 9, ink);
+  // BLUEPRINT Phase 2: near arm 13/11/9 -> 17/13/10 (INK.armNear); the
+  // shoulder anchor rides the shoulder-line counter-tilt (Phase 2's
+  // second rotation term — the near shoulder rises when shT is positive).
+  const hand = limb2(ctx, neckX + 4 + Math.sin(shT) * 4, neckY + 3 - Math.sin(shT) * 9, pose.rAU, pose.rAL, U_ARM, L_ARM, INK.armNear[0], INK.armNear[1], INK.armNear[2], ink);
   // P0-2 + AUDIT-2 / 1.3 (report §10.2, C5): TWO GLYPHS — the fan at hero
-  // scale, the mitten below rig scale 1.0, selected right here.
-  handGlyph(ctx, hand.ex, hand.ey, pose.rAL, 13, ink, scale < 1);
+  // scale, the mitten below rig scale 0.85 (BLUEPRINT: threshold 1.0 ->
+  // 0.85 so the glyph never switches mid-scene on a scaled host),
+  // selected right here.
+  handGlyph(ctx, hand.ex, hand.ey, pose.rAL, 13, ink, scale < 0.85);
   if (r.prop === 'thumb') {
     // a short stub above the fist — reads as a raised thumb at any scale
     ctx.strokeStyle = ink;
@@ -685,7 +745,8 @@ export function drawStickmanV2(
   ctx.fill();
   ctx.fillStyle = PALETTE.bgTop;
   ctx.strokeStyle = ink;
-  ctx.lineWidth = 9; // P0-5: 8→9 — keeps face ink weight at the stockier scale
+  ctx.lineWidth = INK.headStroke; // BLUEPRINT Phase 2: 9 -> 12 — the face's
+  // outline carries the head's identity at 320px (2.4px there, vs 1.9 before)
   ctx.beginPath();
   ctx.arc(0, 0, 34, 0, Math.PI * 2);
   ctx.fill();
@@ -771,22 +832,25 @@ export function drawStickmanV2(
   //              which the straight line could never communicate;
   //   concerned  inner-end-up kink at browAngle > 10 — worry reads in the
   //              angle break, not just the lift.
-  const bRaise = pose.browRaise * 5;
+  const bRaise = pose.browRaise * AMP.browTravelPx;
   const bAngle = pose.browAngle * D2R;
   ctx.strokeStyle = ink;
   ctx.lineWidth = 6;
   ctx.lineCap = 'round';
   const browSide = (dir: number): void => {
     const x0 = dir * (6 + eyeDX), x1 = dir * (20 + eyeDX);
+    // BLUEPRINT Phase 1: the arch/kink amplitudes scale with the x2.8
+    // brow travel so the SHAPES read at the new height (a 5.5px arch on
+    // a 14px raise would flatten back into a line).
     const y0 = -20 - bRaise - dir * Math.tan(bAngle) * 7;
     const y1 = -18 - bRaise + dir * Math.tan(bAngle) * 7 * -1;
     ctx.beginPath();
     ctx.moveTo(x0, y0);
     if (surprise > 0.35) {
-      ctx.quadraticCurveTo((x0 + x1) / 2, (y0 + y1) / 2 - 5.5 * surprise, x1, y1);
+      ctx.quadraticCurveTo((x0 + x1) / 2, (y0 + y1) / 2 - 9.5 * surprise, x1, y1);
     } else if (concerned > 0.35) {
       const kx = x0 + (x1 - x0) * 0.34;
-      ctx.lineTo(kx, y0 - 3.5 * concerned);
+      ctx.lineTo(kx, y0 - 5.5 * concerned);
       ctx.lineTo(x1, y1);
     } else {
       ctx.lineTo(x1, y1);
@@ -828,7 +892,8 @@ export function drawStickmanV2(
     ctx.stroke();
   }
   // mouth (v3: articulate talk envelope when speaking, panel P0-4)
-  drawMouthV2(ctx, eyeDX, pose.smile, r.talk ?? 0);
+  // BLUEPRINT Phase 2: the reaction jaw multiplier reaches the mouth.
+  drawMouthV2(ctx, eyeDX, pose.smile, r.talk ?? 0, jaw2x);
   // cheek warmth — very subtle
   ctx.fillStyle = rgba(PALETTE.down, 0.16);
   ctx.beginPath(); ctx.ellipse(-21, 7, 5, 3.5, 0, 0, Math.PI * 2); ctx.fill();

@@ -70,7 +70,12 @@ export const PALETTE: Palette = {
   // beige" in every frame they touched. Every neutral below is now a cool
   // slate-teal: the same warmth-free family as the accent system.
   bgTop: '#FFFFFF',
-  bgBottom: '#F4F9F8',
+  // BLUEPRINT Phase 4 (report §11): bgBottom deepens #F4F9F8 -> #E9F1ED
+  // — the frame gains a ground and loses the "floating on a lightbox"
+  // read. This is the palette's only structural change; the single change
+  // that attacks the 72-93% near-white measurement everywhere the wash
+  // renders.
+  bgBottom: '#E9F1ED',
   bgSoft: '#F8FCFB',
   // v8.2: ink lifted from #1B2B27 to a slate-teal no vision judge reads
   // as 'near-black charcoal' (the compliance recheck flagged the old ink
@@ -467,6 +472,22 @@ export function scenePlate(
   // ("a barely-there wash is not a tonal field", round-2 judge note).
   ctx.fillStyle = rgba(soft, strength);
   ctx.fillRect(0, 0, W, H);
+  // BLUEPRINT Phase 4 (report §11): the 5% darker FLOOR BAND — a soft
+  // gradient ramp under the presenter's ground line (host ground ≈
+  // 0.66·H; the band ramps from there to the frame bottom). The frame
+  // gains a GROUND LINE: the stage reads as a floor the figures stand
+  // on, not a lightbox they float over. Soft-edged (a gradient, never a
+  // hard stripe), light-register (5% ink over the plate), background —
+  // never registered with the collision guard.
+  {
+    const bandTop = H * 0.66;
+    const fg = ctx.createLinearGradient(0, bandTop, 0, H);
+    fg.addColorStop(0, rgba(PALETTE.ink, 0));
+    fg.addColorStop(0.45, rgba(PALETTE.ink, 0.035));
+    fg.addColorStop(1, rgba(PALETTE.ink, 0.055));
+    ctx.fillStyle = fg;
+    ctx.fillRect(0, bandTop, W, H - bandTop);
+  }
   ctx.restore();
 }
 

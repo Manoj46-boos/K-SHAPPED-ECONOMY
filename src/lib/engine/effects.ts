@@ -4,7 +4,8 @@
  */
 
 import { clamp01, drift, easeOutCubic, hash01, hashRange } from './easing';
-import { PALETTE, rgba, glowBlob } from './theme';
+import { PALETTE, rgba, glowBlob, hexLerp } from './theme';
+import { AMP, K3D } from './perception';
 
 // ── v3 (panel P1-2): parallax camera state ─────────────────────────────────────
 // cameraV2 scaled the whole frame uniformly — bokeh, cards and host all
@@ -14,6 +15,11 @@ import { PALETTE, rgba, glowBlob } from './theme';
 // once per frame BEFORE the scene drawer runs; a pure function of (gt,
 // groupDur) so scrub-determinism is preserved exactly.
 export const camState = { dx: 0, dy: 0, scale: 1 };
+// BLUEPRINT Phase 5: the GUARD camera — the steady-state transform the
+// collision guard asserts against (pre-reaction: the 1.2s emotional beats
+// are punch-class transients, exempt exactly like scalePunch). Published
+// by director.cameraV2 alongside camState.
+export const guardCamState = { dx: 0, dy: 0, scale: 1 };
 
 /** Background planes move at this fraction of camera motion (0 = frozen bg). */
 export const BG_PARALLAX = 0.45;
@@ -39,14 +45,14 @@ function getGrainTiles(size = 192): Array<HTMLCanvasElement | OffscreenCanvas> {
     c.height = size;
     const g = c.getContext('2d') as CanvasRenderingContext2D;
     const img = g.createImageData(size, size);
-    // AUDIT-2 / 0.5 calibration: the old tile (±45 at alpha 26, soft-light)
-    // produced sub-1/255 deltas on the film's light plates — a texture the
-    // panel could only find by reading the code, i.e. a tax. ±64 at tile
-    // alpha 96 under OVERLAY at the 0.30 production draw lands the grain
-    // at perceptible-but-barely (the report's own bar for finishing), and
-    // the three-tile flicker finally produces measurable frame deltas.
+    // BLUEPRINT Phase 4 (report §11): the grain's register rises to
+    // GENUINELY VISIBLE on ivory plates — the tiles widen ±64 -> ±80 so
+    // the three-tile flicker survives the platform transcode on a phone
+    // (the audit measured the old stack at ~1-3 luminance levels:
+    // "texture tax, no flicker seen"). The mechanism stays: three tiles,
+    // overlay composite, quantized flicker clock.
     for (let i = 0; i < img.data.length; i += 4) {
-      const v = 128 + (hash01(i / 4 + k * 9241) - 0.5) * 128;
+      const v = 128 + (hash01(i / 4 + k * 9241) - 0.5) * 160;
       img.data[i] = v;
       img.data[i + 1] = v;
       img.data[i + 2] = v;
@@ -95,14 +101,18 @@ export function bokehField(
 ): void {
   const { intensity = 1, seed = 3, gold = 0.22 } = opts;
   const goldRatio = Math.min(0.18, gold);
-  const N = 17;
+  // BLUEPRINT Phase 4 (report §11): HALVE the count again (17 -> 9) and
+  // DOUBLE the speed — few, confident, MOVING discs read as a lens;
+  // many slow rings read as stamped confetti. The ring alpha floor
+  // rises 0.26 -> 0.40 so the survivors register after the transcode.
+  const N = 9;
   // v3 (panel P1-2): motes counter-shift by the camera motion the background
   // did NOT follow, so the bokeh slides against the scene plane at ~0.45×.
   const camX2 = camState.dx * (1 - BG_PARALLAX);
   const camY2 = camState.dy * (1 - BG_PARALLAX);
   for (let i = 0; i < N; i++) {
     const depth = 0.35 + hash01(i + seed * 31) * 0.65;
-    const speed = 8 + depth * 20;
+    const speed = 16 + depth * 40;
     const bx = (hash01(i * 3.7 + seed) * W + drift(t / 9000 + i * 3, i) * 40 * depth - camX2 * depth + W) % W;
     const by =
       (hash01(i * 7.1 + seed * 5) * H - (t / 1000) * speed - camY2 * depth + Math.sin(t / 5000 + i) * 20 + H * 4) % H;
@@ -138,7 +148,7 @@ export function bokehField(
     // varied discs — still light-register, never confetti.
     const ringA = Math.min(
       isGold ? 0.55 : 0.62,
-      (isGold ? 0.28 + hash01(i * 9.2) * 0.27 : 0.26 + hash01(i * 9.2) * 0.36) *
+      (isGold ? 0.40 + hash01(i * 9.2) * 0.15 : 0.40 + hash01(i * 9.2) * 0.22) *
         intensity * (0.55 + depth * 0.45)
     );
     ctx.beginPath();
@@ -189,7 +199,12 @@ export function fgBokeh(
     // slow diagonal drift + camera coupling; wraps at the frame edge
     const bx = (hash01(i * 5.9 + seed) * (W + 240) + Math.sin(t / 6400 + i * 2.1) * 34 - camX * depth + W + 240) % (W + 240) - 120;
     const by = (hash01(i * 11.3 + seed * 2) * (H + 240) + Math.cos(t / 7100 + i * 1.7) * 26 - camY * depth + H + 240) % (H + 240) - 120;
-    const a = 0.05 + hash01(i * 13.7 + seed) * 0.04;
+    // BLUEPRINT Phase 4 (report Table 5 — "foreground bokeh: invisible
+  // after transcode, no foreground plane felt"): the register rises
+  // 0.05-0.09 -> 0.075-0.13 — the near lens plane finally READS on the
+  // sparse host/walk frames (the feed panel's two weakest cells), while
+  // staying under the captions and off the reading surfaces.
+  const a = 0.075 + hash01(i * 13.7 + seed) * 0.055;
     const isGold = hash01(i * 4.3 + seed * 5) < 0.3;
     const g = ctx.createRadialGradient(bx, by, r * 0.25, bx, by, r);
     if (isGold) {
@@ -229,11 +244,10 @@ export function lightRays(
   ctx.rotate(rot);
   for (let i = 0; i < 5; i++) {
     const wRay = 90 + i * 70;
-    // PANEL-12 / P2-5 (report §14.5): 0.03–0.06 → 0.07–0.10. The old band
-    // was sub-visible after the platform transcode — a render cost with no
-    // visible result is a tax, not an effect. The new band registers on a
-    // phone while staying inside the light register (no blown highlights).
-    const a = (0.07 + hash01(i) * 0.03) * alpha;
+    // BLUEPRINT Phase 4 (report §11): 0.07-0.10 -> 0.14-0.18 — "no light
+    // in the room" becomes a room with light. Still inside the light
+    // register (overlay composite, warm ivory, no blown highlights).
+    const a = (0.14 + hash01(i) * 0.04) * alpha;
     const g = ctx.createLinearGradient(0, 0, 0, H * 1.3);
     g.addColorStop(0, rgba('#FFF9E8', a));
     g.addColorStop(1, rgba('#FFF9E8', 0));
@@ -402,22 +416,34 @@ export function drawK(
  * read its edges as "soft gray ghost lines / doubled strokes". This is a
  * real extrusion of the K outline: the K is three strokes; every stroke
  * segment is a quad of its two endpoints ± the width normal; each quad's
- * side walls are extruded along ONE fixed vector d = (0.35, −0.14) × depth
- * and filled in the shadow tone, and the ink face lands on top. The walls
- * are inset by half the stroke width so the squared corners stay inside
- * the face's round caps.
+ * side walls are extruded along a per-stroke depth vector and filled,
+ * and the ink face lands on top. The walls are inset by half the stroke
+ * width so the squared corners stay inside the face's round caps.
  *
- * AUDIT-2 / §10.4 (report Phase 3, D3): the TWO WALLS now shade by the
+ * AUDIT-2 / §10.4 (report Phase 3, D3): the TWO WALLS shade by the
  * light — the wall whose outward normal faces the light (upper-right)
- * renders one step brighter than the wall facing away, so the extrusion
- * reads as lit volume instead of a flat decal.
+ * renders one step brighter than the wall facing away.
+ *
+ * BLUEPRINT Phase 3 (report §11 — ONE 3D LANGUAGE): the audit convicted
+ * the extrusion as "a flat decal with offset shadows… parallel offsets
+ * scream drop-shadow layer style" on three counts, all fixed here:
+ *  • DEPTH 0.14 -> 0.26 of letter size (K3D.depthFrac) — a sliver
+ *    becomes volume; 26% of a 210px K is a 55px wall at 1080p, 9px at
+ *    the 320px gate.
+ *  • SOLID WALL TONES — the lit wall in the object's OWN ink, the
+ *    shadow wall a 45% tint toward the background (hexLerp): an opaque
+ *    value STEP reads as geometry; two transparent grays read as
+ *    nothing (the old 0.26/0.11 alpha pair).
+ *  • CONVERGENCE — every stroke extrudes TOWARD ONE VANISHING POINT
+ *    (K3D.vp) instead of a shared constant vector: perspective, not a
+ *    layer style. The per-stroke d vector is normalized and scaled to
+ *    the depth, shortened for strokes near the VP (true convergence).
  */
-const K_EXTRUDE_D = { x: 0.35, y: -0.14 }; // oblique depth vector (upper-right light)
-
 function extrudeStroke(
   ctx: CanvasRenderingContext2D,
   x0: number, y0: number, x1: number, y1: number,   // stroke segment
-  w: number, depth: number, colLit: string, colShadow: string
+  w: number, depth: number, colLit: string, colShadow: string,
+  d: { x: number; y: number }                        // BLUEPRINT: per-stroke depth vector (toward the VP)
 ): void {
   const nx = -(y1 - y0), ny = x1 - x0;
   const L = Math.hypot(nx, ny) || 1;
@@ -426,7 +452,7 @@ function extrudeStroke(
   // the face's round caps (no ghost corners poking past the letterform)
   const tx = ((x1 - x0) / L) * (w / 2), ty = ((y1 - y0) / L) * (w / 2);
   const ax = x0 + tx, ay = y0 + ty, bx = x1 - tx, by = y1 - ty;
-  const dx = K_EXTRUDE_D.x * depth, dy = K_EXTRUDE_D.y * depth;
+  const dx = d.x, dy = d.y;
   // AUDIT-2 / D3: which +normal wall faces the light? Light from upper
   // right ≈ (0.7, −0.7): positive dot ⇒ lit tone, else shadow tone.
   const litP = ux * 0.7 + uy * -0.7 >= 0;
@@ -459,49 +485,69 @@ export function drawK3D(
   // CATCHES the letter: its centre rides the wobble and its alpha/scale
   // key to grow, so the floor participates in the 3D read (a static
   // ellipse under a moving object is a decal).
-  const wPh = Math.sin(t / 4000);
+  const wPh = Math.sin(t / AMP.kWobblePeriodMs);
   if (grow > 0.15) {
     const shX = x - 4 + wPh * s * 0.05;
     const shY = y + 8 + s * 1.22;
-    const a = 0.17 * clamp01(grow * 1.35);
+    // BLUEPRINT Phase 3 (Table 6, "floor shadow — no ground contact"):
+    // alpha 0.17 -> 0.30 and the ellipse thickens with the depth so the
+    // letter's mass visibly presses on the floor at phone scale.
+    const a = 0.30 * clamp01(grow * 1.35);
     const g = ctx.createRadialGradient(shX, shY, 4, shX, shY, s * 1.15);
     g.addColorStop(0, rgba(PALETTE.shadow, a));
     g.addColorStop(0.6, rgba(PALETTE.shadow, a * 0.4));
     g.addColorStop(1, rgba(PALETTE.shadow, 0));
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.ellipse(shX, shY, s * 1.15 * (0.88 + 0.12 * grow), s * 0.2 * (0.88 + 0.12 * grow), 0, 0, Math.PI * 2);
+    ctx.ellipse(shX, shY, s * 1.15 * (0.88 + 0.12 * grow), s * 0.24 * (0.88 + 0.12 * grow), 0, 0, Math.PI * 2);
     ctx.fill();
   }
-  // the wobble — AUDIT-2 / D3: ±2° on a 4s period. The old ±0.5°/9.1s was
-  // measured by the panel as "invisible in both still and motion"; 2°
-  // clears the perception floor while staying stately. The pivot sits at
-  // the letter's OPTICAL centre (vertex + 0.05s down), so the rotation
-  // reads as the object swaying, not the stem scraping.
+  // the wobble — BLUEPRINT Phase 1 (Table 7): ±2°/4s -> ±5°/2.6s
+  // (AMP.kWobbleDeg / kWobblePeriodMs). The audit read the old register as
+  // "stately to the point of still"; physical objects at rest breathe, and
+  // the brand object is the most alive thing on screen. The pivot stays at
+  // the letter's optical centre (vertex + 0.05s down).
   const pivY = y + s * 0.05;
   ctx.translate(x, pivY);
-  ctx.rotate(wPh * 0.035);
+  ctx.rotate(wPh * AMP.kWobbleDeg * Math.PI / 180);
   ctx.translate(-x, -pivY);
-  // the TRUE extrusion — side walls of each stroke quad along ONE fixed
-  // vector, two light shades (replaces the 4-layer copy loop entirely)
+  // the TRUE extrusion — BLUEPRINT Phase 3: per-stroke convergence toward
+  // ONE vanishing point, SOLID wall tones, depth 0.26 (see extrudeStroke)
   const stemF = Math.min(1, grow * 2);
   const upArm = clamp01(grow * 2 - 0.6);
   const dnArm = clamp01(grow * 2 - 1.1);
   // AUDIT-2 / D3: the extrusion deepens as the camera pushes (camState
   // .scale-1 rides the depth) — the letter's volume answers the lens.
-  const depth = s * 0.14 * (0.9 + 0.1 * clamp01(grow)) * (0.85 + 0.15 * camState.scale);
-  // AUDIT-2 re-review calibration: the panel found the first two-wall pass
-  // "barely differentiated" — the tones open to 0.26 / 0.11 so the lit and
-  // shadow walls read as two values at any scale.
-  const colLit = rgba(PALETTE.shadow, 0.26);
-  const colShadow = rgba(PALETTE.shadow, 0.11);
+  const depth = s * K3D.depthFrac * (0.9 + 0.1 * clamp01(grow)) * (0.85 + 0.15 * camState.scale);
+  // the per-stroke depth vectors: each stroke's walls run TOWARD the
+  // vanishing point (K3D.vp), magnitude = depth, shortened as the stroke
+  // approaches the VP (true perspective convergence — the constant vector
+  // was the drop-shadow tell).
+  const strokeD = (x0: number, y0: number, x1: number, y1: number): { x: number; y: number } => {
+    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    const vx = K3D.vp.x - mx, vy = K3D.vp.y - my;
+    const vl = Math.hypot(vx, vy) || 1;
+    // perspective shortening: near the VP the walls converge (shorter);
+    // full depth at 1400px+ from the VP, 45% of it at ~630px.
+    const persp = Math.min(1.1, Math.max(0.45, vl / 1400));
+    const mag = depth * persp;
+    return { x: (vx / vl) * mag, y: (vy / vl) * mag };
+  };
+  // SOLID tones (Phase 3): the lit wall in the object's own ink, the
+  // shadow wall a 45% tint toward the background — an opaque value step,
+  // not two transparent ghosts.
+  const colLit = PALETTE.ink;
+  const colShadow = hexLerp(PALETTE.ink, PALETTE.bgTop, 0.45);
   const W_K = 30;
-  extrudeStroke(ctx, x, y - s * stemF, x, y + s * stemF, W_K, depth, colLit, colShadow);
+  extrudeStroke(ctx, x, y - s * stemF, x, y + s * stemF, W_K, depth, colLit, colShadow,
+    strokeD(x, y - s * stemF, x, y + s * stemF));
   if (upArm > 0) {
-    extrudeStroke(ctx, x, y + s * 0.1, x + s * 1.15 * upArm, y - s * 1.05 * upArm, W_K, depth, colLit, colShadow);
+    extrudeStroke(ctx, x, y + s * 0.1, x + s * 1.15 * upArm, y - s * 1.05 * upArm, W_K, depth, colLit, colShadow,
+      strokeD(x, y + s * 0.1, x + s * 1.15 * upArm, y - s * 1.05 * upArm));
   }
   if (dnArm > 0) {
-    extrudeStroke(ctx, x, y + s * 0.1, x + s * 1.15 * dnArm, y + s * 1.05 * dnArm, W_K, depth, colLit, colShadow);
+    extrudeStroke(ctx, x, y + s * 0.1, x + s * 1.15 * dnArm, y + s * 1.05 * dnArm, W_K, depth, colLit, colShadow,
+      strokeD(x, y + s * 0.1, x + s * 1.15 * dnArm, y + s * 1.05 * dnArm));
   }
   // gold rim — a wide soft gold pass UNDER the face; the ink face
   // covers its centre and the gold peeks only at the silhouette edge
@@ -736,9 +782,11 @@ export function microShake(t: number, t0: number): { dx: number; dy: number } {
   if (age < 0 || age > 80) return { dx: 0, dy: 0 };
   const decay = Math.sin((age / 80) * Math.PI);
   const f = Math.floor(t / 33.33);
+  // BLUEPRINT Phase 1 (Table 7): 4.4 -> 9 px (AMP.microShakePx) — the
+  // reveal impact must register as a hit, not a tick.
   return {
-    dx: (hash01(f * 13.7 + 0.5) - 0.5) * 4.4 * decay,
-    dy: (hash01(f * 29.3 + 5.5) - 0.5) * 4.4 * decay,
+    dx: (hash01(f * 13.7 + 0.5) - 0.5) * AMP.microShakePx * 2 * decay,
+    dy: (hash01(f * 29.3 + 5.5) - 0.5) * AMP.microShakePx * 2 * decay,
   };
 }
 

@@ -5,13 +5,25 @@
 
 import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, hashStr, lerp } from './easing';
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg, scenePlate, FONT_DISPLAY, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
-import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp, subjectHalo } from './effects';
+import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp, subjectHalo, microShake, impactRing } from './effects';
 import { Stickman, POSES, blendPose, walkIn, nodPulse } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
 import { SceneCtx } from './scene-context';
 import { reactionAt } from './scene-context';
 import { sourceTag, wrapText } from './charts';
 import { registerRect } from './collision';
+
+// BLUEPRINT Phase 1 (report Table 7 — "the plant must LAND"): the contact
+// strike pulse that drives the squash-on-landing transform. Fires at each
+// footfall (φ≈0.5 left, φ≈0.97 right — the walk's own contact phases),
+// ~0.09 of phase wide, squared for a punchy decay. Pure function of the
+// walk phase — scrub-safe.
+function walkStrike(phase: number): number {
+  const ph = ((phase % 1) + 1) % 1;
+  const circ = (x: number): number => { const a = Math.abs(x % 1); return Math.min(a, 1 - a); };
+  const near = Math.min(circ(ph - 0.5), circ(ph - 0.97));
+  return Math.pow(Math.max(0, (0.09 - near) / 0.09), 2);
+}
 
 // v9 (report D-02): every host ground now sits ABOVE the caption zone.
 // The old grounds (H*0.78–0.80 → feet/shadow at y 842–898) landed inside the
@@ -212,9 +224,12 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   // PANEL-12: walkPhase feeds the scarf velocity-coupling (P1-4) and the
   // contact-dust motes (P2-5); parallax: true rides the foreground plane
   // at 1.25× camera motion (P2-1)
+  // BLUEPRINT Phase 1: walkPhase now also drives the SQUASH-ON-LANDING
+  // (walkStrike) — the volume-preserving compress about the planted feet
+  // that makes each footfall land (see stickman-v2's squash transform).
   drawStickmanV2(
     ctx, x, hy, scale, t,
-    { pose, alpha: fade, look: lookRight, nod: nodP, scarf: true, talk, walkPhase, parallax: true },
+    { pose, alpha: fade, look: lookRight, nod: nodP, scarf: true, talk, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true },
     11
   );
 }
@@ -410,9 +425,11 @@ export function hostSceneV2(g: SceneCtx): void {
   // P1-1 (report): close staging — the editorial host is the film's only
   // large-face composition, so the face draws 40% larger than body-proportional
   // (expressions survive a phone screen); body 1.42 → 1.85 (+30%).
+  // BLUEPRINT Phase 1: the editorial host's walk carries the landing
+  // squash too (walkStrike off the same walkPhase).
   drawStickmanV2(
     ctx, hx, HOST_GROUND(H), 1.85, t,
-    { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk, faceScale: 1.4, walkPhase, parallax: true },
+    { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk, faceScale: 1.4, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true },
     11
   );
 
@@ -688,16 +705,30 @@ export function divergeKScene(g: SceneCtx): void {
   const kx = W * 0.58;
   const ky = H * 0.47;
   const S = 210;
+  // BLUEPRINT Phase 5: the cold-open re-cut switches on the `opening` flag
+  // (declared up top — the whole scene's staging branches on it).
+  const opening = s.opening === true;
 
   // P1-6 (report): the K formation's halo — the signature shape gets the
-  // signature light: a wide soft radial behind the letterform
-  subjectHalo(ctx, kx, ky, 620, 0.6);
+  // signature light: a wide soft radial behind the letterform.
+  // BLUEPRINT Phase 5: suppressed during the re-cut's first 4.8s (there is
+  // no K yet — the halo would read as an unexplained glow behind the
+  // colliding numbers).
+  if (!(opening && t < 4800)) subjectHalo(ctx, kx, ky, 620, 0.6);
 
   // two diverging lines grow out of one point
   // P1-8 (report §12.8): K growth starts 400ms -> 120ms in. The cold open
   // has no time to spare: the white fade is gone by 180ms and the first
   // stroke is growing before the viewer's second blink.
-  const growP = clamp01((t - 120) / 2300);
+  // BLUEPRINT Phase 5 (report §11 — the cold-open re-cut): in `opening`
+  // mode the K does NOT grow at second zero. The first 4.8 seconds belong
+  // to the conflict: the two numbers collide (0-1.7s), the host's shocked
+  // close-up with "SAME COUNTRY. SAME YEAR." (2.4-4.8s), and only then
+  // does the brand object tear itself apart into its two arms — the
+  // formation lands as the ANSWER to the conflict, not a cold visual
+  // payoff before the question. The naming beat (c1-k, non-opening) keeps
+  // the original fast clock.
+  const growP = opening ? clamp01((t - 4800) / 2300) : clamp01((t - 120) / 2300);
   // v10.1 (panel 11 re-review): the overlay arms used their OWN growth
   // curves (upP/dnP over 1900ms) while drawK3D's inner arms follow
   // grow*2-0.6 / grow*2-1.1 — the overlay kept growing ~300ms past the K's
@@ -707,13 +738,117 @@ export function divergeKScene(g: SceneCtx): void {
   // (always coincident with the legs) and hands off to the ink face —
   // alpha 1→0 as the K lands (kA), so each diagonal terminates in exactly
   // ONE colored endpoint while growing and ONE ink endpoint once landed.
+  // ── BLUEPRINT Phase 5 (report §11): THE COLD-OPEN RE-CUT ─────────────────
+  // The audit: "the first three seconds show a stick man touching a growing
+  // letter on a pale field... The genuine hook material arrives 10-20
+  // seconds late." The re-cut restructures the open around the conflict the
+  // script already contains, at bigText scale:
+  //   second 0    — the two contradictory numbers COLLIDE (hard slam from
+  //                 both sides, impact ring + micro-shake at ~1.7s)
+  //   second ~2.4 — the host's SHOCKED close-up (2.6× body, 1.8× face, the
+  //                 shock pose, the 2× gasp jaw) with "SAME COUNTRY. SAME
+  //                 YEAR." slamming in beside his face
+  //   second ~4.8 — the K TEARS APART into its two arms (the tear staging
+  //                 below) while the host slides to the presenting spot
+  // The narration's clock is untouched (no audio re-edit); the visuals now
+  // promise the conflict in the first three seconds.
+  if (opening && t < 4800) {
+    // judge-panel calibration round: the close-up arrives DECISIVELY (260ms
+    // ramp — a 420ms fade read as a "translucent ghost overlapping the
+    // stats"), and once he owns the left half the numbers all but vanish
+    // (0.12) instead of hovering at half strength behind him. The numbers
+    // rest CLEAR of his body zone (860/1060, stacked diagonally across the
+    // collision centre) and RECOIL ~44px apart after the 1.7s impact — the
+    // bounce is what sells the hit.
+    const shIn = clamp01((t - 2400) / 260);        // close-up arrival
+    const dim = 1 - 0.88 * shIn;                   // numbers all but vanish behind it
+    const aP = clamp01((t - 120) / 300);           // left number slams
+    const bP = clamp01((t - 480) / 300);           // right number slams
+    const sh = microShake(t, 1700);                // the collision hit
+    const recoil = 44 * Math.sin(clamp01((t - 1700) / 380) * Math.PI);
+    ctx.save();
+    ctx.translate(sh.dx, sh.dy);
+    ctx.globalAlpha = dim;
+    const slam = (p: number, from: number, to: number): number =>
+      lerp(from, to, 1 - Math.pow(1 - p, 3));
+    if (aP > 0) {
+      const xL = slam(aP, -430, 860) - recoil;
+      ctx.textAlign = 'center';
+      setFont(ctx, 200, 700, FONT_DISPLAY);
+      ctx.fillStyle = PALETTE.upVivid;
+      ctx.fillText('+18%', xL, H * 0.36);
+      setFont(ctx, 30, 700);
+      ctx.fillStyle = PALETTE.up;
+      ctx.fillText('THE MARKET · PAST YEAR', xL, H * 0.36 + 54);
+    }
+    if (bP > 0) {
+      const xR = slam(bP, 2350, 1060) + recoil;
+      ctx.textAlign = 'center';
+      setFont(ctx, 200, 700, FONT_DISPLAY);
+      ctx.fillStyle = PALETTE.downVivid;
+      ctx.fillText('16%', xR, H * 0.62);
+      setFont(ctx, 30, 700);
+      ctx.fillStyle = PALETTE.down;
+      ctx.fillText('AMERICANS CALL THE ECONOMY GOOD', xR, H * 0.62 + 54);
+    }
+    ctx.restore();
+    if (t >= 1700 && t < 2300) {
+      impactRing(ctx, 960, H * 0.49, t, 1700, 210);
+      softBloom(ctx, W, H, t - 1700, 200);
+    }
+    // second ~2.4: the shocked close-up + the conflict line
+    if (shIn > 0) {
+      // the words slam in beside the face (the report's composition:
+      // face fills the left half, the words carry the right)
+      const wP = clamp01((t - 2650) / 240);
+      if (wP > 0) {
+        ctx.save();
+        ctx.globalAlpha = wP;
+        const wob = (1 - wP) * 26;
+        ctx.textAlign = 'left';
+        setFont(ctx, 84, 700, FONT_DISPLAY);
+        ctx.fillStyle = PALETTE.ink;
+        ctx.fillText('SAME COUNTRY.', 1150 - wob, H * 0.40);
+        ctx.fillText('SAME YEAR.', 1150 - wob * 0.6, H * 0.52);
+        // the gold rule sweeps under the words
+        ctx.fillStyle = PALETTE.gold;
+        roundRect(ctx, 1150, H * 0.545, 620 * easeOutCubic(wP), 7, 3.5);
+        ctx.fill();
+        ctx.restore();
+      }
+      // the host: 2.6× body on the left half, shock pose, 1.8× face, the
+      // gasping jaw (talk envelope held open, 2× multiplier)
+      const gasp = Math.min(1, shIn * 1.4) * (0.55 + 0.12 * Math.sin(t / 260));
+      const shk = blendPose(
+        Stickman.poseAt(t, { gesture: 'idle', speaking: false, seed: 5 }),
+        POSES.shock,
+        Math.min(1, shIn * 1.25)
+      );
+      drawStickmanV2(ctx, W * 0.30, H * 0.615, 2.6, t, {
+        pose: shk, alpha: shIn, look: 0.72,
+        talk: gasp, jaw2x: 2, faceScale: 1.8, parallax: true,
+      }, 5);
+    }
+  }
+
   const kA = clamp01((growP - 0.55) / 0.45);
   // P1-8: arm gates open 0.6/1.1 -> 0.5/1.0 so the FIRST stroke is visibly
   // on screen before 0.8s (growP hits 0.25 — the up-arm gate — at t=695ms)
   const upArmK = clamp01(growP * 2 - 0.5);
   const dnArmK = clamp01(growP * 2 - 1.0);
 
+  // BLUEPRINT Phase 5: THE TEAR — in `opening` mode the down arm grows
+  // UP first (both arms parallel: a "Λ"), then rips down into place with a
+  // directional overshoot, so the K visibly tears itself into its two arms
+  // (the two economies) instead of calmly drawing both. The tear fires at
+  // growP 0.5 (~5.95s) and settles by growP 0.75; the micro-shake lands
+  // the separation.
+  const tearMix = opening ? clamp01((growP - 0.5) / 0.25) : 1;
+  const tearOver = Math.sin(Math.min(1, tearMix) * Math.PI) * 0.14;
+  const tearDir = -1 + 2 * Math.min(1.14, tearMix + tearOver);
+  const tearShake = opening ? microShake(t, 5950) : { dx: 0, dy: 0 };
   ctx.save();
+  if (tearShake.dx !== 0 || tearShake.dy !== 0) ctx.translate(tearShake.dx, tearShake.dy);
   ctx.lineCap = 'round';
   // up line (gold) with traveling dot
   // v10 (panel COLOR-3): the K's arms are the film's signature STROKES —
@@ -751,7 +886,7 @@ export function divergeKScene(g: SceneCtx): void {
       glowBlob(ctx, ex, ey, 34, vivid, 0.35);
     };
     arm(upArmK, PALETTE.upVivid, -1);
-    arm(dnArmK, PALETTE.downVivid, 1);
+    arm(dnArmK, PALETTE.downVivid, opening ? tearDir : 1);
   }
   ctx.restore();
 
@@ -792,7 +927,8 @@ export function divergeKScene(g: SceneCtx): void {
   // gold rule, spatially unmistakable and typographically calmer.
   // (2) arm labels get a white halo so they stay crisp even near strokes.
   // (3) labels push further out (S*1.45) clear of the arm tips.
-  const opening = s.opening === true;
+  // (BLUEPRINT: `opening` now declared at the top of the scene — see the
+  // cold-open re-cut block above.)
   const lblA = clamp01((t - 3000) / 700);
   if (lblA > 0 && !opening) {
     ctx.save();
@@ -905,23 +1041,40 @@ export function divergeKScene(g: SceneCtx): void {
   // (the heroPoint angle at 1.56× lands the hand glyph at the stem's
   // left edge) — the presenter finally TOUCHES the object he presents,
   // and the overlap is a true occlusion (he draws after the K).
-  const hx = W * 0.46;
-  const hy = H * 0.6611; // P1-1: raised with the +30% scale
-  // v5 (audit P1-3): as the K completes, the host leans INTO it — the
-  // signature scene now has a third act of body language (heroPoint while
-  // presenting → leanOnK once formed: the lean AND the raised hand stay
-  // on the stem in every settled frame).
-  // v10.1: keys off upArmK (drawK's own arm curve).
-  const pose = Stickman.poseAt(t, {
-    gesture: upArmK < 0.5 ? 'heroPoint' : 'leanOnK',
-    speaking: g.speaking,
-    sentenceId: g.sentenceId,
-    prevSentenceId: g.prevSentenceId,
-    sentenceT: g.sentenceT,
-    wordTimes: g.gWordTimes,
-  });
+  // BLUEPRINT Phase 5: in `opening` mode the host does not present at
+  // second zero — he arrives as the SHOCKED CLOSE-UP (see the re-cut block
+  // above) and slides from that staging into the presenting spot as the K
+  // tears apart (one motivated reframe, not a cut).
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, hx, hy, 1.56, t, { pose, alpha: clamp01(t / 400), look: 0.9, talk, parallax: true }, 5);
+  if (opening && t < 4800) {
+    // the close-up block owns the host until 4.8s — nothing to draw here
+  } else {
+    const settlePose = Stickman.poseAt(t, {
+      gesture: upArmK < 0.5 ? 'heroPoint' : 'leanOnK',
+      speaking: g.speaking,
+      sentenceId: g.sentenceId,
+      prevSentenceId: g.prevSentenceId,
+      sentenceT: g.sentenceT,
+      wordTimes: g.gWordTimes,
+    });
+    let hx = W * 0.46;
+    let hy = H * 0.6611; // P1-1: raised with the +30% scale
+    let hScale = 1.56;
+    let hFace = 1;
+    let hAlpha = clamp01(t / 400);
+    let pose = settlePose;
+    if (opening) {
+      // the slide: close-up staging -> presenting spot over 700ms
+      const tp = clamp01((t - 4800) / 700);
+      hx = lerp(W * 0.30, W * 0.46, tp);
+      hy = lerp(H * 0.615, H * 0.6611, tp);
+      hScale = lerp(2.6, 1.56, tp);
+      hFace = 1 + 0.8 * (1 - tp);
+      hAlpha = 1;
+      pose = blendPose(POSES.shock, settlePose, tp);
+    }
+    drawStickmanV2(ctx, hx, hy, hScale, t, { pose, alpha: hAlpha, look: 0.9, talk, faceScale: hFace, parallax: true }, 5);
+  }
   softBloom(ctx, W, H, t - 3800, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)
 }
 
@@ -1206,7 +1359,7 @@ export function paradoxResolveScene(g: SceneCtx): void {
   // envelope pauses (a held expression), and the camera pushes toward the
   // head zone (director.cameraV2 consumes the same reactionAt() clock).
   const rP = reactionAt(g.s.sceneKey, g.t, g.d);
-  const pose = Stickman.poseAt(t, {
+  let pose = Stickman.poseAt(t, {
     gesture: 'aha',
     speaking: g.speaking,
     sentenceId: g.sentenceId,
@@ -1214,12 +1367,17 @@ export function paradoxResolveScene(g: SceneCtx): void {
     sentenceT: g.sentenceT,
     wordTimes: g.gWordTimes,
   });
+  // BLUEPRINT Phase 2 (report §11): the paradox resolve's dedicated pose
+  // key — WRY, the knowing half-smile (one brow up, one down, head
+  // tilted), BLENDED by the envelope instead of sharing the presenting
+  // smile. The face draws to 1.65× during the beat.
+  if (rP > 0.02) pose = blendPose(pose, POSES.wry, rP);
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) * (1 - rP) : 0;
   drawStickmanV2(
     ctx, W * 0.14, H * 0.667, 1.3, t,
     {
       pose, alpha: clamp01((t - 600) / 500), look: 0.5, talk,
-      faceScale: 1 + 0.4 * rP,
+      faceScale: 1 + 0.65 * rP,
       parallax: true,
     },
     23

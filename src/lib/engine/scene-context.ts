@@ -1,6 +1,7 @@
 /** Shared scene drawing context. */
 import { BeatSpec } from './script-data';
 import { window4 } from './easing';
+import { AMP } from './perception';
 
 export interface SceneCtx {
   ctx: CanvasRenderingContext2D;
@@ -61,13 +62,16 @@ export interface ReactionSpec {
   py: number;
 }
 export const REACTIONS: Record<string, ReactionSpec> = {
-  // Amps are calibrated against the collision guard's exact-camera pass:
-  // c7-paradox carries a 1800px reading column and c9-three a 1190px card,
-  // so their pushes stay gentle and the faceScale-1.4 close-up carries the
-  // emotion; c8-fund's right-column host takes the full travel.
-  'c7-paradox': { atFrac: 0.3, durMs: 2000, amp: 0.05, px: 350, py: 550 },
-  'c8-fund': { atFrac: 0.42, durMs: 2000, amp: 0.1, px: 1100, py: 600 },
-  'c9-three': { atFrac: 0.4, durMs: 2000, amp: 0.08, px: 500, py: 560 },
+  // BLUEPRINT Phase 1+5 (report Table 7 + §11 Phase 5): the reaction
+  // register rises from the 0.05-0.10 nudge ("a nudge, not a beat") to
+  // the panel's numbers — paradox 0.22, fund (the twist) 0.28, three
+  // 0.24 — and the windows tighten 2000 -> 1200ms ("a beat, not a
+  // hold"). The scenes reframe their content during the window (content
+  // recedes while the host comes forward), so the wide reading columns
+  // no longer fight the push — see the scene drawers' reaction staging.
+  'c7-paradox': { atFrac: 0.3, durMs: AMP.reactionWindowMs, amp: AMP.reactionAmp.paradox, px: 350, py: 550 },
+  'c8-fund': { atFrac: 0.42, durMs: AMP.reactionWindowMs, amp: AMP.reactionAmp.fund, px: 1100, py: 600 },
+  'c9-three': { atFrac: 0.4, durMs: AMP.reactionWindowMs, amp: AMP.reactionAmp.three, px: 500, py: 560 },
 };
 
 /**
