@@ -135,7 +135,14 @@ export function bigTextScene(g: SceneCtx): void {
     // P1-1 (report): +30% (0.9 → 1.17); ground 756 → 726 (envelope bottom 768,
     // clear of the worst-case 2-row pill envelope 776).
     // PANEL-12 / P2-1: foreground parallax.
-    drawStickmanV2(ctx, W * 0.83, H * 0.672, 1.17, t, { pose, alpha: hp, look: -0.6, parallax: true }, 31);
+    // AUDIT-3 / §2.4 (report Phase 2.4 — SQUASH ON LANDINGS): the count
+    // host LANDS — a 300ms volume-preserving squash about his feet as he
+    // arrives (the film's loudest words get a body that receives them).
+    const sinceLand = t - 2200;
+    const squash = sinceLand >= 0 && sinceLand < 300
+      ? Math.sin((sinceLand / 300) * Math.PI)
+      : 0;
+    drawStickmanV2(ctx, W * 0.83, H * 0.672, 1.17, t, { pose, alpha: hp, look: -0.6, parallax: true, squash }, 31);
   }
 }
 

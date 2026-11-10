@@ -137,8 +137,13 @@ function scenePropsAt(tl: Timeline, tMs: number): Record<string, any> {
 
 /** Caption pill bottom edge: centre lands ≈ 62% of 1920 = 1190. */
 const CAPTION_BASE_NATIVE = 1260;
-/** Presenter ground line in the bottom-left presenter zone. */
-const HOST_GROUND = 1450;
+/** Presenter ground line in the bottom-left presenter zone.
+ *  AUDIT-3 / §1.6 (report Phase 1.6 — Shorts re-stage): 1450 → 1470. The
+ *  presenter drops 20px closer to the new bottom engagement band so the
+ *  composition tightens toward the middle 70% and the dead gap below his
+ *  feet shrinks. (Horizontal clearance to the caption pill is unchanged —
+ *  the pill constraint is an x-axis one.) */
+const HOST_GROUND = 1470;
 
 /** v6: the host, bottom-left of the presenter zone, clear of the pill/rail.
  *  P1-1/P1-4 (report): 0.9 → 1.12 (+24%) and x 165 → 132 — the 9:16
@@ -1061,11 +1066,20 @@ export function drawShortFrame(
         drawStickmanV2(ctx, W * 0.22, 1140, 1.52, tMs, { pose, alpha: ap, look: 0.2, faceScale: 1.35 }, 41);
       } else {
         const wp = clamp01((rel - 1400) / 600);
-        const w = walkIn(wp * 600, W * 0.22, 120, 600);
+        // AUDIT-3 / Walk 3.0: rigScale term keeps the planted foot exact
+        // through the scale-down (1.52 → 1.12, ~1.3 mid-walk).
+        const w = walkIn(wp * 600, W * 0.22, 120, 600, undefined, 1.3);
         const gy = lerp(1140, HOST_GROUND, easeOutCubic(wp));
         const sc = lerp(1.52, 1.12, easeOutCubic(wp));
+        // AUDIT-3 / §2.4: the landing squash — he ARRIVES at the presenter
+        // zone with a 300ms volume-preserving compress about his feet (the
+        // walk-down ends on a plant, not a glide).
+        const sinceLand = rel - 2000;
+        const squash = wp >= 1 && sinceLand >= 0 && sinceLand < 300
+          ? Math.sin((sinceLand / 300) * Math.PI)
+          : 0;
         drawStickmanV2(ctx, w.x, gy, sc, tMs, {
-          pose: w.pose, alpha: 1, look: 0.5,
+          pose: w.pose, alpha: 1, look: 0.5, squash,
           walkPhase: w.walking ? w.phase : undefined,
         }, 41);
       }
@@ -1157,13 +1171,73 @@ export function drawShortFrame(
     maxWords: 6,
   });
 
-  // 7) channel mark bottom
-  ctx.save();
-  setFont(ctx, 28, 600); // v9 (D-07): floor
-  ctx.fillStyle = PALETTE.goldDeep;
-  ctx.textAlign = 'center';
-  ctx.fillText(opts.channelName.toUpperCase(), W / 2, 1735);
-  ctx.restore();
+  // 7) AUDIT-3 / §1.6 (report Phase 1.6 — kill the dead bottom third): THE
+  //    BOTTOM ENGAGEMENT BAND. The BEFORE panel measured ~430px of dead air
+  //    below the presenter ("thumb-hesitation territory… 22% of the canvas
+  //    with zero compositional pull") and prescribed exactly this: a
+  //    progress bar / chapter ticker / branding lockup in the bottom band.
+  //    The band = hairline top rule + channel wordmark with the gold K
+  //    glyph + a slim progress track with ticks at the two hook
+  //    re-statements (15s / 30s) — functional furniture that pulls the eye
+  //    down the frame instead of off it. Deterministic in (tMs, spec).
+  {
+    const rel = tMs - spec.startMs;
+    const prog = clamp01(rel / Math.max(1, spec.durMs));
+    const bandIn = easeOutCubic(clamp01((rel - 260) / 500));
+    ctx.save();
+    ctx.globalAlpha = bandIn;
+    // hairline rule — the band's top edge
+    ctx.strokeStyle = rgba(PALETTE.grid, 0.55);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(72, 1712);
+    ctx.lineTo(W - 72, 1712);
+    ctx.stroke();
+    // channel wordmark + the gold K glyph, centred
+    setFont(ctx, 28, 600);
+    const mark = opts.channelName.toUpperCase();
+    const mw = ctx.measureText(mark).width;
+    const kx0 = W / 2 - (mw + 46) / 2;
+    ctx.fillStyle = PALETTE.goldDeep;
+    ctx.textAlign = 'left';
+    ctx.fillText(mark, kx0 + 46, 1766);
+    // the K glyph — the brand mark, sized to the wordmark
+    ctx.save();
+    ctx.translate(kx0 + 16, 1752);
+    ctx.strokeStyle = PALETTE.gold;
+    ctx.lineWidth = 6.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, 14);
+    ctx.lineTo(0, -14);
+    ctx.moveTo(2, 0);
+    ctx.lineTo(15, -14);
+    ctx.moveTo(2, 0);
+    ctx.lineTo(15, 14);
+    ctx.stroke();
+    ctx.restore();
+    // the progress track — slim, rounded, gold fill, hook ticks
+    const tw = W - 144;
+    const ty = 1806;
+    ctx.fillStyle = rgba(PALETTE.track, 0.9);
+    roundRect(ctx, 72, ty - 5, tw, 10, 5);
+    ctx.fill();
+    const fw = tw * prog * bandIn;
+    if (fw > 8) {
+      ctx.fillStyle = PALETTE.gold;
+      roundRect(ctx, 72, ty - 5, fw, 10, 5);
+      ctx.fill();
+    }
+    // hook ticks — where the next re-hook lands (15s / 30s)
+    for (const hk of [15_000, 30_000]) {
+      const hp = hk / Math.max(1, spec.durMs);
+      if (hp >= 1) continue;
+      ctx.fillStyle = PALETTE.inkSoft;
+      roundRect(ctx, 72 + tw * hp - 2, ty - 12, 4, 24, 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
 }
 
 /**

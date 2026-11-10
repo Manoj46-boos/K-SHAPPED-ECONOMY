@@ -111,21 +111,36 @@ function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
     drawK3D(ctx, W * 0.66, H * 0.46, 260, kg, g.t);
     ctx.restore();
     if (stage === 'kclimb') {
-      // rising gold ramp under the host
+      // AUDIT-3 / §1.5 round 2 (panel: "the ramp must terminate at the
+      // host's feet or the climb narrative doesn't read"): the diagonal
+      // now rises into a SUMMIT PLATEAU — a short flat run exactly at his
+      // ground line (hy), under his feet. He stands AT THE TOP of the
+      // rise he narrates: the strongest diagonal in the frame terminates
+      // at a footing he occupies, never mid-air and never through his
+      // legs. (Round-3 note: the terminus follows the ACTUAL host side —
+      // kclimb stages render the host centre, not left.)
+      const hxHost = hx; // the stage's own host anchor — same side as drawHost
       ctx.strokeStyle = rgba(PALETTE.up, 0.8);
       ctx.lineWidth = 12;
       ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
       ctx.beginPath();
-      ctx.moveTo(W * 0.16, hy + 34);
-      ctx.lineTo(W * 0.44, hy - 100);
+      ctx.moveTo(W * 0.16, hy + 60);      // the rise (steeper — the climb reads)
+      ctx.lineTo(hxHost - 24, hy);        // arrives at his ground line
+      ctx.lineTo(hxHost + 66, hy);        // the summit plateau under his feet
       ctx.stroke();
     } else if (stage === 'kdescend') {
+      // AUDIT-3 / §1.5 round 2: the mirrored story — the fall arrives at
+      // the plateau he stands on. The decline terminates at his footing.
+      const hxHost = hx; // the stage's own host anchor
       ctx.strokeStyle = rgba(PALETTE.down, 0.75);
       ctx.lineWidth = 12;
       ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
       ctx.beginPath();
-      ctx.moveTo(W * 0.16, hy - 100);
-      ctx.lineTo(W * 0.44, hy + 34);
+      ctx.moveTo(W * 0.16, hy - 120);     // the fall
+      ctx.lineTo(hxHost - 24, hy);        // arrives at his ground line
+      ctx.lineTo(hxHost + 66, hy);        // the landing plateau under his feet
       ctx.stroke();
     }
   }
@@ -151,19 +166,31 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   let pose;
   let walkPhase: number | undefined;
   if (entrance === 'walk') {
-    const walkDur = 900;
-    const r = walkIn(t, hx - 560, hx, walkDur);
-    x = r.x;
-    pose = r.walking ? r.pose : Stickman.poseAt(t, {
+    // AUDIT-3 / §1.2 (report Phase 1.2 — SLOW THE ENTRANCES): 900 → 1600ms.
+    // At 900ms the figure crossed ~560px in under a second (~2.8 stride
+    // pairs) and the BEFORE judges read it as gliding — Becker-reference
+    // entrances are 1.5–2.5s of readable walk. 1600ms ≈ 2.1 steps/sec —
+    // a committed, human cadence — and Walk 3.0's profile ends it on a
+    // completed settle step into the arrival gesture.
+    const walkDur = 1600;
+    // AUDIT-3 / §1.5: directional gesture bias — present TOWARD the content
+    const bias = side === 'left' ? 'right' : side === 'right' ? 'left' : undefined;
+    const arrive = Stickman.poseAt(t, {
       gesture: g.s.gesture ?? 'present',
       speaking: g.speaking,
       sentenceId: g.sentenceId,
       prevSentenceId: g.prevSentenceId,
       sentenceT: g.sentenceT,
       wordTimes: g.gWordTimes,
+      pointBias: bias,
     });
+    const r = walkIn(t, hx - 560, hx, walkDur, arrive, scale);
+    x = r.x;
+    pose = r.walking ? r.pose : arrive;
     if (r.walking) walkPhase = r.phase;
   } else {
+    // AUDIT-3 / §1.5: same directional bias for the held poses
+    const bias = side === 'left' ? 'right' : side === 'right' ? 'left' : undefined;
     pose = Stickman.poseAt(t, {
       gesture: g.s.gesture ?? 'present',
       speaking: g.speaking,
@@ -171,13 +198,16 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
       prevSentenceId: g.prevSentenceId,
       sentenceT: g.sentenceT,
       wordTimes: g.gWordTimes,
+      pointBias: bias,
     });
     const expr = expressionPose(g.s.expression as string | undefined);
     pose = { ...pose, ...expr };
   }
   const nodP = g.speaking ? nodPulse(g.beatT, g.wordTimes) : 0;
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  const lookRight = g.s.lookRight ? 1 : g.s.lookLeft ? -1 : side === 'left' ? 0.8 : side === 'right' ? -0.8 : 0;
+  // AUDIT-3 / §1.5 round 2 (panel: "eye-line should follow the gesture"):
+  // the side hosts now commit their full gaze toward their content.
+  const lookRight = g.s.lookRight ? 1 : g.s.lookLeft ? -1 : side === 'left' ? 1 : side === 'right' ? -1 : 0;
   const fade = entrance === 'walk' ? clamp01(t / 300) : clamp01(t / 420);
   // PANEL-12: walkPhase feeds the scarf velocity-coupling (P1-4) and the
   // contact-dust motes (P2-5); parallax: true rides the foreground plane
@@ -325,28 +355,41 @@ export function hostSceneV2(g: SceneCtx): void {
   let hx = hxTarget;
   let pose: import('./stickman').Pose;
   let walkPhase: number | undefined;
-  if (entrance === 'walk' && t < 900) {
-    const r = walkIn(t, hxTarget - 560, hxTarget, 900);
+  if (entrance === 'walk' && t < 1600) {
+    // AUDIT-3 / §1.2: entrance walk 900 → 1600ms (see drawHost) with the
+    // arrival settle into the presenting gesture.
+    const arrive = Stickman.poseAt(t, {
+      gesture: (g.s.gesture ?? 'present'),
+      speaking: g.speaking,
+      sentenceId: g.sentenceId,
+      prevSentenceId: g.prevSentenceId,
+      sentenceT: g.sentenceT,
+      wordTimes: g.gWordTimes,
+      pointBias: 'right', // AUDIT-3 / §1.5: present toward the type block
+    });
+    const r = walkIn(t, hxTarget - 560, hxTarget, 1600, arrive, 1.85);
     hx = r.x;
-    pose = r.pose;
+    pose = r.walking ? r.pose : arrive;
     if (r.walking) walkPhase = r.phase;
   } else {
     const toX = blockFor(g.sentenceId);
     const fromX = blockFor(g.prevSentenceId);
     const st = g.sentenceT ?? 1e9;
     if (Math.abs(toX - fromX) > W * 0.015 && st < 900) {
-      const r = walkIn(st, fromX, toX, 900);
+      const arrive = Stickman.poseAt(t, {
+        gesture: (g.s.gesture ?? 'present'),
+        speaking: g.speaking,
+        sentenceId: g.sentenceId,
+        prevSentenceId: g.prevSentenceId,
+        sentenceT: g.sentenceT,
+        wordTimes: g.gWordTimes,
+        pointBias: 'right', // AUDIT-3 / §1.5
+      });
+      const r = walkIn(st, fromX, toX, 900, arrive, 1.85);
       hx = r.x;
       pose = r.walking
         ? r.pose
-        : Stickman.poseAt(t, {
-            gesture: (g.s.gesture ?? 'present'),
-            speaking: g.speaking,
-            sentenceId: g.sentenceId,
-            prevSentenceId: g.prevSentenceId,
-            sentenceT: g.sentenceT,
-            wordTimes: g.gWordTimes,
-          });
+        : arrive;
       if (r.walking) walkPhase = r.phase;
     } else {
       hx = toX;
@@ -357,6 +400,7 @@ export function hostSceneV2(g: SceneCtx): void {
         prevSentenceId: g.prevSentenceId,
         sentenceT: g.sentenceT,
         wordTimes: g.gWordTimes,
+        pointBias: 'right', // AUDIT-3 / §1.5
       });
     }
   }
@@ -792,8 +836,14 @@ export function divergeKScene(g: SceneCtx): void {
       // v10.1: +22 → +48 along the arm — the arm tip's glow blob crowded
       // his mug/arm region ("the small figure's mug/arm crowds the K's lower
       // arm tip and its red cap", vision-verified); 26px more clearance.
+      // AUDIT-3 / §3.1 (report Phase 3.1 — differentiate character two):
+      // the coffee character is no longer "the host at 0.75× with a mug"
+      // (BEFORE panel: "differentiation by scale only, not design
+      // language") — the 'prof' variant gives him round glasses and a
+      // wider torso: a second PERSON with his own silhouette, reading
+      // as cast, not copy-paste.
       drawStickmanV2(ctx, kx + S * 1.15 + 48, ky + S * 1.05 + 6 + bob, 0.75, t,
-        { pose: pose2, alpha: sp2 * 0.96, flip: true, look: -0.7, scarf: false, prop: 'coffee' }, 9);
+        { pose: pose2, alpha: sp2 * 0.96, flip: true, look: -0.7, scarf: false, prop: 'coffee', variant: 'prof' }, 9);
     }
   }
 
@@ -847,14 +897,23 @@ export function divergeKScene(g: SceneCtx): void {
   // 2-row pill (top 796, camera envelope 776). The stance is now the
   // asymmetric heroPresent pose — the signature scene stops looking like a
   // stock idle.
-  const hx = W * 0.24;
+  // AUDIT-3 / §1.5 + §3.3 (report Phase 1.5 contact poses + Phase 3.3 "the
+  // K as a place"): the host moved from the far-left spectator position
+  // (W*0.24, pointing at empty air — BEFORE panel: "he's the biggest
+  // element in frame, standing in dead space") to BESIDE THE LETTER at
+  // W*0.46. His raised presenting hand now terminates ON the K's stem
+  // (the heroPoint angle at 1.56× lands the hand glyph at the stem's
+  // left edge) — the presenter finally TOUCHES the object he presents,
+  // and the overlap is a true occlusion (he draws after the K).
+  const hx = W * 0.46;
   const hy = H * 0.6611; // P1-1: raised with the +30% scale
   // v5 (audit P1-3): as the K completes, the host leans INTO it — the
-  // signature scene now has a third act of body language (heroPresent → leanIn)
-  // v10.1: keys off upArmK (drawK's own arm curve — the overlay's old upP
-  // is gone; same beat of the animation, same threshold semantics).
+  // signature scene now has a third act of body language (heroPoint while
+  // presenting → leanOnK once formed: the lean AND the raised hand stay
+  // on the stem in every settled frame).
+  // v10.1: keys off upArmK (drawK's own arm curve).
   const pose = Stickman.poseAt(t, {
-    gesture: upArmK < 0.5 ? 'heroPresent' : 'leanIn',
+    gesture: upArmK < 0.5 ? 'heroPoint' : 'leanOnK',
     speaking: g.speaking,
     sentenceId: g.sentenceId,
     prevSentenceId: g.prevSentenceId,

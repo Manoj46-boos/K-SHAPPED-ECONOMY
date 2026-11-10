@@ -7,7 +7,7 @@
 
 import { clamp01, easeInQuad, easeInOutSine, easeOutCubic } from './easing';
 import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI } from './theme';
-import { drawGrain, lightVignette, bokehField, scalePunch, camState, kWipe } from './effects';
+import { drawGrain, lightVignette, bokehField, scalePunch, camState, kWipe, fgBokeh } from './effects';
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
 import { Timeline, beatAt } from './timeline';
 import { SceneCtx, SceneDrawer, REACTIONS, reactionAt } from './scene-context';
@@ -501,6 +501,15 @@ export function drawFrame(
     }
     paintBg(ctx, 1920, 1080, gt, chapterTone);
   }
+  // AUDIT-3 / §3.5 (report Phase 3.5 — DEPTH PAYOFF): the foreground
+  // bokeh pass — two/three large defocused discs drifting IN FRONT of the
+  // scene (over the world, under the captions/watermark). The missing near
+  // layer of the depth stack: bg bokeh behind, stage mid, figures fore,
+  // and now LENS in front — the frame finally has a foreground plane that
+  // occludes, which is the cheapest depth cue in 2D (report §7).
+  // Deterministic (pure function of gt + camState); alpha ≤ 0.09 keeps
+  // every reading surface clean.
+  fgBokeh(ctx, 1920, 1080, gt, { seed: beat.chapter * 7 + 5, count: 3 });
   ctx.restore();
 
   // P1-2 (report) + PANEL-12/P2-2: the exit/enter dissolves — grammar-aware.

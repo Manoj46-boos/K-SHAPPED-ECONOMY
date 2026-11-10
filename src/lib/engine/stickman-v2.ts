@@ -24,7 +24,7 @@
  *  §8/C4 stroke weights + face features sized to survive the 320px feed.
  */
 
-import { PALETTE, rgba, roundRect, hexLerp } from './theme';
+import { PALETTE, rgba, roundRect } from './theme';
 import { clamp, clamp01, hash01 } from './easing';
 import { registerRect } from './collision';
 import { camState } from './effects';
@@ -389,16 +389,32 @@ export function drawStickmanV2(
      *  0.25 the near arm draws a 0.35-alpha motion-blur ghost (the
      *  generalized text smear, on the fastest limb in the frame). */
     smear?: number;
+    /** AUDIT-3 / §2.4 (report Phase 2.4): 0..1 landing/slam body squash
+     *  about the feet (see the transform note at the top of the body).
+     *  Drive with a short decaying pulse at the impact time. */
+    squash?: number;
+    /** AUDIT-3 / §3.1 (report Phase 3.1 — differentiate character two):
+     *  'prof' draws the round-glasses + wide-torso variant (a different
+     *  PERSON, not the host at another scale). The signature-scene coffee
+     *  character uses it; default = the host template. */
+    variant?: 'prof';
   },
   seed = 0
 ): void {
-  const pose = r.pose;
+  const pose0 = r.pose;
   const alpha = r.alpha ?? 1;
   if (alpha <= 0.001) return;
   // AUDIT-2 / 1.1: arm the boil clock for this draw — every limb2() call
   // from here down jitters on the quantized 3-phase clock (pure function of
   // t, so scrub-determinism survives).
   boilReset(t);
+  // AUDIT-3 / §2.4 (report Phase 2.4 — SQUASH ON LANDINGS): 0..1 body
+  // squash about the ground contact (feet stay planted, everything above
+  // compresses 6% and widens 5% — volume-preserving). Driven by a short
+  // decaying pulse at slam/landing times. Applied inside the figure
+  // transform stack below, after translate(cx, groundY). Pure function of
+  // caller data.
+  const squash = r.squash ?? 0;
   // P2-1: foreground parallax — the figure translates at 1.40× the camera
   // drift (the stage already rides the camera's 1.0×).
   // AUDIT-2 / §10.3 (D1): 0.25 → 0.40. At the old factor the differential
@@ -433,18 +449,32 @@ export function drawStickmanV2(
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.translate(cx, groundY);
+  // AUDIT-3 / §2.4: the squash rides the figure transform ABOUT the
+  // ground-contact origin (translate happens before scale, so the feet
+  // stay planted while the body compresses).
+  if (squash > 0.001) ctx.scale(1 + 0.05 * squash, 1 - 0.06 * squash);
   ctx.scale(r.flip ? -scale : scale, scale);
   // v6 idle life: a 2.4s breath sway (±0.23°) around the ground contact —
   // the freeze between sentences read as a mannequin without it.
   ctx.rotate(Math.sin(t / 2400 + seed * 1.7) * 0.004);
-  // v10 (panel CHAR-2): WEIGHT SHIFT — a slow 4.6s hip settle (±1.8px) plus
-  // a 6.2s counter-lean. The breath sway alone still read "held mannequin"
-  // between gestures: real presenters shift weight. Sub-pixel at phone
-  // scale, unmistakable in motion. Deterministic in t, scrub-safe.
-  const weight = Math.sin(t / 4600 + seed * 2.3) * 1.8;
+  // v10 (panel CHAR-2): WEIGHT SHIFT — a slow 4.6s hip settle.
+  // AUDIT-3 / §2.2 (report Phase 2.2 — CONTRAPPOSTO IDLE): the terms were
+  // sub-pixel at phone scale (±1.8px at scale 1.0), which is why the
+  // BEFORE renders still read “mannequin between sentences”. Amplitude
+  // rises to ±3.0px and the shift now DRIVES a shoulder counter-angle
+  // (±1.6° on the arm roots against the hip) — hips and shoulders oppose
+  // each other, the classical contrapposto line, visible at 320px.
+  const weight = Math.sin(t / 4600 + seed * 2.3) * 3.0;
+  const counter = Math.sin(t / 4600 + seed * 2.3);
   ctx.translate(weight, 0);
   ctx.rotate(Math.sin(t / 6200 + seed * 0.9) * 0.003);
-
+  // the pose-level contrapposto offsets (applied on a COPY — callers'
+  // pose objects are never mutated)
+  const pose: import('./stickman').Pose = {
+    ...pose0,
+    lAU: pose0.lAU - counter * 1.6,
+    rAU: pose0.rAU + counter * 1.6,
+  };
   // PANEL-12 / P0-5 (report §12.5): PROPORTIONS — shorter legs, bigger
   // head, stockier torso. TORSO 96→88, U_LEG 72→64, L_LEG 66→58: the v2
   // figure was 7.2 heads tall on pin legs — the panel read "coat hanger".
@@ -460,15 +490,18 @@ export function drawStickmanV2(
   if ((r.shadow ?? 1) > 0) groundShadowV2(ctx, 0, 0, 1, r.shadowSkew ?? 0, r.shadowRot ?? 0);
 
   const ink = PALETTE.ink;
-  // AUDIT-2 / 0.1 (report §10.1, C1) — OCCLUSION INK, not transparency.
-  // The far limbs drew at 0.62 global alpha; the panel read them (three
-  // passes, independently) as "a z-order or rigging error" and at feed
-  // scale "the character loses a limb". Professional flat-vector systems
-  // separate depth limbs by VALUE, never alpha: farInk is the same hue
-  // family stepped 28% toward the background, still clearly darker than
-  // the canvas, at FULL opacity — the far hand glyph and far shoe inherit
-  // it automatically.
-  const farInk = hexLerp(ink, PALETTE.bgTop, 0.28);
+  // AUDIT-3 / Finding 1 (report §3.2 + Phase 1.1): ONE INK VALUE PER
+  // CHARACTER. The AUDIT-2 attempt replaced the old 0.62 alpha with a
+  // 28% value step (hexLerp toward the background) — still a two-tone
+  // limb system, and the 100-judge re-verification of the BEFORE render
+  // convicted it again, independently, three times: “the gray-to-dark
+  // two-tone limbs look like a rigging error… one arm gray, the other
+  // dark… at feed scale the character loses a limb”. The report's fix is
+  // exactly one line and it is the highest-leverage change in the audit:
+  // draw far limbs in the SAME ink. Depth comes from overlap, contact and
+  // the ground shadow — never from splitting limb values (the Alan
+  // Becker reference rule the owner chose).
+  const farInk = ink;
   ctx.save();
   ctx.globalAlpha = alpha;
   const farFoot = limb2(ctx, -6, pelvisY, pose.lLU, pose.lLL, U_LEG, L_LEG, 12, 10, 9, farInk, pose.lLift ?? 0);
@@ -484,14 +517,17 @@ export function drawStickmanV2(
   const nearFoot = limb2(ctx, 6, pelvisY, pose.rLU, pose.rLL, U_LEG, L_LEG, 15, 12, 10, ink, pose.rLift ?? 0);
   // AUDIT-2 / 0.1: the far shoe steps with its limb (farInk); the near
   // shoe stays full ink — depth, not a second colour system.
-  const shoe = (f: { ex: number; ey: number }, col: string): void => {
+  // AUDIT-3 / Walk 3.0 (§2.6): the shoe PITCHES with the stride (lToe/rToe
+  // from walkPose) — heel-strike (toe up) through toe-off (toe down), so
+  // the foot rolls through the step instead of sliding flat.
+  const shoe = (f: { ex: number; ey: number }, col: string, rotDeg = 0): void => {
     ctx.fillStyle = col;
     ctx.beginPath();
-    ctx.ellipse(f.ex + 11, f.ey - 3, 18, 8.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(f.ex + 11, f.ey - 3, 18, 8.5, rotDeg * D2R, 0, Math.PI * 2);
     ctx.fill();
   };
-  shoe(farFoot, farInk);
-  shoe(nearFoot, ink);
+  shoe(farFoot, farInk, pose.lToe ?? 0);
+  shoe(nearFoot, ink, pose.rToe ?? 0);
 
   // PANEL-12 / P2-5 (report §14.5) — CONTACT DUST on foot-plant. Three
   // motes per plant, 200ms life, shadow-color at 0.25 alpha, keyed to the
@@ -521,7 +557,11 @@ export function drawStickmanV2(
   // torso — tapered spine. P0-5: the taper bias inverts (15 at the hips,
   // 22 at the shoulders) — narrower hips, wider shoulders, grounded
   // anatomy (the v2 bias was near-uniform).
-  taper(ctx, 0, pelvisY + 4, neckX, neckY, 15, 22, ink);
+  // AUDIT-3 / §3.1: the 'prof' variant widens the taper (19.5/27.5) — a
+  // stockier silhouette that reads as a different build, not a scaled
+  // copy of the host (Finding C-3, “copy-paste coworker”).
+  const prof = r.variant === 'prof';
+  taper(ctx, 0, pelvisY + 4, neckX, neckY, prof ? 19.5 : 15, prof ? 27.5 : 22, ink);
 
   // AUDIT-2 / 1.4 (report §10.2, C6) — THE COLLAR BREAK. The gold knot
   // flowed into the head circle with no separation ("the head looks
@@ -555,7 +595,13 @@ export function drawStickmanV2(
     ctx.ellipse(neckX, neckY + 7, 13, 8, leanR * 0.6, 0, Math.PI * 2);
     ctx.stroke();
     // the ribbon — width, S-curve, two-tone underside (was 2 stroked lines)
-    scarfTail(ctx, neckX - 3, neckY + 11, wave, PALETTE.gold, '#A8851B');
+    // AUDIT-3 / §1.3 (report Phase 1.3 — the mitten lesson applied to
+    // cloth): below rig scale 1.2 the ribbon collapses into a smear at
+    // phone-feed scale (Finding C-8: “the gold scarf becomes a smear”).
+    // Below 1.2 the scarf is the KNOT ONLY — a clean brand mark, never mush.
+    if (scale >= 1.2) {
+      scarfTail(ctx, neckX - 3, neckY + 11, wave, PALETTE.gold, '#A8851B');
+    }
   }
 
   // NEAR arm — capture the hand so props ride it (v5, audit P1-3)
@@ -749,6 +795,38 @@ export function drawStickmanV2(
   };
   browSide(-1);
   browSide(1);
+  // AUDIT-3 / §3.1 (report Phase 3.1 — DIFFERENTIATE CHARACTER TWO): the
+  // 'prof' variant's round glasses. Two BOLD stroked circles with a light
+  // lens fill + a bridge — sized to survive the 320px feed (the round-5
+  // panel: "glasses only work if they're drawn oversized/bold enough to
+  // survive the thumbnail pass"). At the coffee character's 0.75× the
+  // lenses read as a face accessory, not facial texture.
+  if (prof) {
+    // the lens fill — a light wash so the frames read as GLASSES,
+    // not as two more face lines
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath();
+    ctx.arc(-11 + eyeDX, -5.5, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(11 + eyeDX, -5.5, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    // lenses — centered on the eye line, oversized on purpose
+    ctx.beginPath();
+    ctx.arc(-11 + eyeDX, -5.5, 13, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(11 + eyeDX, -5.5, 13, 0, Math.PI * 2);
+    ctx.stroke();
+    // the bridge
+    ctx.beginPath();
+    ctx.moveTo(-2 + eyeDX, -8.5);
+    ctx.lineTo(2 + eyeDX, -8.5);
+    ctx.stroke();
+  }
   // mouth (v3: articulate talk envelope when speaking, panel P0-4)
   drawMouthV2(ctx, eyeDX, pose.smile, r.talk ?? 0);
   // cheek warmth — very subtle

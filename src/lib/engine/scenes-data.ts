@@ -1388,7 +1388,17 @@ export function statCardsScene(g: SceneCtx): void {
   // v10.1: W*0.84 → W*0.85 — full-body envelope clears the narrowed card
   // row (right edge 1450) by ~42px; edge worst case (1632+139-960)*1.092+960
   // ≈ 1883, 37px inside.
-  hostSmall(g, W * 0.85, 'present', 19);
+  // AUDIT-3 / §1.5 + §2.5 (report Phase 1.5 contact poses + Phase 2.5
+  // "one occlusion per scene"): the statCards host was at W*0.85 holding
+  // a symmetric 'present' — the BEFORE panel scored the staging 3/10:
+  // "a doorman, not a presenter… gesturing outward, AWAY from the cards
+  // … an infographic with a mascot pasted beside it". He now holds the
+  // pointL cycle — arm raised TOWARD the card row, gaze on the numbers —
+  // at W*0.845, the closest position the collision guard certifies clear
+  // of the card bodies (envelope left ≈1477 vs card right edge 1450, with
+  // camera margin at every sweep step). Presenting the data, not the
+  // empty air beside it.
+  hostSmall(g, W * 0.845, 'pointL', 19, g.H * 0.66, 1.09, 0, true);
 }
 
 // ── ownerWorker scene ────────────────────────────────────────────────────────
@@ -1525,7 +1535,12 @@ export function ownerWorkerScene(g: SceneCtx): void {
     });
     ctx.restore();
   });
-  floatCoins(ctx, W * 0.42, H * 0.5, t, 4, 80);
+    // AUDIT-3 / §2.5 (report Phase 2.5 — "a coin crossing the owner/worker
+    // divider"): the coins now straddle the dashed divider (cx = W/2,
+    // spread 110) — value visibly CROSSES from the worker's half to the
+    // owner's, the metaphor the scene narrates, and one more element
+    // occludes another (coins pass in front of the divider line).
+    floatCoins(ctx, W / 2, H * 0.5, t, 5, 110);
 }
 
 // ── fundSplit scene ──────────────────────────────────────────────────────────

@@ -158,6 +158,61 @@ export function bokehField(
   }
 }
 
+// ── AUDIT-3 / §3.5 (report Phase 3.5 — DEPTH PAYOFF): FOREGROUND BOKEH ───────
+/**
+ * Two or three LARGE defocused discs drifting IN FRONT of the scene — the
+ * Kurzgesagt depth-stack move the report describes: "a foreground leaf
+ * passes over the subject". The background bokehField is a ring field
+ * behind the content; this is its foreground partner — filled (defocused
+ * = no hard edges), very low alpha (0.05–0.09 — atmosphere, never a
+ * screen), large (60–110px), riding 1.35× the camera motion so the
+ * foreground plane separates on every push and truck. Called by the
+ * director AFTER the scene drawer and BEFORE the captions, so it passes
+ * over the world but never over the reading surfaces. Pure function of
+ * (t, camState) — scrub-determinism preserved.
+ */
+export function fgBokeh(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  t: number,
+  opts: { seed?: number; count?: number } = {}
+): void {
+  const { seed = 5, count = 3 } = opts;
+  // 1.35× camera: foreground objects move MORE than the midground stage —
+  // the differential the parallax planes were missing on the near side.
+  const camX = camState.dx * 1.35;
+  const camY = camState.dy * 1.35;
+  for (let i = 0; i < count; i++) {
+    const depth = 0.75 + hash01(i * 3.1 + seed) * 0.5;
+    const r = (62 + hash01(i * 7.7 + seed * 3) * 48) * depth * camState.scale;
+    // slow diagonal drift + camera coupling; wraps at the frame edge
+    const bx = (hash01(i * 5.9 + seed) * (W + 240) + Math.sin(t / 6400 + i * 2.1) * 34 - camX * depth + W + 240) % (W + 240) - 120;
+    const by = (hash01(i * 11.3 + seed * 2) * (H + 240) + Math.cos(t / 7100 + i * 1.7) * 26 - camY * depth + H + 240) % (H + 240) - 120;
+    const a = 0.05 + hash01(i * 13.7 + seed) * 0.04;
+    const isGold = hash01(i * 4.3 + seed * 5) < 0.3;
+    const g = ctx.createRadialGradient(bx, by, r * 0.25, bx, by, r);
+    if (isGold) {
+      g.addColorStop(0, rgba(PALETTE.gold, a * 0.9));
+      g.addColorStop(1, rgba(PALETTE.gold, 0));
+    } else {
+      g.addColorStop(0, rgba('#7FB8AC', a));
+      g.addColorStop(1, rgba('#7FB8AC', 0));
+    }
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(bx, by, r, 0, Math.PI * 2);
+    ctx.fill();
+    // the defocused edge — one soft ring, no hard stroke (defocus has no
+    // hard edges; that is what makes it read as LENS, not drawing)
+    ctx.strokeStyle = isGold ? rgba(PALETTE.gold, a * 0.55) : rgba('#7FB8AC', a * 0.55);
+    ctx.lineWidth = Math.max(2, r * 0.10);
+    ctx.beginPath();
+    ctx.arc(bx, by, r * 0.92, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
 // ── Soft light rays from top corner ─────────────────────────────────────────
 export function lightRays(
   ctx: CanvasRenderingContext2D,
@@ -601,26 +656,73 @@ export function floatCoins(
     const r = (10 + hash01(i * 4.7) * 8) * cam;
     const spin = Math.cos(t / 260 + i);
     const sx = Math.abs(spin) < 0.18 ? (spin < 0 ? -0.18 : 0.18) : spin;
+    // AUDIT-3 / Finding 9 (report Phase 2.5 adjacent — "coins read as
+    // PowerPoint clipart next to otherwise designed figures"): the flat
+    // gold fill + 2px rim is replaced by a STRUCK COIN — radial-gradient
+    // face, beveled rim, embossed inner ring, specular crescent — plus a
+    // two-ghost SPIN TRAIL so each coin reads as money in motion, the
+    // same "there is mass and air here" language as the scarf fix.
+    // 1) the spin trail: two fading echoes of the rim at wider/flatter
+    //    scaleX — velocity the eye reads before the coin itself
+    if (a > 0.18) {
+      for (const [gsx, ga] of [[sx * 1.55, 0.20], [sx * 1.95, 0.10]] as Array<[number, number]>) {
+        ctx.save();
+        ctx.globalAlpha = a * ga;
+        ctx.translate(x, y);
+        ctx.scale(gsx, 1);
+        ctx.strokeStyle = PALETTE.gold;
+        ctx.lineWidth = Math.max(1.2, r * 0.10);
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
     ctx.save();
     ctx.globalAlpha = a;
     ctx.translate(x, y);
     ctx.scale(sx, 1);
-    // struck body
-    ctx.fillStyle = PALETTE.gold;
+    // 2) struck face — light catches the upper-left of the relief
+    const face = ctx.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.1, 0, 0, r * 1.15);
+    face.addColorStop(0, '#E8CB6B');
+    face.addColorStop(0.55, PALETTE.gold);
+    face.addColorStop(1, '#9F7D16');
+    ctx.fillStyle = face;
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fill();
-    // edge ring — the coin's rim
-    ctx.strokeStyle = PALETTE.goldDeep;
-    ctx.lineWidth = 2;
+    // 3) beveled rim — the edge catch-light (bottom-right) vs shadow
+    ctx.strokeStyle = 'rgba(255, 244, 204, 0.85)';
+    ctx.lineWidth = Math.max(1.4, r * 0.14);
     ctx.beginPath();
-    ctx.arc(0, 0, r - 1, 0, Math.PI * 2);
+    ctx.arc(0, 0, r - ctx.lineWidth * 0.55, Math.PI * 0.15, Math.PI * 0.85);
     ctx.stroke();
-    // highlight — rides the spin because it lives in the scaled space
-    ctx.fillStyle = PALETTE.goldWash;
+    ctx.strokeStyle = PALETTE.goldDeep;
+    ctx.lineWidth = Math.max(1.2, r * 0.12);
     ctx.beginPath();
-    ctx.arc(-r * 0.25, -r * 0.25, r * 0.55, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.arc(0, 0, r - ctx.lineWidth * 0.5, 0, Math.PI * 2);
+    ctx.stroke();
+    // 4) embossed inner ring — the struck relief, scales with the coin
+    if (r > 11) {
+      ctx.strokeStyle = 'rgba(143, 110, 18, 0.55)';
+      ctx.lineWidth = Math.max(1, r * 0.09);
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2);
+      ctx.stroke();
+      // the currency bar — a short embossed mark inside the ring
+      ctx.strokeStyle = 'rgba(143, 110, 18, 0.5)';
+      ctx.lineWidth = Math.max(1, r * 0.12);
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.22, r * 0.28);
+      ctx.lineTo(r * 0.22, r * 0.28);
+      ctx.stroke();
+    }
+    // 5) specular crescent — the one bright thing on the coin
+    ctx.strokeStyle = 'rgba(255, 252, 235, 0.9)';
+    ctx.lineWidth = Math.max(1, r * 0.13);
+    ctx.beginPath();
+    ctx.arc(-r * 0.18, -r * 0.16, r * 0.72, Math.PI * 1.08, Math.PI * 1.55);
+    ctx.stroke();
     ctx.restore();
   }
 }

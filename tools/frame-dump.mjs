@@ -12,6 +12,11 @@
  * --guard: enable the collision guard, draw violation boxes in coral on the
  *          frame, and print the violation list (exit 1 if any).
  * --rebuild: force a fresh engine compile first.
+ * --feed: AUDIT-3 / §1.4 (report Phase 1.4 — THE 320px GATE): also save a
+ *         320px-wide phone-feed downsample of the dumped frame
+ *         (<out> minus .png, plus -feed320.png). The median high-RPM
+ *         viewer judges the frame at this scale; regressions are caught
+ *         by LOOKING at this file before every upload, never after.
  */
 import path from 'node:path';
 import fs from 'node:fs';
@@ -133,6 +138,20 @@ function save(p) {
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, canvas.toBuffer('image/png'));
   console.log(`saved ${p}`);
+  // AUDIT-3 / §1.4: the 320px feed gate — every dump can carry its own
+  // phone-feed twin. High-quality downsample (imageSmoothing), same
+  // aspect, deterministic.
+  if (flag('feed')) {
+    const w = 320;
+    const h = Math.round(canvas.height * (w / canvas.width));
+    const f = createCanvas(w, h);
+    const fctx = f.getContext('2d');
+    fctx.imageSmoothingQuality = 'high';
+    fctx.drawImage(canvas, 0, 0, w, h);
+    const fp = p.replace(/\.png$/, '-feed320.png');
+    fs.writeFileSync(fp, f.toBuffer('image/png'));
+    console.log(`saved ${fp} (${w}x${h}) — the phone-feed gate`);
+  }
 }
 
 // ── modes ────────────────────────────────────────────────────────────────────
