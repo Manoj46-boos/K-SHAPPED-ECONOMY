@@ -22,6 +22,15 @@ export interface SceneCtx {
   speaking: boolean;
   /** word onset times local to the beat (ms) */
   wordTimes: number[];
+  /** P1-6 (report §12.6): word onset times local to the SCENE GROUP (ms) —
+   *  the same onsets as wordTimes, in the g.t clock that poseAt consumes. */
+  gWordTimes: number[];
+  /** P1-6: the film-wide sentence currently being spoken (or last started):
+   *  its manifest line id, the previous sentence's id, and ms since it began.
+   *  poseAt keys the talk cycle to SENTENCES, not the wall clock. */
+  sentenceId?: string;
+  prevSentenceId?: string;
+  sentenceT?: number;
   channelName: string;
   nextVideoTitle: string;
   /** v8: this chapter's ambient wash tone (the chapter color journey).

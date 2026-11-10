@@ -71,13 +71,19 @@ export function bokehField(
   // smudge-sized gold motes, so the cap drops to 0.18. The cap makes the
   // field safe no matter what the caller asks for.
   const goldRatio = Math.min(0.18, gold);
-  const N = 26;
+  // P1-1 (second calibration, panel re-review): with rings replacing blobs
+  // the field can be FULL again — a stain needed restraint, a crisp disc
+  // does not. N 26 → 34, mote radius floor up, depth weighting shifted
+  // toward mid-ground (0.35 + h·0.65) so the field reads as a LENS of
+  // varied discs, not sparse specks. Gold stays capped (sparkle, never
+  // stain — the twice-convicted read stands).
+  const N = 34;
   // v3 (panel P1-2): motes counter-shift by the camera motion the background
   // did NOT follow, so the bokeh slides against the scene plane at ~0.45×.
   const camX2 = camState.dx * (1 - BG_PARALLAX);
   const camY2 = camState.dy * (1 - BG_PARALLAX);
   for (let i = 0; i < N; i++) {
-    const depth = 0.25 + hash01(i + seed * 31) * 0.75;
+    const depth = 0.35 + hash01(i + seed * 31) * 0.65;
     const speed = 8 + depth * 20;
     const bx = (hash01(i * 3.7 + seed) * W + drift(t / 9000 + i * 3, i) * 40 * depth - camX2 * depth + W) % W;
     const by =
@@ -89,20 +95,46 @@ export function bokehField(
     // dimmer alpha ceiling: gold is a rare sparkle, never a stain. The
     // field itself is carried by teal-white.
     const isGold = hash01(i * 5.3 + seed) < goldRatio;
-    const col = isGold ? PALETTE.gold : '#F2FAF8';
     // v8.2: gold motes also get a hard radius cap (14px core) — the v8.1
     // recheck still found one large gold mote reading as a blotch. Gold is
     // sparkle-sized, always; teal-white motes may stay large and soft.
-    const r = Math.min((5 + hash01(i * 2.3) * 26) * depth * (isGold ? 0.72 : 1), isGold ? 14 : 1e9);
+    // P1-1: teal radius floor rises 5 → 8 (a disc smaller than ~8px cannot
+    // read as a lens artifact at 1080p, let alone a 320px phone feed).
+    const r = Math.min((8 + hash01(i * 2.3) * 28) * depth * (isGold ? 0.72 : 1), isGold ? 14 : 1e9);
     // v8: alpha floor 0.10→0.13 — the v5 field was sub-visible after
     // YouTube's transcode on phone screens (the panel saw "muddy smudges",
     // i.e. the bottom of the range, and nothing else). Barely-there is now
-    // actually there.
-    const a =
-      (isGold ? 0.11 + hash01(i * 9.2) * 0.13 : 0.13 + hash01(i * 9.2) * 0.17) *
-      intensity *
-      depth;
-    glowBlob(ctx, bx, by, r * 3, col, a);
+    // actually there. (Superseded for the ring stroke by ringA below — the
+    // caps taught the field restraint; the rings carry their own ramp.)
+    // P1-1 (report §12.1): CRISP STROKED DISCS, not glow stains. The
+    // radial-gradient blob read as a soft stain ("aged paper", twice-convicted
+    // panel verdict); a ring with a hard inner edge reads as a LENS artifact —
+    // the bokeh look the field was always meant to have.
+    // Panel re-review calibration: the first ring pass (alpha floor 0.16 off
+    // the v8.2 caps) was judged "one lonely ring… a token gesture" — a thin
+    // ring covers ~10× less area than the blob it replaces, so it needs real
+    // ink to register. Rings now carry their OWN alpha ramp (0.26–0.62,
+    // depth-weighted so far discs stay quieter): a field of confident,
+    // varied discs — still light-register, never confetti.
+    const ringA = Math.min(
+      isGold ? 0.55 : 0.62,
+      (isGold ? 0.28 + hash01(i * 9.2) * 0.27 : 0.26 + hash01(i * 9.2) * 0.36) *
+        intensity * (0.55 + depth * 0.45)
+    );
+    ctx.beginPath();
+    ctx.arc(bx, by, r, 0, Math.PI * 2);
+    ctx.strokeStyle = isGold ? rgba(PALETTE.gold, ringA) : rgba('#7FB8AC', ringA);
+    ctx.lineWidth = Math.max(2, r * 0.2); // ring reads at 320px
+    ctx.stroke();
+    if (r > 14) {
+      // large discs only: inner highlight arc — the light bending through
+      // the lens edge, what separates a disc from a drawn circle
+      ctx.beginPath();
+      ctx.arc(bx - r * 0.25, by - r * 0.25, r * 0.45, -2.6, -1.2);
+      ctx.strokeStyle = 'rgba(255,255,255,' + Math.min(0.5, ringA * 0.85).toFixed(3) + ')';
+      ctx.lineWidth = Math.max(1, r * 0.08);
+      ctx.stroke();
+    }
   }
 }
 

@@ -5,7 +5,7 @@
  * breathing, blinking, brow expressions, and a signature gold scarf.
  */
 
-import { clamp01, easeOutCubic, hash01, lerp, mix, springTo } from './easing';
+import { clamp01, easeOutCubic, hash01, hashStr, lerp, mix, springTo } from './easing';
 import { PALETTE, rgba } from './theme';
 
 const D2R = Math.PI / 180;
@@ -108,30 +108,61 @@ export class Stickman {
     gesture: string;
     speaking: boolean;
     seed?: number;
+    /** P1-6 (report §12.6): the sentence grammar — line id of the sentence
+     *  being spoken, its predecessor, ms since it started, and word onsets
+     *  in the same clock as t. Supplied by the director via SceneCtx. */
+    sentenceId?: string;
+    prevSentenceId?: string;
+    sentenceT?: number;
+    wordTimes?: number[];
   }): Pose {
     const seed = opts.seed ?? 0;
     const gesture = opts.gesture || 'idle';
     let pose: Pose;
     if (opts.speaking && (gesture === 'present' || gesture === 'idle' || gesture === 'close')) {
-      // gentle talk cycle among three open poses
-      // PANEL-12 / P1-2 (report §13.2): every pose transition now runs
-      // through the closed-form analytic SPRING instead of the v2 12%
-      // linear window. The blend weight itself springs 0→1 over 620ms
-      // (stiffness 150 / damping 19): a slow wind-up start (anticipation),
-      // a ~4% overshoot past the target joint angles, and the settle —
-      // the three ingredients of "operated" motion, in one stateless
-      // term. Continuity at the cycle boundary is exact (the previous
-      // cycle's settled pose IS the spring's `from`), so scrubbing stays
-      // frame-accurate and the 754-frame guard sweep stays valid.
-      const cyc = ['talkA', 'talkB', 'talkC'];
-      const raw = t / 2900 + seed;
-      const idx = ((Math.floor(raw) % 3) + 3) % 3;
-      const phT = raw - Math.floor(raw);
-      const prev = POSES[cyc[(idx + 2) % 3]];
-      const cur = POSES[cyc[idx]];
-      const TRANS = 620; // ms per pose transition
-      const k = clamp01((phT * 2900) / TRANS);
-      pose = blendPose(prev, cur, clamp01(springTo(0, 1, k * TRANS, 150, 19)));
+      // P1-6 (report §12.6): THE METRONOME IS DEAD. The talk cycle used to
+      // flap through the same 3 poses on a 2.9s wall clock — the panel's
+      // "a man miming enthusiasm to a metronome", 3/10. The grammar is now
+      // keyed to LANGUAGE: each sentence gets ONE gesture (deterministic
+      // hash of its line id, from a 5-pose list), sprung into from the
+      // previous sentence's gesture (420ms, the house spring — continuity
+      // at the boundary is exact), and the forearm PULSES on each word
+      // onset (a 300ms decaying accent) instead of flapping on a clock.
+      // Sentence lengths vary 2–6s, so the phrasing varies with the script
+      // — produced, not clockwork. Scrub-safe: every term is a pure
+      // function of (t, sentence data).
+      if (opts.sentenceId !== undefined) {
+        const list = ['talkA', 'talkB', 'talkC', 'present', 'pointR'];
+        const pick = (id: string): Pose =>
+          POSES[list[Math.min(list.length - 1, Math.floor(hashStr(id) * list.length))]];
+        const cyc = pick(opts.sentenceId);
+        const prevPose = pick(opts.prevSentenceId ?? opts.sentenceId);
+        const k = clamp01((opts.sentenceT ?? 1e9) / 420); // sentence-entry spring
+        pose = blendPose(prevPose, cyc, clamp01(springTo(0, 1, k * 420, 150, 19)));
+        // beat-accent: a decaying forearm pulse on each word onset — the
+        // hand strikes on the emphasized word, exactly as a narrator's does
+        let accent = 0;
+        if (opts.wordTimes) {
+          for (const wt of opts.wordTimes) {
+            if (t >= wt && t < wt + 300) {
+              accent = Math.max(accent, Math.sin(((t - wt) / 300) * Math.PI));
+            }
+          }
+        }
+        pose = { ...pose, rAL: pose.rAL + accent * 16, lAU: pose.lAU - accent * 10 };
+      } else {
+        // legacy fallback (no sentence data — e.g. the shorts cutter):
+        // the PANEL-12 spring cycle among the three open poses
+        const cyc = ['talkA', 'talkB', 'talkC'];
+        const raw = t / 2900 + seed;
+        const idx = ((Math.floor(raw) % 3) + 3) % 3;
+        const phT = raw - Math.floor(raw);
+        const prev = POSES[cyc[(idx + 2) % 3]];
+        const cur = POSES[cyc[idx]];
+        const TRANS = 620; // ms per pose transition
+        const k = clamp01((phT * 2900) / TRANS);
+        pose = blendPose(prev, cur, clamp01(springTo(0, 1, k * TRANS, 150, 19)));
+      }
     } else if (opts.speaking && gesture === 'pointR') {
       pose = POSES.pointR;
     } else if (opts.speaking && gesture === 'pointL') {
@@ -187,8 +218,12 @@ export class Stickman {
     const strike = Math.pow(Math.max(0, Math.abs(c) - 0.86) / 0.14, 2);
     return {
       ...base(),
-      rootY: bob + strike * 5,
-      lean: 4 + s * 2 + strike * 3,
+      // P1-5 (report §12.5): WEIGHT DROP — strike squash 5→9 (a visible
+      // plant: the pelvis drops 9px into the contact) and a constant +3°
+      // forward lean into travel (a walker committs to the direction; the
+      // old 4° neutral read as strolling on a treadmill).
+      rootY: bob + strike * 9,
+      lean: 4 + s * 2 + strike * 3 + 3,
       lLU: -s * swing - 3, lLL: -Math.max(0, -s) * 18 * speed + strike * 12,
       rLU: sR * swing + 3, rLL: Math.max(0, sR) * 18 * speed + strike * 12,
       lAU: sA * swing * 0.55 - 6, lAL: sA * swing * 0.3 - 4,

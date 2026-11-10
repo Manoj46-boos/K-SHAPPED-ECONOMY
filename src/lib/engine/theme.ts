@@ -435,26 +435,38 @@ export function glowBlob(
  *  goldWash at ~55% on white) behind the whole scene gives charts a ROOM to
  *  live in; white cards then pop forward instead of dissolving. Drawn right
  *  after paintBg, before the bokeh (motes float over the plate = depth).
- *  Never registered with the guard — it is background, not reading content. */
+ *  Never registered with the guard — it is background, not reading content.
+ *
+ *  P1-2 (report §12.2): 0.5 → 0.72 alpha and FULL-BLEED. At 0.5 the upSoft
+ *  plate still measured r>235 per pixel — it counted as near-white under the
+ *  audit's own metric, so the "room" was invisible to the numbers (279 of 380
+ *  scanned frames sat above the 58% near-white ceiling). At 0.72 every tone
+ *  (up/down/gold) clears the r,g,b>235 bucket, and full-bleed removes the
+ *  64px raw-white margins the rounded plate used to leave on every side.
+ *  Host and statement scenes join the data rooms (hosts live in a room too)
+ *  — the acceptance bar: NO frame above 58% near-white. */
 export function scenePlate(
   ctx: CanvasRenderingContext2D,
   W: number,
   H: number,
-  tone: 'up' | 'down' | 'gold' | 'neutral' = 'neutral'
+  tone: 'up' | 'down' | 'gold' | 'neutral' = 'neutral',
+  strength = 0.72
 ): void {
+  // P1-2 note: the neutral tone is #E0EFE9 (was #EAF4F1) — the old value's
+  // red channel (234) still landed >235 after the 0.72 blend, so every
+  // 'neutral'-chapter frame kept failing the near-white acceptance. #E0EFE9
+  // blends to r≈233: a whisper deeper, still the lightest room in the film.
   const soft =
     tone === 'up' ? PALETTE.upSoft
     : tone === 'down' ? PALETTE.downSoft
     : tone === 'gold' ? PALETTE.goldWash
-    : '#EAF4F1';
+    : '#E0EFE9';
   ctx.save();
-  ctx.fillStyle = rgba(soft, 0.5);
-  roundRect(ctx, 64, 118, W - 128, H - 322, 42);
-  ctx.fill();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = rgba(PALETTE.cardBorder, 0.9);
-  roundRect(ctx, 64, 118, W - 128, H - 322, 42);
-  ctx.stroke();
+  // P1-2 + panel re-review: 0.72 default; the film's LOUDEST beats
+  // (bigText/stampCard hard cuts) pass 0.88 — a room the slam can land in
+  // ("a barely-there wash is not a tonal field", round-2 judge note).
+  ctx.fillStyle = rgba(soft, strength);
+  ctx.fillRect(0, 0, W, H);
   ctx.restore();
 }
 

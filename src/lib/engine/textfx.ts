@@ -257,15 +257,23 @@ export function drawChapterCard(
   index: number,
   title: string,
   progress: number, // overall video progress 0..1
-  totalChapters = 10 // v2 (PATCH 8): dots match the real chapter count
+  totalChapters = 10, // v2 (PATCH 8): dots match the real chapter count
+  tone: 'up' | 'down' | 'gold' | 'neutral' = 'up' // P1-2: the incoming chapter's room
 ): void {
   const p = clamp01(t / Math.min(dur, 500));
   const out = clamp01((t - (dur - 380)) / 380);
   const a = Math.min(1, p * 1.4) * (1 - easeInOutSine(out));
   ctx.save();
   ctx.globalAlpha = a;
-  // light backdrop wipe
-  ctx.fillStyle = rgba('#FFFFFF', 0.97);
+  // P1-2 (report §12.2): the card's backdrop wipes in the chapter's OWN room
+  // tone, not raw white — the interstitials join the color journey (a white
+  // card measured 93-97% near-white; the toned card clears the 58% bar).
+  const soft =
+    tone === 'down' ? PALETTE.downSoft
+    : tone === 'gold' ? PALETTE.goldWash
+    : tone === 'neutral' ? '#E0EFE9'
+    : PALETTE.upSoft;
+  ctx.fillStyle = rgba(soft, 0.97);
   ctx.fillRect(0, 0, W, H);
   // v4 (audit P1-5): ghost chapter number behind the title — the vision
   // panel called the bare card “a legal disclaimer slide”; a 10%-gold serif

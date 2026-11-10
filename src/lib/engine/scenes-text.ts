@@ -4,7 +4,7 @@
  */
 
 import { clamp01, easeInOutSine, easeOutBack, easeOutCubic, easeOutQuad } from './easing';
-import { PALETTE, TONE, card, rgba, roundRect, setFont, paintBg, FONT_DISPLAY, FONT_UI } from './theme';
+import { PALETTE, TONE, card, rgba, roundRect, setFont, paintBg, scenePlate, FONT_DISPLAY, FONT_UI } from './theme';
 import { bokehField, lightRays, softBloom, sparkles, drawK3D, kMotifs, floatCoins } from './effects';
 import { SceneCtx } from './scene-context';
 import { reactionAt } from './scene-context';
@@ -12,8 +12,12 @@ import { Stickman, POSES, blendPose } from './stickman';
 import { drawStickmanV2 } from './stickman-v2';
 import { wrapText } from './charts';
 
-function bg(g: SceneCtx, seed: number, gold = 0.4): void {
+function bg(g: SceneCtx, seed: number, gold = 0.4, strength = 0.72): void {
   paintBg(g.ctx, g.W, g.H, g.t, g.chapterTone);
+  // P1-2 (report §12.2): statement scenes live in a room too — the plate
+  // lands behind every text beat (stamp/quote/takeaways/comment), so a
+  // full-bleed tint carries the frame instead of raw white.
+  scenePlate(g.ctx, g.W, g.H, g.chapterTone ?? 'up', strength);
   bokehField(g.ctx, g.W, g.H, g.t, { intensity: 0.85, seed, gold });
   lightRays(g.ctx, g.W, g.H, g.t, { alpha: 0.5 });
 }
@@ -22,6 +26,11 @@ function bg(g: SceneCtx, seed: number, gold = 0.4): void {
 export function bigTextScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   paintBg(ctx, W, H, t, g.chapterTone);
+  // P1-2 (report §12.2): the hard cut lands in a ROOM, not on a lightbox —
+  // the 118px statement reads louder against a tinted field than against
+  // 90% near-white. Panel re-review: statement scenes run the plate at 0.88
+  // (the 0.72 default read as "a whisper of a wash" under a 118px slam).
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.88);
   softBloom(ctx, W, H, t, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)
   const lines = (s.lines as string[]) || [];
   // P1-2 (report): the lines SNAP in as ONE block (80ms + a single 260ms
@@ -32,36 +41,47 @@ export function bigTextScene(g: SceneCtx): void {
   // round-3 note); (2) a statement beat is one thought — "SEVEN COMPANIES.
   // OUT OF FIVE HUNDRED." lands harder as a single slam than as a two-step
   // reveal. The per-line stagger survives via the two-tone color split.
-  lines.forEach((ln, i) => {
-    const ap = clamp01((t - 80) / 260);
-    if (ap <= 0) return;
-    ctx.save();
-    ctx.globalAlpha = ap;
-    ctx.textAlign = 'center';
-    const scale = 0.94 + 0.06 * easeOutBack(ap);
-    // v10 (panel TYPE-2): EDITORIAL SIZE HIERARCHY — line 1 is the statement
-    // in inkDeep (the display ink, 11.9:1), line 2 the punchline in goldDeep.
-    // v10.1 (panel 11 re-review): the v10 step (108 → 88, a 19% ratio) still
-    // read as "two lines near-equal in scale" — a couplet, not a headline.
-    // The hierarchy is now unambiguous: line 1 at 118px (auto-fit to 1660),
-    // line 2 at 62px/600 — a 1.9× editorial ratio, statement + kicker.
-    const size = i === 0 ? 118 : 62;
-    ctx.translate(W / 2, H * 0.36 + i * 118);
-    ctx.scale(scale, scale);
-    if (i === 0) {
-      setFont(ctx, size, 700, FONT_DISPLAY);
-      let s = size;
-      while (ctx.measureText(ln).width > 1660 && s > 72) {
-        s -= 2;
-        setFont(ctx, s, 700, FONT_DISPLAY);
+  //
+  // P1-10 (report §12.10): the slam gets its frame of MOTION BLUR — the
+  // block draws twice for one frame, the ghost copy offset 1.5% of W at
+  // 0.35 alpha (a 4%-wide smear band at 1080p). The PANEL-12 white accent
+  // flashes; the smear MOVES — together they read as mass hitting the
+  // frame instead of a cut.
+  const drawBlock = (dx: number, alphaMul: number): void => {
+    lines.forEach((ln, i) => {
+      const ap = clamp01((t - 80) / 260);
+      if (ap <= 0 || alphaMul <= 0) return;
+      ctx.save();
+      ctx.globalAlpha = ap * alphaMul;
+      ctx.textAlign = 'center';
+      const scale = 0.94 + 0.06 * easeOutBack(ap);
+      // v10 (panel TYPE-2): EDITORIAL SIZE HIERARCHY — line 1 is the statement
+      // in inkDeep (the display ink, 11.9:1), line 2 the punchline in goldDeep.
+      // v10.1 (panel 11 re-review): the v10 step (108 → 88, a 19% ratio) still
+      // read as "two lines near-equal in scale" — a couplet, not a headline.
+      // The hierarchy is now unambiguous: line 1 at 118px (auto-fit to 1660),
+      // line 2 at 62px/600 — a 1.9× editorial ratio, statement + kicker.
+      const size = i === 0 ? 118 : 62;
+      ctx.translate(W / 2, H * 0.36 + i * 118);
+      ctx.scale(scale, scale);
+      if (i === 0) {
+        setFont(ctx, size, 700, FONT_DISPLAY);
+        let s2 = size;
+        while (ctx.measureText(ln).width > 1660 && s2 > 72) {
+          s2 -= 2;
+          setFont(ctx, s2, 700, FONT_DISPLAY);
+        }
+      } else {
+        setFont(ctx, size, 600, FONT_DISPLAY);
       }
-    } else {
-      setFont(ctx, size, 600, FONT_DISPLAY);
-    }
-    ctx.fillStyle = i === 1 ? PALETTE.goldDeep : PALETTE.inkDeep;
-    ctx.fillText(ln, 0, 0);
-    ctx.restore();
-  });
+      ctx.fillStyle = i === 1 ? PALETTE.goldDeep : PALETTE.inkDeep;
+      ctx.fillText(ln, dx, 0);
+      ctx.restore();
+    });
+  };
+  const SMEAR = t >= 340 && t < 380; // the frame the block lands (ap completes at 340)
+  drawBlock(SMEAR ? W * 0.015 : 0, SMEAR ? 0.35 : 0); // the motion-blur ghost, UNDER
+  drawBlock(0, 1); // the solid block
   // supportive underline
   const up2 = clamp01((t - 1500) / 700);
   if (up2 > 0) {
@@ -104,42 +124,60 @@ export function bigTextScene(g: SceneCtx): void {
 // ── stampCard: "RECORD HIGHS — ACCURATE" ─────────────────────────────────────
 export function stampCardScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
-  bg(g, 221, 0.55);
+  // P1-2 + panel re-review: the stamp SLAMS — it gets the deep room (0.88)
+  bg(g, 221, 0.55, 0.88);
   const cx = W / 2;
   const cy = H * 0.42;
   const ap = clamp01(t / 500);
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(-0.06);
-  ctx.globalAlpha = ap;
-  const scale = 1 + (1 - easeOutBack(ap)) * 0.4;
-  ctx.scale(scale, scale);
-  const txt = (s.stamp as string) || 'RECORD HIGHS';
-  setFont(ctx, 110, 700, FONT_DISPLAY);
-  const tw = ctx.measureText(txt).width;
-  // v8 (vision panel): the stamp frame strokes crossed THROUGH the
-  // letterforms and muddied the R-E-C. A white knockout plate behind the
-  // type keeps the brushed-frame energy while the word stays crisp.
-  ctx.save();
-  ctx.fillStyle = 'rgba(255,255,255,0.92)';
-  roundRect(ctx, -tw / 2 - 44, -104, tw + 88, 148, 16);
-  ctx.fill();
-  ctx.restore();
-  // stamp frame
-  ctx.strokeStyle = PALETTE.up;
-  ctx.lineWidth = 10;
-  roundRect(ctx, -tw / 2 - 60, -110, tw + 120, 170, 18);
-  ctx.stroke();
-  ctx.fillStyle = PALETTE.up;
-  // v8.1 root-cause fix: the word drew LEFT-anchored at local x=0 (the
-  // frame/plate geometry assumes a centred word), so the stamp started at
-  // the frame's centre line and overflowed right — the frame's edges cut
-  // straight through the letterforms. This is the defect BOTH vision
-  // reviews kept flagging; the knockout plate alone couldn't fix it
-  // because the plate shares the same centred assumption.
-  ctx.textAlign = 'center';
-  ctx.fillText(txt, 0, 24);
-  ctx.restore();
+  // P1-10 (report §12.10): the stamp draws as a function of dx so the slam
+  // frame can draw it TWICE — solid at 0, plus a 1.5% offset ghost at 0.35
+  // alpha — one frame of horizontal motion blur on the landing (the
+  // PANEL-12 white accent stays; the smear adds the MOVEMENT).
+  const drawStamp = (dx: number, alphaMul: number, ghost = false): number => {
+    if (alphaMul <= 0) return 0;
+    ctx.save();
+    ctx.translate(cx + dx, cy);
+    ctx.rotate(-0.06);
+    ctx.globalAlpha = ap * alphaMul;
+    const scale = 1 + (1 - easeOutBack(ap)) * 0.4;
+    ctx.scale(scale, scale);
+    const txt = (s.stamp as string) || 'RECORD HIGHS';
+    setFont(ctx, 110, 700, FONT_DISPLAY);
+    const tw = ctx.measureText(txt).width;
+    // v8 (vision panel): the stamp frame strokes crossed THROUGH the
+    // letterforms and muddied the R-E-C. A white knockout plate behind the
+    // type keeps the brushed-frame energy while the word stays crisp.
+    // P1-10: the GHOST copy skips the knockout — its own 0.35-alpha plate
+    // was washing the smear ink, and the solid stamp's plate already
+    // provides the knockout where they overlap (panel round-2 note: "no
+    // ghost offset on the lettering, only a double box edge").
+    if (!ghost) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      roundRect(ctx, -tw / 2 - 44, -104, tw + 88, 148, 16);
+      ctx.fill();
+      ctx.restore();
+    }
+    // stamp frame
+    ctx.strokeStyle = PALETTE.up;
+    ctx.lineWidth = 10;
+    roundRect(ctx, -tw / 2 - 60, -110, tw + 120, 170, 18);
+    ctx.stroke();
+    ctx.fillStyle = PALETTE.up;
+    // v8.1 root-cause fix: the word drew LEFT-anchored at local x=0 (the
+    // frame/plate geometry assumes a centred word), so the stamp started at
+    // the frame's centre line and overflowed right — the frame's edges cut
+    // straight through the letterforms. This is the defect BOTH vision
+    // reviews kept flagging; the knockout plate alone couldn't fix it
+    // because the plate shares the same centred assumption.
+    ctx.textAlign = 'center';
+    ctx.fillText(txt, 0, 24);
+    ctx.restore();
+    return tw;
+  };
+  const SMEAR = t >= 500 && t < 540; // the frame the stamp lands (ap completes at 500)
+  if (SMEAR) drawStamp(W * 0.015, 0.35, true); // the ink-only motion-blur ghost, UNDER
+  const tw = drawStamp(0, 1); // the solid stamp (also returns the word width)
   // checkmark + sub
   const cp = clamp01((t - 700) / 700);
   if (cp > 0) {
@@ -556,6 +594,9 @@ export function endScreenScene(g: SceneCtx): void {
   const { ctx, W, H, t, channelName, nextVideoTitle } = g;
   const showHints = (g as any).previewMode === true; // studio preview only
   paintBg(ctx, W, H, t, g.chapterTone);
+  // P1-2 (report §12.2): the farewell lands in the gold room — the last
+  // frames of the film are no longer 80% near-white.
+  scenePlate(ctx, W, H, g.chapterTone ?? 'gold');
   bokehField(ctx, W, H, t, { intensity: 1.1, seed: 261, gold: 0.6 });
   kMotifs(ctx, W, H, t, 0.05);
   floatCoins(ctx, W * 0.3, H * 0.32, t, 5, 200);

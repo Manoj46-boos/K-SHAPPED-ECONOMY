@@ -105,6 +105,30 @@ function computeGroups(tl: Timeline): Group[] {
 let cachedTimeline: Timeline | null = null;
 let cachedGroups: Group[] = [];
 
+/** P1-6 (report §12.6): the film's sentences as one flat, absolute-time
+ *  list — the talk-cycle grammar keys to SENTENCES, and sentences must not
+ *  restart at beat or group boundaries (a thought spans beats; the pose
+ *  must span with it). Memoized per timeline like the group map. */
+interface FlatSentence {
+  lineId: string;
+  startMs: number;
+  endMs: number;
+}
+let cachedSentTl: Timeline | null = null;
+let cachedSentences: FlatSentence[] = [];
+function sentencesFor(tl: Timeline): FlatSentence[] {
+  if (cachedSentTl !== tl) {
+    cachedSentences = [];
+    for (const b of tl.beats) {
+      for (const s of b.sentences) {
+        cachedSentences.push({ lineId: s.lineId, startMs: s.startMs, endMs: s.startMs + s.audioDurMs });
+      }
+    }
+    cachedSentTl = tl;
+  }
+  return cachedSentences;
+}
+
 /** PANEL-9 R5: scene drawers that threw during this render (deduped).
  *  Read by the studio after a render to list every silently-failed scene. */
 export const sceneRenderErrors: { scene: string; message: string }[] = [];
@@ -148,17 +172,32 @@ function groupAt(tl: Timeline, tMs: number): Group | null {
  * and guard v2 (edge + fixed-furniture checks) sweeps all of them.
  */
 const HERO_MOVES: Record<number, { scene: string; move: 'pullback' | 'push' | 'truck' | 'rise'; amt: number }> = {
-  0: { scene: 'divergeK', move: 'pullback', amt: 0.055 },       // ch1 — the K reveals itself as the camera retreats
-  1: { scene: 'chartJourney', move: 'truck', amt: 150 },        // ch2 — travel with the S&P timeline
+  // P1-9 (report §12.9): every hero amplitude ×1.4 — the v3 camera nearly
+  // doubled v2 and still read sub-threshold on a phone; the panel's bar for
+  // a "hero" gesture is a move you can screenshot. Trucks 150→210, pushes
+  // 0.04→0.056, pullbacks ×1.4, plus a 0.2° roll riding the trucks (a
+  // barely-there canted frame while the camera travels — the operator's
+  // hand, not a tripod). The 754-frame guard sweep re-certifies every move
+  // (the roll displaces frame content ≤3.4px at the corners; the dense
+  // exit/mid grid is the referee).
+  0: { scene: 'divergeK', move: 'pullback', amt: 0.077 },      // ch1 — the K reveals itself as the camera retreats
+  1: { scene: 'chartJourney', move: 'truck', amt: 210 },        // ch2 — travel with the S&P timeline
   // ch3 — sentiment falls, the camera pans the other way (a negative-amt
   // truck). A rise was the poetic choice, but the dense 500ms guard sweep
   // caught the sourceTag lifting into the pill band at 230.5s: any UPWARD
   // move pulls bottom-zone content toward the caption pill, and the tag has
   // only ~40px of headroom. Horizontal-only moves can never collide.
-  2: { scene: 'chartJourney', move: 'truck', amt: -150 },
-  3: { scene: 'gasPump', move: 'truck', amt: 150 },             // ch4 — pan between the two households
-  4: { scene: 'aiDatacenter', move: 'push', amt: 0.04 },        // ch5 — into the scale of the build-out
-  5: { scene: 'paradoxResolve', move: 'pullback', amt: 0.05 },  // ch6 — the reveal breathes out
+  2: { scene: 'chartJourney', move: 'truck', amt: -170 },
+  // P1-9 re-certification: the ×1.4 target for this move was −210, but the
+  // ch3 chartJourney groups carry long left-anchored source titles
+  // ("Gallup Economic Corp.", "University of Michigan") — the 754-frame
+  // guard sweep caught them poking 11–15px past the frame edge at the
+  // truck's peak. −170 is the largest amplitude the exact-camera guard
+  // certifies clean for BOTH scenes (still +13% over the old −150; the
+  // ch2 +210 and ch4 +210 trucks certify at full ×1.4).
+  3: { scene: 'gasPump', move: 'truck', amt: 210 },             // ch4 — pan between the two households
+  4: { scene: 'aiDatacenter', move: 'push', amt: 0.056 },       // ch5 — into the scale of the build-out
+  5: { scene: 'paradoxResolve', move: 'pullback', amt: 0.07 },  // ch6 — the reveal breathes out
   // PANEL-10 (D-08/D-09): the ch7 'rise' lifted the scene title into the
   // fixed watermark band and the callback chip into the caption pill — a
   // rise moves the WHOLE canvas, so any scene with furniture near either
@@ -166,9 +205,10 @@ const HERO_MOVES: Record<number, { scene: string; move: 'pullback' | 'push' | 't
   // truck (centered, ±55) pans from the fund box toward the host, and the
   // pill's y-band never moves (the host was re-anchored at W*0.84, so its
   // envelope clears the right edge under the full camera stack).
-  6: { scene: 'fundSplit', move: 'truck', amt: 110 },           // ch7 — the twist travels
-  7: { scene: 'takeaways', move: 'push', amt: 0.035 },          // ch8 — lean into the lesson
-  8: { scene: 'endScreen', move: 'pullback', amt: 0.06 },       // ch9 — the wide farewell
+  // P1-9: 110 → 154 with the sweep re-certifying the right-edge clear.
+  6: { scene: 'fundSplit', move: 'truck', amt: 154 },           // ch7 — the twist travels
+  7: { scene: 'takeaways', move: 'push', amt: 0.049 },          // ch8 — lean into the lesson
+  8: { scene: 'endScreen', move: 'pullback', amt: 0.084 },      // ch9 — the wide farewell
 };
 
 /**
@@ -217,11 +257,17 @@ function cameraV2(
   }
   // P1-2: the chapter's hero move — one amplified gesture per chapter
   const hero = HERO_MOVES[chapterIdx];
+  let roll = 0; // P1-9: 0.2° roll rides the trucks (see HERO_MOVES note)
   if (hero && hero.scene === sceneType) {
     const e = easeInOutSine(p);
     if (hero.move === 'pullback') camScale -= hero.amt * e;
     else if (hero.move === 'push') camScale += hero.amt * e;
-    else if (hero.move === 'truck') camX += hero.amt * (e - 0.5);
+    else if (hero.move === 'truck') {
+      camX += hero.amt * (e - 0.5);
+      // the roll peaks mid-truck and is exactly 0 at both ends — no pop in,
+      // no pop out; ≤3.4px of corner displacement at 0.2°
+      roll = 0.2 * (Math.PI / 180) * Math.sin(Math.PI * e);
+    }
     else if (hero.move === 'rise') camY -= hero.amt * e;
   }
   // PANEL-12 / P2-6 (report §14.6): THE REACTION SHOT — a held-expression
@@ -281,6 +327,13 @@ function cameraV2(
   ctx.translate(960 + camX, 540 + camY);
   ctx.scale(camScale, camScale);
   ctx.translate(-960, -540);
+  // P1-9: the truck roll — applied around the frame centre after the
+  // camera stack so it reads as the camera body tilting, not the scene
+  if (roll !== 0) {
+    ctx.translate(960, 540);
+    ctx.rotate(roll);
+    ctx.translate(-960, -540);
+  }
 }
 
 /** P1-2 — per-chapter ENTRY styles: each chapter's first scene group opens
@@ -368,6 +421,20 @@ export function drawFrame(
       if (wt > bt + 400) break;
     }
   }
+  // P1-6 (report §12.6): the active sentence, film-wide. The last sentence
+  // that has started by t (held through the breath gap after it ends — the
+  // pose holds too, then springs into the next sentence's gesture).
+  const flat = sentencesFor(tl);
+  let sIdx = -1;
+  for (let i = 0; i < flat.length; i++) {
+    if (flat[i].startMs <= t) sIdx = i;
+    else break;
+  }
+  const activeSent = sIdx >= 0 ? flat[sIdx] : null;
+  const prevSent = sIdx >= 1 ? flat[sIdx - 1] : null;
+  // the same onsets poseAt consumes, in the group clock (g.t)
+  const beatToGroup = beat.startMs - group.startMs;
+  const gWordTimes = wordTimes.map((wt) => wt + beatToGroup);
 
   const g: SceneCtx = {
     ctx,
@@ -382,6 +449,10 @@ export function drawFrame(
     beat: beat.beat,
     speaking,
     wordTimes,
+    gWordTimes,
+    sentenceId: activeSent?.lineId,
+    prevSentenceId: prevSent?.lineId,
+    sentenceT: activeSent !== null ? t - activeSent.startMs : undefined,
     channelName: opts.channelName,
     nextVideoTitle: opts.nextVideoTitle,
   };
@@ -485,7 +556,7 @@ export function drawFrame(
       // every chapter card: an owned piece of motion grammar that no
       // template video has. Cheap (one clipped drawK), deterministic.
       kWipe(ctx, W, H, cct);
-      drawChapterCard(ctx, W, H, cct, cc.endMs - cc.startMs, cc.index + 1, cc.title, overall, tl.chapters.length);
+      drawChapterCard(ctx, W, H, cct, cc.endMs - cc.startMs, cc.index + 1, cc.title, overall, tl.chapters.length, CHAPTER_TONES[Math.min(cc.chapter, CHAPTER_TONES.length - 1)]);
     }
   }
 
@@ -536,7 +607,12 @@ export function drawFrame(
   lightVignette(ctx, W, H, 0.30);
 
   // global fades: from white at start, to white at end
-  const fadeIn = 1 - clamp01(t / 600);
+  // P1-8 (report §12.8): the cold-open white fade 600ms → 180ms. The 600ms
+  // fade held the frame at half-white while the K was already trying to
+  // grow — a 0.4s of dead air before the film says anything. 180ms is still
+  // a cut-softening breath, but the first stroke is now fighting a veil,
+  // not a wall.
+  const fadeIn = 1 - clamp01(t / 180);
   const fadeOut = clamp01((t - (tl.durationMs - 1100)) / 1100);
   const white = Math.max(fadeIn, fadeOut);
   if (white > 0.001) {

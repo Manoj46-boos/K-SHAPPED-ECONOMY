@@ -4,7 +4,7 @@
  */
 
 import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, lerp } from './easing';
-import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg, FONT_DISPLAY, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
+import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg, scenePlate, FONT_DISPLAY, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
 import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp, subjectHalo } from './effects';
 import { Stickman, POSES, blendPose, walkIn, nodPulse } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
@@ -42,6 +42,10 @@ function expressionPose(expression?: string): Partial<typeof POSES.idle> {
 function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   const { ctx, W, H } = g;
   paintBg(ctx, W, H, g.t, g.chapterTone);
+  // P1-2 (report §12.2): the host lives in a room too — the stage gets the
+  // same full-bleed tone plate as the data scenes, so the presenter stands
+  // in a lit space instead of on a lightbox.
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up');
   bokehField(ctx, W, H, g.t, { intensity: 0.9, seed: 7 });
   lightRays(ctx, W, H, g.t, { alpha: 0.6 });
   kMotifs(ctx, W, H, g.t, 0.05);
@@ -150,10 +154,24 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
     const walkDur = 900;
     const r = walkIn(t, hx - 560, hx, walkDur);
     x = r.x;
-    pose = r.walking ? r.pose : Stickman.poseAt(t, { gesture: g.s.gesture ?? 'present', speaking: g.speaking });
+    pose = r.walking ? r.pose : Stickman.poseAt(t, {
+      gesture: g.s.gesture ?? 'present',
+      speaking: g.speaking,
+      sentenceId: g.sentenceId,
+      prevSentenceId: g.prevSentenceId,
+      sentenceT: g.sentenceT,
+      wordTimes: g.gWordTimes,
+    });
     if (r.walking) walkPhase = r.phase;
   } else {
-    pose = Stickman.poseAt(t, { gesture: g.s.gesture ?? 'present', speaking: g.speaking });
+    pose = Stickman.poseAt(t, {
+      gesture: g.s.gesture ?? 'present',
+      speaking: g.speaking,
+      sentenceId: g.sentenceId,
+      prevSentenceId: g.prevSentenceId,
+      sentenceT: g.sentenceT,
+      wordTimes: g.gWordTimes,
+    });
     const expr = expressionPose(g.s.expression as string | undefined);
     pose = { ...pose, ...expr };
   }
@@ -268,6 +286,8 @@ export function hostSceneV2(g: SceneCtx): void {
 
   // ── stage: bg + soft bokeh + faint editorial column grid ──
   paintBg(ctx, W, H, t, g.chapterTone);
+  // P1-2 (report §12.2): the editorial host's room — same plate, his tone.
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up');
   bokehField(ctx, W, H, t, { intensity: 0.85, seed: 7 });
   lightRays(ctx, W, H, t, { alpha: 0.45 });
   kMotifs(ctx, W, H, t, 0.04);
@@ -299,6 +319,10 @@ export function hostSceneV2(g: SceneCtx): void {
     pose = Stickman.poseAt(t, {
       gesture: (g.s.gesture ?? 'present'),
       speaking: g.speaking,
+      sentenceId: g.sentenceId,
+      prevSentenceId: g.prevSentenceId,
+      sentenceT: g.sentenceT,
+      wordTimes: g.gWordTimes,
     });
   }
   // v3 (panel P0-4): nods + articulate mouth on the editorial host too
@@ -386,6 +410,8 @@ interface StatItem {
 export function splitNumbersScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   paintBg(ctx, W, H, t, g.chapterTone);
+  // P1-2 (report §12.2): every scene sits in a room — full-bleed tone plate.
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up');
   bokehField(ctx, W, H, t, { intensity: 0.7, seed: 12 });
   const mode = (s.mode as string) || 'left';
 
@@ -575,6 +601,8 @@ function drawNumberPanel(
 export function divergeKScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   paintBg(ctx, W, H, t, g.chapterTone);
+  // P1-2 (report §12.2): every scene sits in a room — full-bleed tone plate.
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up');
   bokehField(ctx, W, H, t, { intensity: 1.1, seed: 21, gold: 0.6 });
   lightRays(ctx, W, H, t, { alpha: 0.8 });
 
@@ -587,7 +615,10 @@ export function divergeKScene(g: SceneCtx): void {
   subjectHalo(ctx, kx, ky, 620, 0.6);
 
   // two diverging lines grow out of one point
-  const growP = clamp01((t - 400) / 2300);
+  // P1-8 (report §12.8): K growth starts 400ms -> 120ms in. The cold open
+  // has no time to spare: the white fade is gone by 180ms and the first
+  // stroke is growing before the viewer's second blink.
+  const growP = clamp01((t - 120) / 2300);
   // v10.1 (panel 11 re-review): the overlay arms used their OWN growth
   // curves (upP/dnP over 1900ms) while drawK3D's inner arms follow
   // grow*2-0.6 / grow*2-1.1 — the overlay kept growing ~300ms past the K's
@@ -598,8 +629,10 @@ export function divergeKScene(g: SceneCtx): void {
   // alpha 1→0 as the K lands (kA), so each diagonal terminates in exactly
   // ONE colored endpoint while growing and ONE ink endpoint once landed.
   const kA = clamp01((growP - 0.55) / 0.45);
-  const upArmK = clamp01(growP * 2 - 0.6);
-  const dnArmK = clamp01(growP * 2 - 1.1);
+  // P1-8: arm gates open 0.6/1.1 -> 0.5/1.0 so the FIRST stroke is visibly
+  // on screen before 0.8s (growP hits 0.25 — the up-arm gate — at t=695ms)
+  const upArmK = clamp01(growP * 2 - 0.5);
+  const dnArmK = clamp01(growP * 2 - 1.0);
 
   ctx.save();
   ctx.lineCap = 'round';
@@ -785,7 +818,14 @@ export function divergeKScene(g: SceneCtx): void {
   // signature scene now has a third act of body language (heroPresent → leanIn)
   // v10.1: keys off upArmK (drawK's own arm curve — the overlay's old upP
   // is gone; same beat of the animation, same threshold semantics).
-  const pose = Stickman.poseAt(t, { gesture: upArmK < 0.5 ? 'heroPresent' : 'leanIn', speaking: g.speaking });
+  const pose = Stickman.poseAt(t, {
+    gesture: upArmK < 0.5 ? 'heroPresent' : 'leanIn',
+    speaking: g.speaking,
+    sentenceId: g.sentenceId,
+    prevSentenceId: g.prevSentenceId,
+    sentenceT: g.sentenceT,
+    wordTimes: g.gWordTimes,
+  });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
   drawStickmanV2(ctx, hx, hy, 1.56, t, { pose, alpha: clamp01(t / 400), look: 0.9, talk, parallax: true }, 5);
   softBloom(ctx, W, H, t - 3800, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)
@@ -795,6 +835,8 @@ export function divergeKScene(g: SceneCtx): void {
 export function channelIntroScene(g: SceneCtx): void {
   const { ctx, W, H, t, channelName } = g;
   paintBg(ctx, W, H, t, g.chapterTone);
+  // P1-2 (report §12.2): every scene sits in a room — full-bleed tone plate.
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up');
   bokehField(ctx, W, H, t, { intensity: 1, seed: 33, gold: 0.6 });
   const cx = W / 2;
   const cy = H * 0.4;
@@ -869,6 +911,8 @@ export function channelIntroScene(g: SceneCtx): void {
 export function recapSplitScene(g: SceneCtx): void {
   const { ctx, W, H, t } = g;
   paintBg(ctx, W, H, t, g.chapterTone);
+  // P1-2 (report §12.2): every scene sits in a room — full-bleed tone plate.
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up');
   bokehField(ctx, W, H, t, { intensity: 0.8, seed: 44 });
   const pw = W * 0.36;
   const ph = H * 0.34;
@@ -924,7 +968,14 @@ export function recapSplitScene(g: SceneCtx): void {
   // host small at bottom right — v3 (panel P0-3): v2 renderer + talk
   // P1-1 (report): 0.86 → 1.12 (+30%); ground 756 → 730 (envelope bottom
   // 770, clear of the worst-case 2-row pill band by 6px).
-  const pose = Stickman.poseAt(t, { gesture: 'present', speaking: g.speaking });
+  const pose = Stickman.poseAt(t, {
+    gesture: 'present',
+    speaking: g.speaking,
+    sentenceId: g.sentenceId,
+    prevSentenceId: g.prevSentenceId,
+    sentenceT: g.sentenceT,
+    wordTimes: g.gWordTimes,
+  });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
   drawStickmanV2(ctx, W * 0.86, H * 0.676, 1.12, t, { pose, alpha: clamp01((t - 700) / 500), look: -0.4, talk, parallax: true }, 17);
 }
@@ -977,6 +1028,8 @@ function miniPanel(
 export function paradoxResolveScene(g: SceneCtx): void {
   const { ctx, W, H, t } = g;
   paintBg(ctx, W, H, t, g.chapterTone);
+  // P1-2 (report §12.2): every scene sits in a room — full-bleed tone plate.
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up');
   bokehField(ctx, W, H, t, { intensity: 0.9, seed: 55, gold: 0.55 });
   const cx = W / 2;
   // the word "PARADOX" appears, then strikes through
@@ -1059,7 +1112,14 @@ export function paradoxResolveScene(g: SceneCtx): void {
   // envelope pauses (a held expression), and the camera pushes toward the
   // head zone (director.cameraV2 consumes the same reactionAt() clock).
   const rP = reactionAt(g.s.sceneKey, g.t, g.d);
-  const pose = Stickman.poseAt(t, { gesture: 'aha', speaking: g.speaking });
+  const pose = Stickman.poseAt(t, {
+    gesture: 'aha',
+    speaking: g.speaking,
+    sentenceId: g.sentenceId,
+    prevSentenceId: g.prevSentenceId,
+    sentenceT: g.sentenceT,
+    wordTimes: g.gWordTimes,
+  });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) * (1 - rP) : 0;
   drawStickmanV2(
     ctx, W * 0.14, H * 0.667, 1.3, t,

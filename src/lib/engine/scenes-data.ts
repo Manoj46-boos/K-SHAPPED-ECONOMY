@@ -16,11 +16,13 @@ import { drawStickmanV2, talkAt } from './stickman-v2';
 import { registerRect, registerText } from './collision';
 
 // v10 (panel COLOR-2): bg() takes an optional PLATE tone — data scenes sit on
-// a soft tinted plate instead of raw white. Host/statement scenes keep the
-// open stage (the plate is a "data room" device; the stage is a "stage").
+// a soft tinted plate instead of raw white.
+// P1-2 (report §12.2): the plate is no longer optional — EVERY scene sits in
+// a room. Callers that hand-picked a tone keep it; the rest inherit the
+// chapter's tone (the color journey), so the whole film carries a field.
 function bg(g: SceneCtx, seed: number, gold = 0.4, plate?: 'up' | 'down' | 'gold' | 'neutral'): void {
   paintBg(g.ctx, g.W, g.H, g.t, g.chapterTone);
-  if (plate) scenePlate(g.ctx, g.W, g.H, plate);
+  scenePlate(g.ctx, g.W, g.H, plate ?? g.chapterTone ?? 'up');
   bokehField(g.ctx, g.W, g.H, g.t, { intensity: 0.75, seed, gold });
   lightRays(g.ctx, g.W, g.H, g.t, { alpha: 0.45 });
   kMotifs(g.ctx, g.W, g.H, g.t, 0.04);
@@ -63,8 +65,16 @@ function hostSmall(
   // analytic spring — same motion grammar as the main host's talk cycle.
   const tInto = Math.min(ph - idx, 1 - (ph - idx)) * 3000;
   const k = clamp01(tInto / 620);
-  const poseA = Stickman.poseAt(g.t, { gesture: cycle[idx % 4], speaking: g.speaking });
-  const poseB = Stickman.poseAt(g.t, { gesture: cycle[(idx + 1) % 4], speaking: g.speaking });
+  // P1-6 (report §12.6): the owner/worker pair keys off the sentence
+  // grammar too — same ids, same word onsets, their own gesture cycle.
+  const sentOpts = {
+    sentenceId: g.sentenceId,
+    prevSentenceId: g.prevSentenceId,
+    sentenceT: g.sentenceT,
+    wordTimes: g.gWordTimes,
+  };
+  const poseA = Stickman.poseAt(g.t, { gesture: cycle[idx % 4], speaking: g.speaking, ...sentOpts });
+  const poseB = Stickman.poseAt(g.t, { gesture: cycle[(idx + 1) % 4], speaking: g.speaking, ...sentOpts });
   const w = k > 0 ? clamp01(springTo(0, 1, k * 620, 150, 19)) : 0;
   let pose = w > 0 ? blendPose(poseA, poseB, w) : poseA;
   if (reaction > 0.5) pose = Stickman.poseAt(g.t, { gesture: 'aha', speaking: false });
@@ -1104,6 +1114,9 @@ export function recessionGaugeScene(g: SceneCtx): void {
 export function aiDatacenterScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   paintBg(ctx, W, H, t, g.chapterTone);
+  // P1-2 (report §12.2): the datacenter room plate — the biggest build-out
+  // scene was the last raw-white room in the film.
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up');
   bokehField(ctx, W, H, t, { intensity: 1.15, seed: 171, gold: 0.5 });
   // perspective floor grid
   // PANEL-12 / P3-2 (report §15.2): the floor must register as a FLOOR —
@@ -1278,7 +1291,14 @@ export function aiDatacenterScene(g: SceneCtx): void {
   // datacenter floor (bottom-right, presenting the racks) with the talk
   // envelope. One drawStickmanV2 call; the scene keeps its full layout.
   {
-    const pose = Stickman.poseAt(t, { gesture: 'present', speaking: g.speaking });
+    const pose = Stickman.poseAt(t, {
+      gesture: 'present',
+      speaking: g.speaking,
+      sentenceId: g.sentenceId,
+      prevSentenceId: g.prevSentenceId,
+      sentenceT: g.sentenceT,
+      wordTimes: g.gWordTimes,
+    });
     const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
     // v9 (report D-02): H*0.88 → H*0.68 — above the caption zone with
     // worst-case camera margin (guard-verified)

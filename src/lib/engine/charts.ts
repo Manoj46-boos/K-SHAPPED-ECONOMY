@@ -4,7 +4,7 @@
  * All light-theme, all deterministic functions of (t, p).
  */
 
-import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, easeOutQuad, lerp } from './easing';
+import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, easeOutQuad, lerp, springTo } from './easing';
 import { PALETTE, TONE, card, chip, rgba, roundRect, setFont, fitText, TYPE_FLOOR } from './theme';
 import { registerRect, registerFixed, registerText } from './collision';
 
@@ -238,8 +238,34 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     // every label keeps its AA contrast.
     const strokeCol = tone.vivid ?? tone.main;
     const pts = toPx(s, x, y, w, h, yMin, yMax);
-    const nVisible = Math.max(2, Math.floor(pts.length * reveal));
-    const vis = pts.slice(0, nVisible);
+    // P1-4 (report §12.4): reveal by cumulative ARC LENGTH, not point count.
+    // The old floor(pts.length * reveal) drew a fixed number of points per
+    // tick — a plotter pen moving at constant speed regardless of the data.
+    // Keying the reveal to travelled distance makes the line ACCELERATE
+    // down steep trends and crawl across flats — the read of live data
+    // being drawn by the market, not by a machine. The head is interpolated
+    // inside the current segment so the tip moves smoothly at 30fps.
+    const segLen: number[] = [0];
+    for (let k = 1; k < pts.length; k++) {
+      segLen[k] = segLen[k - 1] + Math.hypot(pts[k].x - pts[k - 1].x, pts[k].y - pts[k - 1].y);
+    }
+    const totalL = segLen[segLen.length - 1];
+    const targetL = totalL * reveal;
+    let nVisible = 1;
+    while (nVisible < pts.length && segLen[nVisible] < targetL) nVisible++;
+    let vis = pts.slice(0, Math.max(2, nVisible));
+    if (reveal < 0.999 && nVisible < pts.length) {
+      const seg0 = segLen[nVisible - 1];
+      const seg1 = segLen[nVisible];
+      if (seg1 > seg0) {
+        const f = (targetL - seg0) / (seg1 - seg0);
+        const lastVis = vis[vis.length - 1];
+        vis = [...vis, {
+          x: lastVis.x + (pts[nVisible].x - lastVis.x) * f,
+          y: lastVis.y + (pts[nVisible].y - lastVis.y) * f,
+        }];
+      }
+    }
     // glow underlay
     ctx.strokeStyle = rgba(strokeCol, 0.16);
     ctx.lineWidth = lineWidth * 2.6;
@@ -642,8 +668,15 @@ export function gauge(
     ctx.fillText(`${v}%`, tx, ty);
   }
   // needle with spring
-  const spring = Math.sin(clamp01(p / 0.8) * Math.PI) * 0.05 * (1 - clamp01(p / 0.8));
-  const na = needleA + spring;
+  // P1-3 (report §12.3): a REAL under-damped settle. The old term was a
+  // single half-sine bulge — one swell, no oscillation, the needle never
+  // crossed its target. The film already shipped a closed-form spring
+  // (springTo); the needle now uses it: 900ms at stiffness 60 / damping 7.5
+  // swings ~2 visible cycles around the target. (wob − 1) modulates a
+  // ±0.055 rad arc term — the needle trails below target on the sweep,
+  // crosses it, overshoots, and settles, like a dial with mass.
+  const wob = springTo(0, 1, clamp01(p / 0.8) * 900, 60, 7.5);
+  const na = needleA + (wob - 1) * 0.055;
   ctx.strokeStyle = PALETTE.ink;
   ctx.lineWidth = 7;
   ctx.beginPath();
@@ -658,14 +691,17 @@ export function gauge(
   ctx.beginPath();
   ctx.arc(cx, cy, 5, 0, Math.PI * 2);
   ctx.fill();
-  // value
-  if (p > 0.7) {
-    const ap = clamp01((p - 0.7) / 0.3);
-    ctx.globalAlpha = ap;
+  // value — P1-3 (report §12.3): the number counts UP WITH the needle.
+  // The old p>0.7 gate held the number back until the needle had already
+  // finished — a gauge that settles, then its readout boots. The readout
+  // now rides the same spring (wob): it sweeps with the needle, overshoots
+  // with it, and lands with it. One clock, one instrument.
+  {
+    ctx.globalAlpha = clamp01(p * 4); // fast fade-in over the first quarter
     ctx.textAlign = 'center';
     setFont(ctx, 64, 700);
     ctx.fillStyle = PALETTE.ink;
-    ctx.fillText(`${Math.round(value * easeOutCubic(clamp01(p / 0.8)))}%`, cx, cy - r * 0.18);
+    ctx.fillText(`${Math.round(value * wob)}%`, cx, cy - r * 0.18);
     if (opts.label) {
       setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 25→28 floor
       ctx.fillStyle = PALETTE.inkSoft;

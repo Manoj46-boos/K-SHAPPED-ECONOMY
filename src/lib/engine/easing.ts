@@ -134,6 +134,19 @@ export function hashPick<T>(n: number, arr: T[]): T {
   return arr[Math.floor(hash01(n) * arr.length) % arr.length];
 }
 
+/** P1-6 (report §12.6): deterministic STRING hash → 0..1 (FNV-1a). Lets
+ *  callers key pseudo-random choices to stable string ids — e.g. picking a
+ *  talk gesture from the sentence's line id — the way hash01 keys by number.
+ *  Same string → same pick, every render, every scrub. */
+export function hashStr(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 4294967296;
+}
+
 /** Smooth value noise in 1D — organic drift without a noise library. */
 export function noise1(x: number): number {
   const i = Math.floor(x);

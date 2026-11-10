@@ -136,6 +136,14 @@ export function limb2(
  * aligned to the forearm's angle — thumb + two fingers — read as a HAND at
  * any scale, including the 320px phone-feed test where the disc read as
  * noise. Drawn AFTER the limb so the fingers extend past the wrist joint.
+ *
+ * P1-7 (report §12.7): TAPERED 3-FINGER FAN + OPPOSED THUMB. The v12.2 glyph
+ * was three EQUAL stubs at uniform width — a claw, not a hand; the report's
+ * spec is a splayed fan (three fingers at different lengths and splay
+ * angles) drawn with the rig's existing taper() (thick at the palm, thin at
+ * the tip — mass where the finger joins, line where it ends), plus the
+ * opposed thumb at a −66° offset: the ONE stroke that makes gestures
+ * legible verbs (point, count, hold) at phone scale.
  */
 function handGlyph(
   ctx: CanvasRenderingContext2D,
@@ -144,17 +152,26 @@ function handGlyph(
   s: number, col: string         // s ≈ 13 at scale 1, grows with rig scale
 ): void {
   const a = forearmAngle * D2R;
-  ctx.strokeStyle = col;
-  ctx.lineCap = 'round';
-  // thumb + two fingers — reads as a hand at any scale, draws in 3 strokes
-  const fingers: Array<[number, number]> = [[-0.42, 0.85], [0, 1.05], [0.42, 0.8]];
-  for (const [off, len] of fingers) {
-    ctx.lineWidth = s * 0.42;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + Math.sin(a + off) * s * len, y + Math.cos(a + off) * s * len);
-    ctx.stroke();
+  // the fan: index..outer, splayed. Panel re-review calibration round 2:
+  // (1) fingers now root PAST the wrist point (+0.18s along the forearm) —
+  // the forearm's round cap was swallowing the finger bases and the whole
+  // palm zone read as one blob; (2) base mass up again (0.72s) with the
+  // same whip tip (0.22s) so the thick-to-thin read survives a 320px feed;
+  // (3) the thumb's opposing angle opens −66° → −77° and it thickens to
+  // 0.72s at the base — a pincer you can read mid-gesture.
+  const bx = x + Math.sin(a) * s * 0.18;
+  const by = y + Math.cos(a) * s * 0.18;
+  const fingers: Array<[number, number, number]> = [
+    [-0.50, 0.92, 0.95], [-0.12, 1.14, 1.1], [0.28, 0.96, 1.0],
+  ];
+  for (const [off, len, wid] of fingers) {
+    taper(ctx, bx, by, bx + Math.sin(a + off) * s * len,
+      by + Math.cos(a + off) * s * len, s * 0.72 * wid, s * 0.22 * wid, col);
   }
+  // the OPPOSED thumb — ~77° against the fan, thick at the base, short:
+  // the pincer that makes "holding" readable
+  taper(ctx, bx, by, bx + Math.sin(a - 1.35) * s * 0.68,
+    by + Math.cos(a - 1.35) * s * 0.68, s * 0.72, s * 0.26, col);
 }
 
 /**
@@ -398,10 +415,14 @@ export function drawStickmanV2(
   taper(ctx, 0, pelvisY + 4, neckX, neckY, 15, 22, ink);
 
   // gold scarf (brand) — P0-4: knot + the filled two-tone ribbon tail.
-  // P1-4: wave amplitude couples to body motion (×1.8 while walking).
+  // P1-4/P1-5 (report §12.5): wave amplitude couples to body motion — and
+  // the walk coupling rises 1.8 → 3.2: at 1.8 the scarf only kept pace with
+  // the stride; at 3.2 it ANSWERS it (the fabric trails each plant and
+  // whips on the push-off — a secondary action that says "there is mass
+  // and air here", the classic follow-through tell).
   if (r.scarf !== false) {
     const wave =
-      Math.sin(t / 700 + seed) * 6 * (r.walkPhase !== undefined ? 1.8 : 1);
+      Math.sin(t / 700 + seed) * 6 * (r.walkPhase !== undefined ? 3.2 : 1);
     ctx.fillStyle = PALETTE.gold;
     ctx.beginPath();
     ctx.ellipse(neckX, neckY + 4, 13, 8, leanR * 0.6, 0, Math.PI * 2);
