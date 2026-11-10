@@ -33,7 +33,7 @@ if (!fs.existsSync(path.join(BUILD, 'director.js'))) {
   const files = [
     'theme', 'easing', 'effects', 'stickman', 'stickman-v2', 'charts', 'textfx',
     'scene-context', 'scene-props', 'scenes-host', 'scenes-data', 'scenes-text',
-    'analytics', 'script-data', 'timeline', 'director',
+    'analytics', 'script-data', 'timeline', 'director', 'thumbnail', 'shorts',
   ].map((f) => path.join(REPO, 'src', 'lib', 'engine', f + '.ts'));
   execSync(
     ['node_modules/.bin/tsc', ...files,
@@ -180,6 +180,130 @@ for (const [name, r] of picks) {
   console.log(`rendered ${name} @ ${(r.t / 1000).toFixed(1)}s (${r.label})`);
 }
 
+// ── AUDIT-2 / §10.7 (report Phase 6): THE NUMERIC VALIDATION LOOP ────────────
+// The three acceptance metrics this report measured, now encoded as guards
+// that FAIL the build — exactly as the collision guard already fails on
+// plating. Fix-logs describe intentions; frames describe outcomes.
+//   (1) NEAR-WHITE CEILING 58 — the film's own bar, now enforced on every
+//       picked 16:9 frame AND a native 9:16 Shorts frame (the Shorts path
+//       once shipped 93.5% against this same bar);
+//   (2) STROKE FLOOR 4px at the 320px feed downsample — the design referee
+//       is not the 1080p canvas, it is the phone feed;
+//   (3) FACE-INK FLOOR — the host's head zone at feed scale must carry
+//       visible feature ink (eyes/brows), or the brand asset is destroyed.
+const NEAR_WHITE_CEILING = 58;
+const STROKE_FLOOR_PX = 4;
+const FACE_INK_FLOOR = 6;
+let metricViolations = 0;
+
+function nearWhitePct(c) {
+  const W = c.width, H = c.height;
+  const d = c.getContext('2d').getImageData(0, 0, W, H).data;
+  let nw = 0;
+  const n = W * H;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i] > 235 && d[i + 1] > 235 && d[i + 2] > 235) nw++;
+  }
+  return 100 * nw / n;
+}
+// widest horizontal run of dark ink in a downscaled frame + its location
+function widestInkRun(c) {
+  const W = c.width, H = c.height;
+  const d = c.getContext('2d').getImageData(0, 0, W, H).data;
+  let best = { run: 0, x: 0, y: 0 };
+  for (let y = 0; y < H; y++) {
+    let run = 0, sx = 0;
+    for (let x = 0; x <= W; x++) {
+      const i = (y * W + x) * 4;
+      const dark = x < W && (d[i] + d[i + 1] + d[i + 2]) < 330; // ink-dark
+      if (dark) { if (run === 0) sx = x; run++; }
+      else {
+        if (run > best.run) best = { run, x: sx + run / 2, y };
+        run = 0;
+      }
+    }
+  }
+  return best;
+}
+function faceInkPx(c, torso) {
+  // dark-ink pixel count in the head zone: above the torso row, same column
+  const W = c.width, H = c.height;
+  const d = c.getContext('2d').getImageData(0, 0, W, H).data;
+  const x0 = Math.max(0, Math.round(torso.x - 14));
+  const x1 = Math.min(W - 1, Math.round(torso.x + 14));
+  const y0 = Math.max(0, Math.round(torso.y - 34));
+  const y1 = Math.max(0, Math.round(torso.y - 6));
+  let ink = 0;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const i = (y * W + x) * 4;
+      if ((d[i] + d[i + 1] + d[i + 2]) < 330) ink++;
+    }
+  }
+  return ink;
+}
+function feedDownscale(c) {
+  const f = createCanvas(320, Math.round(320 * c.height / c.width));
+  const fc = f.getContext('2d');
+  fc.imageSmoothingQuality = 'high';
+  fc.drawImage(c, 0, 0, f.width, f.height);
+  return f;
+}
+
+// (1) near-white ceiling on every picked frame
+for (const p of targets) {
+  // re-render deterministically is unnecessary; reload the PNG bytes
+  const img = new (require('canvas').Image)();
+  img.src = fs.readFileSync(p);
+  const c = createCanvas(img.width, img.height);
+  c.getContext('2d').drawImage(img, 0, 0);
+  const pct = nearWhitePct(c);
+  const name = path.basename(p);
+  if (pct > NEAR_WHITE_CEILING) {
+    metricViolations++;
+    console.error(`  !! NEAR-WHITE ${name}: ${pct.toFixed(1)}% > ${NEAR_WHITE_CEILING}% ceiling`);
+  }
+}
+// (2) + (3): stroke & face-ink at the 320px feed referee (host + shorts)
+{
+  const { drawShortFrame, pickShortMoments } = require(path.join(BUILD, 'shorts.js'));
+  const specs = pickShortMoments(tl);
+  const sc = createCanvas(1080, 1920);
+  const off = createCanvas(1920, 1080);
+  const spec = specs[1] ?? specs[0];
+  drawShortFrame(sc.getContext('2d'), off, tl, spec, spec.startMs + 12000, OPTS);
+  const shortPct = nearWhitePct(sc);
+  console.log(`  [metric] Shorts frame near-white: ${shortPct.toFixed(1)}% (ceiling ${NEAR_WHITE_CEILING}%)`);
+  if (shortPct > NEAR_WHITE_CEILING) {
+    metricViolations++;
+    console.error(`  !! NEAR-WHITE short-9x16: ${shortPct.toFixed(1)}% > ${NEAR_WHITE_CEILING}% ceiling`);
+  }
+  // stroke + face at feed scale on a host-bearing frame (cold open = the
+  // biggest host render; fall back to chartJourney's climber, then any)
+  const hostPng =
+    targets.find((p) => path.basename(p).startsWith('01-')) ??
+    targets.find((p) => path.basename(p).startsWith('06-')) ??
+    targets.find((p) => path.basename(p).startsWith('02-'));
+  if (hostPng) {
+    const img = new (require('canvas').Image)();
+    img.src = fs.readFileSync(hostPng);
+    const hc = createCanvas(img.width, img.height);
+    hc.getContext('2d').drawImage(img, 0, 0);
+    const feed = feedDownscale(hc);
+    const torso = widestInkRun(feed);
+    console.log(`  [metric] host stroke @320px feed: ${torso.run}px (floor ${STROKE_FLOOR_PX}px) · face ink: ${faceInkPx(feed, torso)}px (floor ${FACE_INK_FLOOR})`);
+    if (torso.run < STROKE_FLOOR_PX) {
+      metricViolations++;
+      console.error(`  !! STROKE host @320px: ${torso.run}px < ${STROKE_FLOOR_PX}px floor`);
+    }
+    const fi = faceInkPx(feed, torso);
+    if (fi < FACE_INK_FLOOR) {
+      metricViolations++;
+      console.error(`  !! FACE-INK host @320px: ${fi}px < ${FACE_INK_FLOOR}px floor (face destroyed at feed scale)`);
+    }
+  }
+}
+
 // ── v9 (report P0-1): full-film collision sweep — every 4s by default ───────
 if (guard && !process.argv.includes('--no-sweep')) {
   const step = 4000;
@@ -228,8 +352,8 @@ if (guard && !process.argv.includes('--no-sweep')) {
   );
 }
 
-if (guardViolations) {
-  console.error(`\n✗ COLLISION GUARD FAILED: ${guardViolations} violation(s) — fix the scene layout before rendering.`);
+if (guardViolations || metricViolations) {
+  console.error(`\n✗ RENDER CHECK FAILED: ${guardViolations} collision(s), ${metricViolations} metric violation(s) — fix the scene layout before rendering.`);
   process.exit(1);
 }
 

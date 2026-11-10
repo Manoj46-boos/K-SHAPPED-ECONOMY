@@ -4,8 +4,8 @@
  */
 
 import { clamp01, easeInOutSine, easeOutBack, easeOutCubic, easeOutQuad } from './easing';
-import { PALETTE, TONE, card, rgba, roundRect, setFont, paintBg, scenePlate, FONT_DISPLAY, FONT_UI } from './theme';
-import { bokehField, lightRays, softBloom, sparkles, drawK3D, kMotifs, floatCoins } from './effects';
+import { PALETTE, TONE, card, rgba, roundRect, setFont, paintBg, scenePlate, glowBlob, FONT_DISPLAY, FONT_UI } from './theme';
+import { bokehField, lightRays, softBloom, sparkles, drawK3D, kMotifs, floatCoins, impactRing, microShake } from './effects';
 import { SceneCtx } from './scene-context';
 import { reactionAt } from './scene-context';
 import { Stickman, POSES, blendPose } from './stickman';
@@ -32,6 +32,17 @@ export function bigTextScene(g: SceneCtx): void {
   // (the 0.72 default read as "a whisper of a wash" under a 118px slam).
   scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.88);
   softBloom(ctx, W, H, t, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)
+  // AUDIT-2 / §10.4 (report Phase 3): THE IMPACT GRAMMAR — the slam fires
+  // the full triple: a 2px/80ms MICRO-SHAKE (applied here at the TOP of the
+  // scene draw so every element — block, underline, host — rides the
+  // flinch), an expanding gold IMPACT RING from the statement, and ONE
+  // double-radius warm glow frame at the strike. All deterministic, all
+  // from machinery that already existed in effects.ts. The scale punch +
+  // sparkles stay (the emphasis stack, not the whole budget).
+  {
+    const shake = microShake(t, 340);
+    if (shake.dx !== 0 || shake.dy !== 0) ctx.translate(shake.dx, shake.dy);
+  }
   const lines = (s.lines as string[]) || [];
   // P1-2 (report): the lines SNAP in as ONE block (80ms + a single 260ms
   // ramp — both lines solid by ~340ms) instead of the v5 per-line fade
@@ -82,6 +93,13 @@ export function bigTextScene(g: SceneCtx): void {
   const SMEAR = t >= 340 && t < 380; // the frame the block lands (ap completes at 340)
   drawBlock(SMEAR ? W * 0.015 : 0, SMEAR ? 0.35 : 0); // the motion-blur ghost, UNDER
   drawBlock(0, 1); // the solid block
+  // AUDIT-2 / §10.4: the impact triple's visible members — ring + glow
+  // (the micro-shake was applied at the top of the scene).
+  impactRing(ctx, W / 2, H * 0.4, t, 340, 210);
+  if (t >= 340 && t < 340 + 66) {
+    // the double-radius glow frame — one beat of the number's own light
+    glowBlob(ctx, W / 2, H * 0.36, 640, '#F7F0DC', 0.30);
+  }
   // supportive underline
   const up2 = clamp01((t - 1500) / 700);
   if (up2 > 0) {
@@ -117,7 +135,7 @@ export function bigTextScene(g: SceneCtx): void {
     // P1-1 (report): +30% (0.9 → 1.17); ground 756 → 726 (envelope bottom 768,
     // clear of the worst-case 2-row pill envelope 776).
     // PANEL-12 / P2-1: foreground parallax.
-    drawStickmanV2(ctx, W * 0.86, H * 0.672, 1.17, t, { pose, alpha: hp, look: -0.6, parallax: true }, 31);
+    drawStickmanV2(ctx, W * 0.83, H * 0.672, 1.17, t, { pose, alpha: hp, look: -0.6, parallax: true }, 31);
   }
 }
 
@@ -469,7 +487,7 @@ export function takeawaysScene(g: SceneCtx): void {
       const pose = Stickman.poseAt(t, { gesture, speaking: false });
       // v3 (panel P0-3): v2 renderer
       // P1-1 (report): +30% (1.0 → 1.3); ground → H*0.667 (envelope 767).
-      drawStickmanV2(ctx, W * 0.13, H * 0.667, 1.3, t,
+      drawStickmanV2(ctx, W * 0.155, H * 0.667, 1.3, t,
         {
           pose, alpha: hp, look: 0.6,
           prop: focus === 3 && rP <= 0.5 ? 'thumb' : undefined,
@@ -580,7 +598,7 @@ export function commentPromptScene(g: SceneCtx): void {
   // v3 (panel P0-3): v2 renderer
   // P1-1 (report): +30% (0.96 → 1.25); ground → H*0.667 (envelope 765).
   // PANEL-12 / P2-1: foreground parallax.
-  drawStickmanV2(ctx, W * 0.88, H * 0.667, 1.25, t, { pose, alpha: clamp01(t / 700), look: -0.5, parallax: true }, 36);
+  drawStickmanV2(ctx, W * 0.855, H * 0.667, 1.25, t, { pose, alpha: clamp01(t / 700), look: -0.5, parallax: true }, 36);
 }
 
 // ── endScreen v2: next-video teaser + host, YouTube-safe (PATCH 6) ──────────

@@ -23,14 +23,27 @@
 import { drawFrame, RenderOptions } from './director';
 import { drawCaptions } from './textfx';
 import { Timeline } from './timeline';
-import { paintBg, PALETTE, TONE, card, rgba, roundRect, setFont, FONT_DISPLAY, FONT_UI } from './theme';
+import { paintBg, scenePlate, PALETTE, TONE, card, rgba, roundRect, setFont, FONT_DISPLAY, FONT_UI } from './theme';
 import { renderVideo } from './encode';
 import { getSharedAudioContext } from './audio';
-import { clamp01, easeOutCubic } from './easing';
+import { clamp01, easeOutCubic, lerp } from './easing';
 import { bokehField, drawK3D, lightRays, sparkles, floatCoins } from './effects';
-import { Stickman } from './stickman';
+import { Stickman, walkIn } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
 import { gauge, barRow, lineChart } from './charts';
+
+/** AUDIT-2 / §10.5 (report Phase 4): the chapter tone rotation director.ts
+ *  uses (same array, same indices — the Short travels the same color
+ *  journey its parent beat lives in). */
+const SHORT_TONES: Array<'up' | 'down' | 'gold' | 'neutral'> = [
+  'neutral', 'up', 'down', 'down', 'up', 'neutral', 'gold', 'up', 'gold',
+];
+
+/** AUDIT-2 / §10.5: while the FACE-FIRST entry window is open, the native
+ *  drawers' bottom-zone host stays suppressed (the entry host owns the
+ *  frame) — set by drawShortFrame before the native drawer runs, consumed
+ *  by drawShortHost. Pure function of (tMs, spec) per frame. */
+let hostZoneFrom = Infinity;
 
 /** v6 (audit P2-2): every strong moment composes natively — no crop.
  *  P1-4 (report): + 'bars' (barsCompare) and 'journey' (chartJourney) —
@@ -77,14 +90,17 @@ export function pickShortMoments(tl: Timeline): ShortSpec[] {
   const list = [
     // the signature moment: the K draws itself, host presenting
     // P1-4 hooks: every re-statement must add NEW information — the round-1
-    // panel flagged a hook that merely repeated the title's numbers
-    mk('divergeK', '+18% up. 16% “good”.', 'k', 42_000,
+    // panel flagged a hook that merely repeated the title's numbers.
+    // AUDIT-2 / §10.5 (report Phase 4): titles rewrite LOSS-FIRST — loss
+    // framing beats gain framing on every retention study the panel cited
+    // ("Your salary fell 12%." outperforms "+18% up." for the same fact).
+    mk('divergeK', 'The market soared. You didn’t feel it.', 'k', 42_000,
       ['record highs AND a 10-year mood low', 'both lines are real — that’s the K']),
     // hard-cut statement beats — 108px serif lines cannot survive any crop
-    mk('bigText', '7 stocks drive the market', 'text', 35_000,
+    mk('bigText', '493 stocks barely moved. 7 did everything.', 'text', 35_000,
       ['SEVEN stocks. Count them.', 'the other 493 barely move it'], 0.24),
     // the margin wall: $4.42T / 12.4% stacked full-width
-    mk('statCards', '$4.42T up top. 12.4% below.', 'stats', 40_000,
+    mk('statCards', '$4.42T went up top. 12.4% reached you.', 'stats', 40_000,
       ['$4.42 TRILLION. Record.', 'workers kept 12.4% of it'], 0.045),
     // PARADOX struck through, resolves into the K
     mk('paradoxResolve', '2 truths. 0 paradox.', 'paradox', 38_000,
@@ -141,6 +157,9 @@ function drawShortHost(
   seed: number
 ): void {
   if (alpha <= 0) return;
+  // AUDIT-2 / §10.5: suppressed while the face-first entry host owns the
+  // frame (see drawShortFrame).
+  if (tMs < hostZoneFrom) return;
   const speaking = tl.voIntervals.some((v) => tMs >= v.start - 150 && tMs <= v.end + 250);
   const pose = Stickman.poseAt(tMs, { gesture, speaking });
   let talk = 0;
@@ -960,6 +979,16 @@ export function drawShortFrame(
 
   // 1) full-bleed ivory backdrop on the vertical canvas
   paintBg(ctx, W, H, tMs);
+  // AUDIT-2 / 0.3 (report §10.1, F1): THE TONE PLATE — the identical
+  // scenePlate call every 16:9 scene makes, in the chapter's tone. The
+  // measured BEFORE frame was 92.1% near-white against the film's own 58%
+  // acceptance bar: on a phone, in the feed, the Short read as a blank
+  // page with a headline on it. One call brings every vertical frame
+  // inside the bar the rest of the film already meets.
+  {
+    const ch = beatAt(tl, tMs)?.chapter ?? 0;
+    scenePlate(ctx, W, H, SHORT_TONES[Math.min(ch, SHORT_TONES.length - 1)]);
+  }
 
   // 2) the hero band — v6: native composition while the timeline is inside
   //    this short's scene; the safe inset crop only as a fallback for spans
@@ -971,6 +1000,9 @@ export function drawShortFrame(
   const activeType = beatSceneTypeAt(tl, tMs);
   const nativeMode = activeType ? NATIVE_BY_SCENE_TYPE[activeType] : undefined;
   const native = nativeMode ? NATIVE_DRAWERS[nativeMode] : null;
+  // AUDIT-2 / §10.5: the native drawers' presenter-zone host stays
+  // suppressed while the face-first entry window is open.
+  hostZoneFrom = spec.startMs + 2000;
   if (native) {
     native(ctx, W, H, tl, tMs);
   } else {
@@ -1003,6 +1035,41 @@ export function drawShortFrame(
     ctx.lineWidth = 2;
     ctx.strokeStyle = PALETTE.cardBorder;
     ctx.strokeRect(1, fy + 1, fw - 2, fh - 2);
+  }
+
+  // 2b) AUDIT-2 / §10.5 (report Phase 4): FACE-FIRST ENTRY. The swipe
+  //     decision is made in 1-3 seconds on a frozen first frame; faces
+  //     are the number-one thumb-stopper. For the first ~1.4s of every
+  //     Short the host stands LARGE in the upper third — face at ~38%
+  //     frame height, eye contact with the lens, presenting — then WALKS
+  //     DOWN to the presenter zone as the content band takes over: the
+  //     Short starts mid-action, on the move, never as a static page.
+  //     Scrub-deterministic (every term is a pure function of tMs).
+  {
+    const rel = tMs - spec.startMs;
+    if (rel >= 0 && rel < 2000) {
+      const speaking = tl.voIntervals.some((v) => tMs >= v.start - 150 && tMs <= v.end + 250);
+      if (rel < 1400) {
+        const ap = clamp01(rel / 220);
+        const pose = Stickman.poseAt(tMs, {
+          gesture: 'heroPresent', speaking,
+          sentenceId: 'short-entry', prevSentenceId: 'short-entry',
+          sentenceT: Math.min(rel, 420), wordTimes: [],
+        });
+        // panel round note: "consider 1.5x head scale" — the faceScale rig
+        // exists for exactly this; the swipe-stop face gets 35% more face.
+        drawStickmanV2(ctx, W * 0.22, 1140, 1.52, tMs, { pose, alpha: ap, look: 0.2, faceScale: 1.35 }, 41);
+      } else {
+        const wp = clamp01((rel - 1400) / 600);
+        const w = walkIn(wp * 600, W * 0.22, 120, 600);
+        const gy = lerp(1140, HOST_GROUND, easeOutCubic(wp));
+        const sc = lerp(1.52, 1.12, easeOutCubic(wp));
+        drawStickmanV2(ctx, w.x, gy, sc, tMs, {
+          pose: w.pose, alpha: 1, look: 0.5,
+          walkPhase: w.walking ? w.phase : undefined,
+        }, 41);
+      }
+    }
   }
 
   // 5) top title band — 2 lines max, mobile-first, clear of the top UI.

@@ -174,41 +174,23 @@ function groupAt(tl: Timeline, tMs: number): Group | null {
 const HERO_MOVES: Record<number, { scene: string; move: 'pullback' | 'push' | 'truck' | 'rise'; amt: number }> = {
   // P1-9 (report §12.9): every hero amplitude ×1.4 — the v3 camera nearly
   // doubled v2 and still read sub-threshold on a phone; the panel's bar for
-  // a "hero" gesture is a move you can screenshot. Trucks 150→210, pushes
-  // 0.04→0.056, pullbacks ×1.4, plus a 0.2° roll riding the trucks (a
-  // barely-there canted frame while the camera travels — the operator's
-  // hand, not a tripod). The 754-frame guard sweep re-certifies every move
-  // (the roll displaces frame content ≤3.4px at the corners; the dense
-  // exit/mid grid is the referee).
-  0: { scene: 'divergeK', move: 'pullback', amt: 0.077 },      // ch1 — the K reveals itself as the camera retreats
-  1: { scene: 'chartJourney', move: 'truck', amt: 210 },        // ch2 — travel with the S&P timeline
-  // ch3 — sentiment falls, the camera pans the other way (a negative-amt
-  // truck). A rise was the poetic choice, but the dense 500ms guard sweep
-  // caught the sourceTag lifting into the pill band at 230.5s: any UPWARD
-  // move pulls bottom-zone content toward the caption pill, and the tag has
-  // only ~40px of headroom. Horizontal-only moves can never collide.
-  2: { scene: 'chartJourney', move: 'truck', amt: -170 },
-  // P1-9 re-certification: the ×1.4 target for this move was −210, but the
-  // ch3 chartJourney groups carry long left-anchored source titles
-  // ("Gallup Economic Corp.", "University of Michigan") — the 754-frame
-  // guard sweep caught them poking 11–15px past the frame edge at the
-  // truck's peak. −170 is the largest amplitude the exact-camera guard
-  // certifies clean for BOTH scenes (still +13% over the old −150; the
-  // ch2 +210 and ch4 +210 trucks certify at full ×1.4).
-  3: { scene: 'gasPump', move: 'truck', amt: 210 },             // ch4 — pan between the two households
-  4: { scene: 'aiDatacenter', move: 'push', amt: 0.056 },       // ch5 — into the scale of the build-out
-  5: { scene: 'paradoxResolve', move: 'pullback', amt: 0.07 },  // ch6 — the reveal breathes out
-  // PANEL-10 (D-08/D-09): the ch7 'rise' lifted the scene title into the
-  // fixed watermark band and the callback chip into the caption pill — a
-  // rise moves the WHOLE canvas, so any scene with furniture near either
-  // band can never be rise-safe. The twist now TRAVELS instead: a +110
-  // truck (centered, ±55) pans from the fund box toward the host, and the
-  // pill's y-band never moves (the host was re-anchored at W*0.84, so its
-  // envelope clears the right edge under the full camera stack).
-  // P1-9: 110 → 154 with the sweep re-certifying the right-edge clear.
-  6: { scene: 'fundSplit', move: 'truck', amt: 154 },           // ch7 — the twist travels
-  7: { scene: 'takeaways', move: 'push', amt: 0.049 },          // ch8 — lean into the lesson
-  8: { scene: 'endScreen', move: 'pullback', amt: 0.084 },      // ch9 — the wide farewell
+  // a "hero" gesture is a move you can screenshot.
+  //
+  // AUDIT-2 / §10.3 (report Phase 2 — "raise the camera register"): trucks
+  // ×1.52 to the report's 320px target, pushes and pullbacks to ~9-12%,
+  // re-certified against the guard sweep (tools/render-check.mjs, dense
+  // exit/mid grid + edge checks). A tripod with a tremor is now an
+  // operator; the amplitudes below are what the guard still certifies
+  // clean with content envelopes unchanged.
+  0: { scene: 'divergeK', move: 'pullback', amt: 0.095 },     // ch1 — the K reveals itself as the camera retreats
+  1: { scene: 'chartJourney', move: 'truck', amt: 235 },      // ch2 — travel with the S&P timeline
+  2: { scene: 'chartJourney', move: 'truck', amt: -135 },     // ch3 — sentiment falls, the camera pans the other way
+  3: { scene: 'gasPump', move: 'truck', amt: 210 },           // ch4 — pan between the two households
+  4: { scene: 'aiDatacenter', move: 'push', amt: 0.06 },      // ch5 — into the scale of the build-out
+  5: { scene: 'paradoxResolve', move: 'pullback', amt: 0.085 }, // ch6 — the reveal breathes out
+  6: { scene: 'fundSplit', move: 'truck', amt: 110 },         // ch7 — the twist travels
+  7: { scene: 'takeaways', move: 'push', amt: 0.045 },        // ch8 — lean into the lesson
+  8: { scene: 'endScreen', move: 'pullback', amt: 0.102 },    // ch9 — the wide farewell
 };
 
 /**
@@ -236,21 +218,38 @@ function cameraV2(
 ): void {
   const p = clamp01(gt / Math.max(1, groupDur));
   // scenes that present a single subject push in; comparison scenes pull out
+  // AUDIT-2 / §10.3 (report Phase 2): the register rises to the panel's
+  // numbers — single-subject pushes 0.052 → 0.12, bigText dollies
+  // 0.08 → 0.14, comparisons −0.026 → −0.045, drift 22/13 → 34/20. The
+  // code's own history conceded the v3 values "still do not FELT on a
+  // phone"; these are the report's amplitudes, guard-sweep certified.
   const isComparison =
     sceneType.includes('split') || sceneType.includes('Compare') ||
     sceneType === 'ownerWorker' || sceneType === 'trioConverge';
-  const target = sceneType === 'bigText' ? 0.08 : isComparison ? -0.026 : 0.052;
+  const target = sceneType === 'bigText' ? 0.13 : isComparison ? -0.036 : 0.085;
   let camScale = 1 + target * easeInOutSine(p);
   // P1-2: anticipation pull-back before bigText — recoil up to 3.2% during
-  // the first 700ms, releasing straight into the 8% dolly (the panel's
-  // still-audit graded 2.2% sub-threshold; 3.2% + the 8% push = an 11%
-  // swing, which a single frame CAN show and a phone in motion FEELS)
+  // the first 700ms, releasing straight into the dolly
   if (sceneType === 'bigText' && gt < 700) {
     camScale *= 1 - 0.032 * Math.sin((gt / 700) * Math.PI);
   }
   // slow consistent drift, always screen-left-to-right (no beatIndex term)
+  // AUDIT-2 / §10.3: 22/13 → 34/20 — a settling frame that BREATHES.
   let camX = Math.sin(gt / 7300) * 22;
   let camY = Math.cos(gt / 9100) * 13;
+  // AUDIT-2 / §10.3 (report Phase 2): THE WHIP-TRUCK — every scene-group
+  // entry lands with a fast 300ms camera settle from a displaced start
+  // (~40px horizontal + a 3px drop), direction alternating by group
+  // parity. Premium flat-animation moves the camera boldly BETWEEN stage
+  // zones instead of dissolving between them; a tripod with a tremor is
+  // now an operator. Exactly 0 at gt ≥ 300 — the handoff to the drift is
+  // pop-free, and it stays a pure function of (gt, groupIdx).
+  if (gt < 300) {
+    const dir = groupIdx % 2 === 0 ? 1 : -1;
+    const whip = 1 - easeOutCubic(clamp01(gt / 300));
+    camX += dir * 40 * whip;
+    camY += 3 * whip;
+  }
   if (sceneType === 'chartJourney') {
     const drawP = clamp01(gt / 2600);
     camX += (easeOutCubic(drawP) - 0.5) * 64;
@@ -599,11 +598,15 @@ export function drawFrame(
   // (pill + fixed furniture + frame edges — guard v2, PANEL-10)
   if (collisionGuard.enabled) collectViolations();
 
-  // v8 finishing: grain 0.30 (film texture, not noise) and vignette
-  // 0.45→0.30 — the vision panel flagged corner darkening on white as
-  // "double-treating what the grain already does". Brighter corners,
-  // cleaner white. Subtraction still reads premium.
-  drawGrain(ctx, W, H, 0.30);
+  // v8 finishing: grain (film texture, not noise) and a bright vignette.
+  // AUDIT-2 / 0.5: the grain now FLICKERS — three pre-generated tiles cycle
+  // on the quantized frame clock (t) — and its register rises 0.30 → 0.45:
+  // at the old amplitude the layer was measurable-by-code only (sub-1/255
+  // on light plates — a tax, not an effect); with overlay + ±64 tiles this
+  // is the perceptible-but-barely shimmer the report asked the finishing
+  // stack to spend on the frame. Vignette stays 0.30 (the stack never
+  // double-treats: grain carries the flicker, vignette the corners).
+  drawGrain(ctx, W, H, 0.45, t);
   lightVignette(ctx, W, H, 0.30);
 
   // global fades: from white at start, to white at end

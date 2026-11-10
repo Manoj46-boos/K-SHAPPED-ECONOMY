@@ -3,7 +3,7 @@
  * the signature "diverging K" formation, split-number reveals, channel intro.
  */
 
-import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, lerp } from './easing';
+import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, hashStr, lerp } from './easing';
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg, scenePlate, FONT_DISPLAY, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
 import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp, subjectHalo } from './effects';
 import { Stickman, POSES, blendPose, walkIn, nodPulse } from './stickman';
@@ -302,11 +302,26 @@ export function hostSceneV2(g: SceneCtx): void {
 
   // ── host at the left third, walking in then presenting ──
   const entrance = g.s.entrance as string | undefined;
-  const hxTarget = W * 0.28;
-  // PANEL-12 / P1-1: the editorial host now uses walkIn() too — the old
-  // branch eased his POSITION while holding an idle pose, which is the
-  // foot-slide defect wearing a different hat (a gliding figure). Same
-  // fix, same distance-keyed stride phase.
+  // AUDIT-2 / 1.7 (report §10.2, C8): THE HOST TRAVELS — two/three stage
+  // positions per scene, WALKED between on sentence boundaries. He was
+  // pinned at W*0.28 for entire scenes: "a presenter who never crosses the
+  // stage... is a presenter with one blocking choice". The walk-in
+  // machinery already existed and was good; it now works mid-scene too.
+  // Deterministic: each sentence's block is a hash of its line id; the
+  // entrance walks to the FIRST sentence's block, every later walk starts
+  // at the previous sentence's block — continuity is exact, no teleports.
+  // Guard-safe: all blocks sit left of the editorial column (max envelope
+  // 537+237 = 774 < 806).
+  const BLOCKS = [W * 0.24, W * 0.28, W * 0.26];
+  const blockFor = (id?: string): number => {
+    if (!id) return W * 0.28; // not speaking → the house block (old default)
+    return BLOCKS[Math.floor(hashStr(id) * BLOCKS.length) % BLOCKS.length];
+  };
+  const hxTarget = blockFor(g.sentenceId);
+  // PANEL-12 / P1-1: the editorial host uses walkIn() — the old branch
+  // eased his POSITION while holding an idle pose, which is the foot-slide
+  // defect wearing a different hat (a gliding figure). Same fix, same
+  // distance-keyed stride phase.
   let hx = hxTarget;
   let pose: import('./stickman').Pose;
   let walkPhase: number | undefined;
@@ -316,14 +331,34 @@ export function hostSceneV2(g: SceneCtx): void {
     pose = r.pose;
     if (r.walking) walkPhase = r.phase;
   } else {
-    pose = Stickman.poseAt(t, {
-      gesture: (g.s.gesture ?? 'present'),
-      speaking: g.speaking,
-      sentenceId: g.sentenceId,
-      prevSentenceId: g.prevSentenceId,
-      sentenceT: g.sentenceT,
-      wordTimes: g.gWordTimes,
-    });
+    const toX = blockFor(g.sentenceId);
+    const fromX = blockFor(g.prevSentenceId);
+    const st = g.sentenceT ?? 1e9;
+    if (Math.abs(toX - fromX) > W * 0.015 && st < 900) {
+      const r = walkIn(st, fromX, toX, 900);
+      hx = r.x;
+      pose = r.walking
+        ? r.pose
+        : Stickman.poseAt(t, {
+            gesture: (g.s.gesture ?? 'present'),
+            speaking: g.speaking,
+            sentenceId: g.sentenceId,
+            prevSentenceId: g.prevSentenceId,
+            sentenceT: g.sentenceT,
+            wordTimes: g.gWordTimes,
+          });
+      if (r.walking) walkPhase = r.phase;
+    } else {
+      hx = toX;
+      pose = Stickman.poseAt(t, {
+        gesture: (g.s.gesture ?? 'present'),
+        speaking: g.speaking,
+        sentenceId: g.sentenceId,
+        prevSentenceId: g.prevSentenceId,
+        sentenceT: g.sentenceT,
+        wordTimes: g.gWordTimes,
+      });
+    }
   }
   // v3 (panel P0-4): nods + articulate mouth on the editorial host too
   const nodP = g.speaking ? nodPulse(g.beatT, g.wordTimes) : 0;
@@ -375,10 +410,10 @@ export function hostSceneV2(g: SceneCtx): void {
   if (hp > 0) {
     ctx.save();
     ctx.globalAlpha = hp;
-    registerRect('hostV2:headline', hx2, 240, W - hx2 - 120, 320);
+    registerRect('hostV2:headline', hx2, 240, W - hx2 - 180, 320);
     let hSize = 88;
     setFont(ctx, hSize, 700, FONT_SERIF);
-    const maxHeadW = W - hx2 - 110;
+    const maxHeadW = W - hx2 - 150;
     while (Math.max(...lines.map((l) => ctx.measureText(l).width)) > maxHeadW && hSize > 54) {
       hSize -= 3;
       setFont(ctx, hSize, 700, FONT_SERIF);

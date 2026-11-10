@@ -58,10 +58,16 @@ const RESOLUTIONS = [
   { id: '720p', label: '720p — Lite (slower laptops)', w: 1280, h: 720 },
 ];
 
+// AUDIT-2 / §10.3 (report Phase 2): 60 fps is the DEFAULT — the current
+// premium standard, materially kinder to YouTube's transcode for motion
+// (3px strokes at 30fps get punished; at 60 they survive). The engine is
+// pure-function per frame, so this is a parameter, not a rewrite; the
+// render budget roughly doubles in frame count (overnight on the 8GB Dell,
+// or drop to 720p60 which the platform treats well for this class).
 const FPS_OPTIONS = [
-  { id: '30', label: '30 fps — standard' },
+  { id: '60', label: '60 fps — premium (recommended)' },
+  { id: '30', label: '30 fps — standard (faster render)' },
   { id: '24', label: '24 fps — cinematic' },
-  { id: '60', label: '60 fps — ultra smooth (slower)' },
 ];
 
 function fmtTime(ms: number): string {
@@ -83,7 +89,7 @@ export default function StudioPage() {
   // ── settings ──
   const [voice, setVoice] = useState<VoiceSettings>({ voice: 'en-US-AndrewMultilingualNeural', rate: -4, pitch: 0 });
   const [resolution, setResolution] = useState('1080p');
-  const [fps, setFps] = useState('30');
+  const [fps, setFps] = useState('60'); // AUDIT-2 §10.3: 60fps default
   const [captions, setCaptions] = useState<'karaoke' | 'simple' | 'off'>('karaoke');
   const [bgmVolume, setBgmVolume] = useState(0.55);
   const [channelName, setChannelName] = useState('The Data Desk');

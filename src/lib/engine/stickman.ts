@@ -5,7 +5,7 @@
  * breathing, blinking, brow expressions, and a signature gold scarf.
  */
 
-import { clamp01, easeOutCubic, hash01, hashStr, lerp, mix, springTo } from './easing';
+import { clamp01, drift, easeOutCubic, hash01, hashStr, lerp, mix, springTo } from './easing';
 import { PALETTE, rgba } from './theme';
 
 const D2R = Math.PI / 180;
@@ -21,6 +21,12 @@ export interface Pose {
   browRaise: number; // 0..1
   browAngle: number; // deg, positive = concerned inner-up
   smile: number;     // 0..1
+  /** AUDIT-2 / 1.5 (report §10.2, M5): per-foot vertical lift, px (positive
+   *  = up). Walk 2.0 — the swinging foot sweeps an ARC (zero at contacts,
+   *  peak mid-swing) instead of a straight line through space. Default 0
+   *  everywhere except walkPose. */
+  lLift?: number;
+  rLift?: number;
 }
 
 const base = (): Pose => ({
@@ -28,6 +34,7 @@ const base = (): Pose => ({
   lAU: -7, lAL: -4, rAU: 7, rAL: 4,
   lLU: -4, lLL: 0, rLU: 4, rLL: 0,
   browRaise: 0, browAngle: 0, smile: 0,
+  lLift: 0, rLift: 0,
 });
 
 export const POSES: Record<string, Pose> = {
@@ -74,7 +81,9 @@ export const POSES: Record<string, Pose> = {
 export function blendPose(a: Pose, b: Pose, t: number): Pose {
   const o = {} as Pose;
   (Object.keys(a) as (keyof Pose)[]).forEach((k) => {
-    o[k] = lerp(a[k], b[k], t);
+    // AUDIT-2 / 1.5: lLift/rLift are optional on Pose — lerp their
+    // defaults (0) so strict-mode builds stay clean.
+    o[k] = lerp(a[k] ?? 0, b[k] ?? 0, t);
   });
   return o;
 }
@@ -137,8 +146,26 @@ export class Stickman {
           POSES[list[Math.min(list.length - 1, Math.floor(hashStr(id) * list.length))]];
         const cyc = pick(opts.sentenceId);
         const prevPose = pick(opts.prevSentenceId ?? opts.sentenceId);
-        const k = clamp01((opts.sentenceT ?? 1e9) / 420); // sentence-entry spring
-        pose = blendPose(prevPose, cyc, clamp01(springTo(0, 1, k * 420, 150, 19)));
+        // AUDIT-2 / 1.6 (report §10.2, M1/M2 + §10.3): ARCS, CASCADE and
+        // ANTICIPATION on every sentence gesture —
+        //  • ANTICIPATION: the first 150ms blends the pose 30% AWAY from
+        //    the target (the wind-up every launched gesture needs), then
+        //    hands off to the house spring exactly at prevPose — continuity
+        //    is exact at the 150ms boundary.
+        //  • CASCADE: the forearm rides a spring lagged 70ms behind the
+        //    upper arm — shoulder arrives first, elbow a beat later: a wave
+        //    that travels down the limb instead of a puppet snap.
+        //  • ARC: while the spring runs, the wrists bias outward so the
+        //    hand traces a curve through space, not a straight line.
+        // All pure functions of (t, sentence data) — scrub-safe.
+        const st = opts.sentenceT ?? 1e9;
+        const anti = st < 150 ? Math.sin((st / 150) * Math.PI) * 0.3 : 0;
+        const sT = Math.max(0, st - 150);
+        const fUp = clamp01(springTo(0, 1, sT, 150, 19)) - anti;
+        const fLo = clamp01(springTo(0, 1, Math.max(0, sT - 70), 150, 19)) - anti * 0.7;
+        const up = blendPose(prevPose, cyc, fUp);
+        const lo = blendPose(prevPose, cyc, fLo);
+        pose = { ...up, lAL: lo.lAL, rAL: lo.rAL };
         // beat-accent: a decaying forearm pulse on each word onset — the
         // hand strikes on the emphasized word, exactly as a narrator's does
         let accent = 0;
@@ -149,7 +176,12 @@ export class Stickman {
             }
           }
         }
-        pose = { ...pose, rAL: pose.rAL + accent * 16, lAU: pose.lAU - accent * 10 };
+        const arc = Math.sin(Math.PI * clamp01(fUp));
+        pose = {
+          ...pose,
+          rAL: pose.rAL + accent * 16 + arc * 7,
+          lAU: pose.lAU - accent * 10 - arc * 5,
+        };
       } else {
         // legacy fallback (no sentence data — e.g. the shorts cutter):
         // the PANEL-12 spring cycle among the three open poses
@@ -173,9 +205,14 @@ export class Stickman {
       pose = POSES[gesture] ?? POSES.idle;
     }
     // organic life: sway + breathing (deterministic)
-    const sway = Math.sin(t / 1900 + seed * 7.3) * 2.2;
-    const breathe = Math.sin(t / 2400 + seed * 3.1) * 2.4;
-    const jitter = opts.speaking ? Math.sin(t / 610 + seed) * 1.1 : 0;
+    // AUDIT-2 (report §4.2, "the idle is perfectly periodic"): the four
+    // idle terms were PURE sines at fixed periods — after ~10s the figure
+    // read as a breathing simulator. Each term now carries a layer of
+    // incommensurate drift() (sum of three unrelated sines), which breaks
+    // the periodicity while staying a pure function of t.
+    const sway = Math.sin(t / 1900 + seed * 7.3) * 2.2 + drift(t / 3100 + seed * 2.6, 3) * 1.4;
+    const breathe = Math.sin(t / 2400 + seed * 3.1) * 2.4 + drift(t / 5300 + seed * 1.2, 5) * 1.1;
+    const jitter = opts.speaking ? Math.sin(t / 610 + seed) * 1.1 + drift(t / 1700 + seed, 9) * 0.5 : 0;
     const leaned = {
       ...pose,
       lean: pose.lean + sway * 0.4,
@@ -201,7 +238,15 @@ export class Stickman {
    *  swing amplitude — human gait is never symmetric, and the perfectly
    *  mirrored v2 cycle was the "clockwork" tell.
    *  (2) The arms evaluate the stride 0.05 of phase BEHIND the legs —
-   *  the counterbalance read that makes a walk feel weighted. */
+   *  the counterbalance read that makes a walk feel weighted.
+   *  AUDIT-2 / 1.5 (report §10.2, M5): WALK 2.0 —
+   *  (3) SWING-FOOT ARCS: each foot lifts on a sine (zero at both its
+   *      contacts, peak mid-swing) — the shoe stops sweeping a straight
+   *      line at ground level, the loudest remaining walk tell.
+   *  (4) ±2° HIP COUNTER-ROTATION (−cos of the stride rides the lean) and
+   *      a matching SHOULDER COUNTER-SWAY on the arm roots — pelvis and
+   *      shoulder girdle rotate against each other, as in every reference
+   *      walk cycle. */
   static walkPose(phase: number, speed = 1): Pose {
     const s = Math.sin(phase * Math.PI * 2);
     const c = Math.cos(phase * Math.PI * 2);
@@ -216,20 +261,28 @@ export class Stickman {
     // compress weight shift every animated walk has and every vector walk
     // lacks. Squared so the pulse is brief and percussive, not a wobble.
     const strike = Math.pow(Math.max(0, Math.abs(c) - 0.86) / 0.14, 2);
+    // AUDIT-2 / 1.5: the swing arcs — the LEFT foot's contacts are φ=0/0.5,
+    // the RIGHT's φ≈0.47/0.97 (its +0.03 lag); each lift peaks mid-swing.
+    const liftL = Math.max(0, Math.sin(phase * Math.PI * 2)) * 9 * speed;
+    const liftR = Math.max(0, Math.sin((phase - 0.47) * Math.PI * 2)) * 9 * speed;
     return {
       ...base(),
       // P1-5 (report §12.5): WEIGHT DROP — strike squash 5→9 (a visible
       // plant: the pelvis drops 9px into the contact) and a constant +3°
       // forward lean into travel (a walker committs to the direction; the
       // old 4° neutral read as strolling on a treadmill).
+      // AUDIT-2 / 1.5: hip counter-rotation −cos·2° rides the lean.
       rootY: bob + strike * 9,
-      lean: 4 + s * 2 + strike * 3 + 3,
+      lean: 4 + s * 2 + strike * 3 + 3 - c * 2,
       lLU: -s * swing - 3, lLL: -Math.max(0, -s) * 18 * speed + strike * 12,
       rLU: sR * swing + 3, rLL: Math.max(0, sR) * 18 * speed + strike * 12,
-      lAU: sA * swing * 0.55 - 6, lAL: sA * swing * 0.3 - 4,
-      rAU: -sA * swing * 0.55 + 6, rAL: -sA * swing * 0.3 + 4,
+      // AUDIT-2 / 1.5: shoulder counter-sway (∓cos·2.5°) against the hips.
+      lAU: sA * swing * 0.55 - 6 + c * 2.5, lAL: sA * swing * 0.3 - 4,
+      rAU: -sA * swing * 0.55 + 6 - c * 2.5, rAL: -sA * swing * 0.3 + 4,
       smile: 0.35,
       browRaise: 0.1,
+      lLift: liftL,
+      rLift: liftR,
       _unused: c,
     } as Pose;
   }

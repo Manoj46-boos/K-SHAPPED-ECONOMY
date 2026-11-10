@@ -177,11 +177,19 @@ export function drawCaptions(
   // bubble), a whisper drop shadow so the plate lifts off the scene, and
   // the teal tab becomes a gold-anchored two-tone mark (gold base + teal
   // active tip) that ties to the gold karaoke sweep.
+  // AUDIT-2 / §10.5 (report Phase 4): captions DISSOLVE — the pill eases in
+  // over 120ms and dissolves out over the 260ms past the line's end. The
+  // hard vanish read on hold-frames as a dropped element ("burned-in
+  // captions that are truncated look like render errors"); a dissolve
+  // reads as a held breath. Pure function of tMs — scrub-safe.
+  const fadeIn = clamp01((tMs - (active.start - 120)) / 120);
+  const fadeOut = 1 - clamp01((tMs - active.end) / 260);
+  const fade = Math.min(fadeIn, fadeOut);
   registerPill(W / 2 - widest / 2 - 34, baseY - totalH + 4, widest + 68, totalH);
   ctx.save();
   const px = W / 2 - widest / 2 - 34;
   const py = baseY - totalH + 4;
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = fade;
   ctx.fillStyle = rgba(PALETTE.shadow, 0.06);
   roundRect(ctx, px + 1, py + 4, widest + 68, totalH, 18);
   ctx.fill();
@@ -207,6 +215,7 @@ export function drawCaptions(
   // window (completes P0-7 — both edges of a paused frame now read as
   // windowing, never as a truncated render).
   ctx.save();
+  ctx.globalAlpha = fade;
   ctx.textBaseline = 'middle';
   setFont(ctx, fontSize, 700, FONT_UI);
   rows.forEach((row, ri) => {
@@ -402,7 +411,7 @@ export function drawChapterCard(
     ctx.restore();
     // the host — peeking, pointing at the sign/title
     const pose = Stickman.poseAt(t, { gesture: 'pointR', speaking: false, seed: 3 });
-    drawStickmanV2(ctx, 96, sy + 58, 0.72, t, { pose, alpha: a, look: 0.9, scarf: true }, 3);
+    drawStickmanV2(ctx, 150, sy + 58, 0.72, t, { pose, alpha: a, look: 0.9, scarf: true }, 3);
     ctx.restore();
   }
   ctx.restore();

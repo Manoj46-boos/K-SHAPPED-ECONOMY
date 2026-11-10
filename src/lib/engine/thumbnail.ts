@@ -55,9 +55,12 @@ export interface ThumbVariant {
 /** The six v3 variants — A/B/C keep v2's proven wordings as controls.
  *  Panel re-review notes: badge sub-lines must stay ≤ 10 chars to read at
  *  320px feed size ("OF PROFIT GROWTH · 7 STOCKS" was mush); v5 earns its
- *  slot only with the short form. */
+ *  slot only with the short form.
+ *  AUDIT-2 / §10.5 (report Phase 4): variant 0 becomes the CONTRADICTION
+ *  PAIR the panel asked to bake in — "MARKET +20%. FEELING BROKE?" — the
+ *  hook that survives 320px because each line is 3 words. */
 export const THUMB_VARIANTS: ThumbVariant[] = [
-  { punch: ['FEELING', 'BROKE?'],            badge: { big: '+20%', label: 'S&P · 12 MO' } },
+  { punch: ['MARKET +20%.', 'FEELING BROKE?'],  badge: { big: '+20%', label: 'S&P · 12 MO' } },
   { punch: ['STILL', 'BROKE?'],              badge: { big: '+20%', label: 'S&P · 12 MO' } },
   { punch: ['WHY AM I', 'BROKE?'],           badge: { big: '+22%', label: 'NASDAQ · 12 MO' } },
   { punch: ['MARKET UP.', 'YOU?'],           badge: { big: '+20%', label: 'S&P · 12 MO' } },
@@ -127,34 +130,37 @@ export function drawThumbnail(
   ctx.stroke();
   ctx.restore();
 
-  // ── HERO: the gold K with white rim + glow, center-right ──────────────────
-  // v9 (panel re-review): kx 0.635 → 0.615 and the figure 0.875 → 0.895 —
-  // the K's lower arm tip and the figure's raised hands fused at feed size;
-  // each hero now owns its half cleanly.
-  const kx = W * 0.615, ky = H * 0.47, S = H * 0.335;
-  const kg = ctx.createRadialGradient(kx, ky, 10, kx, ky, S * 2.2);
+  // ── HERO: the gold K at 60% with the stick man CRUSHED INSIDE ─────────────
+  // AUDIT-2 / §10.5 (report Phase 4 — the panel's surgical instruction):
+  // kill-or-shrink the K to 60% (S H*0.335 → H*0.20), put the stick man
+  // INSIDE it (crushed between the strokes is a joke AND a hook), promote
+  // the +20% badge to top-right at 1.5×, and bake the contradiction into
+  // the headline. One hero object, one joke, one number — the poster reads
+  // at 320px or it does not exist.
+  const kx = W * 0.55, ky = H * 0.54, S = H * 0.20;
+  const kg = ctx.createRadialGradient(kx, ky, 10, kx, ky, S * 2.4);
   kg.addColorStop(0, rgba('#FFFFFF', 0.5));
   kg.addColorStop(1, rgba('#FFFFFF', 0));
   ctx.fillStyle = kg;
-  ctx.fillRect(kx - S * 2.2, ky - S * 2.2, S * 4.4, S * 4.4);
+  ctx.fillRect(kx - S * 2.4, ky - S * 2.4, S * 4.8, S * 4.8);
   const stroke4 = (x1: number, y1: number, x2: number, y2: number) => {
     ctx.lineCap = 'round';
-    const passes: [string, number][] = [['#FFFFFF', 112], [GOLDD, 84,], ['#FFFFFF', 56], [GOLD, 42]];
+    const passes: [string, number][] = [['#FFFFFF', 70], [GOLDD, 52], ['#FFFFFF', 34], [GOLD, 25]];
     for (const [col, w] of passes) {
       ctx.strokeStyle = col; ctx.lineWidth = w;
       ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
     }
   };
-  stroke4(kx - 14, ky - S, kx - 14, ky + S);
-  stroke4(kx - 6, ky + S * 0.06, kx + S * 1.04, ky - S * 0.94);
-  stroke4(kx - 6, ky + S * 0.06, kx + S * 1.04, ky + S * 0.94);
+  stroke4(kx - 9, ky - S, kx - 9, ky + S);
+  stroke4(kx - 4, ky + S * 0.06, kx + S * 1.04, ky - S * 0.94);
+  stroke4(kx - 4, ky + S * 0.06, kx + S * 1.04, ky + S * 0.94);
 
   // ── PUNCHLINE: solid white fill, heavy ink stroke, crop-safe ──────────────
-  // Auto-sized: 150px down to whatever keeps the widest line inside the
-  // 5% crop-safe left region (x ≤ W*0.52 — the K owns everything past it).
+  // Auto-sized: 160px down to whatever keeps the widest line inside the
+  // left region (x ≤ W*0.56 — the 60%-size K owns only the far right now).
   const px0 = W * 0.062; // 5% + a hair
-  const maxLineW = W * 0.52 - px0 - 26;
-  let pSize = 150;
+  const maxLineW = W * 0.58 - px0 - 26;
+  let pSize = 160;
   setFont(ctx, pSize, 700, FONT_UI);
   const widestOf = (): number => {
     let w = 0;
@@ -185,47 +191,57 @@ export function drawThumbnail(
   });
   ctx.restore();
 
-  // ── NUMBER BADGE: white plate, teal number, bottom-left ───────────────────
-  // v2's +20% was white-on-mint with no plate — invisible. A solid plate
-  // makes the number the second read after the punchline.
-  setFont(ctx, 78, 700, FONT_UI);
+  // ── NUMBER BADGE: white plate, teal number — TOP-RIGHT at 1.5× ───────────
+  // AUDIT-2 / §10.5 (report Phase 4): the panel's instruction — promote the
+  // +20% badge to the top-right corner at 1.5× its old size (78 → 117px
+  // numeral on a 225px plate). It was bottom-left at a scale that died at
+  // 320px; the second read of the poster is now the FIRST thing the feed
+  // crop keeps. Right-aligned 36px inside the crop-safe margin, clear of
+  // the K's arm tips by construction.
+  setFont(ctx, 117, 700, FONT_UI);
   const bigW = ctx.measureText(v.badge.big).width;
-  setFont(ctx, 30, 600, FONT_UI);
+  setFont(ctx, 44, 600, FONT_UI);
   const labW = ctx.measureText(v.badge.label).width;
-  const plateW = Math.max(bigW, labW) + 76;
-  const plateH = 150;
-  const bx = px0;
-  const by = H - 46 - plateH; // bottom edge 46px above the frame edge (crop-safe)
+  const plateW = Math.max(bigW, labW) + 110;
+  const plateH = 225;
+  const bx = W - plateW - 36; // top-right, crop-safe
+  const by = 36;
   ctx.save();
   ctx.fillStyle = rgba('#FFFFFF', 0.28);
-  roundRect(ctx, bx + 5, by + 8, plateW, plateH, 26);
+  roundRect(ctx, bx + 7, by + 11, plateW, plateH, 38);
   ctx.fill();
   ctx.fillStyle = '#FFFFFF';
-  roundRect(ctx, bx, by, plateW, plateH, 26);
+  roundRect(ctx, bx, by, plateW, plateH, 38);
   ctx.fill();
-  ctx.lineWidth = 5;
+  ctx.lineWidth = 7;
   ctx.strokeStyle = rgba(INK, 0.85);
-  roundRect(ctx, bx, by, plateW, plateH, 26);
+  roundRect(ctx, bx, by, plateW, plateH, 38);
   ctx.stroke();
-  setFont(ctx, 78, 700, FONT_UI);
+  setFont(ctx, 117, 700, FONT_UI);
   ctx.fillStyle = UP;
   ctx.textAlign = 'left';
-  ctx.fillText(v.badge.big, bx + 38, by + 86);
-  setFont(ctx, 30, 600, FONT_UI);
+  ctx.fillText(v.badge.big, bx + 52, by + 128);
+  setFont(ctx, 44, 600, FONT_UI);
   ctx.fillStyle = INK;
-  ctx.fillText(v.badge.label, bx + 38, by + 128);
+  ctx.fillText(v.badge.label, bx + 52, by + 192);
   ctx.restore();
 
-  // ── EMOTION: chibi worried figure on the coral half ───────────────────────
-  // The face is the point: head at 1.7× body proportion so the worried
-  // expression survives a 100px-tall feed render. Hands up — "market's up,
-  // I'm not" — reads instantly even when the face doesn't.
-  const fx = W * 0.895, fy = H * 0.86;
+  // ── EMOTION: the stick man CRUSHED INSIDE the K ──────────────────────
+  // AUDIT-2 / §10.5 (report Phase 4): "put the stick man inside it (crushed
+  // between the strokes is a joke and a hook)". The chibi worried figure
+  // moves INTO the letter's counter — hands up against the strokes, market
+  // rising around him, wallet not. Head stays CHIBI (r 66 at 0.56 scale) so
+  // the worry reads at 100px feed height; the K's 60% size makes room for
+  // exactly this joke.
+  const fx = kx + 68, fy = ky + 118;
+  const CHIBI = 0.56;
   const BODY = INK;
   ctx.save();
   ctx.translate(fx, fy);
-  // ground shadow
-  ctx.fillStyle = rgba('#7A2E12', 0.30);
+  ctx.scale(CHIBI, CHIBI);
+  // ground shadow — neutral slate (the figure stands in the K's counter
+  // on the teal field, not on the coral half)
+  ctx.fillStyle = rgba('#1F3831', 0.30);
   ctx.beginPath();
   ctx.ellipse(0, 8, 78, 15, 0, 0, Math.PI * 2);
   ctx.fill();

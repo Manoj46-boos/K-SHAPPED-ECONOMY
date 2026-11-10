@@ -18,36 +18,60 @@ export const camState = { dx: 0, dy: 0, scale: 1 };
 /** Background planes move at this fraction of camera motion (0 = frozen bg). */
 export const BG_PARALLAX = 0.45;
 
-// ── Grain (pre-rendered tile, drawn once per frame at low alpha) ─────────────
-let grainTile: HTMLCanvasElement | OffscreenCanvas | null = null;
+// ── Grain (pre-rendered tiles, drawn once per frame at low alpha) ─────────────
+// AUDIT-2 / 0.5 (report §10.1, M7): THREE-TILE FLICKER. One static tile
+// stamped every frame read (the panel's word) as a paper texture overlay —
+// "double-treating" the already-light composite. Real film grain is a
+// different random field every frame: three pre-generated tiles cycled on
+// a quantized clock restore the flicker for zero marginal render cost.
+// Determinism survives because the tile choice is a pure function of t.
+const GRAIN_TILES: Array<HTMLCanvasElement | OffscreenCanvas> = [];
+const GRAIN_TILE_N = 3;
 
-function getGrain(size = 192): HTMLCanvasElement | OffscreenCanvas {
-  if (grainTile) return grainTile;
-  const c =
-    typeof document !== 'undefined'
-      ? document.createElement('canvas')
-      : new OffscreenCanvas(size, size);
-  c.width = size;
-  c.height = size;
-  const g = c.getContext('2d') as CanvasRenderingContext2D;
-  const img = g.createImageData(size, size);
-  for (let i = 0; i < img.data.length; i += 4) {
-    const v = 128 + (hash01(i / 4) - 0.5) * 90;
-    img.data[i] = v;
-    img.data[i + 1] = v;
-    img.data[i + 2] = v;
-    img.data[i + 3] = 26;
+function getGrainTiles(size = 192): Array<HTMLCanvasElement | OffscreenCanvas> {
+  if (GRAIN_TILES.length) return GRAIN_TILES;
+  for (let k = 0; k < GRAIN_TILE_N; k++) {
+    const c =
+      typeof document !== 'undefined'
+        ? document.createElement('canvas')
+        : new OffscreenCanvas(size, size);
+    c.width = size;
+    c.height = size;
+    const g = c.getContext('2d') as CanvasRenderingContext2D;
+    const img = g.createImageData(size, size);
+    // AUDIT-2 / 0.5 calibration: the old tile (±45 at alpha 26, soft-light)
+    // produced sub-1/255 deltas on the film's light plates — a texture the
+    // panel could only find by reading the code, i.e. a tax. ±64 at tile
+    // alpha 96 under OVERLAY at the 0.30 production draw lands the grain
+    // at perceptible-but-barely (the report's own bar for finishing), and
+    // the three-tile flicker finally produces measurable frame deltas.
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = 128 + (hash01(i / 4 + k * 9241) - 0.5) * 128;
+      img.data[i] = v;
+      img.data[i + 1] = v;
+      img.data[i + 2] = v;
+      img.data[i + 3] = 96;
+    }
+    g.putImageData(img, 0, 0);
+    GRAIN_TILES.push(c);
   }
-  g.putImageData(img, 0, 0);
-  grainTile = c;
-  return c;
+  return GRAIN_TILES;
 }
 
-export function drawGrain(ctx: CanvasRenderingContext2D, W: number, H: number, alpha = 0.5): void {
-  const tile = getGrain();
+export function drawGrain(ctx: CanvasRenderingContext2D, W: number, H: number, alpha = 0.5, t = 0): void {
+  const tiles = getGrainTiles();
+  // tile cycles on a ~16.7ms quantized clock — a NEW random field every
+  // frame at both 30 and 60 fps (frameIndex modulo three, by time): the
+  // flicker the film needed.
+  const tile = tiles[Math.floor(t / 16.67) % GRAIN_TILE_N] ?? tiles[0];
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.globalCompositeOperation = 'soft-light';
+  // AUDIT-2 / 0.5: composite switches soft-light → OVERLAY. Soft-light on
+  // the film's near-white plates is arithmetically a no-op (sub-1/255 —
+  // the same trap the report flagged in lightRays); overlay of a
+  // 128±64-centred tile at these alphas lands the grain at
+  // perceptible-but-barely AND makes the three-tile flicker measurable.
+  ctx.globalCompositeOperation = 'overlay';
   const pat = ctx.createPattern(tile as CanvasImageSource, 'repeat');
   if (pat) {
     ctx.fillStyle = pat;
@@ -57,6 +81,11 @@ export function drawGrain(ctx: CanvasRenderingContext2D, W: number, H: number, a
 }
 
 // ── Bokeh / mote particle field (parallax layers, deterministic) ─────────────
+// AUDIT-2 / §10.4 (report Phase 3): the field is re-engineered, not
+// supplemented — HALF the count (34 → 17), every disc CAMERA-SCALED
+// (radius × camState.scale: the world zooms and the lens artifacts zoom
+// with it — the flat-read fix), depth coupling kept. Fewer, larger, moving
+// WITH the camera reads as a lens; many static rings read as a stencil.
 export function bokehField(
   ctx: CanvasRenderingContext2D,
   W: number,
@@ -65,19 +94,8 @@ export function bokehField(
   opts: { intensity?: number; seed?: number; gold?: number } = {}
 ): void {
   const { intensity = 1, seed = 3, gold = 0.22 } = opts;
-  // v8: gold ratio hard-capped — scene call sites still pass 0.5-0.6
-  // from the v5 era and every one of them reads as 'aged paper stains' on
-  // the white canvas (panel verdict, twice). v8.1 recheck: 0.28 still left
-  // smudge-sized gold motes, so the cap drops to 0.18. The cap makes the
-  // field safe no matter what the caller asks for.
   const goldRatio = Math.min(0.18, gold);
-  // P1-1 (second calibration, panel re-review): with rings replacing blobs
-  // the field can be FULL again — a stain needed restraint, a crisp disc
-  // does not. N 26 → 34, mote radius floor up, depth weighting shifted
-  // toward mid-ground (0.35 + h·0.65) so the field reads as a LENS of
-  // varied discs, not sparse specks. Gold stays capped (sparkle, never
-  // stain — the twice-convicted read stands).
-  const N = 34;
+  const N = 17;
   // v3 (panel P1-2): motes counter-shift by the camera motion the background
   // did NOT follow, so the bokeh slides against the scene plane at ~0.45×.
   const camX2 = camState.dx * (1 - BG_PARALLAX);
@@ -98,9 +116,11 @@ export function bokehField(
     // v8.2: gold motes also get a hard radius cap (14px core) — the v8.1
     // recheck still found one large gold mote reading as a blotch. Gold is
     // sparkle-sized, always; teal-white motes may stay large and soft.
-    // P1-1: teal radius floor rises 5 → 8 (a disc smaller than ~8px cannot
-    // read as a lens artifact at 1080p, let alone a 320px phone feed).
-    const r = Math.min((8 + hash01(i * 2.3) * 28) * depth * (isGold ? 0.72 : 1), isGold ? 14 : 1e9);
+    // AUDIT-2: every radius multiplies by camState.scale — the bokeh now
+    // participates in the camera (the "world zooms and the effects do
+    // not" flat-read, fixed at every call site from one factor).
+    const r = Math.min((8 + hash01(i * 2.3) * 28) * depth * (isGold ? 0.72 : 1), isGold ? 14 : 1e9)
+      * camState.scale;
     // v8: alpha floor 0.10→0.13 — the v5 field was sub-visible after
     // YouTube's transcode on phone screens (the panel saw "muddy smudges",
     // i.e. the bottom of the range, and nothing else). Barely-there is now
@@ -191,6 +211,8 @@ export function lightVignette(ctx: CanvasRenderingContext2D, W: number, H: numbe
 // along the same radius curve. Same cost, same determinism — and every
 // celebration moment in the film becomes brand-reinforcing. Count is
 // capped at 10 per burst (10+ reads as confetti noise at phone scale).
+// AUDIT-2 / §10.4: radius AND glyph size multiply by camState.scale — the
+// particles ride the camera like everything else in the world.
 export function sparkles(
   ctx: CanvasRenderingContext2D,
   cx: number,
@@ -204,13 +226,14 @@ export function sparkles(
   const age = t - t0;
   if (age < 0 || age > 900) return;
   const p = age / 900;
+  const cam = camState.scale;
   for (let i = 0; i < n; i++) {
     const ang = hash01(i * 12.9) * Math.PI * 2;
-    const dist = radius * (0.3 + hash01(i * 4.4) * 0.7) * easeOutCubic(p);
+    const dist = radius * cam * (0.3 + hash01(i * 4.4) * 0.7) * easeOutCubic(p);
     const x = cx + Math.cos(ang) * dist;
-    const y = cy + Math.sin(ang) * dist - p * 30;
+    const y = cy + Math.sin(ang) * dist - p * 30 * cam;
     const a = (1 - p) * 0.8;
-    const s = (5 + hash01(i * 7.7) * 6) * (1 - p * 0.6); // 10–22px mini-K
+    const s = (5 + hash01(i * 7.7) * 6) * (1 - p * 0.6) * cam; // 10–22px mini-K
     ctx.save();
     ctx.globalAlpha = a;
     ctx.translate(x, y);
@@ -249,7 +272,8 @@ export function kMotifs(
     const y = H * (0.24 + hash01(i * 8.8) * 0.44) + Math.cos(t / 6000 + i) * 22;
     // P1-6 round 2: floor raised 52 → 64 — the panel read the two smallest
     // marks (52px) as 'specks'; the family now spans 64-120px
-    const s = 64 + hash01(i * 3.3) * 56;
+    // AUDIT-2 / §10.4: watermark scale rides the camera (camState.scale).
+    const s = (64 + hash01(i * 3.3) * 56) * camState.scale;
     drawK(ctx, Math.min(Math.max(x, 170), W - 170), Math.min(Math.max(y, 190), H - 260), s, 4);
   }
   ctx.restore();
@@ -326,16 +350,19 @@ export function drawK(
  * side walls are extruded along ONE fixed vector d = (0.35, −0.14) × depth
  * and filled in the shadow tone, and the ink face lands on top. The walls
  * are inset by half the stroke width so the squared corners stay inside
- * the face's round caps. The floor-contact shadow, the parallax wobble,
- * the gold rim and the specular sweep all stay — they already worked.
- * Deterministic, ~30 lines, same call signature.
+ * the face's round caps.
+ *
+ * AUDIT-2 / §10.4 (report Phase 3, D3): the TWO WALLS now shade by the
+ * light — the wall whose outward normal faces the light (upper-right)
+ * renders one step brighter than the wall facing away, so the extrusion
+ * reads as lit volume instead of a flat decal.
  */
 const K_EXTRUDE_D = { x: 0.35, y: -0.14 }; // oblique depth vector (upper-right light)
 
 function extrudeStroke(
   ctx: CanvasRenderingContext2D,
   x0: number, y0: number, x1: number, y1: number,   // stroke segment
-  w: number, depth: number, col: string
+  w: number, depth: number, colLit: string, colShadow: string
 ): void {
   const nx = -(y1 - y0), ny = x1 - x0;
   const L = Math.hypot(nx, ny) || 1;
@@ -345,24 +372,21 @@ function extrudeStroke(
   const tx = ((x1 - x0) / L) * (w / 2), ty = ((y1 - y0) / L) * (w / 2);
   const ax = x0 + tx, ay = y0 + ty, bx = x1 - tx, by = y1 - ty;
   const dx = K_EXTRUDE_D.x * depth, dy = K_EXTRUDE_D.y * depth;
-  ctx.fillStyle = col;
-  // side wall on the +normal side…
-  ctx.beginPath();
-  ctx.moveTo(ax + ux, ay + uy);
-  ctx.lineTo(bx + ux, by + uy);
-  ctx.lineTo(bx + ux + dx, by + uy + dy);
-  ctx.lineTo(ax + ux + dx, ay + uy + dy);
-  ctx.closePath();
-  ctx.fill();
-  // …and on the −normal side. The face draws after and covers whichever
-  // wall folds back under it — only the outward wall reads.
-  ctx.beginPath();
-  ctx.moveTo(ax - ux, ay - uy);
-  ctx.lineTo(bx - ux, by - uy);
-  ctx.lineTo(bx - ux + dx, by - uy + dy);
-  ctx.lineTo(ax - ux + dx, ay - uy + dy);
-  ctx.closePath();
-  ctx.fill();
+  // AUDIT-2 / D3: which +normal wall faces the light? Light from upper
+  // right ≈ (0.7, −0.7): positive dot ⇒ lit tone, else shadow tone.
+  const litP = ux * 0.7 + uy * -0.7 >= 0;
+  const wall = (sx: number, sy: number, col: string): void => {
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(ax + sx, ay + sy);
+    ctx.lineTo(bx + sx, by + sy);
+    ctx.lineTo(bx + sx + dx, by + sy + dy);
+    ctx.lineTo(ax + sx + dx, ay + sy + dy);
+    ctx.closePath();
+    ctx.fill();
+  };
+  wall(ux, uy, litP ? colLit : colShadow);
+  wall(-ux, -uy, litP ? colShadow : colLit);
 }
 
 export function drawK3D(
@@ -374,36 +398,55 @@ export function drawK3D(
   t: number
 ): void {
   ctx.save();
-  // floor shadow — soft, offset toward the light's opposite corner
+  // AUDIT-2 / 0.7 + D4 (report §10.1/§10.4): the floor shadow obeys the
+  // ONE-LIGHT rule — offset (−4, +8), the same vector groundShadowV2 uses
+  // (the panel caught "two lighting systems in one frame") — and it
+  // CATCHES the letter: its centre rides the wobble and its alpha/scale
+  // key to grow, so the floor participates in the 3D read (a static
+  // ellipse under a moving object is a decal).
+  const wPh = Math.sin(t / 4000);
   if (grow > 0.15) {
-    const g = ctx.createRadialGradient(x, y + s * 1.3, 4, x, y + s * 1.3, s * 1.15);
-    g.addColorStop(0, rgba(PALETTE.shadow, 0.13));
-    g.addColorStop(0.6, rgba(PALETTE.shadow, 0.05));
+    const shX = x - 4 + wPh * s * 0.05;
+    const shY = y + 8 + s * 1.22;
+    const a = 0.17 * clamp01(grow * 1.35);
+    const g = ctx.createRadialGradient(shX, shY, 4, shX, shY, s * 1.15);
+    g.addColorStop(0, rgba(PALETTE.shadow, a));
+    g.addColorStop(0.6, rgba(PALETTE.shadow, a * 0.4));
     g.addColorStop(1, rgba(PALETTE.shadow, 0));
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.ellipse(x, y + s * 1.3, s * 1.15, s * 0.2, 0, 0, Math.PI * 2);
+    ctx.ellipse(shX, shY, s * 1.15 * (0.88 + 0.12 * grow), s * 0.2 * (0.88 + 0.12 * grow), 0, 0, Math.PI * 2);
     ctx.fill();
   }
-  // the wobble — a slow ±0.5° parallax rotation around the letter's
-  // optical centre; the extrusion then reads as a rotated 3D object
-  ctx.translate(x, y);
-  ctx.rotate(Math.sin(t / 3800) * 0.009);
-  ctx.translate(-x, -y);
+  // the wobble — AUDIT-2 / D3: ±2° on a 4s period. The old ±0.5°/9.1s was
+  // measured by the panel as "invisible in both still and motion"; 2°
+  // clears the perception floor while staying stately. The pivot sits at
+  // the letter's OPTICAL centre (vertex + 0.05s down), so the rotation
+  // reads as the object swaying, not the stem scraping.
+  const pivY = y + s * 0.05;
+  ctx.translate(x, pivY);
+  ctx.rotate(wPh * 0.035);
+  ctx.translate(-x, -pivY);
   // the TRUE extrusion — side walls of each stroke quad along ONE fixed
-  // vector, in the shadow tone (replaces the 4-layer copy loop entirely)
+  // vector, two light shades (replaces the 4-layer copy loop entirely)
   const stemF = Math.min(1, grow * 2);
   const upArm = clamp01(grow * 2 - 0.6);
   const dnArm = clamp01(grow * 2 - 1.1);
-  const depth = s * 0.14;
-  const wallCol = rgba(PALETTE.shadow, 0.16);
+  // AUDIT-2 / D3: the extrusion deepens as the camera pushes (camState
+  // .scale-1 rides the depth) — the letter's volume answers the lens.
+  const depth = s * 0.14 * (0.9 + 0.1 * clamp01(grow)) * (0.85 + 0.15 * camState.scale);
+  // AUDIT-2 re-review calibration: the panel found the first two-wall pass
+  // "barely differentiated" — the tones open to 0.26 / 0.11 so the lit and
+  // shadow walls read as two values at any scale.
+  const colLit = rgba(PALETTE.shadow, 0.26);
+  const colShadow = rgba(PALETTE.shadow, 0.11);
   const W_K = 30;
-  extrudeStroke(ctx, x, y - s * stemF, x, y + s * stemF, W_K, depth, wallCol);
+  extrudeStroke(ctx, x, y - s * stemF, x, y + s * stemF, W_K, depth, colLit, colShadow);
   if (upArm > 0) {
-    extrudeStroke(ctx, x, y + s * 0.1, x + s * 1.15 * upArm, y - s * 1.05 * upArm, W_K, depth, wallCol);
+    extrudeStroke(ctx, x, y + s * 0.1, x + s * 1.15 * upArm, y - s * 1.05 * upArm, W_K, depth, colLit, colShadow);
   }
   if (dnArm > 0) {
-    extrudeStroke(ctx, x, y + s * 0.1, x + s * 1.15 * dnArm, y + s * 1.05 * dnArm, W_K, depth, wallCol);
+    extrudeStroke(ctx, x, y + s * 0.1, x + s * 1.15 * dnArm, y + s * 1.05 * dnArm, W_K, depth, colLit, colShadow);
   }
   // gold rim — a wide soft gold pass UNDER the face; the ink face
   // covers its centre and the gold peeks only at the silhouette edge
@@ -538,7 +581,9 @@ export function kWipe(
  *  (goldDeep stroke) gives each disc a struck-metal rim, and a spin
  *  (scaleX = cos(t/260 + i), floored at ±0.18 so the coin never vanishes
  *  edge-on) with the highlight riding the spin converts flat circles
- *  into tumbling coins. Three lines of geometry, same determinism. */
+ *  into tumbling coins. Three lines of geometry, same determinism.
+ *  AUDIT-2 / §10.4: coin radius rides camState.scale — the effect layer
+ *  finally participates in the camera. */
 export function floatCoins(
   ctx: CanvasRenderingContext2D,
   cx: number,
@@ -547,12 +592,13 @@ export function floatCoins(
   n = 5,
   spread = 90
 ): void {
+  const cam = camState.scale;
   for (let i = 0; i < n; i++) {
     const ph = (t / 1600 + hash01(i * 3.3)) % 1;
     const a = Math.sin(ph * Math.PI) * 0.7;
-    const x = cx + hashRange(i * 9.1, -spread, spread);
-    const y = cy - ph * 130;
-    const r = 10 + hash01(i * 4.7) * 8;
+    const x = cx + hashRange(i * 9.1, -spread, spread) * cam;
+    const y = cy - ph * 130 * cam;
+    const r = (10 + hash01(i * 4.7) * 8) * cam;
     const spin = Math.cos(t / 260 + i);
     const sx = Math.abs(spin) < 0.18 ? (spin < 0 ? -0.18 : 0.18) : spin;
     ctx.save();
@@ -577,4 +623,77 @@ export function floatCoins(
     ctx.fill();
     ctx.restore();
   }
+}
+
+// ── AUDIT-2 / §10.4 (report Phase 3): THE IMPACT GRAMMAR ────────────────────
+/** Micro-shake — a 2px, 80ms camera jitter on data reveals. Deterministic
+ *  per quantized frame (pure function of t). Apply to ctx.translate BEFORE
+ *  the scene draws. */
+export function microShake(t: number, t0: number): { dx: number; dy: number } {
+  const age = t - t0;
+  if (age < 0 || age > 80) return { dx: 0, dy: 0 };
+  const decay = Math.sin((age / 80) * Math.PI);
+  const f = Math.floor(t / 33.33);
+  return {
+    dx: (hash01(f * 13.7 + 0.5) - 0.5) * 4.4 * decay,
+    dy: (hash01(f * 29.3 + 5.5) - 0.5) * 4.4 * decay,
+  };
+}
+
+/** Impact ring — an expanding gold ring from the numeral, ~520ms, decaying
+ *  stroke. The second member of the impact grammar (shake + ring + one
+ *  double-radius glow frame at the strike). */
+export function impactRing(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  t: number,
+  t0: number,
+  r = 150
+): void {
+  const age = t - t0;
+  if (age < 0 || age > 520) return;
+  const p = age / 520;
+  // re-review calibration: the first pass fired at 0.55 peak alpha and
+  // read "near-invisible against the pale plate" — the ring opens to 0.85
+  // with a thicker decaying stroke so the slam COMMUNICATES.
+  ctx.save();
+  ctx.globalAlpha = (1 - p) * 0.85;
+  ctx.strokeStyle = PALETTE.gold;
+  ctx.lineWidth = Math.max(2.5, 14 * (1 - p));
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * (0.22 + 0.78 * easeOutCubic(p)), 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** AUDIT-2 / §10.4 (report Phase 3, D2): ATMOSPHERIC PERSPECTIVE — the
+ *  cheapest depth upgrade available and the one the panel asked for in
+ *  three separate passes ("no horizon fade, no gradient falloff"). Two
+ *  soft overlay fills order the planes: a 4% background-tone wash over the
+ *  rearmost band and an 8% band mid-scene. Draw AFTER far content, BEFORE
+ *  the subject — whatever the band covers reads as further away. */
+export function hazeBands(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  opts: { rearY?: number; midY?: number; tone?: string } = {}
+): void {
+  const { rearY = H * 0.3, midY = H * 0.52, tone = PALETTE.bgSoft } = opts;
+  ctx.save();
+  // rear band — 4%: the far elements sink into the air
+  let g = ctx.createLinearGradient(0, rearY - H * 0.17, 0, rearY + H * 0.05);
+  g.addColorStop(0, rgba(tone, 0));
+  g.addColorStop(0.72, rgba(tone, 0.05));
+  g.addColorStop(1, rgba(tone, 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, rearY - H * 0.17, W, H * 0.22);
+  // mid band — 8%: the depth seam between mid-ground and fore
+  g = ctx.createLinearGradient(0, midY - H * 0.075, 0, midY + H * 0.075);
+  g.addColorStop(0, rgba(tone, 0));
+  g.addColorStop(0.5, rgba(tone, 0.09));
+  g.addColorStop(1, rgba(tone, 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, midY - H * 0.075, W, H * 0.15);
+  ctx.restore();
 }

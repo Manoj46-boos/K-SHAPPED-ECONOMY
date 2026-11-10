@@ -7,7 +7,7 @@
 
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, lerp, springTo } from './easing';
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
-import { bokehField, kMotifs, lightRays, drawK, drawK3D, floatCoins, sparkles } from './effects';
+import { bokehField, kMotifs, lightRays, drawK, drawK3D, floatCoins, sparkles, hazeBands, impactRing, microShake } from './effects';
 import { SceneCtx } from './scene-context';
 import { reactionAt } from './scene-context';
 import { lineChart, pieChart, barRow, dotGrid, gauge, statCard, sourceTag, sceneTitle, wrapText } from './charts';
@@ -975,7 +975,7 @@ export function gasPumpScene(g: SceneCtx): void {
   cards.forEach((c, i) => {
     const cap = clamp01((t - 1000 - i * 900) / 800);
     if (cap <= 0) return;
-    const x = i === 0 ? W * 0.07 : W * 0.66;
+    const x = i === 0 ? W * 0.07 : W * 0.63;
     const y = H * 0.26;
     ctx.save();
     ctx.globalAlpha = cap;
@@ -1124,8 +1124,18 @@ export function aiDatacenterScene(g: SceneCtx): void {
   // can barely see is a texture; one you can see is a room.
   const horizon = H * 0.56;
   ctx.save();
-  ctx.strokeStyle = rgba(PALETTE.grid, 0.55);
   ctx.lineWidth = 1.6;
+  // AUDIT-2 / §10.4 (report §5.3 — "no horizon fade, no gradient
+  // falloff"): the perspective verticals now fade WITH DISTANCE — each
+  // vertical strokes through a linear gradient that is transparent at the
+  // horizon and full ink at the near floor, so the grid recedes INTO the
+  // room instead of running at one opacity to the frame edge and fighting
+  // the cards. The horizon hairline below stays (it is the room's edge).
+  const vg = ctx.createLinearGradient(0, horizon, 0, H);
+  vg.addColorStop(0, rgba(PALETTE.grid, 0));
+  vg.addColorStop(0.45, rgba(PALETTE.grid, 0.28));
+  vg.addColorStop(1, rgba(PALETTE.grid, 0.55));
+  ctx.strokeStyle = vg;
   for (let i = 0; i <= 14; i++) {
     const fx = (i / 14) * W;
     ctx.beginPath();
@@ -1143,7 +1153,13 @@ export function aiDatacenterScene(g: SceneCtx): void {
   }
   ctx.globalAlpha = 1;
   // the horizon line — where the floor ends and the air begins
-  ctx.strokeStyle = rgba(PALETTE.grid, 0.6);
+  // AUDIT-2: the horizon itself fades out at the edges (a gradient stroke
+  // — strongest mid-frame where the VP is, dissolving at the sides).
+  const hg = ctx.createLinearGradient(0, 0, W, 0);
+  hg.addColorStop(0, rgba(PALETTE.grid, 0.12));
+  hg.addColorStop(0.5, rgba(PALETTE.grid, 0.6));
+  hg.addColorStop(1, rgba(PALETTE.grid, 0.12));
+  ctx.strokeStyle = hg;
   ctx.beginPath();
   ctx.moveTo(0, horizon);
   ctx.lineTo(W, horizon);
@@ -1269,6 +1285,14 @@ export function aiDatacenterScene(g: SceneCtx): void {
     ctx.restore();
   }
 
+  // AUDIT-2 / §10.4 (report §5.3 + Phase 3, D2): THE HAZE BAND — one
+  // atmospheric seam between the rack field (far) and the stat cards /
+  // walk host (near), plus the rear wash over the horizon zone. The
+  // wireframe now reads as a ROOM: grid fades with distance, the far
+  // elements sink into the air, the reading content stays crisp because
+  // it draws AFTER the haze. Two gradient fills, zero runtime cost.
+  hazeBands(ctx, W, H, { rearY: horizon + 26, midY: H * 0.6 });
+
   // stat cards cascade — v4 (audit P0-1): restacked as one clean vertical
   // column with FULL content visible. The v3 layout (h:112, i*128) drew the
   // 88px numeral at y+138 and the label from y+190 — physically outside the
@@ -1278,7 +1302,7 @@ export function aiDatacenterScene(g: SceneCtx): void {
   const stats = (s.stats as any[]) || [];
   stats.forEach((st, i) => {
     statCard(ctx, {
-      x: W * 0.06, y: 168 + i * 186, w: 640, h: 172,
+      x: W * 0.09375, y: 168 + i * 186, w: 640, h: 172,
       compact: true,
       bigIsNumber: false, // '¾' / '$700–730B' are strings; count-up mangles them
       big: st.big, label: st.label, tone: st.tone || 'gold',
@@ -1327,6 +1351,14 @@ export function statCardsScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 181, 0.55);
   sceneTitle(ctx, 'The numbers, plainly', 110, 190, clamp01(t / 600));
+  // AUDIT-2 / §10.4 (report Phase 3): the impact grammar reaches the data
+  // cards — each numeral's count-up completion fires the micro-shake +
+  // impact ring triple alongside the existing sparkles. The film's biggest
+  // numbers now LAND instead of arriving.
+  {
+    const shake = microShake(t, 1300);
+    if (shake.dx !== 0 || shake.dy !== 0) ctx.translate(shake.dx, shake.dy);
+  }
   const cards = (s.cards as any[]) || [];
   // v10.1 (panel 11 re-review, host-vs-content): the card row used to span
   // the full width (110→1810) and the side host (W*0.84) plated the third
@@ -1336,13 +1368,18 @@ export function statCardsScene(g: SceneCtx): void {
   // ends at x=1450 and the host (W*0.85) owns 1492-1772 clear.
   const cw = (1450 - 110 - 60 * (cards.length - 1)) / cards.length;
   cards.forEach((c, i) => {
+    const cardX = 110 + i * (cw + 60);
     statCard(ctx, {
-      x: 110 + i * (cw + 60), y: H * 0.24, w: cw, h: 360,
+      x: cardX, y: H * 0.24, w: cw, h: 360,
       big: c.big, label: c.label, tag: c.tag, tone: c.tone || 'up',
       p: clamp01((t - 300 - i * 550) / 1000), t,
     });
+    // AUDIT-2 / §10.4: the expanding gold ring from each numeral as its
+    // count completes (the sparkles burst was already there — this is the
+    // missing impact half).
+    impactRing(ctx, cardX + cw / 2, H * 0.24 + 90, t, 1300 + i * 550, Math.min(150, cw * 0.42));
     if (t > 1300 + i * 550 && t < 1300 + i * 550 + 900) {
-      sparkles(ctx, 110 + i * (cw + 60) + cw / 2, H * 0.24 + 90, t, t - (1300 + i * 550), { count: 8, radius: 110 });
+      sparkles(ctx, cardX + cw / 2, H * 0.24 + 90, t, t - (1300 + i * 550), { count: 8, radius: 110 });
     }
   });
   sourceTag(ctx, W, s.source as string, H - 60);
@@ -1391,8 +1428,15 @@ export function ownerWorkerScene(g: SceneCtx): void {
     // fragments peeking past its edges (flagged on the ownerWorker render).
     // Figure now at H*0.60, wrap lines at 726/768 — everything, including
     // descenders, clears CAPTION_ZONE_TOP with ~20px to spare.
+    // AUDIT-2 / §10.2 (report §5.2 — "feet, teal line, and shadow are three
+    // different planes"): ONE PLANE per figure. The owner's ground sits ON
+    // the rising line where he stands (line@hx = hy−32 → ground hy−38 so
+    // the shoe soles kiss it) and his ground shadow ROTATES to the line's
+    // slope; the worker's flat line moves up to the shadow plane (hy+6, the
+    // ellipse's contact core) so feet, line and shadow finally agree.
     const hx = x + 340;
     const hy = H * 0.6;
+    const riseSlope = -116 / 340; // the owner's line: (hy+26)→(hy−90) over ±170
     if (side === 'left') {
       ctx.strokeStyle = rgba(PALETTE.up, 0.8);
       ctx.lineWidth = 12;
@@ -1406,8 +1450,8 @@ export function ownerWorkerScene(g: SceneCtx): void {
       ctx.lineWidth = 12;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(hx - 170, hy + 20);
-      ctx.lineTo(hx + 170, hy + 20);
+      ctx.moveTo(hx - 170, hy + 6);
+      ctx.lineTo(hx + 170, hy + 6);
       ctx.stroke();
     }
     // v10 (panel CHAR-4): the class SYMBOL is the scarf. The v9 frame drew
@@ -1425,32 +1469,49 @@ export function ownerWorkerScene(g: SceneCtx): void {
     const pose = side === 'left' ? POSES.climb : POSES.facepalm;
     // v3 (panel P0-3): v2 renderer — the shareholder/worker figures match the
     // presenter's body style (they read as the same world)
-    drawStickmanV2(ctx, hx, hy - (side === 'left' ? 44 : 0), 0.86, t, {
+    // AUDIT-2 / §10.2: ground planes agree (owner ON his line with a
+    // slope-rotated shadow; worker on the flat line at the shadow plane).
+    drawStickmanV2(ctx, hx, hy - (side === 'left' ? 38 : 0), 0.86, t, {
       pose,
       alpha: clamp01((t - i * 700 - 200) / 500),
       look: 0.3,
       scarf: side === 'left', // v10: the owner wears the brand; the worker doesn't
+      shadowRot: side === 'left' ? Math.atan(riseSlope) : 0,
     }, 21 + i);
     // v10: the worker's line gets a terminal down-tick — the trend the VO
     // names ("not a paycheck for whoever doesn't"), drawn where the eye lands
+    // AUDIT-2 / 0.4 (report §10.1, S4): the arrow REGISTERS with the
+    // collision guard (it was one of the few drawn elements the sweep was
+    // blind to — "a layout crime at any budget") and its length CLAMPS so
+    // the tip can never bottom past CAPTION_ZONE_TOP − 14. Structural: the
+    // guard now enforces what the sweep always believed.
     if (side === 'right') {
       const tp = clamp01((t - 2400) / 600);
       if (tp > 0) {
+        const e = easeOutCubic(tp);
+        const ax = hx + 130;
+        const ay = hy + 6; // rides the worker's new ground line
+        const lenY = Math.min(46, CAPTION_ZONE_TOP - 14 - ay);
+        const lenX = 60 * (lenY / 46);
+        registerRect(
+          `owArrow:${Math.round(hx)}`,
+          ax - 12, ay - 12, lenX + 24, lenY + 24
+        );
         ctx.save();
         ctx.globalAlpha = tp * 0.9;
         ctx.strokeStyle = PALETTE.downVivid;
         ctx.lineWidth = 8;
         ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.moveTo(hx + 130, hy + 20);
-        ctx.lineTo(hx + 130 + 60 * easeOutCubic(tp), hy + 20 + 46 * easeOutCubic(tp));
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(ax + lenX * e, ay + lenY * e);
         ctx.stroke();
         // arrowhead
         ctx.beginPath();
-        ctx.moveTo(hx + 130 + 60 * easeOutCubic(tp), hy + 20 + 46 * easeOutCubic(tp));
-        ctx.lineTo(hx + 118 + 60 * easeOutCubic(tp), hy + 8 + 46 * easeOutCubic(tp));
-        ctx.moveTo(hx + 130 + 60 * easeOutCubic(tp), hy + 20 + 46 * easeOutCubic(tp));
-        ctx.lineTo(hx + 148 + 60 * easeOutCubic(tp), hy + 14 + 46 * easeOutCubic(tp));
+        ctx.moveTo(ax + lenX * e, ay + lenY * e);
+        ctx.lineTo(ax - 12 + lenX * e, ay - 12 + lenY * e);
+        ctx.moveTo(ax + lenX * e, ay + lenY * e);
+        ctx.lineTo(ax + 18 + lenX * e, ay - 6 + lenY * e);
         ctx.stroke();
         ctx.restore();
       }
@@ -1472,7 +1533,7 @@ export function fundSplitScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 201, 0.5);
   // (title row 150->190 as all sceneTitle sites — D-08; see charts.sceneTitle)
-  sceneTitle(ctx, 'What\u2019s inside “the S&P 500”?', 110, 190, clamp01(t / 600));
+  sceneTitle(ctx, 'What\u2019s inside “the S&P 500”?', 134, 190, clamp01(t / 600)); // AUDIT-2 §10.3: +24px left margin — clears the raised camera stack
   // the fund box
   const bx = W * 0.09;
   const by = H * 0.24;
@@ -1631,7 +1692,7 @@ export function fundSplitScene(g: SceneCtx): void {
   // PANEL-12 / P2-6 (report §14.6): the TWIST reaction shot — the side host
   // takes the 'aha' beat (face 1.4×, talk paused) while the camera pushes
   // toward him (director.cameraV2, same reactionAt() clock).
-  hostSmall(g, W * 0.84, 'pointL', 24, undefined, undefined, reactionAt(g.s.sceneKey, g.t, g.d));
+  hostSmall(g, W * 0.835, 'pointL', 24, undefined, undefined, reactionAt(g.s.sceneKey, g.t, g.d));
 }
 
 // ── oddsSpread scene ─────────────────────────────────────────────────────────
