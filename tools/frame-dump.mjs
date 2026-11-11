@@ -217,7 +217,7 @@ if (flag('sweep')) {
   const vs = renderFrame(t, { guardOverlay: flag('guard') });
   save(arg('out', 'frame.png'));
   if (flag('guard')) {
-    if (vs.length) { console.log(`guard: ${vs.length} violations`); process.exit(1); }
+    if (vs.length) { console.log(`guard: ${vs.length} violations`); for (const v of vs) console.log(`  !! ${v.id} (${v.kind}, depth ${v.depth}px)`); process.exit(1); }
     console.log('guard: clean');
   }
 }

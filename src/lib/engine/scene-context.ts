@@ -70,7 +70,10 @@ export const REACTIONS: Record<string, ReactionSpec> = {
   // recedes while the host comes forward), so the wide reading columns
   // no longer fight the push — see the scene drawers' reaction staging.
   'c7-paradox': { atFrac: 0.3, durMs: AMP.reactionWindowMs, amp: AMP.reactionAmp.paradox, px: 350, py: 550 },
-  'c8-fund': { atFrac: 0.42, durMs: AMP.reactionWindowMs, amp: AMP.reactionAmp.fund, px: 1100, py: 600 },
+  // P0-3 (audit Table 2): the twist reaction pivots ON the re-staged host
+  // (x=1650, head breaking the 493 wall) — px 1700 keeps his whole envelope
+  // inside the frame through the full 0.55 push (right edge 1842 → 1909).
+  'c8-fund': { atFrac: 0.42, durMs: AMP.reactionWindowMs, amp: AMP.reactionAmp.fund, px: 1700, py: 560 },
   'c9-three': { atFrac: 0.4, durMs: AMP.reactionWindowMs, amp: AMP.reactionAmp.three, px: 500, py: 560 },
 };
 

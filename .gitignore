@@ -89,3 +89,13 @@ tools/qa-probe.mjs
 tools/qa-sweep-evidence.mjs
 tools/qa-sweep-verify.py
 tools/qa-residual-audit.mjs
+tools/gate-calibrate.mjs
+
+# round-2 fix-session probes (one-off diagnostics; the persistent harness
+# is tools/render-check.mjs + tools/frame-dump.mjs)
+tools/smear-probe.mjs
+tools/frac-probe.mjs
+tools/parallax-probe.mjs
+tools/guard-probe.mjs
+tools/stitch-truck-pair.mjs
+tools/stitch-dolly.mjs

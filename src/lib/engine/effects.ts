@@ -460,8 +460,18 @@ function extrudeStroke(
   // AUDIT-2 / D3: which +normal wall faces the light? Light from upper
   // right ≈ (0.7, −0.7): positive dot ⇒ lit tone, else shadow tone.
   const litP = ux * 0.7 + uy * -0.7 >= 0;
-  const wall = (sx: number, sy: number, col: string): void => {
-    ctx.fillStyle = col;
+  // P2-1 (100-judge audit, Table 4 — "light it properly: gradient
+  // walls"): each wall was ONE flat solid tone ("faux-3D — extrusion
+  // with no lighting system... 2.5D cosplay"). Real extruded objects
+  // shade: every wall is now a 3-STOP LINEAR GRADIENT along the depth
+  // vector — base tone at the face, mid at 55%, BRIGHTER at the outer
+  // edge (the edge catches the light). The lit wall rides
+  // shadow→lit→bright-lit; the shadow wall dark→shadow→lit-deep.
+  const wall = (sx: number, sy: number, stops: [number, string][]): void => {
+    const gx0 = ax + sx, gy0 = ay + sy;
+    const g = ctx.createLinearGradient(gx0, gy0, gx0 + dx, gy0 + dy);
+    for (const [o, c] of stops) g.addColorStop(o, c);
+    ctx.fillStyle = g;
     ctx.beginPath();
     ctx.moveTo(ax + sx, ay + sy);
     ctx.lineTo(bx + sx, by + sy);
@@ -470,8 +480,12 @@ function extrudeStroke(
     ctx.closePath();
     ctx.fill();
   };
-  wall(ux, uy, litP ? colLit : colShadow);
-  wall(-ux, -uy, litP ? colShadow : colLit);
+  wall(ux, uy, litP
+    ? [[0, '#A8851B'], [0.5, colLit], [1, '#E9C94A']]
+    : [[0, '#5F4A0E'], [0.55, colShadow], [1, '#A8851B']]);
+  wall(-ux, -uy, litP
+    ? [[0, '#5F4A0E'], [0.55, colShadow], [1, '#A8851B']]
+    : [[0, '#A8851B'], [0.5, colLit], [1, '#E9C94A']]);
 }
 
 export function drawK3D(
@@ -480,7 +494,14 @@ export function drawK3D(
   y: number,
   s: number,
   grow: number,
-  t: number
+  t: number,
+  // P0-2 (100-judge audit, Table 2 — THE ONE-MASCOT RULE): the K
+  // performs its face ONLY when it is the subject of the frame — never
+  // as background watermark furniture, never beside a second mascot.
+  // Call sites that stage the K as subject (the cold-open formation, the
+  // divergeK reveal) keep the default; every watermark / thumbnail /
+  // host-adjacent K passes false.
+  face = true
 ): void {
   ctx.save();
   // AUDIT-2 / 0.7 + D4 (report §10.1/§10.4): the floor shadow obeys the
@@ -491,20 +512,32 @@ export function drawK3D(
   // ellipse under a moving object is a decal).
   const wPh = Math.sin(t / AMP.kWobblePeriodMs);
   if (grow > 0.15) {
+    // P2-1 (audit Table 4 — "unified floor shadow language"): the old
+    // big soft radial read as "a smudge — a different shadow language
+    // than the character's clean contact shadow" ("two lighting systems
+    // in one frame"). The K's floor shadow now speaks the CHARACTER's
+    // language (groundShadowV2): a tighter 2-stop contact core (harder
+    // falloff — contact, not blur) plus a CRISP contact line under the
+    // stem's base — same (−4, +8) one-light offset, same alpha register.
     const shX = x - 4 + wPh * s * 0.05;
     const shY = y + 8 + s * 1.22;
-    // BLUEPRINT Phase 3 (Table 6, "floor shadow — no ground contact"):
-    // alpha 0.17 -> 0.30 and the ellipse thickens with the depth so the
-    // letter's mass visibly presses on the floor at phone scale.
     const a = 0.30 * clamp01(grow * 1.35);
-    const g = ctx.createRadialGradient(shX, shY, 4, shX, shY, s * 1.15);
+    const g = ctx.createRadialGradient(shX, shY, 2, shX, shY, s * 0.85);
     g.addColorStop(0, rgba(PALETTE.shadow, a));
-    g.addColorStop(0.6, rgba(PALETTE.shadow, a * 0.4));
+    g.addColorStop(0.45, rgba(PALETTE.shadow, a * 0.55));
     g.addColorStop(1, rgba(PALETTE.shadow, 0));
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.ellipse(shX, shY, s * 1.15 * (0.88 + 0.12 * grow), s * 0.24 * (0.88 + 0.12 * grow), 0, 0, Math.PI * 2);
+    ctx.ellipse(shX, shY, s * 0.9 * (0.88 + 0.12 * grow), s * 0.2 * (0.88 + 0.12 * grow), 0, 0, Math.PI * 2);
     ctx.fill();
+    // the contact line — the character-shadow register
+    ctx.strokeStyle = rgba(PALETTE.shadow, 0.35);
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(shX - s * 0.5, shY);
+    ctx.lineTo(shX + s * 0.5, shY);
+    ctx.stroke();
   }
   // the wobble — BLUEPRINT Phase 1 (Table 7): ±2°/4s -> ±5°/2.6s
   // (AMP.kWobbleDeg / kWobblePeriodMs). The audit read the old register as
@@ -554,6 +587,27 @@ export function drawK3D(
     extrudeStroke(ctx, x, y + s * 0.1, x + s * 1.15 * dnArm, y + s * 1.05 * dnArm, W_K, depth, colLit, colShadow,
       strokeD(x, y + s * 0.1, x + s * 1.15 * dnArm, y + s * 1.05 * dnArm));
   }
+  // P2-1 (audit Table 4 — "AO at stem-arm junctions"): the junctions
+  // where the arms meet the stem held no ambient occlusion — flat walls
+  // meeting flat walls. A soft goldDeep radial at the vertex (where both
+  // arms root into the stem) darkens the wall seams BEFORE the face
+  // strokes paint — the face stays bright, the seams recede, and the
+  // object reads as assembled mass instead of layered cut-outs.
+  if (upArm > 0.35 && dnArm > 0.2) {
+    const jx = x + s * 0.12;
+    const jy = y + s * 0.14;
+    // panel r2: AO base brighter-mid (the K must not drift ochre) and
+    // the occlusion TIGHTER (0.36r, 0.5 core) so it reads as a contact
+    // wedge, not a wash
+    const ao = ctx.createRadialGradient(jx, jy, 1, jx, jy, s * 0.36);
+    ao.addColorStop(0, rgba(PALETTE.goldDeep, 0.5));
+    ao.addColorStop(0.55, rgba(PALETTE.goldDeep, 0.22));
+    ao.addColorStop(1, rgba(PALETTE.goldDeep, 0));
+    ctx.fillStyle = ao;
+    ctx.beginPath();
+    ctx.arc(jx, jy, s * 0.36, 0, Math.PI * 2);
+    ctx.fill();
+  }
   // gold rim — a wide soft gold pass UNDER the face; the ink face
   // covers its centre and the gold peeks only at the silhouette edge
   // (a lit edge, not a halo)
@@ -585,7 +639,8 @@ export function drawK3D(
   // meet). The K becomes a CHARACTER the audience recognizes and looks
   // forward to seeing — the Kurzgesagt-duck move. Only renders once the
   // K is fully grown (grow > 0.7) so the reveal ritual lands first.
-  if (grow > 0.7) {
+  // P0-2: gated on `face` — the one-mascot rule above.
+  if (face && grow > 0.7) {
     const faceAlpha = clamp01((grow - 0.7) / 0.3);
     ctx.save();
     ctx.globalAlpha = faceAlpha;

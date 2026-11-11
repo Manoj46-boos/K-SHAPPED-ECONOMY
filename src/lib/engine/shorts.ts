@@ -273,10 +273,13 @@ function drawNativeVerticalK(
 
   const kx = W * 0.5;
   const ky = 730; // optical centre of the v6 hero zone (380–1080)
-  const S = 210;
 
   const beat = tl.beats.find((b) => tMs >= b.startMs && tMs < b.endMs);
   const t = beat ? Math.max(0, tMs - beat.startMs) : tMs % 4000;
+  // P2-5 (audit Table 4 — "K at max scale"): the K grows from 210 to 300
+  // as the reveal completes — the payoff moment fills the hero band
+  // (span 415–1045 at full growth, clear of the caption zone 1116+).
+  const S = 210 + 90 * clamp01((t - 3000) / 1200);
 
   const growP = clamp01((t - 400) / 2300);
   const upP = clamp01((t - 400) / 1900);
@@ -391,6 +394,30 @@ function drawNativeVerticalStats(
   const x = 84;
   const w = W - 84 * 2; // 912
   const h = 210;
+  // P2-5 (100-judge audit, Table 4 — "12.4% as a FULL-BLEED number"): the
+  // phone panel scored the stat Short 3/10 for thumb-stop — "nobody
+  // thumb-stops for a pale green rectangle" (the opening 600ms was empty
+  // atmosphere). The Short now OPENS on the number itself: 12.4% slams in
+  // at ~300px display serif, full-bleed gold, with the loss kicker under
+  // it — the swipe decision frame IS the statistic — then dissolves as
+  // the card stack lands.
+  const openP = clamp01(t / 260) * clamp01((1750 - t) / 550);
+  if (openP > 0) {
+    ctx.save();
+    ctx.globalAlpha = openP;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    setFont(ctx, 300, 700, FONT_DISPLAY);
+    ctx.fillStyle = PALETTE.goldDisplay;
+    ctx.fillText('12.4%', W / 2, 880);
+    setFont(ctx, 46, 700, FONT_UI);
+    ctx.fillStyle = PALETTE.ink;
+    ctx.fillText('of it reached you', W / 2, 1010);
+    ctx.fillStyle = PALETTE.gold;
+    roundRect(ctx, W / 2 - 220, 1050, 440 * clamp01(t / 400), 8, 4);
+    ctx.fill();
+    ctx.restore();
+  }
   cards.forEach((c, i) => {
     const p = clamp01((t - 600 - i * 800) / 900);
     if (p <= 0) return;
@@ -1034,12 +1061,22 @@ export function drawShortFrame(
     const fw = W;
     const fh = fw * (1080 / 1920); // 607.5
     const fy = 410 + (1080 - fh) / 2;
-    card(ctx, 26, fy - 30, fw - 52, fh + 60, { r: 22 });
+    // P2-5 (audit Table 4 — "kill letterboxed panels"): the phone panel
+    // read the v5 inset-card matte as a letterboxed TV on a phone ("a
+    // mounted plate"). The fallback now speaks the PLATFORM's own
+    // grammar: the 16:9 frame scaled to FILL the 9:16 canvas, heavily
+    // blurred and dimmed — a full-bleed ambient field — with the sharp
+    // frame floating centred on it. No card matte, no hairline, no bars:
+    // every pixel of the Short is either the moment or its atmosphere.
+    ctx.save();
+    try { ctx.filter = 'blur(26px)'; } catch { /* older canvas: unblurred fill still full-bleed */ }
+    const fhFull = W * (1920 / 1080); // 1920 tall at canvas width
+    ctx.drawImage(offscreen, 0, 0, 1920, 1080, (W - W) / 2, (H - fhFull) / 2, W, fhFull);
+    ctx.filter = 'none';
+    ctx.fillStyle = rgba(PALETTE.bgTop, 0.34);
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
     ctx.drawImage(offscreen, 0, 0, 1920, 1080, 0, fy, fw, fh);
-    // hairline frame so the inset reads as a mounted plate
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = PALETTE.cardBorder;
-    ctx.strokeRect(1, fy + 1, fw - 2, fh - 2);
   }
 
   // 2b) AUDIT-2 / §10.5 (report Phase 4): FACE-FIRST ENTRY. The swipe

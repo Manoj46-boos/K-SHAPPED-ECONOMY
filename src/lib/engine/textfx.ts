@@ -43,10 +43,48 @@ export interface CaptionStyle {
  * host scenes) and breaks rows on CLAUSE boundaries instead of slicing by
  * pixel width — the old 2-row-then-drop window silently ate the tail of
  * long sentences ("because most of the…" read as a render bug on 5 of 6
- * audited Shorts frames). A window that starts mid-sentence now carries a
- * leading ellipsis so continuation reads as karaoke windowing, never as a
- * truncated render.
+ * audited Shorts frames). A window that starts mid-sentence carries the
+ * designed continuation mark (P0-6) so continuation reads as karaoke
+ * windowing, never as a truncated render — and a width-dropped tail
+ * still announces itself ("never drop clause tails").
  */
+/** P0-6 (100-judge audit, Table 2 — the designed continuation mark):
+ * a DRAWN chevron pair at the window's outer edge — « at the leading
+ * edge (text came before), » at the trailing edge (text continues
+ * beyond). Round-capped strokes in inkFaint, sized to the caption voice —
+ * caption-system furniture in the same register as the voice mark.
+ * Panel note (round 1): three DRAWN DOTS still read as the ellipsis
+ * character — the mark must be glyphs-no-font-owns, so chevrons it is.
+ * Pure function of position. */
+function drawContMark(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  dir: 1 | -1,
+  fontSize: number
+): void {
+  const s = fontSize * 0.26;   // chevron arm (panel round-2 note: a touch smaller — punctuation-adjacent, not a character)
+  const dy = fontSize * 0.06;  // optical center, a touch under the x-middle
+  ctx.strokeStyle = rgba(PALETTE.inkFaint, 0.75); // and a touch lighter
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (let c = 0; c < 2; c++) {
+    const cx = x + 6 + c * s * 0.8;
+    ctx.beginPath();
+    if (dir === 1) { // » — the sentence continues past this window
+      ctx.moveTo(cx, y + dy - s);
+      ctx.lineTo(cx + s, y + dy);
+      ctx.lineTo(cx, y + dy + s);
+    } else {         // « — this window continues from earlier text
+      ctx.moveTo(cx + s, y + dy - s);
+      ctx.lineTo(cx, y + dy);
+      ctx.lineTo(cx + s, y + dy + s);
+    }
+    ctx.stroke();
+  }
+}
+
 export function drawCaptions(
   ctx: CanvasRenderingContext2D,
   W: number,
@@ -91,16 +129,18 @@ export function drawCaptions(
     winEnd = Math.min(len, winStart + maxWords);
   }
   const continued = winStart > 0;
-  const ell = continued ? '…' : '';
-  const ellW = continued ? ctx.measureText(ell).width + spaceW * 0.5 : 0;
-  // PANEL-10 (C-01, completes P0-7): the leading ellipsis shipped alone — a
-  // window that ENDS mid-sentence ("…crossing 30,000 for the first") still
-  // read as a truncated render on every paused frame. A window whose last
-  // word is not the caption line's last word now carries a trailing ellipsis
-  // too, so a paused frame reads as karaoke windowing at BOTH edges.
-  const trails = winEnd < len;
-  const trl = trails ? '…' : '';
-  const trlW = trails ? ctx.measureText(trl).width + spaceW * 0.5 : 0;
+  // P0-6 (audit Table 2 — "kill the truncation read"): the ellipsis
+  // CHARACTER is gone — three panels read it as "caption cut mid-sentence
+  // looks like a rendering bug". Continuation now announces itself with
+  // the DESIGNED mark (drawContMark above): drawn chevrons, brand-quiet —
+  // a deliberate device, not a font truncating a string.
+  const MARK_W = 46;
+  const ellW = continued ? MARK_W : 0;
+  // trails starts from the window math and is RE-AFFIRMED after any
+  // display-side tail drop below ("never drop clause tails"): a clause
+  // tail that goes unrendered for width still announces continuation.
+  let trails = winEnd < len;
+  let trlW = trails ? MARK_W : 0;
   let winWords = words.slice(winStart, winEnd);
 
   const measure = (ws: CaptionWord[]): number =>
@@ -113,6 +153,10 @@ export function drawCaptions(
     while (winWords.length && measure(winWords) + ellW + trlW > maxW && winWords.length > Math.min(3, lastSpoken - winStart + 1)) {
       winWords = winWords.slice(0, -1);
     }
+    // P0-6 ("never drop clause tails"): words dropped for width still
+    // announce continuation — a vanished tail with no mark is the
+    // rendering-bug read the audit flagged.
+    if (winWords.length < winEnd - winStart) trails = true;
     if (winWords.length) rows = [winWords];
   } else {
     const total = measure(winWords);
@@ -145,6 +189,7 @@ export function drawCaptions(
         const r1: CaptionWord[] = [];
         let rw = ellW;
         let cur = 0;
+        let placed = 0; // P0-6: words actually placed (vs silently lost)
         for (const wd of winWords) {
           const ww = ctx.measureText(wd.w).width;
           if (rw + ww > maxW && (cur === 0 ? r0.length : r1.length) > 0) {
@@ -152,13 +197,20 @@ export function drawCaptions(
             cur = 1;
           }
           (cur === 0 ? r0 : r1).push(wd);
+          placed++;
           rw = (cur === 0 ? measure(r0) : measure(r1)) + (cur === 0 ? ellW : 0);
         }
+        // P0-6 ("never drop clause tails"): if the greedy break ran out of
+        // room, the unplaced tail still announces continuation.
+        if (placed < winWords.length) trails = true;
         rows = [r0, r1].filter((r) => r.length);
       }
     }
   }
   if (!rows.length) return;
+  // P0-6: trlW final — the mark may have been earned by a tail drop after
+  // the initial fit; the pill's width accounts for it here.
+  trlW = trails ? MARK_W : 0;
 
   const rowH = fontSize + 22;
   const totalH = rows.length * rowH + 24;
@@ -210,10 +262,8 @@ export function drawCaptions(
   ctx.restore();
 
   // words — spoken = ink, upcoming = 85% ink (PANEL-9 R1), active = sweep;
-  // v9: a leading ellipsis marks continuation windows (P0-7);
-  // PANEL-10: a trailing ellipsis marks the sentence continuing past this
-  // window (completes P0-7 — both edges of a paused frame now read as
-  // windowing, never as a truncated render).
+  // P0-6: continuation announces with the DESIGNED mark (drawContMark) at
+  // both window edges — drawn dots, never the ellipsis character.
   ctx.save();
   ctx.globalAlpha = fade;
   ctx.textBaseline = 'middle';
@@ -224,9 +274,7 @@ export function drawCaptions(
     let x = W / 2 - rowW / 2;
     const y = py + 22 + ri * rowH + fontSize / 2;
     if (ri === 0 && continued) {
-      ctx.fillStyle = rgba(PALETTE.inkFaint, 0.9);
-      ctx.textAlign = 'left';
-      ctx.fillText(ell, x, y);
+      drawContMark(ctx, x, y, -1, fontSize);
       x += ellW;
     }
     for (const w of row) {
@@ -245,12 +293,11 @@ export function drawCaptions(
       }
       x += ctx.measureText(w.w).width + spaceW;
     }
-    // PANEL-10 (C-01): trailing ellipsis on the LAST row when the sentence
-    // continues past this window — the paused-frame twin of the leading mark.
+    // P0-6 (C-01 lineage): the designed continuation mark on the LAST row
+    // when the sentence continues past this window — the paused-frame twin
+    // of the leading mark, and the announcement for any width-dropped tail.
     if (last && trails) {
-      ctx.fillStyle = rgba(PALETTE.inkFaint, 0.9);
-      ctx.textAlign = 'left';
-      ctx.fillText(trl, x + spaceW * 0.5, y);
+      drawContMark(ctx, x + spaceW * 0.5, y, 1, fontSize);
     }
   });
   ctx.restore();

@@ -44,6 +44,20 @@ export interface Pose {
   /** BLUEPRINT Phase 2: shoulder-line counter-rotation, deg — the shoulder
    *  line counters the pelvis (the classical contrapposto S-curve). */
   shoulderTilt?: number;
+  /** P1-4 (100-judge audit, Table 3 — SILHOUETTE-LEVEL EMOTIONS): "emotions
+   *  that change only line angles die at phone scale; emotions that change
+   *  silhouette shapes survive." Per-eye scale multipliers (the wry
+   *  squint-smirk = 0.55 / 1.12) and a shoulder drop in px (positive = the
+   *  near shoulder sinks — the wry slouch; negative = chest open, the
+   *  warm lift). Blended like every other key; defaults are neutral. */
+  eyeL?: number;
+  eyeR?: number;
+  shoulderDrop?: number;
+  /** P1-2 (audit Table 3): explicit hand glyph override — 'fist' or the
+   *  count glyphs 'count1'/'count2'/'count3' (a fist with N fingers
+   *  extended). Default = auto by rig scale (fan / mitten). */
+  lHand?: 'fist' | 'count1' | 'count2' | 'count3';
+  rHand?: 'fist' | 'count1' | 'count2' | 'count3';
 }
 
 const base = (): Pose => ({
@@ -53,6 +67,7 @@ const base = (): Pose => ({
   browRaise: 0, browAngle: 0, smile: 0,
   lLift: 0, rLift: 0, lToe: 0, rToe: 0,
   pelvisTilt: 0, shoulderTilt: 0,
+  eyeL: 1, eyeR: 1, shoulderDrop: 0,
 });
 
 export const POSES: Record<string, Pose> = {
@@ -72,9 +87,9 @@ export const POSES: Record<string, Pose> = {
   think: { ...base(), rAU: 14, rAL: 150, lAU: -14, lAL: -10, headTilt: 5, browRaise: 0.35 },
   shrug: { ...base(), lAU: -66, lAL: -132, rAU: 68, rAL: 128, headTilt: 6, browRaise: 0.6, smile: 0.15 },
   wave: { ...base(), rAU: 104, rAL: 152, lAU: -8, lAL: -6, smile: 0.7, browRaise: 0.4 },
-  count1: { ...base(), lAU: -96, lAL: -110, rAU: 10, rAL: 8, headTilt: -2 },
-  count2: { ...base(), lAU: -96, lAL: -110, rAU: 104, rAL: 120, headTilt: -2 },
-  count3: { ...base(), lAU: -96, lAL: -110, rAU: 104, rAL: 120, headTilt: -2, smile: 0.4 },
+  count1: { ...base(), lAU: -96, lAL: -110, rAU: 10, rAL: 8, headTilt: -2, lHand: 'count1' },
+  count2: { ...base(), lAU: -96, lAL: -110, rAU: 104, rAL: 120, headTilt: -2, lHand: 'count2' },
+  count3: { ...base(), lAU: -96, lAL: -110, rAU: 104, rAL: 120, headTilt: -2, smile: 0.4, lHand: 'count3' },
   climb: { ...base(), lAU: -104, lAL: -128, rAU: 134, rAL: 156, lLU: -22, lLL: -52, rLU: 24, rLL: 54, lean: 10, browRaise: 0.3, smile: 0.3 },
   serious: { ...base(), lAU: -14, lAL: -12, rAU: 16, rAL: 12, browAngle: 14, smile: 0 },
   aha: { ...base(), rAU: 96, rAL: 140, lAU: -40, lAL: -60, browRaise: 0.8, smile: 0.6 },
@@ -120,10 +135,15 @@ export const POSES: Record<string, Pose> = {
   shock: { ...base(), lean: -6, headTilt: -6, rootY: 3, lAU: -104, lAL: -128, rAU: 118, rAL: 142, lLU: -11, lLL: 4, rLU: 12, rLL: -8, browRaise: 0.95, smile: 0.02, pelvisTilt: 4.5, shoulderTilt: -3.5 },
   // wry: the paradox resolve (c7-paradox) — the knowing half-smile: one brow
   // up, one down, head tilted, hand low like “well, actually”.
-  wry: { ...base(), lean: 5, headTilt: 7, lAU: -16, lAL: -12, rAU: 38, rAL: 96, lLU: -8, rLU: 9, rLL: 5, browRaise: 0.62, browAngle: -10, smile: 0.45, pelvisTilt: 3.2, shoulderTilt: -2.6 },
+  // P1-4: + silhouette terms — the near eye squints to 0.55 while the far
+  // opens 1.12 (the squint-smirk reads at 320px where brow values die)
+  // and the near shoulder drops 4.5px (the slouch).
+  wry: { ...base(), lean: 5, headTilt: 7, lAU: -16, lAL: -12, rAU: 38, rAL: 96, lLU: -8, rLU: 9, rLL: 5, browRaise: 0.62, browAngle: -10, smile: 0.45, pelvisTilt: 3.2, shoulderTilt: -2.6, eyeL: 0.55, eyeR: 1.12, shoulderDrop: 4.5 },
   // warm: the final takeaway (c9-three) — earned optimism, chest open,
   // soft raised brows, the big smile.
-  warm: { ...base(), lean: -3, headTilt: -3, lAU: -34, lAL: -44, rAU: 30, rAL: 44, lLU: -9, rLU: 10, rLL: 6, browRaise: 0.42, smile: 0.85, pelvisTilt: -3.0, shoulderTilt: 2.4 },
+  // P1-4: + silhouette terms — both eyes widen 1.15 (soft wide-eyed
+  // warmth) and the shoulders lift (chest open, −3px drop = rise).
+  warm: { ...base(), lean: -3, headTilt: -3, lAU: -34, lAL: -44, rAU: 30, rAL: 44, lLU: -9, rLU: 10, rLL: 6, browRaise: 0.42, smile: 0.85, pelvisTilt: -3.0, shoulderTilt: 2.4, eyeL: 1.15, eyeR: 1.15, shoulderDrop: -3 },
 };
 
 export function blendPose(a: Pose, b: Pose, t: number): Pose {
@@ -131,7 +151,16 @@ export function blendPose(a: Pose, b: Pose, t: number): Pose {
   (Object.keys(a) as (keyof Pose)[]).forEach((k) => {
     // AUDIT-2 / 1.5: lLift/rLift are optional on Pose — lerp their
     // defaults (0) so strict-mode builds stay clean.
-    o[k] = lerp(a[k] ?? 0, b[k] ?? 0, t);
+    // P1-2: the hand-glyph keys (lHand/rHand) are string unions, not
+    // numbers — they pass through (the nearer pose owns the glyph)
+    // instead of lerping.
+    const av = a[k];
+    const bv = b[k];
+    if (typeof av === 'string' || typeof bv === 'string') {
+      (o as unknown as Record<string, unknown>)[k] = t < 0.5 ? (av ?? bv) : (bv ?? av);
+      return;
+    }
+    (o as unknown as Record<string, unknown>)[k] = lerp(av ?? 0, bv ?? 0, t);
   });
   return o;
 }
@@ -375,10 +404,35 @@ export class Stickman {
     const armAmp = 0.95;
     const lAUw = -cA * swing * armAmp - 7 + sA * 3;
     const rAUw = cA * swing * armAmp + 7 - sA * 3;
+    // P1-5 (100-judge audit, Table 3 — WALK EXTREMES): four caricatured
+    // keyframes layered ON the analytic cycle — contact / down / pass /
+    // up. The audit: "your cycle interpolates one continuous function, so
+    // every frame is average; no frame is an extreme, and the eye reads
+    // the average as a puppet mid-glide." The math stays exact (feet
+    // never slide, the pelvis stays analytic); the EXAGGERATION is an
+    // additive layer keyed to the four beats:
+    //   CONTACT (φ 0.50 L / 0.97 R): the strikes — the chin tucks 3° INTO
+    //     the plant (the lunge reads in the head, not just the legs);
+    //   DOWN (contact +0.07): the absorb — the pelvis sinks a further
+    //     4.5px PAST the anatomical minimum and the lean settles +2°;
+    //   PASS (φ 0.25 / 0.75): the crossings — the body stretches TALL
+    //     (rootY −2.5px) and the chin lifts 2° (the counter-bob);
+    //   UP (contact −0.06): the push-off — toe extension +8° past the
+    //     roll and the chin lifts ahead of the strike.
+    const pulse = (center: number, width: number): number => {
+      let d = Math.abs(ph - center);
+      d = Math.min(d, 1 - d);
+      return d > width ? 0 : 1 - d / width;
+    };
+    const absorb = Math.pow(pulse(0.57, 0.07), 2) + Math.pow(pulse(0.04, 0.07), 2);
+    const passP = pulse(0.25, 0.09) + pulse(0.75, 0.09);
+    const pushL = Math.pow(pulse(0.43, 0.06), 2);
+    const pushR = Math.pow(pulse(0.9, 0.06), 2);
     return {
       ...base(),
-      rootY,
-      lean: 4 + s * 2 + (strikeL + strikeR) * 3 + 3 - c * 2,
+      rootY: rootY + absorb * 4.5 - passP * 2.5,
+      lean: 4 + s * 2 + (strikeL + strikeR) * 3 + 3 - c * 2 + absorb * 2,
+      headTilt: -(strikeL + strikeR) * 3 + passP * 2 + (pushL + pushR) * 2.5,
       lLU, lLL, rLU, rLL,
       lAU: lAUw,
       lAL: lAUw + Math.max(0, -cA) * 24 - 2,
@@ -388,8 +442,8 @@ export class Stickman {
       browRaise: 0.1,
       lLift: liftL,
       rLift: liftR,
-      lToe: toeL,
-      rToe: toeR,
+      lToe: toeL + pushL * 8,
+      rToe: toeR + pushR * 8,
       pelvisTilt,
       shoulderTilt,
     } as Pose;
@@ -664,6 +718,22 @@ export function walkIn(
 /** Entrance helper used by host scenes: fade+rise. */
 export function riseIn(t: number, dur = 600): number {
   return easeOutCubic(clamp01(t / dur));
+}
+
+/** P1-6 (100-judge audit, Table 3 — GRADUATED SMEARS): the word-onset
+ * accent pulse that drives the arm's three-ghost motion trail. Faster
+ * attack than nodPulse — the smear reads as VELOCITY, not emphasis:
+ * peaks ~70ms after the word fires, decays over ~260ms. Same
+ * wordTimes the talk envelope uses; scrub-safe. */
+export function accentPulse(t: number, wordTimes: number[]): number {
+  let p = 0;
+  for (const wt of wordTimes) {
+    if (t >= wt - 40 && t < wt + 260) {
+      p = Math.max(p, Math.sin(((t - wt + 40) / 300) * Math.PI));
+    }
+    if (wt > t + 300) break;
+  }
+  return p;
 }
 
 export function nodPulse(t: number, wordTimes: number[]): number {

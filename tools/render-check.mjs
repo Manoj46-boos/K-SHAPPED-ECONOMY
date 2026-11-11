@@ -264,6 +264,63 @@ for (const p of targets) {
     console.error(`  !! NEAR-WHITE ${name}: ${pct.toFixed(1)}% > ${NEAR_WHITE_CEILING}% ceiling`);
   }
 }
+// (1b) P0-5 (100-judge audit, Table 2 — THE PHONE-GATE RULE): every
+// picked frame now SHIPS WITH ITS 320px FEED TWIN — the median high-RPM
+// viewer judges the frame at this scale, so the twin is generated on
+// every run, never by exception ("no scene ships unless its 320px twin
+// passes review"). Calibration note: the editorial-host failure ("80%
+// negative space and a stick figure - a loading screen", 1/10 at the
+// gate) is an ARRANGEMENT failure — its raw info density measured 6.4%
+// vs 3.9% on a legitimately sparse statement frame, so density alone
+// cannot hard-gate it. The harness therefore prints density AND the
+// largest full-width empty band per twin, and WARNS above 20% frame
+// height (the loading-screen signature) for triage; the hard verdict
+// stays with the panel review of the twin itself.
+function infoMask(c) {
+  const W = c.width, H = c.height;
+  const d = c.getContext('2d').getImageData(0, 0, W, H).data;
+  const m = new Uint8Array(W * H);
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    const sum = d[i] + d[i + 1] + d[i + 2];
+    const chroma = Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]);
+    m[p] = sum < 330 || chroma > 60 ? 1 : 0;
+  }
+  return { m, W, H };
+}
+function densityPct(c) {
+  const { m } = infoMask(c);
+  let n = 0;
+  for (let i = 0; i < m.length; i++) n += m[i];
+  return 100 * n / m.length;
+}
+function largestEmptyBandPct(c) {
+  const { m, W, H } = infoMask(c);
+  let best = 0, run = 0;
+  for (let y = 0; y < H; y++) {
+    let ink = 0;
+    for (let x = 0; x < W; x++) ink += m[y * W + x];
+    if (ink / W < 0.005) run++; else { if (run > best) best = run; run = 0; }
+  }
+  if (run > best) best = run;
+  return 100 * best / H;
+}
+const EMPTY_BAND_WARN = 20;
+for (const p of targets) {
+  const img = new (require('canvas').Image)();
+  img.src = fs.readFileSync(p);
+  const c = createCanvas(img.width, img.height);
+  c.getContext('2d').drawImage(img, 0, 0);
+  const feed = feedDownscale(c);
+  const twin = p.replace(/\.png$/, '-feed320.png');
+  fs.writeFileSync(twin, feed.toBuffer('image/png'));
+  const name = path.basename(p);
+  const dens = densityPct(feed);
+  const band = largestEmptyBandPct(feed);
+  console.log(`  [phone-gate] ${name}: twin ${path.basename(twin)} · info ${dens.toFixed(1)}% · largest empty band ${band.toFixed(0)}% of height`);
+  if (band > EMPTY_BAND_WARN) {
+    console.error(`  !! PHONE-GATE TRIAGE ${name}: largest empty band ${band.toFixed(0)}% > ${EMPTY_BAND_WARN}% — loading-screen signature, panel-review the twin before shipping`);
+  }
+}
 // (2) + (3): stroke & face-ink at the 320px feed referee (host + shorts)
 {
   const { drawShortFrame, pickShortMoments } = require(path.join(BUILD, 'shorts.js'));

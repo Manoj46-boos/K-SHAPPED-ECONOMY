@@ -12,13 +12,18 @@ import { Stickman, POSES, blendPose } from './stickman';
 import { drawStickmanV2 } from './stickman-v2';
 import { wrapText } from './charts';
 
-function bg(g: SceneCtx, seed: number, gold = 0.4, strength = 0.72): void {
+function bg(g: SceneCtx, seed: number, gold = 0.4, strength = 0.72, bokeh = 0.85): void {
   paintBg(g.ctx, g.W, g.H, g.t, g.chapterTone);
   // P1-2 (report §12.2): statement scenes live in a room too — the plate
   // lands behind every text beat (stamp/quote/takeaways/comment), so a
   // full-bleed tint carries the frame instead of raw white.
   scenePlate(g.ctx, g.W, g.H, g.chapterTone ?? 'up', strength);
-  bokehField(g.ctx, g.W, g.H, g.t, { intensity: 0.85, seed, gold });
+  // P2-3 (100-judge audit, Table 4 — "no bokeh on statement beats":
+  // "why bubbles, in a data film?"): the bokeh level is now a per-scene
+  // param. Statement beats (the stamp slam) pass 0 — typography owns the
+  // frame alone; typography-forward beats (the quote card) pass a
+  // whisper; reading layouts keep the room's atmosphere.
+  if (bokeh > 0) bokehField(g.ctx, g.W, g.H, g.t, { intensity: bokeh, seed, gold });
   lightRays(g.ctx, g.W, g.H, g.t, { alpha: 0.5 });
 }
 
@@ -127,7 +132,10 @@ export function bigTextScene(g: SceneCtx): void {
     ctx.fillRect(0, 0, W, H);
     ctx.restore();
   }
-  if (t > 1800) sparkles(ctx, W / 2, H * 0.42, t, 1800, { count: 10, radius: 260 }); // PANEL-12/P2-4: dead t0 fixed — the burst now fires
+  // P2-3 (audit Table 4 + panel round-3 note "dirt on the plate"): the
+  // sparkle burst is GONE from the statement beat — celebration VFX
+  // never sits on statement typography; the slam's own impact grammar
+  // (micro-shake + ring) carries the emphasis.
   const hp = clamp01((t - 2200) / 600);
   if (hp > 0) {
     const pose = Stickman.poseAt(t, { gesture: 'count2', speaking: false });
@@ -150,7 +158,9 @@ export function bigTextScene(g: SceneCtx): void {
 export function stampCardScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   // P1-2 + panel re-review: the stamp SLAMS — it gets the deep room (0.88)
-  bg(g, 221, 0.55, 0.88);
+  // P2-3: and NO bokeh — the stamp is a statement beat, typography owns
+  // the frame alone.
+  bg(g, 221, 0.55, 0.88, 0);
   const cx = W / 2;
   const cy = H * 0.42;
   const ap = clamp01(t / 500);
@@ -231,7 +241,7 @@ export function stampCardScene(g: SceneCtx): void {
     ctx.fillStyle = PALETTE.inkSoft;
     ctx.fillText(s.sub as string, cx, cy + 160);
     ctx.restore();
-    if (cp >= 1) sparkles(ctx, cx, cy, t, 1400, { count: 10, radius: 320 }); // PANEL-12/P2-4: dead t0 fixed — the burst now fires
+    // P2-3: no sparkle burst on the stamp statement (see bigText note).
   }
   // PANEL-12 / P2-3 (report §14.3): THE IMPACT FRAME — the stamp SLAMS at
   // t=500 (ap completes); a 2-frame white accent at 8% lands the hit.
@@ -256,7 +266,7 @@ export function stampCardScene(g: SceneCtx): void {
 // ── quoteCard: caveats, quotes, disclaimer ───────────────────────────────────
 export function quoteCardScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
-  bg(g, 231);
+  bg(g, 231, 0.4, 0.72, 0.45); // P2-3: typography-forward beat — bokeh whisper, not 0.85
   const soft = !!s.soft;
   const lines = (s.lines as string[]) || [];
   const ap = clamp01(t / 700);
@@ -643,7 +653,10 @@ export function endScreenScene(g: SceneCtx): void {
   scenePlate(ctx, W, H, g.chapterTone ?? 'gold');
   bokehField(ctx, W, H, t, { intensity: 1.1, seed: 261, gold: 0.6 });
   kMotifs(ctx, W, H, t, 0.05);
-  floatCoins(ctx, W * 0.3, H * 0.32, t, 5, 200);
+  // P2-3 (audit Table 4 — "coins only where money moves"): the end
+  // screen's five floating coins were the same "sprinkles doing zero
+  // work" as the gas pump's — no money moves in a farewell. Gone; the
+  // teaser card, brand mark and CTA carry the frame.
 
   // ── LEFT 55% — next-video teaser card (the real click driver) ──
   // v10 (panel GROWTH-1 — end-screen rebalance): the v9 frame parked the
@@ -671,7 +684,7 @@ export function endScreenScene(g: SceneCtx): void {
   ctx.fillStyle = PALETTE.upSoft;
   roundRect(ctx, nx + 24, ny + 24, 612, 250, 20);
   ctx.fill();
-  drawK3D(ctx, nx + 170, ny + 145, 76, clamp01((t - 300) / 900), t);
+  drawK3D(ctx, nx + 170, ny + 145, 76, clamp01((t - 300) / 900), t, false); // P0-2: thumbnail K — no face (host presents this card)
   ctx.strokeStyle = rgba(PALETTE.up, 0.8);
   ctx.lineWidth = 6;
   ctx.lineCap = 'round';
@@ -703,7 +716,7 @@ export function endScreenScene(g: SceneCtx): void {
       // 0.45x mid plane): the layers separate under the pullback.
       ctx.translate(camState.dx * 0.12, camState.dy * 0.12);
       ctx.globalAlpha = 0.10 * kp;
-      drawK3D(ctx, W * 0.74, H * 0.40, 300, kp, t);
+      drawK3D(ctx, W * 0.74, H * 0.40, 300, kp, t, false); // P0-2: watermark K — no face (background furniture)
       ctx.restore();
     }
   }
@@ -733,7 +746,7 @@ export function endScreenScene(g: SceneCtx): void {
   // its own video element + subscribe circle; a bold outlined arrow + chip
   // INSIDE our safe zone points at exactly where those land, and the host's
   // pointing gesture sells it. Geometry-checked: clears the teaser card
-  // (ends y≈659), the host (x≥785), and the coins (ends y≈570).
+  // (ends y≈659), the host (x≥785). (P2-3: the coins it used to clear are gone.)
   {
     const ap = clamp01((t - 1400) / 600);
     if (ap > 0) {

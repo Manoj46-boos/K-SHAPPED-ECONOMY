@@ -6,7 +6,7 @@
 import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, hashStr, lerp } from './easing';
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg, scenePlate, FONT_DISPLAY, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
 import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp, subjectHalo, microShake, impactRing } from './effects';
-import { Stickman, POSES, blendPose, walkIn, nodPulse } from './stickman';
+import { Stickman, POSES, blendPose, walkIn, nodPulse, accentPulse } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
 import { SceneCtx } from './scene-context';
 import { reactionAt } from './scene-context';
@@ -121,10 +121,11 @@ function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
     ctx.restore();
   } else if (stage === 'kflip' || stage === 'kclimb' || stage === 'kdescend') {
     // giant soft K in the background
+    // P0-2 (one-mascot rule): background watermark K — face OFF.
     const kg = clamp01(g.t / 1400);
     ctx.save();
     ctx.globalAlpha = 0.1;
-    drawK3D(ctx, W * 0.66, H * 0.46, 260, kg, g.t);
+    drawK3D(ctx, W * 0.66, H * 0.46, 260, kg, g.t, false);
     ctx.restore();
     if (stage === 'kclimb') {
       // AUDIT-3 / §1.5 round 2 (panel: "the ramp must terminate at the
@@ -224,6 +225,10 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   }
   const nodP = g.speaking ? nodPulse(g.beatT, g.wordTimes) : 0;
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
+  // P1-6 (audit Table 3): the word-accent SMEAR — the presenting arm
+  // carries its three-ghost motion trail on every gesture spring (the
+  // audit's "arms are passive stumps" — the opt existed, never driven).
+  const smr = g.speaking ? accentPulse(g.beatT, g.wordTimes) : 0;
   // AUDIT-3 / §1.5 round 2 (panel: "eye-line should follow the gesture"):
   // the side hosts now commit their full gaze toward their content.
   const lookRight = g.s.lookRight ? 1 : g.s.lookLeft ? -1 : side === 'left' ? 1 : side === 'right' ? -1 : 0;
@@ -389,8 +394,11 @@ export function hostSceneV2(g: SceneCtx): void {
       wordTimes: g.gWordTimes,
       pointBias: 'right', // AUDIT-3 / §1.5: present toward the type block
     });
-    // AUDIT-PHASE-2: rigScale 1.85 -> 2.40 (matches the new draw scale)
-    const r = walkIn(t, hxTarget - 560, hxTarget, 1600, arrive, 2.40);
+    // AUDIT-PHASE-2 -> P0-5 (audit Table 2): 2.40 -> 2.10 — at 2.40 the
+    // head top sat ~70px from the frame edge (the panel read "cropped
+    // avatar" beside the logo). 2.10 keeps the close staging with ~145px
+    // of headroom; the draw-scale change below matches.
+    const r = walkIn(t, hxTarget - 560, hxTarget, 1600, arrive, 2.1);
     hx = r.x;
     pose = r.walking ? r.pose : arrive;
     if (r.walking) walkPhase = r.phase;
@@ -408,8 +416,8 @@ export function hostSceneV2(g: SceneCtx): void {
         wordTimes: g.gWordTimes,
         pointBias: 'right', // AUDIT-3 / §1.5
       });
-      // AUDIT-PHASE-2: rigScale 1.85 -> 2.40
-      const r = walkIn(st, fromX, toX, 900, arrive, 2.40);
+      // P0-5: rigScale matched to the new 2.10 draw scale (above).
+      const r = walkIn(st, fromX, toX, 900, arrive, 2.1);
       hx = r.x;
       pose = r.walking
         ? r.pose
@@ -431,17 +439,25 @@ export function hostSceneV2(g: SceneCtx): void {
   // v3 (panel P0-4): nods + articulate mouth on the editorial host too
   const nodP = g.speaking ? nodPulse(g.beatT, g.wordTimes) : 0;
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
+  // P1-6 (audit Table 3): the word-accent SMEAR — the presenting arm
+  // carries its three-ghost motion trail on every gesture spring (the
+  // audit's "arms are passive stumps" — the opt existed, never driven).
+  const smr = g.speaking ? accentPulse(g.beatT, g.wordTimes) : 0;
   // P1-1 (report): close staging — the editorial host is the film's only
   // large-face composition, so the face draws 40% larger than body-proportional
   // (expressions survive a phone screen); body 1.42 → 1.85 (+30%).
   // BLUEPRINT Phase 1: the editorial host's walk carries the landing
   // squash too (walkStrike off the same walkPhase).
-  // AUDIT-PHASE-2: 1.85 -> 2.40 — figure fills more of the editorial
-  // composition; face reaches ~50px at 320px (well above legibility).
-  // Ground lowered (HOST_GROUND H*0.62) keeps the figure envelope clear.
+  // AUDIT-PHASE-2 -> P0-5 (audit Table 2 — the phone-gate re-block):
+  // draw scale 2.40 -> 2.10, ground H*0.62 -> H*0.64. The 2.40 figure
+  // crowded the frame top (head ~70px from the edge, beside the logo —
+  // the panel read "a cropped avatar sprite"). 2.10/H*0.64 keeps the
+  // close staging (face ~40px at 320px, still legible) with ~145px of
+  // headroom, and the shadow envelope (bottom ≈767) stays clear of the
+  // worst-case caption pill (776).
   drawStickmanV2(
-    ctx, hx, HOST_GROUND(H), 2.40, t,
-    { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk, faceScale: 1.4, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true },
+    ctx, hx, H * 0.64, 2.1, t,
+    { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk, smear: smr, faceScale: 1.4, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true, parallaxAmt: 0.55 }, // P2-4: hero moment — clear space, deep differential
     11
   );
 
@@ -504,6 +520,72 @@ export function hostSceneV2(g: SceneCtx): void {
     setFont(ctx, 34, 400);
     ctx.fillStyle = PALETTE.inkSoft;
     sub.split('\n').forEach((ln, i) => ctx.fillText(ln, hx2, hairY + 72 + i * 44));
+    ctx.restore();
+  }
+
+  // ── P0-5 (100-judge audit, Table 2 — the phone-gate re-block): THE
+  // K-FIGURE PANEL. The audit frame read "80 percent negative space and a
+  // stick figure - a loading screen" (1/10 at the 320px gate): the type
+  // stack ended at y≈584 and the frame's entire lower band — the right
+  // column below the sub copy, the strip under the host's feet — was
+  // void. The film's title object now occupies the abandoned lower-right
+  // column: one junction, the market line rising, the main-street line
+  // falling — the K itself, in the formation's own arm colors, as the
+  // editorial figure the host presents. The lower band carries
+  // information; the phone gate reads a composed frame.
+  const fp = clamp01((t - 1100) / 500);
+  if (fp > 0) {
+    ctx.save();
+    ctx.globalAlpha = fp;
+    ctx.translate(0, (1 - easeOutCubic(fp)) * 24);
+    const fx0 = hx2 + 12; // P0-5 panel note: +12 — optical alignment, the rounded card's edge against the flush text column
+    const fy0 = 604;
+    const fw = W - hx2 - 180;
+    const fh = 152;
+    registerRect('hostV2:kfig', fx0, fy0, fw, fh);
+    card(ctx, fx0, fy0, fw, fh, { r: 24 });
+    const jx = fx0 + 120;
+    const jy = fy0 + fh / 2;
+    // the market line — the formation's up-arm color, rising off the junction
+    ctx.strokeStyle = PALETTE.upVivid;
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(jx, jy);
+    ctx.lineTo(fx0 + 660, fy0 + 30);
+    ctx.stroke();
+    ctx.fillStyle = PALETTE.upVivid;
+    ctx.beginPath();
+    ctx.moveTo(fx0 + 678, fy0 + 26);
+    ctx.lineTo(fx0 + 652, fy0 + 22);
+    ctx.lineTo(fx0 + 658, fy0 + 42);
+    ctx.closePath();
+    ctx.fill();
+    // the main-street line — the formation's down-arm color, falling
+    ctx.strokeStyle = PALETTE.downVivid;
+    ctx.beginPath();
+    ctx.moveTo(jx, jy);
+    ctx.lineTo(fx0 + 660, fy0 + fh - 30);
+    ctx.stroke();
+    ctx.fillStyle = PALETTE.downVivid;
+    ctx.beginPath();
+    ctx.moveTo(fx0 + 678, fy0 + fh - 26);
+    ctx.lineTo(fx0 + 652, fy0 + fh - 22);
+    ctx.lineTo(fx0 + 658, fy0 + fh - 42);
+    ctx.closePath();
+    ctx.fill();
+    // the junction — where the two paths split
+    ctx.fillStyle = PALETTE.ink;
+    ctx.beginPath();
+    ctx.arc(jx, jy, 9, 0, Math.PI * 2);
+    ctx.fill();
+    // end labels — right-aligned inside the card, beside their line ends
+    setFont(ctx, TYPE_FLOOR, 700);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = PALETTE.upVivid;
+    ctx.fillText('MARKETS', fx0 + fw - 24, fy0 + 38);
+    ctx.fillStyle = PALETTE.downVivid;
+    ctx.fillText('MAIN STREET', fx0 + fw - 24, fy0 + fh - 24);
     ctx.restore();
   }
 }
@@ -839,6 +921,9 @@ export function divergeKScene(g: SceneCtx): void {
       drawStickmanV2(ctx, W * 0.30, H * 0.615, 2.6, t, {
         pose: shk, alpha: shIn, look: 0.72,
         talk: gasp, jaw2x: 2, faceScale: 1.8, parallax: true,
+        // P2-4 (audit Table 4): hero moment — the cold-open shock close-up
+        // rides the deep 0.55 parallax differential.
+        parallaxAmt: 0.55,
       }, 5);
     }
   }
@@ -855,7 +940,23 @@ export function divergeKScene(g: SceneCtx): void {
   // (the two economies) instead of calmly drawing both. The tear fires at
   // growP 0.5 (~5.95s) and settles by growP 0.75; the micro-shake lands
   // the separation.
-  const tearMix = opening ? clamp01((growP - 0.5) / 0.25) : 1;
+  // P2-2 (100-judge audit, Table 4 — DRESS THE TEAR): "debris particles,
+  // 2-frame hold, shockwave ring reusing the existing impact grammar."
+  // The shipped tear was a shake + a glow — "no debris, no dust, no
+  // shockwave propagation, no residue — the aftermath is under-dressed"
+  // on the one moment the audience will replay. Three additions:
+  //   (1) the 2-FRAME HOLD — the tear clock FREEZES at the overshoot peak
+  //       for 80ms (the strike frame holds; classic impact timing), then
+  //       releases with the clock shifted. Pure t-remap for the tear
+  //       terms only — everything else keeps time.
+  const tHold = 6237; // growP 0.625 — the overshoot peak (tearMix 0.5)
+  let tTear = t;
+  if (opening) {
+    if (t > tHold + 80) tTear = t - 80;
+    else if (t > tHold) tTear = tHold;
+  }
+  const growTear = clamp01((tTear - 4800) / 2300);
+  const tearMix = opening ? clamp01((growTear - 0.5) / 0.25) : 1;
   const tearOver = Math.sin(Math.min(1, tearMix) * Math.PI) * 0.14;
   const tearDir = -1 + 2 * Math.min(1.14, tearMix + tearOver);
   const tearShake = opening ? microShake(t, 5950) : { dx: 0, dy: 0 };
@@ -899,6 +1000,46 @@ export function divergeKScene(g: SceneCtx): void {
     };
     arm(upArmK, PALETTE.upVivid, -1);
     arm(dnArmK, PALETTE.downVivid, opening ? tearDir : 1);
+    //   (2) the SHOCKWAVE — the film's own impact ring, fired from the
+    //       tear seam (the vertex where the arms split);   (3) the DEBRIS
+    //       — eleven deterministic tumbling shards bursting from the
+    //       seam, biased along each arm's direction, dragged + falling,
+    //       gone in ~620ms. The aftermath is dressed.
+    if (opening) {
+      const tS = 5950;
+      const dt = t - tS;
+      if (dt >= 0 && dt < 620) {
+        impactRing(ctx, kx, ky + S * 0.1, t, tS, S * 1.35);
+        for (let i = 0; i < 26; i++) { // panel r4: density up — the strike frame must read 'reality split'
+          const h1 = Math.abs(Math.sin(i * 12.9898 + 4.1414)) % 1;
+          const h2 = Math.abs(Math.sin(i * 78.233 + 2.7183)) % 1;
+          const h3 = Math.abs(Math.sin(i * 39.425 + 1.6180)) % 1;
+          // panel r2: vectors LOCKED to the arm axes (up −0.74 rad, down
+          // +0.74 — atan2(±1.05, 1.15)) with a tight ±0.35 spread, and
+          // initial velocity ×1.8 — the burst FANS along the tear instead
+          // of puffing off the seam. Panel r3: 17 particles (9 up / 8
+          // down) and the UP fan carries less gravity so BOTH axes hold
+          // equal travel.
+          const up = i % 2 === 0;
+          const ang = (up ? -0.74 : 0.74) + (h1 - 0.5) * 0.7;
+          const spd = (0.8 + h2 * 1.0) * S * 2.7;
+          const dist = spd * (dt / 1000) * (1 - dt / 700);
+          const px2 = kx + Math.cos(ang) * dist;
+          const py2 = ky + S * 0.1 + Math.sin(ang) * dist + (up ? 140 : 260) * (dt / 1000) * (dt / 1000);
+          const sz = (3.5 + h3 * 8) * (1 - dt / 620); // panel r4: size variance — a few unmistakable big shards
+          if (sz <= 0.5) continue;
+          ctx.fillStyle =
+            i % 3 === 0 ? rgba(PALETTE.goldDeep, 0.9)
+            : i % 3 === 1 ? rgba(PALETTE.ink, 0.75)
+            : rgba(i % 2 === 0 ? PALETTE.upVivid : PALETTE.downVivid, 0.8);
+          ctx.save();
+          ctx.translate(px2, py2);
+          ctx.rotate(h1 * Math.PI * 2 + dt / 300);
+          ctx.fillRect(-sz / 2, -sz / 4, sz, sz / 2);
+          ctx.restore();
+        }
+      }
+    }
   }
   ctx.restore();
 
@@ -1323,7 +1464,9 @@ export function paradoxResolveScene(g: SceneCtx): void {
   if (kp > 0) {
     ctx.save();
     ctx.globalAlpha = kp;
-    drawK3D(ctx, W * 0.4, H * 0.47, 115, 1, t);
+    // P0-2 (one-mascot rule): this K shares the frame with the reacting
+    // host — face OFF ("never beside a second mascot").
+    drawK3D(ctx, W * 0.4, H * 0.47, 115, 1, t, false);
     ctx.restore();
   }
   const lines = [
