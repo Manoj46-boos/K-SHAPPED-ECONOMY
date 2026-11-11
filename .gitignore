@@ -88,3 +88,4 @@ qa-evidence/
 tools/qa-probe.mjs
 tools/qa-sweep-evidence.mjs
 tools/qa-sweep-verify.py
+tools/qa-residual-audit.mjs
