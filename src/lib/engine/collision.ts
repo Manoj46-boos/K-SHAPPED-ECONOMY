@@ -55,8 +55,9 @@ interface State {
    *  the aiDatacenter walk host, opted in via drawStickmanV2 hostBody);
    *  everything else is scene content. The host-vs-content pass below
    *  compares the two classes — a side host must never plate a card, chart
-   *  or dot field. */
-  content: Array<GuardRect & { id: string; cls?: 'content' | 'host' }>;
+   *  or dot field. QA-SWEEP (guard v2.2): noEdge marks intentionally
+   *  off-frame scenery (scrolling racks) — exempt from the edge rule only. */
+  content: Array<GuardRect & { id: string; cls?: 'content' | 'host'; noEdge?: boolean }>;
   /** v10 (PANEL-11 D-01/D-02): READING-text rects — the subset of content
    *  that carries words the viewer must read (scene titles, source tags,
    *  big captions, count badges). Checked against EACH OTHER, because the
@@ -120,16 +121,23 @@ export function setGuardOverlay(on: boolean): void {
 
 /** Register a painted content rect (design-grid px). No-op when disabled.
  *  v10.1: `cls: 'host'` marks a full-body side-host envelope — those are
- *  checked against every content rect (see collectViolations). */
+ *  checked against every content rect (see collectViolations).
+ *  QA-SWEEP (guard v2.2): `opts.edge === false` marks intentionally
+ *  off-frame SCENERY (the aiDatacenter racks scroll past the frame edges
+ *  to the horizon by design — repetition-to-horizon staging, not a crop
+ *  defect). Such rects keep every overlap check (pill, fixed furniture,
+ *  host-vs-content aisle) but skip the frame-edge rule, which exists to
+ *  catch UNINTENDED crops of reading content, not corridor staging. */
 export function registerRect(
   id: string, x: number, y: number, w: number, h: number,
-  cls: 'content' | 'host' = 'content'
+  cls: 'content' | 'host' = 'content',
+  opts: { edge?: boolean } = {}
 ): void {
   const g = collisionGuard;
   if (!g.enabled || w <= 0 || h <= 0) return;
   // Ignore degenerate far-offscreen rects (camera bleed fills etc.)
   if (x > 1920 || y > 1080 || x + w < 0 || y + h < 0) return;
-  g.content.push({ id, x, y, w, h, cls });
+  g.content.push({ id, x, y, w, h, cls, noEdge: opts.edge === false });
 }
 
 /** v10 (PANEL-11): register a READING-text rect. Same registry rules as
@@ -228,8 +236,9 @@ export function collectViolations(): CollisionViolation[] {
     // PANEL-10: frame-edge crossing under the exact camera (design grid is
     // 1920×1080; x only — y-overflow at the bottom is already covered by the
     // pill band, and the top band's only furniture is the watermark, which
-    // is registered as fixed furniture above).
-    if (cam) {
+    // is registered as fixed furniture above). QA-SWEEP: noEdge rects
+    // (scrolling scenery) are exempt — they cross the edge by design.
+    if (cam && !r0.noEdge) {
       const overL = EDGE_PAD - r.x;
       const overR = r.x + r.w - (1920 - EDGE_PAD);
       const depth = Math.max(overL, overR);

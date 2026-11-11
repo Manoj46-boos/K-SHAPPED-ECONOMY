@@ -189,7 +189,13 @@ const HERO_MOVES: Record<number, { scene: string; move: 'pullback' | 'push' | 't
   3: { scene: 'gasPump', move: 'truck', amt: 210 },           // ch4 — pan between the two households
   4: { scene: 'aiDatacenter', move: 'push', amt: 0.06 },      // ch5 — into the scale of the build-out
   5: { scene: 'paradoxResolve', move: 'pullback', amt: 0.085 }, // ch6 — the reveal breathes out
-  6: { scene: 'fundSplit', move: 'truck', amt: 110 },         // ch7 — the twist travels
+  // QA-SWEEP: fundSplit's truck 110 → 60 — the ±55px swing (plus drift ±22
+  // and the 0.40× foreground parallax on the side host) squeezed the host
+  // corridor between the right stat-card column (right edge 1446) and the
+  // frame edge past what any static position satisfies: at 110 the guard's
+  // edge rule flagged 11-28px clips at the group exit. At 60 the corridor
+  // clears both sides with margin; the twist still travels.
+  6: { scene: 'fundSplit', move: 'truck', amt: 60 },          // ch7 — the twist travels
   7: { scene: 'takeaways', move: 'push', amt: 0.045 },        // ch8 — lean into the lesson
   8: { scene: 'endScreen', move: 'pullback', amt: 0.102 },    // ch9 — the wide farewell
 };
@@ -338,6 +344,13 @@ function cameraV2(
     }
   }
   // publish BEFORE the scene draws — the bg planes counter-drift off this
+  // QA-SWEEP (guard v2.1): camState.dx/dy carry camX*camScale (the bg-plane
+  // convention effects.ts expects), but guardCamState must carry the RAW
+  // camX/camY the canvas transform actually applies: the stack is
+  // translate(960+camX) → scale(s) → translate(-960), so screen x =
+  // 960 + camX + s*(x−960). Publishing camX*s here made the guard's exact
+  // camera wrong by camX*(s−1) (up to ~9px at s≈1.19, camX≈47) — small, but
+  // it shifted every edge/pill assertion and masked/created violations.
   camState.dx = camX * camScale;
   camState.dy = camY * camScale;
   camState.scale = camScale;
@@ -349,8 +362,8 @@ function cameraV2(
   // crops the way every close-up in flat-animation cinema does. The exit
   // grammar and the reaction window never co-occur (gt 0.42d vs d-420),
   // so the pre-reaction stash is exact whenever a reaction is live.
-  guardCamState.dx = rP > 0 ? prX * prS : camState.dx;
-  guardCamState.dy = rP > 0 ? prY * prS : camState.dy;
+  guardCamState.dx = rP > 0 ? prX : camX;
+  guardCamState.dy = rP > 0 ? prY : camY;
   guardCamState.scale = rP > 0 ? prS : camScale;
   ctx.translate(960 + camX, 540 + camY);
   ctx.scale(camScale, camScale);

@@ -78,3 +78,13 @@ harness-frames-after/
 # per-machine working material, never repo content (the tool regenerates
 # the prep from the TTS cache any time).
 voice-ab/
+
+# QA-SWEEP evidence — before/after PNG dumps from tools/qa-sweep-evidence.mjs
+# (kept in download/ for the creator; never repo content)
+qa-evidence/
+
+# QA-SWEEP probes — diagnostic scripts for the collision-guard investigation
+# (one-off tools; the persistent harness is tools/render-check.mjs)
+tools/qa-probe.mjs
+tools/qa-sweep-evidence.mjs
+tools/qa-sweep-verify.py

@@ -220,7 +220,7 @@ export function chartTwinScene(g: SceneCtx): void {
   // directly on the right chart's "today" x-label. Relocated to the empty
   // top-right quadrant above the chart cards, smaller, looking down at
   // the data; the full label strip along the card bottoms stays clear.
-  hostSmall(g, W * 0.87, 'present', 3, H * 0.225, 0.66, 0, 'aha', 1.4, 1, false);
+  hostSmall(g, W * 0.845, 'present', 3, H * 0.225, 0.66, 0, 'aha', 1.4, 1, false);
 }
 
 // ── chartJourney: the generic annotated line chart scene ────────────────────
@@ -237,7 +237,7 @@ export function chartJourneyScene(g: SceneCtx): void {
   const bt = g.beatT;
   const title = s.title as string;
   const drawP = clamp01(t / 2600);
-  sceneTitle(ctx, title, 110, 190, clamp01(t / 600));
+  sceneTitle(ctx, title, 180, 220, clamp01(t / 600));
   const chartX = 190;
   const chartY = H * 0.22;
   const chartW = W - 190 - 420;
@@ -327,10 +327,14 @@ export function chartJourneyScene(g: SceneCtx): void {
   // 808), hidden. Cap the whole stat + chip stack ≥64px above the reserved
   // band, and stagger off beatT so each beat's chips animate with its VO.
   const chips = (s.chips as string[]) || [];
-  const chipsY = Math.min(
-    H * 0.76 + extraStats.length * 84,
-    ((CAPTION_ZONE_TOP - 64) / 1080) * H
-  );
+  // QA-SWEEP: the old static cap (CAPTION_ZONE_TOP−64 = 736) is not
+  // camera-exact — the raised register (scenePush 0.22 → s≤1.15 + drift
+  // dy up to +17) pushes a y=736 chip's screen bottom to ≈806, 10px INTO
+  // the worst-case 2-row caption pill (top 796). Camera-exact bound:
+  // screen bottom = 540+17+1.15×(y+48−540) ≤ 786 → y ≤ 690. The pill is
+  // screen-space (never rides the camera), so this is the exact math the
+  // guard's camera-exact pass asserts.
+  const chipsY = Math.min(H * 0.76 + extraStats.length * 84, 690);
   chips.forEach((c, i) => {
     const ap = clamp01((g.beatT - 2200 - i * 450) / 600);
     if (ap <= 0) return;
@@ -372,7 +376,7 @@ export function chartJourneyScene(g: SceneCtx): void {
 export function pieChartScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 81, 0.6, 'gold'); // v10: the data room plate (gold — the wealth scene)
-  sceneTitle(ctx, s.title as string, 110, 190, clamp01(t / 600));
+  sceneTitle(ctx, s.title as string, 180, 220, clamp01(t / 600));
   const cx = W * 0.34;
   const cy = H * 0.52;
   const r = Math.min(W, H) * 0.21;
@@ -415,7 +419,7 @@ export function pieChartScene(g: SceneCtx): void {
     ctx.fillText(`${Math.round(sl.value)}%`, lx + 440, ly + 40);
     ctx.restore();
   });
-  hostSmall(g, W * 0.85, 'pointL', 6);
+  hostSmall(g, W * 0.845, 'pointL', 6);
   sourceTag(ctx, W, s.source as string, H - 60);
 }
 
@@ -423,7 +427,7 @@ export function pieChartScene(g: SceneCtx): void {
 export function dotGridScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 91, 0.4, 'up'); // v10: the data room plate
-  sceneTitle(ctx, 'The S&P 500 · one bonus pool, 500 companies', 110, 190, clamp01(t / 600));
+  sceneTitle(ctx, 'The S&P 500 · one bonus pool, 500 companies', 180, 220, clamp01(t / 600));
   // v10 (PANEL-11 D-01 — VERIFIED DEFECT RETIRED): the v9 frame drew a gold
   // bracket at y=190 — the exact baseline band of the scene title — with a
   // "10 of 500" badge and "these ten" text on top of the headline and its
@@ -504,14 +508,14 @@ export function dotGridScene(g: SceneCtx): void {
   // body envelope (cls 'host') must clear the dot grid's registered field;
   // the grid also narrows (W-400 → W-460) so data and presenter each own
   // their column. Edge worst case at 0.86: (1651+133-960)*1.092+960 ≈ 1860.
-  hostSmall(g, W * 0.86, 'present', 8);
+  hostSmall(g, W * 0.845, 'present', 8);
 }
 
 // ── magChips scene ───────────────────────────────────────────────────────────
 export function magChipsScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 101, 0.55);
-  sceneTitle(ctx, 'The Magnificent Seven', 110, 190, clamp01(t / 600));
+  sceneTitle(ctx, 'The Magnificent Seven', 180, 220, clamp01(t / 600));
   const chipsList = (s.chips as string[]) || [];
   // 7 gold tiles with ticker-style look
   const tw = 210;
@@ -579,7 +583,7 @@ export function magChipsScene(g: SceneCtx): void {
 export function barsCompareScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 111, 0.4, 'gold'); // v10: the data room plate (gold — the winner chart)
-  sceneTitle(ctx, s.title as string, 110, 190, clamp01(t / 600));
+  sceneTitle(ctx, s.title as string, 180, 220, clamp01(t / 600));
   const bars = (s.bars as any[]) || [];
   const barW = W - 620;
   const yMax = (s.yMax as number) || Math.max(...bars.map((b) => b.value), 1) * 1.15;
@@ -655,14 +659,14 @@ export function barsCompareScene(g: SceneCtx): void {
   // the host takes the empty top-right corner ABOVE the bars (envelope
   // y≈48-263, x≈1590-1751 — clear of the title and every bar row), looking
   // down at the data; the right column belongs to the tag chips.
-  hostSmall(g, W * 0.87, 'present', 13, H * 0.225, 0.66, 0, 'aha', 1.4, 1, false);
+  hostSmall(g, W * 0.845, 'present', 13, H * 0.225, 0.66, 0, 'aha', 1.4, 1, false);
 }
 
 // ── trioConverge scene ───────────────────────────────────────────────────────
 export function trioConvergeScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 121);
-  sceneTitle(ctx, 'Three surveys. One shape.', 110, 190, clamp01(t / 600));
+  sceneTitle(ctx, 'Three surveys. One shape.', 180, 220, clamp01(t / 600));
   const names = ['Gallup', 'Univ. of Michigan', 'Conference Board'];
   const arcs = [
     { tone: 'down', pts: [[0, 60], [3, 55], [6, 40], [9, 22], [10, 14], [12, 26], [14, 34], [15, 32]] },
@@ -882,7 +886,7 @@ export function kDefScene(g: SceneCtx): void {
 export function credibilityChipsScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 141, 0.6);
-  sceneTitle(ctx, 'This isn\u2019t an internet theory', 110, 190, clamp01(t / 600));
+  sceneTitle(ctx, 'This isn\u2019t an internet theory', 180, 220, clamp01(t / 600));
   const chipsList = (s.chips as string[]) || [];
   const cw = 640;
   chipsList.forEach((c, i) => {
@@ -912,14 +916,14 @@ export function credibilityChipsScene(g: SceneCtx): void {
     ctx.fillText(s.year as string, W / 2, H * 0.24 + chipsList.length * 106 + 60);
     ctx.restore();
   }
-  hostSmall(g, W * 0.87, 'present', 16);
+  hostSmall(g, W * 0.845, 'present', 16);
 }
 
 // ── gasPump scene ────────────────────────────────────────────────────────────
 export function gasPumpScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 151, 0.4, 'up'); // v10: the data room plate
-  sceneTitle(ctx, 'Same shock — different roads', 110, 190, clamp01(t / 600));
+  sceneTitle(ctx, 'Same shock — different roads', 180, 220, clamp01(t / 600));
   // v10 (PANEL-11 D-02 + panel PROP-1): TWO retired defects in one rebuild.
   // (1) D-02: the scene caption at y≈992 intersected the source tag at
   // y≈1020 ("shock" crossing "Source:" — vision-verified). The caption now
@@ -1059,7 +1063,7 @@ export function gasPumpScene(g: SceneCtx): void {
 export function recessionGaugeScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 161);
-  sceneTitle(ctx, 'Recession odds — serious people, different answers', 110, 190, clamp01(t / 600));
+  sceneTitle(ctx, 'Recession odds — serious people, different answers', 180, 220, clamp01(t / 600));
   // debates on left
   const debates = (s.debates as any[]) || [];
   debates.forEach((d, i) => {
@@ -1243,7 +1247,11 @@ export function aiDatacenterScene(g: SceneCtx): void {
     const rh = 212 * depth;
     // v10.1: register the front face — the host-vs-content guard now
     // machine-verifies that no rack ever enters the aisle pocket.
-    registerRect(`rack@${Math.round(x)}`, x - rw / 2, y - rh, rw, rh);
+    // QA-SWEEP (guard v2.2): edge:false — the scroll lanes carry racks
+    // past the frame edges toward the horizon BY DESIGN (repetition-to-
+    // horizon staging); the frame-edge rule would misread corridor
+    // staging as a crop defect. The aisle (host-vs-content) check stays.
+    registerRect(`rack@${Math.round(x)}`, x - rw / 2, y - rh, rw, rh, 'content', { edge: false });
     const fx = rw * 0.30; // side-face depth, same for every rack (one VP)
     const fy = rh * 0.12;
     ctx.save();
@@ -1390,7 +1398,7 @@ export function aiDatacenterScene(g: SceneCtx): void {
 export function statCardsScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 181, 0.55);
-  sceneTitle(ctx, 'The numbers, plainly', 110, 190, clamp01(t / 600));
+  sceneTitle(ctx, 'The numbers, plainly', 180, 220, clamp01(t / 600));
   // AUDIT-2 / §10.4 (report Phase 3): the impact grammar reaches the data
   // cards — each numeral's count-up completion fires the micro-shake +
   // impact ring triple alongside the existing sparkles. The film's biggest
@@ -1406,9 +1414,13 @@ export function statCardsScene(g: SceneCtx): void {
   // mascot collide with critical data" — vision-verified on both the pair
   // judge AND the blind judge). Cards now yield the right column: the row
   // ends at x=1450 and the host (W*0.85) owns 1492-1772 clear.
-  const cw = (1450 - 110 - 60 * (cards.length - 1)) / cards.length;
+  // QA-SWEEP: row start 110 → 180 — the left card crossed the frame edge
+  // under the worst steady camera (drift −22 + exit truck −26; s 1.149
+  // observed on the c7-debt group); x=180 keeps the guard's edge rule
+  // clean, matching the raised title rail.
+  const cw = (1450 - 180 - 60 * (cards.length - 1)) / cards.length;
   cards.forEach((c, i) => {
-    const cardX = 110 + i * (cw + 60);
+    const cardX = 180 + i * (cw + 60);
     statCard(ctx, {
       x: cardX, y: H * 0.24, w: cw, h: 360,
       big: c.big, label: c.label, tag: c.tag, tone: c.tone || 'up',
@@ -1588,7 +1600,7 @@ export function fundSplitScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 201, 0.5);
   // (title row 150->190 as all sceneTitle sites — D-08; see charts.sceneTitle)
-  sceneTitle(ctx, 'What\u2019s inside “the S&P 500”?', 134, 190, clamp01(t / 600)); // AUDIT-2 §10.3: +24px left margin — clears the raised camera stack
+  sceneTitle(ctx, 'What\u2019s inside “the S&P 500”?', 180, 220, clamp01(t / 600)); // AUDIT-2 §10.3: +24px left margin — clears the raised camera stack
   // the fund box
   const bx = W * 0.09;
   const by = H * 0.24;
@@ -1758,7 +1770,7 @@ export function fundSplitScene(g: SceneCtx): void {
 export function oddsSpreadScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 211, 0.4, 'up'); // v10: the data room plate
-  sceneTitle(ctx, 'Recession odds — the honest range', 110, 190, clamp01(t / 600));
+  sceneTitle(ctx, 'Recession odds — the honest range', 180, 220, clamp01(t / 600));
   const trackY = H * 0.42;
   const trackX = 220;
   const trackW = W - 440;

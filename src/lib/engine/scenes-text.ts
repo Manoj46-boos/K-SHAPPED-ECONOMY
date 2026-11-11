@@ -249,7 +249,7 @@ export function stampCardScene(g: SceneCtx): void {
     // v3 (panel P0-3): v2 renderer
     // P1-1 (report): +30% (1.0 → 1.3); ground → H*0.667 (envelope 767).
     // PANEL-12 / P2-1: foreground parallax.
-    drawStickmanV2(ctx, W * 0.14, H * 0.667, 1.3, t, { pose, alpha: hp, look: 0.6, parallax: true }, 32);
+    drawStickmanV2(ctx, W * 0.19, H * 0.667, 1.3, t, { pose, alpha: hp, look: 0.6, parallax: true }, 32);
   }
 }
 
@@ -346,7 +346,7 @@ export function quoteCardScene(g: SceneCtx): void {
     // v3 (panel P0-3): v2 renderer
     // P1-1 (report): +30% (0.94 → 1.22); ground → H*0.672 (envelope 770).
     // PANEL-12 / P2-1: foreground parallax.
-    drawStickmanV2(ctx, W * 0.85, H * 0.672, 1.22, t, { pose, alpha: hp, look: -0.7, parallax: true }, 33);
+    drawStickmanV2(ctx, W * 0.83, H * 0.672, 1.22, t, { pose, alpha: hp, look: -0.7, parallax: true }, 33);
   }
 }
 
@@ -355,7 +355,11 @@ export function takeawaysScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 241, 0.5);
   const focus = (s.focus as number) ?? 0;
-  sceneTitleLocal(ctx, focus === 0 ? 'Three things worth sitting with' : `Takeaway ${focus}`, 110, 150, clamp01(t / 600), W);
+  // QA-SWEEP: x 110→180, y 150→205 — the raised camera register (scenePush
+  // 0.22 steady + drift ±22 + exit truck −26) crops a y=150 title ≈65px
+  // off the left edge and grazes the fixed watermark band at the top;
+  // the guard sweep is the referee.
+  sceneTitleLocal(ctx, focus === 0 ? 'Three things worth sitting with' : `Takeaway ${focus}`, 180, 220, clamp01(t / 600), W);
   if (focus === 0) {
     // intro: three cards float + host counting
     for (let i = 0; i < 3; i++) {
@@ -378,7 +382,7 @@ export function takeawaysScene(g: SceneCtx): void {
     });
     // v3 (panel P0-3): v2 renderer
     // P1-1 (report): +30% (1.0 → 1.3); ground → H*0.667 (envelope 767).
-    drawStickmanV2(ctx, W * 0.82, H * 0.667, 1.3, t, { pose, alpha: clamp01(t / 600), look: -0.5 }, 34);
+    drawStickmanV2(ctx, W * 0.81, H * 0.667, 1.3, t, { pose, alpha: clamp01(t / 600), look: -0.5 }, 34);
   } else {
     // focused card zooms; other two minimized to the left rail
     for (let i = 1; i <= 3; i++) {
@@ -498,7 +502,11 @@ export function takeawaysScene(g: SceneCtx): void {
       if (rP > 0.02) pose = blendPose(pose, POSES.warm, rP);
       // v3 (panel P0-3): v2 renderer
       // P1-1 (report): +30% (1.0 → 1.3); ground → H*0.667 (envelope 767).
-      drawStickmanV2(ctx, W * 0.155, H * 0.667, 1.3, t,
+      // QA-SWEEP: W*0.155 → W*0.19 — under the worst steady camera (drift
+      // −22 + exit truck −26, s 1.133, plus the 0.40× foreground parallax
+      // shift) the feet+shadow envelope crossed the LEFT frame edge; the
+      // focused card column (x = W*0.28) stays clear of the body envelope.
+      drawStickmanV2(ctx, W * 0.19, H * 0.667, 1.3, t,
         {
           pose, alpha: hp, look: 0.6,
           prop: focus === 3 && rP <= 0.5 ? 'thumb' : undefined,
@@ -612,7 +620,11 @@ export function commentPromptScene(g: SceneCtx): void {
   // v3 (panel P0-3): v2 renderer
   // P1-1 (report): +30% (0.96 → 1.25); ground → H*0.667 (envelope 765).
   // PANEL-12 / P2-1: foreground parallax.
-  drawStickmanV2(ctx, W * 0.855, H * 0.667, 1.25, t, { pose, alpha: clamp01(t / 700), look: -0.5, parallax: true }, 36);
+  // QA-SWEEP: W*0.855 → W*0.845 — under the raised camera register
+  // (scenePush 0.22 steady + drift +22, no hero move on this scene) the
+  // feet+shadow envelope crossed the right frame edge at worst; the guard
+  // sweep is the referee.
+  drawStickmanV2(ctx, W * 0.845, H * 0.667, 1.25, t, { pose, alpha: clamp01(t / 700), look: -0.5, parallax: true }, 36);
 }
 
 // ── endScreen v2: next-video teaser + host, YouTube-safe (PATCH 6) ──────────
