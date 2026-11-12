@@ -69,6 +69,26 @@ const guard = fs.existsSync(path.join(BUILD, 'collision.js'))
   ? require(path.join(BUILD, 'collision.js'))
   : { collisionGuard: { enabled: false }, resetGuard: () => {}, collectViolations: () => [] };
 
+// AUDIT-ROUND-2 (fix 28 — THE FIRST-UPLOAD CUT): `--cut first` renders the
+// 10-12 minute cut the audit prescribes for the channel's first uploads
+// (ch1 cold open + ch2 market + ch8 twist + ch9 takeaways — buildCut in
+// script-data). Without the flag the full script renders, as always.
+// The module's SCRIPT export is SWAPPED (buildTimeline reads it at call
+// time through the same require cache), so the whole edit decision list —
+// beats, chapters, captions, cuts — is built from the cut, not the full
+// script.
+const CUT = flag('cut') ? arg('cut', 'first') : null;
+let SCRIPT_SOURCE = SCRIPT;
+if (CUT === 'first') {
+  const sd = require(path.join(BUILD, 'script-data.js'));
+  if (typeof sd.FIRST_UPLOAD_CUT === 'undefined') {
+    console.error('[frame-dump] this build has no FIRST_UPLOAD_CUT — run with --rebuild');
+    process.exit(1);
+  }
+  sd.SCRIPT = sd.FIRST_UPLOAD_CUT;
+  SCRIPT_SOURCE = sd.FIRST_UPLOAD_CUT;
+}
+
 function estWords(text) {
   const words = text.split(/\s+/).filter(Boolean);
   const out = [];
@@ -81,7 +101,7 @@ function estWords(text) {
   return { words: out, durMs: Math.round(t) };
 }
 const manifest = { lines: {} };
-SCRIPT.forEach((chapter, ci) => {
+SCRIPT_SOURCE.forEach((chapter, ci) => {
   chapter.beats.forEach((beat, bi) => {
     splitSentences(beat.vo).forEach((text, si) => {
       const { words, durMs } = estWords(text);
@@ -213,6 +233,17 @@ if (flag('sweep')) {
   fs.writeFileSync(arg('out', `short-${idx}.png`), sc.toBuffer('image/png'));
   console.log(`saved ${arg('out', `short-${idx}.png`)} (short ${idx} @ +${tOff}ms, native=${spec.native})`);
 } else {
+  // AUDIT-ROUND-2 evidence mode: `--editorial` promotes the chosen beat to
+  // the editorial hostSceneV2 composition (headline + spot stage) — the
+  // composition the script's beats reach only via the `headline` prop, so
+  // the harness can dump before/after evidence of the editorial staging
+  // (fixes 10, 15) without touching the film's script content.
+  if (flag('editorial')) {
+    const hits = tl.beats.filter((b) => b.beat.scene.type === arg('scene', 'host'));
+    const b = hits[Math.min(Number(arg('nth', 0)), hits.length - 1)];
+    if (!b) throw new Error('no beat for --editorial');
+    b.beat.scene = { ...b.beat.scene, stage: 'spot', headline: 'Two numbers\nthat don\u2019t add up.', sub: 'Markets near record highs \u2014 and a country that feels like it\u2019s\nfalling behind. Both are true.', kicker: 'THE K-SHAPED ECONOMY \u00b7 CH 01' };
+  }
   const t = flag('at') ? Number(arg('at')) : beatTime(arg('scene', 'host'), Number(arg('nth', 0)), Number(arg('frac', 0.55)));
   const vs = renderFrame(t, { guardOverlay: flag('guard') });
   save(arg('out', 'frame.png'));

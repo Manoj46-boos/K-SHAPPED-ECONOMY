@@ -145,3 +145,46 @@ drop-off on load — so the next script edit starts from evidence, not vibes.
 ---
 
 *Not financial advice — the disclaimer is in the video itself, exactly as your script specifies.*
+
+---
+
+## The upload rituals (free, ~10 minutes before every upload)
+
+Two harness commands now gate every upload — they are the audit's
+institutionalized fixes (audit-round-2 fixes 6, 26, 31):
+
+1. **The feed gate** — dump 12 frames AS THE PHONE SEES THEM and judge the
+   sheet cold:
+   ```
+   node tools/frame-dump.mjs --scene host --nth 0 --frac 0.55 --out gate.png --feed
+   node tools/frame-dump.mjs --scene statCards --nth 0 --frac 0.6 --out gate2.png --feed
+   node tools/frame-dump.mjs --thumb 0 --out gate3.png --feed
+   ```
+   The `--feed` twin is the 320px-wide phone-feed downsample. **No upload
+   while any frame fails the squint test** — the film ships when the worst
+   frame passes, not the best.
+
+2. **The novelty audit** — the swipe-risk scanner:
+   ```
+   node tools/novelty-audit.mjs
+   ```
+   Renders the whole film on a 1s grid, computes the pixel change between
+   consecutive seconds, and flags every window of **3+ seconds where
+   nothing visibly changes**. Every flagged window is a swipe risk — fix
+   it with a chart draw, a prop pop, a camera move or a cut. It also
+   prints the first-30-seconds event map (hook cadence: the audit wants
+   a visible change every 1-2s and the value promise spoken by second
+   10). Exits non-zero if any dead window exists.
+
+3. **The first-upload cut** — the runtime prescription (10-12 min):
+   ```
+   node tools/frame-dump.mjs --cut first --scene divergeK --nth 0 --frac 0.8 --out cut-frame.png
+   ```
+   `--cut first` renders from the **FIRST_UPLOAD_CUT** script (ch1 cold
+   open + ch2 market + ch8 twist + ch9 takeaways — `buildCut()` in
+   `src/lib/engine/script-data.ts`). Publish the full film as sequels
+   once the channel has traction; the shorts pipeline is the discovery
+   funnel.
+
+Run these three before every upload and the phone gate, the retention
+cadence and the runtime rule enforce themselves.

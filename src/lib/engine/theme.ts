@@ -120,14 +120,20 @@ export const PALETTE: Palette = {
 };
 
 /** Minimum type size (design px, 1920×1080 grid). Nothing the viewer
- *  must READ renders below this — the vision panel measured source tags,
- *  axis labels and kickers at 21–24px, illegible on a phone in landscape
- *  (the majority view for finance explainer audiences).
- *  v9 (report P0 / D-07): the floor is now ENFORCED, not advisory —
- *  fitText() clamps at it and warns in dev instead of shrinking to 14px —
- *  and raised 24 → 28: 24px was 2.2% of frame height and the panel judged
- *  every axis label under it illegible after the platform transcode. */
-export const TYPE_FLOOR = 28;
+ *  must READ renders below this — the phone-gate panel (audit §8) measured
+ *  the 28px floor at 4.7px after the 320px downsample: broadcast-
+ *  legibility research puts readable body text at 40-60px on this grid.
+ *  AUDIT-ROUND-2 (fix 1): 28 → 40 for anything the viewer must READ.
+ *  Captions are exempt (pill-backed, already large — see textfx). Where
+ *  text cannot fit at this floor the content must wrap or shorten —
+ *  never shrink. */
+export const TYPE_FLOOR = 40;
+
+/** AUDIT-ROUND-2 (fix 1): the LABEL floor — legends, axis tags, kickers,
+ *  source tags and chip text. One step under the READ floor: labels are
+ *  glanceable identifiers, not body copy, and 34px survives the 320px
+ *  gate (≈5.7px) where 28px (4.7px) did not. */
+export const LABEL_FLOOR = 34;
 
 /** Dev-mode warning sink for floor violations (the studio can surface it). */
 export function typeFloorWarn(site: string, size: number): void {

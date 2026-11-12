@@ -25,7 +25,7 @@ function bg(g: SceneCtx, seed: number, gold = 0.4, plate?: 'up' | 'down' | 'gold
   scenePlate(g.ctx, g.W, g.H, plate ?? g.chapterTone ?? 'up');
   bokehField(g.ctx, g.W, g.H, g.t, { intensity: 0.75, seed, gold });
   lightRays(g.ctx, g.W, g.H, g.t, { alpha: 0.45 });
-  kMotifs(g.ctx, g.W, g.H, g.t, 0.04);
+  kMotifs(g.ctx, g.W, g.H, g.t, 0.18);
 }
 
 function hostSmall(
@@ -70,6 +70,10 @@ function hostSmall(
   // stain" at 1.09×; the scarf is a HERO-scale brand cue (1.3× and up).
   const pointIn = x < g.W / 2 ? 'pointR' : 'pointL';
   const cycle: string[] = [gesture, 'talkB', gesture, pointIn];
+  // AUDIT-ROUND-2 (fix 11 — HEAD YAW AT CONTENT): the side host's head
+  // turns toward his content on the same term the arms use — the
+  // eyeline connects (C5) at every side-host scale in the film.
+  const bias = x < g.W / 2 ? ('right' as const) : ('left' as const);
   const ph = (g.t / 3000 + seed) % 4;
   const idx = Math.floor(ph);
   // PANEL-12 / P1-2: the side-host gesture crossfade re-blends through the
@@ -83,6 +87,7 @@ function hostSmall(
     prevSentenceId: g.prevSentenceId,
     sentenceT: g.sentenceT,
     wordTimes: g.gWordTimes,
+    pointBias: bias,
   };
   const poseA = Stickman.poseAt(g.t, { gesture: cycle[idx % 4], speaking: g.speaking, ...sentOpts });
   const poseB = Stickman.poseAt(g.t, { gesture: cycle[(idx + 1) % 4], speaking: g.speaking, ...sentOpts });
@@ -168,7 +173,7 @@ export function chartTwinScene(g: SceneCtx): void {
     ctx.globalAlpha = ap;
     ctx.translate(0, (1 - easeOutCubic(ap)) * 36);
     card(ctx, x, cy - 66, cw, ch + 104, { r: 30 });
-    setFont(ctx, 30, 600);
+    setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.ink;
     ctx.textAlign = 'left';
     ctx.fillText(c.title, x + 36, cy - 16);
@@ -221,7 +226,7 @@ export function chartTwinScene(g: SceneCtx): void {
       const by = 128;
       setFont(ctx, 46, 700);
       const bigW = ctx.measureText(eb.big).width;
-      setFont(ctx, 28, 600);
+      setFont(ctx, 34, 600);
       const labW = ctx.measureText(eb.label).width;
       const chipW = 36 + bigW + 24 + labW + 36;
       // v9 (report D-04): the punchline chip matches the Nasdaq gold tone
@@ -232,7 +237,7 @@ export function chartTwinScene(g: SceneCtx): void {
       ctx.fillStyle = ebTone;
       ctx.textAlign = 'left';
       ctx.fillText(eb.big, bx + 36, by + 56);
-      setFont(ctx, 28, 600);
+      setFont(ctx, 34, 600);
       ctx.fillStyle = PALETTE.inkSoft;
       ctx.fillText(eb.label, bx + 36 + bigW + 24, by + 51);
       ctx.restore();
@@ -290,7 +295,7 @@ export function chartJourneyScene(g: SceneCtx): void {
       ctx.fillStyle = TONE(sr.tone).main;
       roundRect(ctx, lx, chartY - 34, 46, 12, 6);
       ctx.fill();
-      setFont(ctx, 25, 600);
+      setFont(ctx, 34, 600);
       ctx.fillStyle = PALETTE.inkSoft;
       ctx.textAlign = 'left';
       ctx.fillText(sr.name, lx + 60, chartY - 20);
@@ -342,7 +347,7 @@ export function chartJourneyScene(g: SceneCtx): void {
     ctx.fillStyle = c.main;
     ctx.textAlign = 'left';
     ctx.fillText(st.big, 226, cyy + 46);
-    setFont(ctx, 25, 600);
+    setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.inkSoft;
     const label = st.label.length > 52 ? st.label.slice(0, 51) + '…' : st.label;
     ctx.fillText(label, 300, cyy + 43);
@@ -387,7 +392,7 @@ export function chartJourneyScene(g: SceneCtx): void {
       ctx.fillStyle = PALETTE.gold;
       roundRect(ctx, qx + 30, qy + 26, 6, 138, 3);
       ctx.fill();
-      setFont(ctx, 27, 600);
+      setFont(ctx, 34, 600);
       ctx.fillStyle = PALETTE.ink;
       wrapText(ctx, quote, qw - 80, 27, 600).forEach((ln, i) => {
         ctx.fillText(ln, qx + 56, qy + 64 + i * 38);
@@ -404,7 +409,9 @@ export function pieChartScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 81, 0.6, 'gold'); // v10: the data room plate (gold — the wealth scene)
   sceneTitle(ctx, s.title as string, 180, 220, clamp01(t / 600));
-  const cx = W * 0.34;
+  // AUDIT-ROUND-2 (fix 4): the pie yields the left third's margin so the
+  // host can stand beside the legend — cx W*0.34 → W*0.30.
+  const cx = W * 0.30;
   const cy = H * 0.52;
   const r = Math.min(W, H) * 0.21;
   pieChart(ctx, {
@@ -419,24 +426,30 @@ export function pieChartScene(g: SceneCtx): void {
   // v10.1 (panel 11 re-review, host-vs-content): the legend used to start at
   // W*0.58 with its % column at +560 — content ran to x≈1763, deep under the
   // side host's envelope (70px, guard-caught). The legend now starts at
-  // W*0.52 (clear of the pie, right edge 879) and compacts to ≤450 wide;
-  // the % value right-anchors at x+440. Host envelope (W*0.85) clears by 54px.
+  // W*0.48 (clear of the pie, right edge ~1372) and compacts to ≤450 wide;
+  // the % value right-anchors at x+440.
+  // AUDIT-ROUND-2 (fix 4 — UN-STRAND THE HOST): the host was at W*0.845 —
+  // "huge empty right third; stick man stranded". The legend's right edge
+  // is 1372; the host now stands at W*0.80 with his pointL cone reaching
+  // INTO the legend (envelope left ≈1356, clear of the legend's last row),
+  // the headYaw (fix 11) turning his face to it. Host beside content,
+  // gesture in the content's direction — the fix's converse.
   const legend = (s.slices as any[]) || [];
   legend.forEach((sl, i) => {
     const ap = clamp01((t - 700 - i * 300) / 600);
     if (ap <= 0) return;
     const ly = H * 0.4 + i * 90;
-    const lx = W * 0.52;
+    const lx = W * 0.48;
     registerRect(`pieLegend:${sl.label.slice(0, 12)}`, lx, ly, 450, 70);
     ctx.save();
     ctx.globalAlpha = ap;
     ctx.fillStyle = TONE(sl.tone).main;
     roundRect(ctx, lx, ly, 52, 52, 14);
     ctx.fill();
-    setFont(ctx, 30, 600);
+    setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.ink;
     ctx.textAlign = 'left';
-    const lines = wrapText(ctx, sl.label, 300, 30, 600);
+    const lines = wrapText(ctx, sl.label, 300, 34, 600);
     lines.forEach((ln, j) => ctx.fillText(ln, lx + 76, ly + 34 + j * 40));
     setFont(ctx, 38, 700);
     // v8.1: the bright fill gold (#C9A227) fails AA at 38px — text-sized
@@ -446,7 +459,9 @@ export function pieChartScene(g: SceneCtx): void {
     ctx.fillText(`${Math.round(sl.value)}%`, lx + 440, ly + 40);
     ctx.restore();
   });
-  hostSmall(g, W * 0.845, 'pointL', 6);
+  // AUDIT-ROUND-2 (fix 4 + fix 11): the host beside the legend, pointing
+  // into it — and hostSmall's own pointBias wiring turns his head with it.
+  hostSmall(g, W * 0.8, 'pointL', 6);
   sourceTag(ctx, W, s.source as string, H - 60);
 }
 
@@ -522,7 +537,7 @@ export function dotGridScene(g: SceneCtx): void {
       setFont(ctx, 34, 700);
       ctx.fillStyle = PALETTE.ink;
       ctx.fillText(caption, x0 + cw + gap, y);
-      setFont(ctx, 26, 600);
+      setFont(ctx, 34, 600);
       ctx.fillStyle = PALETTE.inkFaint;
       ctx.textAlign = 'center';
       ctx.fillText('each dot = one company', W / 2, (1040 / 1080) * H);
@@ -567,7 +582,7 @@ export function magChipsScene(g: SceneCtx): void {
     ctx.strokeStyle = rgba(PALETTE.gold, 0.65);
     roundRect(ctx, x, y, tw, 124, 22);
     ctx.stroke();
-    setFont(ctx, 30, 700);
+    setFont(ctx, 34, 700);
     ctx.fillStyle = PALETTE.ink;
     ctx.textAlign = 'center';
     ctx.fillText(name, x + tw / 2, y + 74);
@@ -596,7 +611,7 @@ export function magChipsScene(g: SceneCtx): void {
     ctx.fillStyle = c.main;
     ctx.textAlign = 'left';
     ctx.fillText(st.big, W * 0.14 + 44, y + 68);
-    setFont(ctx, 29, 600);
+    setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.inkSoft;
     ctx.fillText(st.label, W * 0.14 + 320, y + 62);
     ctx.restore();
@@ -644,7 +659,7 @@ export function barsCompareScene(g: SceneCtx): void {
       const to = fc.to as number;
       const v = lerp(from, to, easeInOutCubic(ap));
       ctx.fillText(`${v.toFixed(0)}%`, fx + 40, fy + 82);
-      setFont(ctx, 27, 600);
+      setFont(ctx, 34, 600);
       ctx.fillStyle = PALETTE.inkSoft;
       ctx.fillText(fc.label, fx + 210, fy + 58);
       setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor (flip-counter tag)
@@ -659,7 +674,7 @@ export function barsCompareScene(g: SceneCtx): void {
     if (ap > 0) {
       ctx.save();
       ctx.globalAlpha = ap;
-      setFont(ctx, 26, 600);
+      setFont(ctx, 34, 600);
       const tw = ctx.measureText(rc).width;
       const cx = W / 2 - tw / 2 - 28;
       // v3 (panel P0-2): was H-190 (y≈890) — inside the caption pill band,
@@ -716,14 +731,14 @@ export function trioConvergeScene(g: SceneCtx): void {
     ctx.save();
     ctx.globalAlpha = ap;
     card(ctx, x, y, w, h + 40, { r: 26 });
-    setFont(ctx, 26, 700);
+    setFont(ctx, 34, 700);
     ctx.fillStyle = PALETTE.ink;
     ctx.textAlign = 'center';
     ctx.fillText(names[i], x + w / 2, y + 52);
     // the real first→latest reading, bottom of card
     const vp = clamp01((t - 1800 - i * 320) / 600);
     ctx.globalAlpha = ap * vp;
-    setFont(ctx, 30, 700);
+    setFont(ctx, 34, 700);
     ctx.fillStyle = PALETTE.ink;
     ctx.fillText(realValues[i], x + w / 2, y + h + 6);
     ctx.globalAlpha = ap;
@@ -794,7 +809,7 @@ export function trioConvergeScene(g: SceneCtx): void {
     setFont(ctx, 40, 700);
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.fillText(motto, W / 2, (1000 / 1080) * H);
-    setFont(ctx, 26, 600);
+    setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.inkSoft;
     ctx.fillText(s.sub as string, W / 2, (1035 / 1080) * H);
     ctx.restore();
@@ -872,16 +887,16 @@ export function kDefScene(g: SceneCtx): void {
     const dx = W * 0.08;
     const dy = H * 0.24;
     card(ctx, dx, dy, 620, 300, { r: 30 });
-    setFont(ctx, 27, 700);
+    setFont(ctx, 34, 700);
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.textAlign = 'left';
     ctx.fillText('THE RICHMOND FED, PLAINLY', dx + 40, dy + 58);
-    setFont(ctx, 33, 600);
+    setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.ink;
     wrapText(ctx, `“${s.definition as string}”`, 540, 33, 600).forEach((ln, i) => {
       ctx.fillText(ln, dx + 40, dy + 116 + i * 46);
     });
-    setFont(ctx, 24, 600);
+    setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.inkFaint;
     ctx.fillText('same starting point · same economy · two lines that diverge', dx + 40, dy + 262);
     ctx.restore();
@@ -891,7 +906,7 @@ export function kDefScene(g: SceneCtx): void {
   if (lp > 0) {
     ctx.save();
     ctx.globalAlpha = lp;
-    setFont(ctx, 28, 700);
+    setFont(ctx, 34, 700);
     ctx.textAlign = 'left';
     ctx.fillStyle = PALETTE.up;
     ctx.fillText('top: better', kx + S * 1.3, ky - S * 1.0);
@@ -927,7 +942,7 @@ export function credibilityChipsScene(g: SceneCtx): void {
     ctx.fillStyle = PALETTE.goldWash;
     roundRect(ctx, W / 2 - cw / 2, y, 14, 84, 7);
     ctx.fill();
-    setFont(ctx, 31, 600);
+    setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.ink;
     ctx.textAlign = 'center';
     ctx.fillText(c, W / 2, y + 54);
@@ -938,7 +953,7 @@ export function credibilityChipsScene(g: SceneCtx): void {
     ctx.save();
     ctx.globalAlpha = yp;
     ctx.textAlign = 'center';
-    setFont(ctx, 30, 700);
+    setFont(ctx, 34, 700);
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.fillText(s.year as string, W / 2, H * 0.24 + chipsList.length * 106 + 60);
     ctx.restore();
@@ -1002,7 +1017,7 @@ export function gasPumpScene(g: SceneCtx): void {
   ctx.fillStyle = PALETTE.up;
   ctx.textAlign = 'center';
   ctx.fillText('GAS', px, py + 78);
-  setFont(ctx, 24, 600);
+  setFont(ctx, 34, 600);
   ctx.fillStyle = rgba(PALETTE.up, 0.75);
   ctx.fillText('PRICE / GALLON', px, py + 112);
   // price digits roll — on the screen, tabular feel
@@ -1046,6 +1061,14 @@ export function gasPumpScene(g: SceneCtx): void {
   // the divider, value visibly moving between the halves.)
 
   // two household cards
+  // AUDIT-ROUND-2 (fix 3 — KILL BODY PARAGRAPHS ON FRAMES): the phone-gate
+  // verdict on this scene was "three columns of text at 320px = instant
+  // failure — the pump icon is the only anchor". Each card keeps ONE
+  // stat line (the numeric: 'gas spend +19%' / 'driving −7%'); the
+  // qualitative second lines ('driving · barely changed' / 'gas bill still
+  // went up') move to VO + caption only. The who-labels rise to the LABEL
+  // floor (34). One focal line per card, one caption line per frame — the
+  // 12-word cap holds; the pump owns the frame.
   const cards = (s.cards as any[]) || [];
   cards.forEach((c, i) => {
     const cap = clamp01((t - 1000 - i * 900) / 800);
@@ -1056,8 +1079,8 @@ export function gasPumpScene(g: SceneCtx): void {
     ctx.globalAlpha = cap;
     ctx.translate(0, (1 - easeOutCubic(cap)) * 40);
     const tone = TONE(c.tone);
-    card(ctx, x, y, 480, 300, { r: 30, tint: tone.main }); // v10: tone-lit card
-    setFont(ctx, 27, 700);
+    card(ctx, x, y, 480, 230, { r: 30, tint: tone.main }); // v10: tone-lit card
+    setFont(ctx, 34, 700);
     ctx.fillStyle = tone.main;
     ctx.textAlign = 'left';
     ctx.fillText(c.who.toUpperCase(), x + 40, y + 62);
@@ -1067,25 +1090,26 @@ export function gasPumpScene(g: SceneCtx): void {
     ctx.moveTo(x + 40, y + 84);
     ctx.lineTo(x + 200, y + 84);
     ctx.stroke();
-    (c.stats as string[]).forEach((st, j) => {
-      setFont(ctx, 44, 700);
-      ctx.fillStyle = j === 0 ? tone.main : PALETTE.ink;
-      ctx.fillText(st, x + 40, y + 150 + j * 84);
-    });
+    // ONE stat line per card — the numeric only (fix 3)
+    setFont(ctx, 54, 700);
+    ctx.fillStyle = tone.main;
+    ctx.fillText((c.stats as string[])[0], x + 40, y + 168);
     ctx.restore();
   });
   // v10 (D-02): the caption — moved from y≈992 (ON the source tag) to the
   // open band under the pump+cards (clear of the plinth at 670 and the pill
   // at 796), registered as reading text.
+  // AUDIT-ROUND-2 (fix 3): the caption is the frame's ONE focal line —
+  // 34 → 40 (the READ floor), the phrase trimmed to the 12-word cap.
   const cap2 = clamp01((t - 3000) / 700);
   if (cap2 > 0) {
     ctx.save();
     ctx.globalAlpha = cap2;
     ctx.textAlign = 'center';
-    setFont(ctx, 34, 700);
+    setFont(ctx, 40, 700);
     ctx.fillStyle = PALETTE.ink;
-    const line = `${s.caption as string} — same country, same price shock`;
-    registerText('gasPump:caption', W / 2 - 560, 730 - 34, 1120, 48);
+    const line = `${s.caption as string} — same country, same shock`;
+    registerText('gasPump:caption', W / 2 - 560, 730 - 40, 1120, 52);
     ctx.fillText(line, W / 2, 730);
     ctx.restore();
   }
@@ -1106,11 +1130,11 @@ export function recessionGaugeScene(g: SceneCtx): void {
     ctx.globalAlpha = ap;
     const y = H * 0.26 + i * 150;
     card(ctx, W * 0.07, y, 560, 120, { r: 26 });
-    setFont(ctx, 26, 700);
+    setFont(ctx, 34, 700);
     ctx.fillStyle = i === 0 ? PALETTE.up : PALETTE.down;
     ctx.textAlign = 'left';
     ctx.fillText(d.who, W * 0.07 + 36, y + 44);
-    setFont(ctx, 24, 600);
+    setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.inkSoft;
     wrapText(ctx, d.line, 490, 24, 600).forEach((ln, j) => {
       ctx.fillText(ln, W * 0.07 + 36, y + 82 + j * 32);
@@ -1136,7 +1160,7 @@ export function recessionGaugeScene(g: SceneCtx): void {
     if (pp > 0) {
       ctx.save();
       ctx.globalAlpha = pp;
-      setFont(ctx, 27, 700);
+      setFont(ctx, 34, 700);
       const tw = ctx.measureText(promptChip).width;
       const cx0 = W * 0.35;
       const x = cx0 - tw / 2 - 28;
@@ -1163,12 +1187,15 @@ export function recessionGaugeScene(g: SceneCtx): void {
   if (cp > 0 && s.coinChip) {
     ctx.save();
     ctx.globalAlpha = cp;
-    setFont(ctx, 27, 700);
+    setFont(ctx, 34, 700);
     const txt = s.coinChip as string;
     const tw = ctx.measureText(txt).width;
     const gx = W * 0.74;
     const x = gx - tw / 2 - 28;
-    const y = 736;
+    // Guard sweep (356s): the chip's bottom grazed the caption pill band at
+    // the 34px label floor — it rides 36px higher, clear under the worst
+    // camera (the pill is screen-fixed; content yields).
+    const y = 700;
     registerRect('gauge:coinChip', x, y, tw + 56, 56);
     ctx.fillStyle = PALETTE.goldWash;
     roundRect(ctx, x, y, tw + 56, 56, 28);
@@ -1287,6 +1314,26 @@ export function aiDatacenterScene(g: SceneCtx): void {
     ctx.beginPath();
     ctx.ellipse(x + (VPX - x) * 0.06, baseY + 4, rw * 0.78, 8 + 6 * depth, 0, 0, Math.PI * 2);
     ctx.fill();
+    // AUDIT-ROUND-2 (fix 20 — RACKS IN PERSPECTIVE, the top face): every
+    // slab gains a TOP FACE whose far edge tilts TOWARD the existing
+    // vanishing point — the top edges of the whole corridor now visibly
+    // converge on (VPX, horizon), the "copy-paste depth repeat" read
+    // dies, and each rack reads as a 3D box standing in the room.
+    {
+      // Panel round 2: the convergence reads at the phone gate — the tilt
+      // factor 0.10 -> 0.16 and the floor 10 -> 14 so even far slabs'
+      // top edges visibly aim at the vanishing point.
+      const tfx = Math.max(26, (VPX - x) * 0.24);   // toward the VP — steeper near plane
+      const tfy = rh * 0.085;
+      ctx.fillStyle = rgba('#FFFFFF', 0.10 + 0.14 * depth);
+      ctx.beginPath();
+      ctx.moveTo(x - rw / 2, baseY - rh);
+      ctx.lineTo(x + rw / 2, baseY - rh);
+      ctx.lineTo(x + rw / 2 + tfx, baseY - rh + tfy);
+      ctx.lineTo(x - rw / 2 + tfx, baseY - rh + tfy);
+      ctx.closePath();
+      ctx.fill();
+    }
     // side face — on EVERY slab now (re-review 2: "the middle pair sits
     // dead-vertical while flanks show angled faces — the corridor's
     // perspective logic contradicts itself"). Scaled by size: far slabs
@@ -1305,9 +1352,26 @@ export function aiDatacenterScene(g: SceneCtx): void {
     }
     // the monolith — one dark slab, top-lit (0.96: stacked far slabs no
     // longer smear through the near ones)
-    ctx.fillStyle = rgba(PALETTE.ink, 0.96);
-    roundRect(ctx, x - rw / 2, baseY - rh, rw, rh, 5);
-    ctx.fill();
+    // AUDIT-ROUND-2 (fix 20 — PER-ROW GRADIENT FALLOFF): the flat 0.96 ink
+    // fill becomes a vertical gradient — denser at the base, lifting at
+    // the top where the room's light catches it — and the far rows fade
+    // toward the plate (atmospheric recession: farther = hazier).
+    {
+      const gTop = rgba(PALETTE.ink, 0.82 + 0.14 * depth);
+      const gBot = rgba(PALETTE.ink, 0.96);
+      const g = ctx.createLinearGradient(0, baseY - rh, 0, baseY);
+      g.addColorStop(0, gTop);
+      g.addColorStop(1, gBot);
+      ctx.fillStyle = g;
+      roundRect(ctx, x - rw / 2, baseY - rh, rw, rh, 5);
+      ctx.fill();
+      // the far-row haze wash — distance fades toward the room's air
+      if (depth < 0.72) {
+        ctx.fillStyle = rgba(PALETTE.bgSoft, 0.30 * (1 - depth));
+        roundRect(ctx, x - rw / 2, baseY - rh, rw, rh, 5);
+        ctx.fill();
+      }
+    }
     ctx.fillStyle = rgba('#FFFFFF', 0.06 + 0.2 * depth);
     roundRect(ctx, x - rw / 2, baseY - rh, rw, 3.5, 2);
     ctx.fill();
@@ -1341,7 +1405,11 @@ export function aiDatacenterScene(g: SceneCtx): void {
     const s = 1 + 0.55 * k;
     const x = VPX - 620 / s;
     const rw = 150 / s;
-    const rh = 300 / s;
+    // Panel round 2 (fix 20): rh 300 -> 340/s — the near/far height ratio
+    // steepens so the top-edge stair (horizon − 157/s) reads at the phone
+    // gate as a corridor CONVERGING on the vanishing point, not a parallel
+    // lineup.
+    const rh = 340 / s;
     const baseY = horizon + 183 / s;
     registerRect(`dc-lwall@${k}`, x - rw / 2, baseY - rh, rw, rh, 'content', { edge: false });
     silhouette(x, baseY, rw, rh, 250 + (6 - k) * 110, 10 + k);
@@ -1380,8 +1448,10 @@ export function aiDatacenterScene(g: SceneCtx): void {
     ctx.beginPath();
     ctx.ellipse(hx + (VPX - hx) * 0.06, hBase + 6, hw * 0.78, 10, 0, 0, Math.PI * 2);
     ctx.fill();
-    // top face — the 3D hint that stays out of the host's pocket
-    const fx = 18;
+    // top face — the 3D hint that stays out of the host's pocket.
+    // Panel round 3: widened 18 -> 34 — the nearest plane's upward face
+    // reads (the corridor's convergence starts at the hero, not behind it).
+    const fx = 34;
     const fy = hh * 0.1;
     ctx.fillStyle = rgba('#FFFFFF', 0.16);
     ctx.beginPath();
@@ -1441,6 +1511,23 @@ export function aiDatacenterScene(g: SceneCtx): void {
     ctx.restore();
   }
   hazeBands(ctx, W, H, { rearY: horizon + 26, midY: H * 0.6 });
+  // AUDIT-ROUND-2 (fix 20 — THE HAZE BAND BETWEEN ROWS 2 AND 3): a soft
+  // full-width atmospheric break at the y-seam between the corridor's
+  // second and third rack rows — the near pair stays crisp, the far field
+  // recedes behind its own air. Three transforms on the existing loop,
+  // no new assets: top faces converge, rows fade, the seam hazes.
+  {
+    // Panel round 2: the break reads at the phone gate — alpha 0.22 -> 0.36,
+    // the band widened ±46 -> ±72, so rows 2-3 separate visibly even after
+    // the 6x downsample.
+    const seamY = horizon + 100;
+    const g = ctx.createLinearGradient(0, seamY - 84, 0, seamY + 84);
+    g.addColorStop(0, rgba(PALETTE.bgSoft, 0));
+    g.addColorStop(0.5, rgba(PALETTE.bgSoft, 0.42));
+    g.addColorStop(1, rgba(PALETTE.bgSoft, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, seamY - 84, W, 168);
+  }
   // stat cards — P0-4 (audit Table 2): out of the left column (which
   // floated them over the rack field — the "card-over-rack layering
   // accident") and into ONE horizontal reading row across the top wall
@@ -1490,7 +1577,11 @@ export function aiDatacenterScene(g: SceneCtx): void {
     // 0.04 ≈ 1.092x at group end) pushed it to ≈2004 — 84px past the right
     // edge, arm and shadow clipped (vision-verified on the aiDatacenter
     // frame). At W*0.82 the envelope's worst case lands ≈1831, 89px clear.
-    drawStickmanV2(ctx, W * 0.82, H * 0.66, 1.37, t,
+    // Guard sweep (396-404s): at 1.37 the head's envelope top touched the
+    // stat-card row's bottom under the ch5 hero push's exact camera — 1.28
+    // restores a certified ~28px static clearance (envelope top 326, card
+    // bottom 302) and keeps the feet clear of the pill band (775 < 796).
+    drawStickmanV2(ctx, W * 0.82, H * 0.66, 1.28, t,
       {
         pose, alpha: clamp01((t - 900) / 600), look: -0.7, scarf: true, talk, hostBody: true,
         // PANEL-12 / P3.2: the walk host's ground-shadow ellipse skews by
@@ -1507,58 +1598,105 @@ export function statCardsScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 181, 0.55);
   sceneTitle(ctx, 'The numbers, plainly', 180, 220, clamp01(t / 600));
-  // AUDIT-2 / §10.4 (report Phase 3): the impact grammar reaches the data
-  // cards — each numeral's count-up completion fires the micro-shake +
-  // impact ring triple alongside the existing sparkles. The film's biggest
-  // numbers now LAND instead of arriving.
+  // AUDIT-ROUND-2 (fix 2 — ONE HERO PER FRAME): the three equal cards read
+  // at the phone gate as "crowded at phone width; cards read clip-arty" —
+  // three competing masses, none dominant. The panel's rule: one dominant
+  // object at minimum 55% of frame width; every other element demoted or
+  // culled. The TRILLION stat ($18.8T — the all-time high) is now THE
+  // hero: a single 1150px-wide card (60% of frame width) carrying a
+  // 190px numeral; the other two stats demote to pill chips in a single
+  // quiet row beneath it. The two demoted labels' full text is already
+  // carried by the VO (the script speaks both numbers).
   {
     const shake = microShake(t, 1300);
     if (shake.dx !== 0 || shake.dy !== 0) ctx.translate(shake.dx, shake.dy);
   }
   const cards = (s.cards as any[]) || [];
-  // v10.1 (panel 11 re-review, host-vs-content): the card row used to span
-  // the full width (110→1810) and the side host (W*0.84) plated the third
-  // card's number + tag chip ("a premium explainer would never let the
-  // mascot collide with critical data" — vision-verified on both the pair
-  // judge AND the blind judge). Cards now yield the right column: the row
-  // ends at x=1450 and the host (W*0.85) owns 1492-1772 clear.
-  // QA-SWEEP: row start 110 → 180 — the left card crossed the frame edge
-  // under the worst steady camera (drift −22 + exit truck −26; s 1.149
-  // observed on the c7-debt group); x=180 keeps the guard's edge rule
-  // clean, matching the raised title rail.
-  const cw = (1450 - 180 - 60 * (cards.length - 1)) / cards.length;
-  cards.forEach((c, i) => {
-    const cardX = 180 + i * (cw + 60);
-    statCard(ctx, {
-      x: cardX, y: H * 0.24, w: cw, h: 360,
-      big: c.big, label: c.label, tag: c.tag, tone: c.tone || 'up',
-      p: clamp01((t - 300 - i * 550) / 1000), t,
-    });
-    // AUDIT-2 / §10.4: the expanding gold ring from each numeral as its
-    // count completes (the sparkles burst was already there — this is the
-    // missing impact half).
-    impactRing(ctx, cardX + cw / 2, H * 0.24 + 90, t, 1300 + i * 550, Math.min(150, cw * 0.42));
-    if (t > 1300 + i * 550 && t < 1300 + i * 550 + 900) {
-      sparkles(ctx, cardX + cw / 2, H * 0.24 + 90, t, t - (1300 + i * 550), { count: 8, radius: 110 });
+  // pick the hero: the largest-magnitude stat (the trillion/all-time-high
+  // carries it by default — the biggest number the beat owns)
+  const heroIdx = cards.findIndex((c) => /\$[\d.]+T/.test(String(c.big)));
+  const hero = cards[heroIdx >= 0 ? heroIdx : cards.length - 1] ?? { big: '', label: '', tag: '', tone: 'gold' };
+  const chips = cards.filter((_, i) => i !== heroIdx);
+  const tone = TONE(hero.tone || 'gold');
+  // ── THE HERO CARD — 1150px wide (60% of frame), one 190px numeral ──
+  const hx0 = 180;
+  const hy0 = H * 0.22;
+  const hw = 1150;
+  const hh = 400;
+  registerRect('statCards:hero', hx0, hy0, hw, hh);
+  card(ctx, hx0, hy0, hw, hh, { r: 34, tint: tone.main });
+  const heroP = clamp01((t - 300) / 900);
+  if (heroP > 0) {
+    ctx.save();
+    ctx.globalAlpha = heroP;
+    // the numeral — 190px, fitted to the card's body (floor: 100px — a
+    // HERO numeral never approaches the READ floor)
+    let bigSize = 190;
+    setFont(ctx, bigSize, 700);
+    while (ctx.measureText(hero.big).width > hw - 160 && bigSize > 100) {
+      bigSize -= 4;
+      setFont(ctx, bigSize, 700);
     }
+    ctx.fillStyle = tone.main;
+    ctx.textAlign = 'left';
+    ctx.fillText(hero.big, hx0 + 72, hy0 + 232);
+    // the label — READ text at the floor (40), one wrap, max 2 lines
+    setFont(ctx, 40, 600);
+    ctx.fillStyle = PALETTE.inkSoft;
+    const labelLines = wrapText(ctx, String(hero.label ?? ''), hw - 900, 40, 600).slice(0, 2);
+    labelLines.forEach((ln, j) => ctx.fillText(ln, hx0 + 72, hy0 + 306 + j * 48));
+    // the tag — a tone chip at the card's top right, RIGHT-ALIGNED so it
+    // can never reach the side host's envelope (the guard caught the
+    // left-anchored version plating the host at 452s)
+    if (hero.tag) {
+      const tagY = hy0 + 62;
+      const tagW = chipWidth(ctx, String(hero.tag), { size: 36, padX: 22, iconDot: true });
+      chip(ctx, String(hero.tag), hx0 + hw - 40 - tagW, tagY, { size: 36, weight: 700, fg: tone.main, bg: PALETTE.white, border: rgba(tone.main, 0.45), iconDot: tone.main });
+    }
+    ctx.restore();
+  }
+  // the hero's impact grammar — ring + sparkles from the numeral
+  impactRing(ctx, hx0 + hw * 0.35, hy0 + 180, t, 1300, 190);
+  if (t > 1300 && t < 2200) {
+    sparkles(ctx, hx0 + hw * 0.35, hy0 + 180, t, t - 1300, { count: 9, radius: 150 });
+  }
+  // ── THE TWO DEMOTED STATS — pill chips in one quiet row beneath the hero ──
+  chips.forEach((c, i) => {
+    const cp2 = clamp01((t - 1500 - i * 550) / 700);
+    if (cp2 <= 0) return;
+    const ct = TONE(c.tone || 'up');
+    const cx2 = 180 + i * (hw / 2);
+    const cy2 = hy0 + hh + 34;
+    ctx.save();
+    ctx.globalAlpha = cp2;
+    registerRect(`statCards:chip${i}`, cx2, cy2, hw / 2 - 40, 84);
+    ctx.fillStyle = PALETTE.white;
+    roundRect(ctx, cx2, cy2, hw / 2 - 40, 84, 42);
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = rgba(ct.main, 0.5);
+    roundRect(ctx, cx2, cy2, hw / 2 - 40, 84, 42);
+    ctx.stroke();
+    setFont(ctx, 62, 700);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = ct.main;
+    const bw = ctx.measureText(c.big).width;
+    ctx.fillText(c.big, cx2 + 34, cy2 + 58);
+    // the chip's label — SHORTENED to one glance line (the VO carries the
+    // full text; the audit's 12-word frame cap)
+    setFont(ctx, 34, 600);
+    ctx.fillStyle = PALETTE.inkSoft;
+    const short = String(c.label ?? '').split(' · ')[0];
+    ctx.fillText(short, cx2 + 34 + bw + 26, cy2 + 54);
+    ctx.restore();
   });
   sourceTag(ctx, W, s.source as string, H - 60);
-  // PANEL-10 (D-10 class): W*0.88 → W*0.84 — the shadow envelope crossed
-  // x=1920 under the base push stack; 0.84 clears it with margin.
-  // v10.1: W*0.84 → W*0.85 — full-body envelope clears the narrowed card
-  // row (right edge 1450) by ~42px; edge worst case (1632+139-960)*1.092+960
-  // ≈ 1883, 37px inside.
-  // AUDIT-3 / §1.5 + §2.5 (report Phase 1.5 contact poses + Phase 2.5
-  // "one occlusion per scene"): the statCards host was at W*0.85 holding
-  // a symmetric 'present' — the BEFORE panel scored the staging 3/10:
-  // "a doorman, not a presenter… gesturing outward, AWAY from the cards
-  // … an infographic with a mascot pasted beside it". He now holds the
-  // pointL cycle — arm raised TOWARD the card row, gaze on the numbers —
-  // at W*0.845, the closest position the collision guard certifies clear
-  // of the card bodies (envelope left ≈1477 vs card right edge 1450, with
-  // camera margin at every sweep step). Presenting the data, not the
-  // empty air beside it.
-  hostSmall(g, W * 0.845, 'pointL', 19, g.H * 0.66, 1.09, 0, 'aha', 1.4, 1, true);
+  // AUDIT-ROUND-2 (fix 4 — UN-STRAND THE HOST): the host at W*0.845 was
+  // "cropped awkwardly and gestures at nothing" — the content now ends at
+  // x 1330 (the hero card) and the host stands BESIDE it in his gesture
+  // cone: pointL reaches INTO the hero card, the bias-driven headYaw
+  // (fix 11) turns his face to it, and his feet sit clear of the chip row.
+  hostSmall(g, W * 0.845, 'pointL', 19, g.H * 0.615, 1.09, 0, 'aha', 1.4, 1, true);
 }
 
 // ── ownerWorker scene ────────────────────────────────────────────────────────
@@ -1686,7 +1824,7 @@ export function ownerWorkerScene(g: SceneCtx): void {
         ctx.restore();
       }
     }
-    setFont(ctx, 30, 600);
+    setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.inkSoft;
     // R7d: baselines 726 / 768 (was 918 / 962) — above CAPTION_ZONE_TOP,
     // 46px below the figure's ground line so the two never touch.
@@ -1723,7 +1861,7 @@ export function fundSplitScene(g: SceneCtx): void {
   ctx.save();
   ctx.globalAlpha = ap;
   card(ctx, bx, by, bw, bh, { r: 26 });
-  setFont(ctx, 33, 700);
+  setFont(ctx, 34, 700);
   ctx.fillStyle = PALETTE.ink;
   ctx.textAlign = 'left';
   ctx.fillText('S&P 500 index fund', bx + 36, by + 56);
@@ -1735,7 +1873,8 @@ export function fundSplitScene(g: SceneCtx): void {
   subLines.forEach((ln, j) => ctx.fillText(ln, bx + 36, by + 92 + j * 34));
   ctx.restore();
 
-  // split arrows
+  // split arrows — AUDIT-ROUND-2 (fix 2): shortened to point INTO the
+  // now-huge gold bars (the divergence graphic owns the frame)
   const sp = clamp01((t - 800) / 700);
   if (sp > 0) {
     ctx.save();
@@ -1744,87 +1883,82 @@ export function fundSplitScene(g: SceneCtx): void {
     ctx.lineWidth = 7;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(bx + bw + 20, by + bh / 2);
-    ctx.lineTo(bx + bw + 150, by - 30);
-    ctx.moveTo(bx + bw + 20, by + bh / 2);
-    ctx.lineTo(bx + bw + 150, by + 170);
+    ctx.moveTo(bx + bw + 16, by + bh / 2);
+    ctx.lineTo(bx + bw + 96, by - 14);
+    ctx.moveTo(bx + bw + 16, by + bh / 2);
+    ctx.lineTo(bx + bw + 96, by + bh + 22);
     ctx.stroke();
     ctx.restore();
   }
 
   // 7 gold bars vs 493 gray bars (dot strip)
+  // AUDIT-ROUND-2 (fix 2 — ONE HERO PER FRAME, fundSplit): the 7-vs-493
+  // graphic — "the best data-viz idea on the sheet" — was criminally
+  // undersized (7 bars at 26×120 + a 510px dot strip riding the frame's
+  // right edge; the phone-gate verdict: "Disaster at feed scale: 7-names/
+  // 493-others microscopic"). It DOUBLES and TAKES THE FRAME: 7 bars at
+  // 56×300 across x 560-1090, the 493 wall as a 4-row field spanning
+  // x 1170-1855 — the divergence IS the frame now. The stat cards demote
+  // to compact chips on the left column; the full labels ride the VO.
   const gp = clamp01((t - 1400) / 900);
   if (gp > 0) {
-    // P0-3 panel round-2: gx W*0.42 → W*0.51 — the measured title
-    // ('What's inside "the S&P 500"?' = 769px at 54px/600) ends at x=949;
-    // the first gold bars at 806 clipped its last ~143px. The bars now
-    // start at 979, 30px clear of the title's tail.
-    const gx = W * 0.51;
-    const gy = H * 0.18;
-    // gold segment
+    const gx = W * 0.333;
+    const gy = H * 0.28;
+    // gold segment — 7 HEAVY bars, 56 wide, 300 tall, 78px pitch
     for (let i = 0; i < 7; i++) {
-      const p2 = clamp01((t - 1400 - i * 90) / 400);
+      const p2 = clamp01((t - 1400 - i * 110) / 460);
       ctx.fillStyle = PALETTE.gold;
-      roundRect(ctx, gx + i * 34, gy, 26, 120 * easeOutCubic(p2) + 6, 8);
+      roundRect(ctx, gx + i * 78, gy, 56, 300 * easeOutCubic(p2) + 8, 10);
       ctx.fill();
     }
-    setFont(ctx, 30, 700);
+    setFont(ctx, 40, 700);
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.textAlign = 'left';
-    ctx.fillText('7 stocks', gx, gy + 165);
-    // gray mass
-    const grayX = gx + 7 * 34 + 90;
-    for (let i = 0; i < 60; i++) {
-      const p2 = clamp01((t - 1900 - i * 6) / 500);
-      ctx.fillStyle = rgba(PALETTE.grid, 0.6);
-      const col = i % 30;
-      const row = Math.floor(i / 30);
-      roundRect(ctx, grayX + col * 17, gy + row * 44 + 14, 10, 32 * easeOutCubic(p2) + 4, 3);
+    ctx.fillText('7 stocks', gx, gy + 356);
+    // gray mass — the 493 wall: 4 rows × 20 cols of 20px pillars, 27px
+    // pitch — a real mass the eye can weigh against the seven
+    const grayX = gx + 7 * 78 + 86;
+    for (let i = 0; i < 80; i++) {
+      const p2 = clamp01((t - 1900 - i * 12) / 520);
+      ctx.fillStyle = rgba(PALETTE.grid, 0.62);
+      const col = i % 20;
+      const row = Math.floor(i / 20);
+      roundRect(ctx, grayX + col * 27, gy + 132 + row * 46, 20, 34 * easeOutCubic(p2) + 4, 3);
       ctx.fill();
     }
-    setFont(ctx, 30, 700);
+    setFont(ctx, 40, 700);
     ctx.fillStyle = PALETTE.inkSoft;
-    ctx.fillText('493 others', grayX, gy + 165);
+    ctx.fillText('493 others', grayX, gy + 356);
   }
 
   // stats
+  // AUDIT-ROUND-2 (fix 2 + fix 3): the stat cards demote to compact chips —
+  // the graphic owns the frame. Labels shortened to glance lines (the VO
+  // carries the full sentences: "roughly 42% of the index's 2025 return…
+  // under 1.5% of its names").
   const stats = (s.stats as any[]) || [];
   stats.forEach((st, i) => {
     const sp2 = clamp01((t - 2600 - i * 700) / 800);
     if (sp2 <= 0) return;
     ctx.save();
     ctx.globalAlpha = sp2;
-    // PANEL-9 R7e (stat card 2 plated by the caption pill): the stack began
-    // at H*0.58 (626) with a 110 step — card 2 ran 736..828, its bottom 32px
-    // and label descenders inside the caption band (two-row pill tops at
-    // 796). The stack now starts at H*0.50 with a 98 step: card 2 ends at
-    // 730, a full 66px clear of the tallest pill.
-    const y = H * 0.5 + i * 98;
+    const y = H * 0.40 + i * 128;
     const c = TONE(st.tone || 'default');
-    card(ctx, W * 0.42, y, 640, 92, { r: 24 });
-    setFont(ctx, 50, 700);
+    registerRect(`fundSplit:stat${i}`, W * 0.09, y, 420, 104);
+    card(ctx, W * 0.09, y, 420, 104, { r: 24 });
+    setFont(ctx, 58, 700);
     ctx.fillStyle = c.main;
     ctx.textAlign = 'left';
-    ctx.fillText(st.big, W * 0.42 + 36, y + 62);
-    // PANEL-9 R7o (stat label overflowing the card): the label was drawn at
-    // a FIXED +230px offset with no measurement — "of the S&P 500's total
-    // return in 2025 · seven stocks" (~750px at 25px) ran ~340px past the
-    // 640px card's right edge onto the background (flagged on fundSplit).
-    // The label now starts after the MEASURED big numeral and wraps inside
-    // the remaining card width (two rows max, vertically centred). The
-    // numeral is measured in ITS OWN 50px face before the label font loads.
+    ctx.fillText(st.big, W * 0.09 + 32, y + 68);
     const bigW = ctx.measureText(st.big).width;
-    setFont(ctx, 25, 600);
-    const labelX = W * 0.42 + 36 + bigW + 26;
-    const maxLW = W * 0.42 + 640 - 18 - labelX;
-    const labelLines = maxLW > 120 ? wrapText(ctx, st.label, maxLW, 25, 600) : [];
+    // the glance label — one line, LABEL_FLOOR, measured to fit the chip
+    setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.inkSoft;
-    if (labelLines.length <= 1) {
-      ctx.fillText(labelLines[0] ?? st.label, labelX, y + 56);
-    } else {
-      labelLines.slice(0, 2).forEach((ln, j) => {
-        ctx.fillText(ln, labelX, y + 40 + j * 30);
-      });
+    const glance = String(st.label ?? '').split(' · ')[0];
+    const maxLW = W * 0.09 + 420 - 24 - (W * 0.09 + 32 + bigW + 22);
+    if (maxLW > 140) {
+      const gl = wrapText(ctx, glance, maxLW, 34, 600).slice(0, 1)[0] ?? glance;
+      ctx.fillText(gl, W * 0.09 + 32 + bigW + 22, y + 60);
     }
     ctx.restore();
   });
@@ -1953,7 +2087,7 @@ export function oddsSpreadScene(g: SceneCtx): void {
     ctx.arc(x, trackY, 6, 0, Math.PI * 2);
     ctx.fill();
     // label card
-    setFont(ctx, 24, 600);
+    setFont(ctx, 34, 600);
     ctx.textAlign = 'center';
     const lines = wrapText(ctx, m.label, 330, 24, 600);
     const cw2 = 350;
@@ -1987,7 +2121,7 @@ export function oddsSpreadScene(g: SceneCtx): void {
     ctx.save();
     ctx.globalAlpha = cl;
     ctx.textAlign = 'center';
-    setFont(ctx, 30, 600);
+    setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.ink;
     // v3 (panel P0-2): was H*0.78 (y≈842) — inside the caption band, hidden
     // behind the pill. Sit ≥48px above CAPTION_ZONE_TOP.

@@ -441,6 +441,166 @@ export function addDing(
 }
 
 /**
+ * AUDIT-ROUND-2 (fix 30 — THE SFX LAYER): the Kurzgesagt rule — every
+ * animation has a distinct sound. The mix already had whooshes (cuts),
+ * dings (count-ups), K-motif chimes (payoffs) and risers (chapters); the
+ * missing event classes ship now, all hand-drawn DSP (free, no samples,
+ * deterministic — the same grammar as everything else in this file):
+ *   • addKStrike   — the K's formation/tear: a struck-metal thud +
+ *                    inharmonic chime partials
+ *   • addCoin       — a coin landing: two quick bright metallic pings
+ *   • addCardPop   — a stat card arriving: a paper pop (band-passed
+ *                    noise burst) + a soft wood tick
+ *   • addWalkPlant — a footfall: a low, soft thump (very quiet — the
+ *                    walk needs rhythm, not percussion)
+ *   • addSlam      — bigText/stampCard slams: the whoosh's heavier
+ *                    sibling, landing in a thud
+ * One sound per event class; −2 dB under the voice; every animation that
+ * moves now SOUNDS like it moved.
+ */
+
+/** The K strike — struck metal: a low thud body + three inharmonic chime
+ *  partials with fast decays (the brand object landing as MASS). */
+export function addKStrike(
+  L: Float32Array, R: Float32Array,
+  startSec: number, gain: number
+): void {
+  const n0 = Math.round(startSec * SR_OUT);
+  const dur = Math.round(1.1 * SR_OUT);
+  const parts = [523.3, 1244.5, 2093.0];   // inharmonic stack — metal, not melody
+  const w = [1, 0.42, 0.22];
+  for (let i = n0; i < Math.min(L.length, n0 + dur); i++) {
+    const t = (i - n0) / SR_OUT;
+    let s = 0;
+    for (let p = 0; p < parts.length; p++) {
+      s += Math.sin(2 * Math.PI * parts[p] * t) * Math.exp(-t * (5 + p * 4)) * w[p];
+    }
+    // the thud body — 80Hz fundamental, gone in ~120ms
+    s += Math.sin(2 * Math.PI * 80 * t) * Math.exp(-t * 18) * 1.4;
+    const env = 0.34 * gain;
+    L[i] += s * env * 0.95;
+    R[i] += s * env;
+  }
+}
+
+/** The coin land — two quick metallic pings, slightly detuned (a coin
+ *  settling on a table reads as TWO hits, not one). */
+export function addCoin(
+  L: Float32Array, R: Float32Array,
+  startSec: number, gain: number
+): void {
+  const ping = (t0: number, f: number, amp: number): void => {
+    const n0 = Math.round((startSec + t0) * SR_OUT);
+    const dur = Math.round(0.45 * SR_OUT);
+    for (let i = n0; i < Math.min(L.length, n0 + dur); i++) {
+      const t = (i - n0) / SR_OUT;
+      const env = Math.exp(-t * 9) * amp * gain * 0.16;
+      const s =
+        Math.sin(2 * Math.PI * f * t) * env +
+        Math.sin(2 * Math.PI * f * 1.34 * t) * env * 0.35;
+      L[i] += s * 0.85;
+      R[i] += s;
+    }
+  };
+  ping(0, 2093, 1);
+  ping(0.075, 2210, 0.7);
+}
+
+/** The card pop — a paper-thin noise burst with a rising filter + a soft
+ *  wooden tick on the settle (the stat cards ARRIVING, not just appearing). */
+export function addCardPop(
+  L: Float32Array, R: Float32Array,
+  startSec: number, gain: number
+): void {
+  const n0 = Math.round(startSec * SR_OUT);
+  const dur = Math.round(0.34 * SR_OUT);
+  let seed = 9137;
+  const rng = () => {
+    seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+    return ((seed >>> 0) / 4294967296) * 2 - 1;
+  };
+  let lp = 0;
+  for (let i = n0; i < Math.min(L.length, n0 + dur); i++) {
+    const t = (i - n0) / SR_OUT;
+    const p = t / 0.34;
+    const env = Math.pow(1 - p, 2) * gain * 0.14;
+    lp += (0.10 + 0.5 * p) * (rng() - lp);
+    const s = lp * env;
+    L[i] += s * 0.9;
+    R[i] += s;
+  }
+  // the settle tick
+  const t0 = Math.round((startSec + 0.26) * SR_OUT);
+  const td = Math.round(0.12 * SR_OUT);
+  for (let i = t0; i < Math.min(L.length, t0 + td); i++) {
+    const t = (i - t0) / SR_OUT;
+    const env = Math.exp(-t * 22) * gain * 0.10;
+    const s = Math.sin(2 * Math.PI * 740 * t) * env;
+    L[i] += s * 0.9;
+    R[i] += s;
+  }
+}
+
+/** The walk plant — a footfall: a low soft thump with a 60ms body. Quiet
+ *  by design (the walk needs rhythm, never percussion). */
+export function addWalkPlant(
+  L: Float32Array, R: Float32Array,
+  startSec: number, gain: number
+): void {
+  const n0 = Math.round(startSec * SR_OUT);
+  const dur = Math.round(0.09 * SR_OUT);
+  for (let i = n0; i < Math.min(L.length, n0 + dur); i++) {
+    const t = (i - n0) / SR_OUT;
+    const env = Math.sin(Math.min(1, t / 0.09) * Math.PI) * gain * 0.07;
+    // a 95Hz thump sweeping down — flesh on floor, not a drum
+    const f = 95 - 38 * (t / 0.09);
+    const s = Math.sin(2 * Math.PI * f * t) * env;
+    L[i] += s * 0.9;
+    R[i] += s;
+  }
+}
+
+/** The slam — bigText / stampCard landings: a descending band-passed
+ *  whoosh that LANDS in a thud (the statement frames get the film's one
+ *  heavyweight gesture). */
+export function addSlam(
+  L: Float32Array, R: Float32Array,
+  startSec: number, gain: number
+): void {
+  const dur = 0.5;
+  const n0 = Math.round(startSec * SR_OUT);
+  const n1 = Math.min(L.length, n0 + Math.round(dur * SR_OUT));
+  let seed = 4242;
+  const rng = () => {
+    seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+    return ((seed >>> 0) / 4294967296) * 2 - 1;
+  };
+  let lp = 0, lp2 = 0;
+  for (let i = n0; i < n1; i++) {
+    const t = (i - n0) / SR_OUT;
+    const p = t / dur;
+    // the sweep DESCENDS (closing, not opening) and the tail thuds
+    const env = Math.pow(1 - p, 1.5) * gain * 0.16;
+    const cutoff = 0.5 - 0.34 * p;
+    lp += cutoff * (rng() - lp);
+    lp2 += cutoff * 0.5 * (lp - lp2);
+    const s = (lp - lp2) * env;
+    L[i] += s * 0.92;
+    R[i] += s;
+  }
+  // the landing thud at the sweep's end
+  const t0 = Math.round((startSec + dur * 0.8) * SR_OUT);
+  const td = Math.round(0.14 * SR_OUT);
+  for (let i = t0; i < Math.min(L.length, t0 + td); i++) {
+    const t = (i - t0) / SR_OUT;
+    const env = Math.exp(-t * 14) * gain * 0.13;
+    const s = Math.sin(2 * Math.PI * 70 * t) * env;
+    L[i] += s * 0.95;
+    R[i] += s;
+  }
+}
+
+/**
  * v2 bus glue (PATCH 7): gentle 2.5:1 compression over −12 dBFS with 5ms
  * attack / 120ms release, then tanh soft-limit at the same true-peak
  * ceiling. Replaces the v1 peak-only soft-limit: ~3 dB louder perceived
@@ -844,6 +1004,61 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
   }
   for (const d of tl.dataDingTimes) {
     addDing(L, R, d / 1000, bgmVolume);
+  }
+
+  // ── 4b2. AUDIT-ROUND-2 (fix 30 — THE SFX EVENT LAYER): one sound per
+  // event class, all synthesized (free), all deterministic: K strikes on
+  // the formation/tear moments, coin lands where money moves, card pops
+  // when stat cards arrive, walk plants through the host entrances, slams
+  // under the bigText/stampCard hard cuts. The whooshes above carry the
+  // cuts themselves; these carry the ANIMATIONS inside them.
+  {
+    // K strikes — the cold-open tear (5.95s into the c1-k-open group) and
+    // the formation landing (grow completes ~2.3s in on c1-k)
+    for (const b of tl.beats) {
+      if (b.beat.scene.type === 'divergeK') {
+        if (b.beat.scene.sceneKey === 'c1-k-open') addKStrike(L, R, (b.startMs + 5950) / 1000, Math.max(0.4, bgmVolume));
+        else addKStrike(L, R, (b.startMs + 2300) / 1000, Math.max(0.4, bgmVolume) * 0.8);
+      }
+    }
+    // coin lands — ownerWorker's coins cross the divider; fundSplit's
+    // twist wall lands ~2.4s in
+    for (const b of tl.beats) {
+      if (b.beat.scene.type === 'ownerWorker') {
+        addCoin(L, R, (b.startMs + 1500) / 1000, bgmVolume);
+        addCoin(L, R, (b.startMs + 2100) / 1000, bgmVolume * 0.7);
+      }
+      if (b.beat.scene.type === 'fundSplit') {
+        addCoin(L, R, (b.startMs + 2400) / 1000, bgmVolume);
+      }
+    }
+    // card pops — every statCards card arrival (300ms + i·550 stagger)
+    for (const b of tl.beats) {
+      if (b.beat.scene.type === 'statCards') {
+        const cards = ((b.beat.scene as any).cards as any[]) ?? [];
+        const n = Math.max(1, cards.length);
+        for (let i = 0; i < Math.min(3, n); i++) {
+          addCardPop(L, R, (b.startMs + 300 + i * 550) / 1000, bgmVolume);
+        }
+      }
+    }
+    // walk plants — the host walk-in entrances (4 soft thumps across the
+    // 1.6s entrance, the stride's own cadence)
+    for (const b of tl.beats) {
+      if ((b.beat.scene as any).entrance === 'walk') {
+        for (const step of [340, 800, 1250, 1550]) {
+          addWalkPlant(L, R, (b.startMs + step) / 1000, bgmVolume);
+        }
+      }
+    }
+    // slams — the bigText / stampCard hard cuts (the whoosh whispers past
+    // a cut; the SLAM lands the statement)
+    for (const cut of tl.cutTimes) {
+      const t = typeAtCut(cut);
+      if (t === 'bigText' || t === 'stampCard') {
+        addSlam(L, R, cut / 1000, bgmVolume);
+      }
+    }
   }
 
   // ── 4c. v8 (panel P0-5): the silence SLAM — each dramatic-silence window

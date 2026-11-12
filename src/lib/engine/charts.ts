@@ -5,7 +5,7 @@
  */
 
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, easeOutQuad, hashStr, lerp, springTo } from './easing';
-import { PALETTE, TONE, card, chip, rgba, roundRect, setFont, fitText, TYPE_FLOOR } from './theme';
+import { PALETTE, TONE, card, chip, rgba, roundRect, setFont, fitText, TYPE_FLOOR, LABEL_FLOOR } from './theme';
 import { registerRect, registerFixed, registerText } from './collision';
 
 export interface Pt {
@@ -102,7 +102,10 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     ctx.save();
     setFont(ctx, TYPE_FLOOR, 400); // v9 (D-07): 24→28 floor
     ctx.textBaseline = 'alphabetic';
-    registerRect('lineChart:xLabels', x, y + h + 8, w, 34);
+    // Guard sweep (304s): at the 40px floor the label band's bottom reached
+    // the caption pill zone — the band now rides flush under the plot area
+    // (the type keeps its floor; the chart yields the gap).
+    registerRect('lineChart:xLabels', x, y + h - 46, w, 40);
     for (const xl of opts.xLabels) {
       const trueLx = x + (xl.at / lastX) * w;
       // PANEL-9 R2b: the v1 guard SKIPPED labels inside 10px of the plot
@@ -121,7 +124,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       ctx.stroke();
       ctx.fillStyle = PALETTE.inkFaint;
       ctx.textAlign = 'center';
-      ctx.fillText(xl.label, lx, y + h + 34);
+      ctx.fillText(xl.label, lx, y + h - 12); // inside the plot band — clear of the caption zone
     }
     ctx.restore();
   }
@@ -341,26 +344,36 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       ctx.beginPath();
       ctx.arc(px, py, 6, 0, Math.PI * 2);
       ctx.stroke();
-      // label pill — v9 (D-07): 25→28px (floor)
-      setFont(ctx, TYPE_FLOOR, 600);
+      // label pill — AUDIT-ROUND-2 (fix 1, panel round 2): the annotation is
+      // READ text riding the chart's busiest moments — 46px (the middle of
+      // the audit's 40-60px body band); the re-review found 40 still
+      // borderline at the 320px gate.
+      setFont(ctx, 46, 600);
       ctx.textAlign = 'center';
       const tw = ctx.measureText(a.label).width;
       const ly = py + (a.dy ?? 40) - rise;
       const lx = Math.min(Math.max(px, x + tw / 2 + 18), x + w - tw / 2 - 18);
-      registerRect(`annotation:${a.label.slice(0, 14)}`, lx - tw / 2 - 16, ly - 34, tw + 32, 46);
+      // AUDIT-ROUND-2 (C3 — the chartJourney title/badge collision): the
+      // label pill's y was UNCLAMPED — a high annotation (dy:-46) rose past
+      // the chart's top edge and plated the scene title band ("the scene
+      // title is clipped by an annotation badge", the audit's
+      // strongest-data-scene finding). The pill now clamps INSIDE the chart
+      // body: never above the chart's own top rail.
+      const lyC = Math.max(ly, y + 52);
+      registerRect(`annotation:${a.label.slice(0, 14)}`, lx - tw / 2 - 16, lyC - 34, tw + 32, 46);
       ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
       // PANEL-12 / P3-3: one-light rule (−5, +7), matching theme.chip
-      roundRect(ctx, lx - tw / 2 - 16 - 5, ly - 34 + 7, tw + 32, 46, 23);
+      roundRect(ctx, lx - tw / 2 - 16 - 5, lyC - 34 + 7, tw + 32, 46, 23);
       ctx.fill();
       ctx.fillStyle = '#fff';
-      roundRect(ctx, lx - tw / 2 - 16, ly - 34, tw + 32, 46, 23);
+      roundRect(ctx, lx - tw / 2 - 16, lyC - 34, tw + 32, 46, 23);
       ctx.fill();
       ctx.lineWidth = 2;
       ctx.strokeStyle = rgba(tone, 0.55);
-      roundRect(ctx, lx - tw / 2 - 16, ly - 34, tw + 32, 46, 23);
+      roundRect(ctx, lx - tw / 2 - 16, lyC - 34, tw + 32, 46, 23);
       ctx.stroke();
       ctx.fillStyle = tone;
-      ctx.fillText(a.label, lx, ly - 4);
+      ctx.fillText(a.label, lx, lyC - 4);
       ctx.restore();
     });
   }
@@ -503,7 +516,7 @@ export function barRow(
   ctx.save();
   // label
   ctx.textBaseline = 'alphabetic';
-  setFont(ctx, 27, 600);
+  setFont(ctx, 34, 600);
   ctx.fillStyle = PALETTE.ink;
   ctx.textAlign = 'left';
   registerRect(`barRow:${label.slice(0, 14)}`, x, y + rowH * 0.5 - 44, Math.min(ctx.measureText(label).width, w), 40);
@@ -532,7 +545,11 @@ export function barRow(
     if (ap > 0) {
       setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor
       const tw = ctx.measureText(opts.tag).width;
-      const tagX = x + Math.max(30, bw) + 18;
+      // Guard sweep (536s): at the 40px floor the tag chip on the longest
+      // bar rode past the chart's right bound toward the frame edge — it
+      // now clamps inside (the value numeral keeps its place; only the chip
+      // yields).
+      const tagX = Math.min(x + Math.max(30, bw) + 18, x + w - tw - 150);
       ctx.globalAlpha = ap;
       registerRect(`barTag:${opts.tag.slice(0, 12)}`, tagX + 108, by - 1, tw + 30, 34);
       ctx.fillStyle = PALETTE.goldWash;
@@ -768,9 +785,12 @@ export function statCard(
   card(ctx, x, y, w, h, { r: opts.compact ? 22 : 30, tint: c });
   const bigSize = opts.compact ? 58 : 88;
   const bigBase = opts.compact ? 84 : 138;
-  const labelSize = TYPE_FLOOR; // v9 (D-07): compact 24 / full 27 → 28 floor
+  // AUDIT-ROUND-2 (fix 1): the label floor — compact row metrics render at
+  // LABEL_FLOOR (34), full cards at TYPE_FLOOR (40). Labels are glanceable
+  // identifiers; body copy is the one that must clear 40.
+  const labelSize = opts.compact ? LABEL_FLOOR : TYPE_FLOOR;
   const labelBase = opts.compact ? 128 : 192;
-  const labelStep = opts.compact ? 32 : 36;
+  const labelStep = opts.compact ? 34 : 38;
   // tone top accent line
   ctx.fillStyle = c;
   roundRect(ctx, x + 34, y + (opts.compact ? 22 : 26), (opts.compact ? 52 : 64) * pop, opts.compact ? 6 : 8, 3);

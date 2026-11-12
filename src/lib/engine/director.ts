@@ -308,6 +308,38 @@ function cameraV2(
     }
     else if (hero.move === 'rise') camY -= hero.amt * e;
   }
+  // AUDIT-ROUND-2 (fix 27 — SCENE-GROUP CAPS, the mid-scene REFRAME): any
+  // group longer than 12 seconds holding ONE staging is a swipe risk
+  // ("scene groups holding one staging for ten to twenty seconds with
+  // gesture cycling as the only novelty"). At the group's mid-seam the
+  // camera now REFRAMES — a 300ms eased truck to a new framing offset that
+  // HOLDS through the scene's body, then eases back out through the final
+  // 15% so the exit grammar never compounds with it (the guard's edge
+  // envelope is certified for the exit stack alone — sweeping taught us the
+  // hard way that a reframe HELD to the last frame pushes edge-marginal
+  // content past the frame bounds). Same content, new staging — an internal
+  // payoff at the seam, on every long scene in the film (host scenes already
+  // walk between the widened stage blocks — fix 15; this covers the data
+  // rooms). Pure function of (gt, groupDur) — scrub-safe, guard-clean.
+  if (groupDur > 12000) {
+    const seam = groupDur * 0.5;
+    const release = groupDur * 0.85;
+    const dir = groupIdx % 2 === 0 ? 1 : -1;
+    // in: 300ms eased re-aim at the seam; out: eased return through the
+    // tail. Guard-sweep lesson: the reframe is VERTICAL-biased (camY ±24
+    // with a camX ±10 hint) — a lateral truck held through the scene pushed
+    // edge-marginal content (the takeaways card, the datacenter host, the
+    // chartTwin exit) past the frame bounds at max push scale, while the
+    // vertical axis has certified headroom between the title band and the
+    // caption zone.
+    const inP = clamp01((gt - seam + 150) / 300);
+    const outP = clamp01((gt - release) / (groupDur - release));
+    if (inP > 0 && outP < 1) {
+      const e = easeInOutSine(inP) * (1 - easeInOutSine(outP));
+      camY += dir * 24 * e;
+      camX += dir * 10 * e;
+    }
+  }
   // PANEL-12 / P2-6 (report §14.6): THE REACTION SHOT — a held-expression
   // beat on the twist (c8-fund), the paradox resolve (c7-paradox) and the
   // final takeaway (c9-three). The camera pushes toward the host's head
@@ -752,19 +784,24 @@ export function drawFrame(
   if (collisionGuard.enabled) collectViolations();
 
   // v8 finishing: grain (film texture, not noise) and a bright vignette.
-  // BLUEPRINT Phase 4: the grain draw register rises 0.45 -> 0.60 — with
-  // the widened ±80 tiles (see getGrainTiles) this is the "genuinely
-  // visible on ivory plates" shimmer the report asked for; the flicker
-  // finally reads as film, not noise.
-  // AUDIT-PHASE-1: grain alpha 0.60 -> 0.85 — measured below perceptual
-  // threshold at 0.60; raised so the grain is actually visible in a
-  // side-by-side A/B against a no-grain frame.
-  // P1-6 (audit Table 3 — "type should never boil; only ink boils"): on
-  // the statement frames (bigText / stampCard) the 0.85 overlay grain sat
-  // ON the 118px serif as visible speckle — the panels read the headline
-  // marks as "scribble artifacts / rendering noise". Statement type gets
-  // a clean plate at 0.30; character ink keeps the full 0.85 register.
-  drawGrain(ctx, W, H, beat.beat.scene.type === 'bigText' || beat.beat.scene.type === 'stampCard' ? 0.30 : 0.85, t);
+  // AUDIT-ROUND-2 (fix 25 — GRAIN REGISTER): the one-size 0.85 grain on
+  // character frames fought the small type (the panel: "grain stops
+  // fighting small type" was the demand; D4: the overlay-composite 0.85
+  // was "barely perceptible" after transcode yet still textured over the
+  // reading surfaces). THREE registers now: character/host frames 0.6
+  // (0.85 → 0.6 — present on the figure, off the type), data-dense frames
+  // 0.5 (charts/cards — texture the plate, spare the labels), statement
+  // frames stay 0.3 (clean serif plates, unchanged).
+  {
+    // fix 25: the scene-class grain register
+    const sceneType = beat.beat.scene.type;
+    const grainAlpha =
+      sceneType === 'bigText' || sceneType === 'stampCard' ? 0.3
+      : ['host', 'divergeK', 'channelIntro', 'recapSplit', 'paradoxResolve',
+         'ownerWorker', 'endScreen', 'commentPrompt', 'takeaways'].includes(sceneType) ? 0.6
+      : 0.5;
+    drawGrain(ctx, W, H, grainAlpha, t);
+  }
   lightVignette(ctx, W, H, 0.30);
 
   // global fades: from white at start, to white at end

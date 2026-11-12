@@ -29,16 +29,43 @@ export const AMP = {
    *  AUDIT-PHASE-2: raised 4.0 -> 7.0 — shoulder line counters
    *  visibly at phone scale. */
   shoulderCounterDeg: 7.0,
-  /** Walk pelvis bob, px (was 9) — one readable bump per step. */
-  walkBobPx: 16,
+  /** Walk pelvis bob, px (was 9).
+   *  AUDIT-ROUND-2 (fix 12): 16 → 24 — one unmistakable bump per step;
+   *  at the phone gate the old bob downsampled to ~2.7px (the static
+   *  floor); 24px clears it with margin. */
+  walkBobPx: 24,
   /** Contact-squash depth, px (was 12) — the plant must LAND. */
   squashPx: 22,
   /** Swing-foot arc lift, px (was 9) — the arc must clear the floor. */
   swingLiftPx: 15,
-  /** Toe-off pitch, deg (was +16). */
-  toeUpDeg: 26,
-  /** Heel-strike pitch, deg (was -14). */
-  toeDownDeg: -22,
+  /** Toe-off pitch, deg (was +16).
+   *  AUDIT-ROUND-2 (fix 12): 26 → 40 — the shoe wedge finally has a
+   *  lever arm you can see at 320px; a flat paddle reads as a snowshoe. */
+  toeUpDeg: 40,
+  /** Heel-strike pitch, deg (was -14).
+   *  AUDIT-ROUND-2 (fix 12): -22 → -34 — the heel-strike reads. */
+  toeDownDeg: -34,
+  /** AUDIT-ROUND-2 (fix 12 — WALK EXTREMES): the stride swing angle, deg.
+   *  26° at the editorial host's scale was a ~223px stride spread on an
+   *  800px figure — 28% of body height where a readable cartoon walk wants
+   *  40%+. 38° = ~41% — the stride finally reads as WALKING, not
+   *  gliding (the walk-in stills were judged "a limp near-vertical
+   *  glide", "legs nearly stacked under the hips"). */
+  swingDeg: 38,
+  /** AUDIT-ROUND-2 (fix 12): the contact absorb — pelvis sinks this many
+   *  px PAST the anatomical minimum at each plant (was 4.5). 9px at the
+   *  host's scale is a visible signal at the phone gate. */
+  absorbPx: 9,
+  /** AUDIT-ROUND-2 (fix 12): the passing pose's body stretch (was 2.5).
+   *  5px tall-at-the-crossing — the counter-bob the contact/pass rhythm
+   *  needs. */
+  passRaisePx: 5,
+  /** AUDIT-ROUND-2 (fix 12): the chin tuck INTO each plant (was 3°).
+   *  Doubled — the lunge reads in the head, not just the legs. */
+  chinTuckDeg: 6,
+  /** AUDIT-ROUND-2 (fix 12): the shoe wedge's lever length, px (was 29).
+   *  36px gives the ±40° toe roll a visible lever at any host scale. */
+  shoeLeverPx: 36,
   /** Micro-shake on reveals, px (was 4.4) — impacts must register.
    *  AUDIT-PHASE-4: 9 -> 18 — reveals register as hits, not ticks; the
    *  doubled amplitude reads as impact, not camera drift. */
@@ -68,6 +95,11 @@ export const AMP = {
    *  (paradoxResolve 3/10) — the "plot twist reaction does not exist"
    *  verdict. */
   reactionAmp: { paradox: 0.45, fund: 0.55, three: 0.50 } as Record<string, number>,
+  /** AUDIT-ROUND-2 (fix 11): the head-yaw cap, deg — the head turns toward
+   *  the pointBias the arms use (eyelines connect: C5). 14° displaces the
+   *  v2 head ~10px at host scale about the neck — a turn the phone gate
+   *  reads, on TOP of the pupils' 7px look travel. */
+  headYawDeg: 14,
   /** Brow-raise travel, px (was x5) — faces must act at 320px. */
   browTravelPx: 14,
   /** Phase 5: reaction windows tighten to a beat, not a hold. */
@@ -103,13 +135,22 @@ export const INK = {
 /** Phase 3: the K's 3D language (report §11 Phase 3).
  *  AUDIT-PHASE-4: depthFrac 0.26 -> 0.40 — the extrusion becomes visibly
  *  deep, not hinted. The audit verdict was "a flat decal with offset
- *  shadows"; 40% of a 210px K is an 84px wall at 1080p (vs 55px before). */
+ *  shadows"; 40% of a 210px K is an 84px wall at 1080p (vs 55px before).
+ *  AUDIT-ROUND-2 (fix 16 — ONE EXTRUSION AXIS): the vanishing-point
+ *  convergence is REPLACED by a single fixed depth vector (down-left,
+ *  30° off the horizontal). Per-stroke convergence was mathematically
+ *  true perspective and perceptually a defect — the trained eye read
+ *  "the stem's depth face offsets left, the upper diagonal's flips
+ *  right... two flat letters glued at different offsets". ONE axis for
+ *  all three strokes: solidity first, perspective second. */
 export const K3D = {
   /** Extrusion depth as a fraction of letter size (was 0.14 — "a sliver,
    *  not volume"). */
   depthFrac: 0.40,
-  /** The vanishing point every K stroke extrudes toward (design-space
-   *  1920x1080). Parallel offsets read as a drop-shadow layer style;
-   *  convergence reads as perspective. */
-  vp: { x: 960, y: 300 } as { x: number; y: number },
+  /** AUDIT-ROUND-2 (fix 16): THE fixed extrusion axis — 30° below the
+   *  horizontal, pointing down-left (away from the film's upper-right
+   *  light). Every stroke's walls run along this ONE vector; the upper
+   * arm's depth is foreshortened 12% (it sits "higher" in the oblique
+   *  projection). Replaces `vp` — per-stroke VP convergence is dead. */
+  axisDeg: 30,
 };

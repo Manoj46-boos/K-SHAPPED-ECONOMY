@@ -60,7 +60,9 @@ export interface ThumbVariant {
  *  PAIR the panel asked to bake in — "MARKET +20%. FEELING BROKE?" — the
  *  hook that survives 320px because each line is 3 words. */
 export const THUMB_VARIANTS: ThumbVariant[] = [
-  { punch: ['MARKET +20%.', 'FEELING BROKE?'],  badge: { big: '+20%', label: 'S&P · 12 MO' } },
+  // AUDIT-ROUND-2 (fix 5, panel round 2): the question IS the punch; the
+  // number lives in the badge, ONCE, with its alarming completion.
+  { punch: ['FEELING', 'BROKE?'],             badge: { big: '+20%', label: '...for who?' } },
   { punch: ['STILL', 'BROKE?'],              badge: { big: '+20%', label: 'S&P · 12 MO' } },
   { punch: ['WHY AM I', 'BROKE?'],           badge: { big: '+22%', label: 'NASDAQ · 12 MO' } },
   { punch: ['MARKET UP.', 'YOU?'],           badge: { big: '+20%', label: 'S&P · 12 MO' } },
@@ -68,6 +70,24 @@ export const THUMB_VARIANTS: ThumbVariant[] = [
   { punch: ['UP 20%.', 'BROKE ANYWAY?'],     badge: { big: '46%',  label: '7 STOCKS' } },
 ];
 
+/**
+ * Thumbnail generator v4 — "THE POSTER" (audit-round-2, fix 5).
+ *
+ * v3's scan order read backwards — number (the +20% badge), then
+ * question (the punchline), then character (the chibi inside the K) —
+ * and +20% appeared TWICE (punchline AND badge), the S&P sub-badge fed
+ * the feed's crop, the K read as a watermark, and the figure floated with
+ * no contact shadow on the orange side. The audit's prescription: "scan
+ * order becomes character, question, number". v4:
+ *  - CHARACTER first: the worried host LARGE on the left, standing ACROSS
+ *    the teal/coral seam — one foot in each economy — with a CONTACT
+ *    shadow that reads on BOTH color fields.
+ *  - QUESTION loudest: "FEELING BROKE?" carries the frame at 168px.
+ *  - NUMBER once, incomplete and alarming: the badge says "+20%" with
+ *    the sub-line "...for who?" — the S&P label is gone; the number
+ *    completes IN THE VIDEO, which is the click.
+ *  - the K shrinks to a small branded tag (top-right corner mark).
+ */
 export function drawThumbnail(
   ctx: CanvasRenderingContext2D,
   W: number,
@@ -114,184 +134,195 @@ export function drawThumbnail(
   ctx.lineTo(W * 0.495, H + 8);
   ctx.stroke();
   ctx.restore();
-  // quiet brand tint: faint oversized K watermark on the teal field
-  ctx.save();
-  ctx.globalAlpha = 0.05;
-  ctx.strokeStyle = '#FFFFFF';
-  ctx.lineWidth = 34;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(W * 0.16, H * 0.72);
-  ctx.lineTo(W * 0.16, H * 1.25);
-  ctx.moveTo(W * 0.16, H * 0.9);
-  ctx.lineTo(W * 0.42, H * 0.66);
-  ctx.moveTo(W * 0.16, H * 0.9);
-  ctx.lineTo(W * 0.42, H * 1.14);
-  ctx.stroke();
-  ctx.restore();
 
-  // ── HERO: the gold K at 60% with the stick man CRUSHED INSIDE ─────────────
-  // AUDIT-2 / §10.5 (report Phase 4 — the panel's surgical instruction):
-  // kill-or-shrink the K to 60% (S H*0.335 → H*0.20), put the stick man
-  // INSIDE it (crushed between the strokes is a joke AND a hook), promote
-  // the +20% badge to top-right at 1.5×, and bake the contradiction into
-  // the headline. One hero object, one joke, one number — the poster reads
-  // at 320px or it does not exist.
-  const kx = W * 0.55, ky = H * 0.54, S = H * 0.20;
-  const kg = ctx.createRadialGradient(kx, ky, 10, kx, ky, S * 2.4);
-  kg.addColorStop(0, rgba('#FFFFFF', 0.5));
-  kg.addColorStop(1, rgba('#FFFFFF', 0));
-  ctx.fillStyle = kg;
-  ctx.fillRect(kx - S * 2.4, ky - S * 2.4, S * 4.8, S * 4.8);
-  const stroke4 = (x1: number, y1: number, x2: number, y2: number) => {
-    ctx.lineCap = 'round';
-    const passes: [string, number][] = [['#FFFFFF', 70], [GOLDD, 52], ['#FFFFFF', 34], [GOLD, 25]];
-    for (const [col, w] of passes) {
-      ctx.strokeStyle = col; ctx.lineWidth = w;
-      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  // ── CHARACTER FIRST (fix 5): the worried host, LARGE, standing ACROSS the
+  // seam — one foot on the teal field, one on the coral — his contact
+  // shadow crossing both color fields. The split IS the K-shape; the man
+  // standing astride it is the film. Chibi head (r 62) so the worry reads
+  // at 100px feed height; hands up; brows up; mouth open.
+  {
+    // Panel round 2: the figure stands ASTRIDE the seam (one foot each
+    // economy — the split IS the K) at 0.95 scale: LARGE, the first read.
+    // The seam runs (0.62W,0)→(0.50W,H): at the feet's y it sits at ~0.52W
+    // — the figure's center rides it, feet both sides, contact shadow
+    // crossing both color fields.
+    const fx = W * 0.515, fy = H * 0.80;
+    const CH = 0.95;
+    ctx.save();
+    ctx.translate(fx, fy);
+    ctx.scale(CH, CH);
+    const BODY = '#FFFFFF';
+    // the contact shadow — ON both color fields: a dark ellipse straddling
+    // the seam under his feet (teal half reads teal-shadow, coral half
+    // coral-shadow — the figure STANDS, he does not float)
+    ctx.fillStyle = 'rgba(15, 40, 34, 0.42)';
+    ctx.beginPath();
+    ctx.ellipse(0, 10, 96, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // legs — astride the seam
+    taper(ctx, 0, -128, -34, 0, 16, 13, BODY);
+    taper(ctx, 0, -128, 34, 0, 16, 13, BODY);
+    // torso
+    taper(ctx, 0, -128, 0, -240, 20, 25, BODY);
+    // arms — hands UP (the shrug)
+    taper(ctx, -6, -226, -68, -292, 14, 11, BODY);
+    taper(ctx, 6, -226, 68, -292, 14, 11, BODY);
+    ctx.fillStyle = '#0C2E27';
+    ctx.lineWidth = 6;
+    for (const hx of [-72, 72]) {
+      ctx.beginPath(); ctx.arc(hx, -298, 18, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = BODY;
+      ctx.stroke();
     }
-  };
-  stroke4(kx - 9, ky - S, kx - 9, ky + S);
-  stroke4(kx - 4, ky + S * 0.06, kx + S * 1.04, ky - S * 0.94);
-  stroke4(kx - 4, ky + S * 0.06, kx + S * 1.04, ky + S * 0.94);
+    // head — chibi, the worry readable at feed scale
+    const hr = 64;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.lineWidth = 9;
+    ctx.strokeStyle = '#0C2E27';
+    ctx.beginPath();
+    ctx.arc(0, -340, hr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // worried brows (inner ends up)
+    ctx.lineWidth = 8;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#0C2E27';
+    ctx.beginPath(); ctx.moveTo(-38, -360); ctx.lineTo(-14, -372); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(38, -360); ctx.lineTo(14, -372); ctx.stroke();
+    // eyes — wide
+    ctx.fillStyle = '#0C2E27';
+    ctx.beginPath(); ctx.ellipse(-21, -344, 9, 11.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(21, -344, 9, 11.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(-18, -349, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(24, -349, 3, 0, Math.PI * 2); ctx.fill();
+    // open-mouth worry
+    ctx.fillStyle = DOWN;
+    ctx.beginPath();
+    ctx.ellipse(0, -310, 14, 18, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#0C2E27';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.ellipse(0, -310, 14, 18, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
 
-  // ── PUNCHLINE: solid white fill, heavy ink stroke, crop-safe ──────────────
-  // Auto-sized: 160px down to whatever keeps the widest line inside the
-  // left region (x ≤ W*0.56 — the 60%-size K owns only the far right now).
-  const px0 = W * 0.062; // 5% + a hair
-  const maxLineW = W * 0.58 - px0 - 26;
-  let pSize = 160;
-  setFont(ctx, pSize, 700, FONT_UI);
-  const widestOf = (): number => {
-    let w = 0;
-    for (const l of v.punch) w = Math.max(w, ctx.measureText(l).width);
-    return w;
-  };
-  while (widestOf() > maxLineW && pSize > 64) {
-    pSize -= 3;
+  // ── QUESTION LOUDEST (fix 5): the question line carries the frame —
+  // solid white fill, heavy ink stroke, crop-safe, 168px down to fit.
+  // The A/B family keeps its alternate wordings; the shipped variant (0)
+  // is the pure question, the first thing the eye reads after the man.
+  {
+    // Panel round 2: the question sits top-right — clear of the figure's
+    // raised right hand (x≈0.57W) and of the badge (now bottom-right). It
+    // auto-fits the quadrant at up to 150px and never leaves the crop-safe
+    // margin.
+    const px0 = Math.round(W * 0.592);        // right of the raised hand
+    const maxLineW = W - 45 - px0;
+    let pSize = 150;
     setFont(ctx, pSize, 700, FONT_UI);
+    const widestOf = (): number => {
+      let w = 0;
+      for (const l of v.punch) w = Math.max(w, ctx.measureText(l).width);
+      return w;
+    };
+    while (widestOf() > maxLineW && pSize > 80) {
+      pSize -= 4;
+      setFont(ctx, pSize, 700, FONT_UI);
+    }
+    const strokeW = Math.max(10, Math.round(pSize * 0.085));
+    ctx.save();
+    ctx.translate(px0, H * 0.33);
+    ctx.rotate(-0.012);
+    ctx.textAlign = 'left';
+    ctx.lineJoin = 'round';
+    ctx.miterLimit = 2;
+    ctx.lineWidth = strokeW;
+    ctx.strokeStyle = INK;
+    v.punch.forEach((line, i) => {
+      const y = i * (pSize * 1.02);
+      ctx.strokeText(line, 0, y);
+    });
+    ctx.fillStyle = '#FFFFFF';
+    v.punch.forEach((line, i) => {
+      const y = i * (pSize * 1.02);
+      ctx.fillText(line, 0, y);
+    });
+    ctx.restore();
   }
-  const strokeW = Math.max(9, Math.round(pSize * 0.085));
-  ctx.save();
-  ctx.translate(px0, H * 0.30);
-  ctx.rotate(-0.012);
-  ctx.textAlign = 'left';
-  ctx.lineJoin = 'round';
-  ctx.miterLimit = 2;
-  ctx.lineWidth = strokeW;
-  ctx.strokeStyle = INK; // dark slate-teal ink — the stroke does the work
-  v.punch.forEach((line, i) => {
-    const y = i * (pSize * 1.02);
-    ctx.strokeText(line, 0, y);
-  });
-  ctx.fillStyle = '#FFFFFF';
-  v.punch.forEach((line, i) => {
-    const y = i * (pSize * 1.02);
-    ctx.fillText(line, 0, y);
-  });
-  ctx.restore();
 
-  // ── NUMBER BADGE: white plate, teal number — TOP-RIGHT at 1.5× ───────────
-  // AUDIT-2 / §10.5 (report Phase 4): the panel's instruction — promote the
-  // +20% badge to the top-right corner at 1.5× its old size (78 → 117px
-  // numeral on a 225px plate). It was bottom-left at a scale that died at
-  // 320px; the second read of the poster is now the FIRST thing the feed
-  // crop keeps. Right-aligned 36px inside the crop-safe margin, clear of
-  // the K's arm tips by construction.
-  setFont(ctx, 117, 700, FONT_UI);
-  const bigW = ctx.measureText(v.badge.big).width;
-  setFont(ctx, 44, 600, FONT_UI);
-  const labW = ctx.measureText(v.badge.label).width;
-  const plateW = Math.max(bigW, labW) + 110;
-  const plateH = 225;
-  const bx = W - plateW - 36; // top-right, crop-safe
-  const by = 36;
-  ctx.save();
-  ctx.fillStyle = rgba('#FFFFFF', 0.28);
-  roundRect(ctx, bx + 7, by + 11, plateW, plateH, 38);
-  ctx.fill();
-  ctx.fillStyle = '#FFFFFF';
-  roundRect(ctx, bx, by, plateW, plateH, 38);
-  ctx.fill();
-  ctx.lineWidth = 7;
-  ctx.strokeStyle = rgba(INK, 0.85);
-  roundRect(ctx, bx, by, plateW, plateH, 38);
-  ctx.stroke();
-  setFont(ctx, 117, 700, FONT_UI);
-  ctx.fillStyle = UP;
-  ctx.textAlign = 'left';
-  ctx.fillText(v.badge.big, bx + 52, by + 128);
-  setFont(ctx, 44, 600, FONT_UI);
-  ctx.fillStyle = INK;
-  ctx.fillText(v.badge.label, bx + 52, by + 192);
-  ctx.restore();
-
-  // ── EMOTION: the stick man CRUSHED INSIDE the K ──────────────────────
-  // AUDIT-2 / §10.5 (report Phase 4): "put the stick man inside it (crushed
-  // between the strokes is a joke and a hook)". The chibi worried figure
-  // moves INTO the letter's counter — hands up against the strokes, market
-  // rising around him, wallet not. Head stays CHIBI (r 66 at 0.56 scale) so
-  // the worry reads at 100px feed height; the K's 60% size makes room for
-  // exactly this joke.
-  const fx = kx + 68, fy = ky + 118;
-  const CHIBI = 0.56;
-  const BODY = INK;
-  ctx.save();
-  ctx.translate(fx, fy);
-  ctx.scale(CHIBI, CHIBI);
-  // ground shadow — neutral slate (the figure stands in the K's counter
-  // on the teal field, not on the coral half)
-  ctx.fillStyle = rgba('#1F3831', 0.30);
-  ctx.beginPath();
-  ctx.ellipse(0, 8, 78, 15, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // legs
-  taper(ctx, 0, -128, -30, 0, 15, 12, BODY);
-  taper(ctx, 0, -128, 30, 0, 15, 12, BODY);
-  // torso
-  taper(ctx, 0, -128, 0, -238, 19, 23, BODY);
-  // arms — hands UP (the shrug)
-  taper(ctx, -6, -226, -66, -286, 13, 10, BODY);
-  taper(ctx, 6, -226, 66, -286, 13, 10, BODY);
-  ctx.fillStyle = '#FFFFFF';
-  ctx.strokeStyle = BODY;
-  ctx.lineWidth = 6;
-  for (const hx of [-70, 70]) {
-    ctx.beginPath(); ctx.arc(hx, -292, 17, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  // ── NUMBER, ONCE — incomplete and alarming (fix 5): the badge carries
+  // the number and the question it leaves hanging ("...for who?"). The
+  // S&P sub-label is gone — the number completes IN the video.
+  {
+    setFont(ctx, 117, 700, FONT_UI);
+    const bigW = ctx.measureText(v.badge.big).width;
+    // fix 5: the alarming completion replaces the S&P source line
+    setFont(ctx, 44, 600, FONT_UI);
+    const sub = '...for who?';
+    const subW = ctx.measureText(sub).width;
+    const plateW = Math.max(bigW, subW) + 110;
+    const plateH = 225;
+    // Panel round 2: the badge moves to the BOTTOM-right — the scan order
+    // ends on the number (character → question → number), and the top-right
+    // quadrant belongs to the question. Bottom edge 675 keeps the 5% crop
+    // margin (720·0.95 = 684).
+    const bx = W - plateW - 36; // bottom-right, crop-safe
+    const by = H - plateH - 45;
+    ctx.save();
+    ctx.fillStyle = 'rgba(15, 40, 34, 0.42)';
+    roundRect(ctx, bx + 7, by + 11, plateW, plateH, 38);
+    ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    roundRect(ctx, bx, by, plateW, plateH, 38);
+    ctx.fill();
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = rgba(INK, 0.85);
+    roundRect(ctx, bx, by, plateW, plateH, 38);
+    ctx.stroke();
+    setFont(ctx, 117, 700, FONT_UI);
+    ctx.fillStyle = UP;
+    ctx.textAlign = 'left';
+    ctx.fillText(v.badge.big, bx + 52, by + 128);
+    setFont(ctx, 44, 600, FONT_UI);
+    ctx.fillStyle = INK;
+    ctx.fillText(sub, bx + 52, by + 192);
+    ctx.restore();
   }
-  // head — CHIBI scale (r 66): emotion survives 100px
-  const hr = 66;
-  ctx.beginPath();
-  ctx.arc(0, -330, hr, 0, Math.PI * 2);
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fill();
-  ctx.lineWidth = 9;
-  ctx.strokeStyle = BODY;
-  ctx.stroke();
-  // worried brows (inner ends raised)
-  ctx.lineWidth = 8;
-  ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(-38, -352); ctx.lineTo(-14, -362); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(38, -352); ctx.lineTo(14, -362); ctx.stroke();
-  // eyes — wide
-  ctx.fillStyle = BODY;
-  ctx.beginPath(); ctx.ellipse(-21, -336, 8.5, 10.5, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(21, -336, 8.5, 10.5, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#FFFFFF';
-  ctx.beginPath(); ctx.arc(-18, -340, 2.8, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(24, -340, 2.8, 0, Math.PI * 2); ctx.fill();
-  // open-mouth worry
-  ctx.fillStyle = PALETTE.down;
-  ctx.beginPath();
-  ctx.ellipse(0, -302, 13, 17, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = BODY;
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.ellipse(0, -302, 13, 17, 0, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
+
+  // ── THE K — a small branded tag (fix 5): "K shrinks to a small branded
+  // tag". One crisp gold K mark, top-left corner, beside nothing — a
+  // signature, not a watermark.
+  {
+    ctx.save();
+    ctx.strokeStyle = GOLD;
+    ctx.lineWidth = 10;
+    ctx.lineCap = 'round';
+    const kx = 84, ky = 116, ks = 54;
+    ctx.beginPath();
+    ctx.moveTo(kx, ky - ks);
+    ctx.lineTo(kx, ky + ks);
+    ctx.moveTo(kx, ky + ks * 0.08);
+    ctx.lineTo(kx + ks * 1.12, ky - ks * 0.92);
+    ctx.moveTo(kx, ky + ks * 0.08);
+    ctx.lineTo(kx + ks * 1.12, ky + ks * 0.92);
+    ctx.stroke();
+    // the one-light offset shadow — the mark declares, in the film's light
+    ctx.strokeStyle = rgba(GOLDD, 0.6);
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(kx - 4, ky - ks);
+    ctx.lineTo(kx - 4, ky + ks);
+    ctx.moveTo(kx - 4, ky + ks * 0.08);
+    ctx.lineTo(kx - 4 + ks * 1.12, ky - ks * 0.92);
+    ctx.moveTo(kx - 4, ky + ks * 0.08);
+    ctx.lineTo(kx - 4 + ks * 1.12, ky + ks * 0.92);
+    ctx.stroke();
+    ctx.restore();
+  }
   void DOWN;
+  void GOLDD;
 }
 
 /**

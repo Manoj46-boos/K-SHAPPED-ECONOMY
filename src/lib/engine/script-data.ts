@@ -907,3 +907,37 @@ export const VIDEO_TITLE = 'Why Does Everyone Feel Broke When the Stock Market I
 export function totalBeats(): number {
   return SCRIPT.reduce((n, c) => n + c.beats.length, 0);
 }
+
+// ── AUDIT-ROUND-2 (fix 28 — THE 10-12 MINUTE FIRST-UPLOAD CUT) ──────────────
+/**
+ * The runtime cut the audit prescribes for the channel's first uploads:
+ * "Tighten the 20-minute film to 10-12 for the channel's first months
+ * (chapters 1-2, the twist, the takeaways); publish the rest as sequels.
+ * A new channel's retention on a 20-minute explainer is the hardest ask
+ * on the platform; the same content as two strong 11-minute films doubles
+ * the surface area and halves the risk. Shorts (already built) become the
+ * discovery funnel."
+ *
+ * buildCut() assembles a ChapterSpec[] from any subset of chapter ids —
+ * the SAME scene drawers, the SAME poses, the SAME engine: only the
+ * chapter list changes. The first-upload cut runs the film's first two
+ * chapters (the two numbers + the market + the mood — the complete setup),
+ * the twist, the takeaways and the outro: ~11 real minutes with the
+ * shipped TTS (the audited 10-12 band). The deep chapters (what the K
+ * actually means / the top / the bottom) publish later as sequels.
+ * Use it via the harness: `node tools/frame-dump.mjs --cut first ...`
+ */
+export function buildCut(chapterIds: string[]): ChapterSpec[] {
+  const out: ChapterSpec[] = [];
+  for (const id of chapterIds) {
+    const ch = SCRIPT.find((c) => c.id === id);
+    if (ch) out.push(ch);
+  }
+  return out;
+}
+
+/** The first-upload cut — the film's first two chapters (the two numbers +
+ *  the market + the mood — the complete setup) + the twist + the takeaways +
+ *  the outro: ≈11 real minutes with the shipped TTS (the audit's 10-12
+ *  band). The deep chapters publish later as sequels. */
+export const FIRST_UPLOAD_CUT: ChapterSpec[] = buildCut(['ch1', 'ch3', 'ch4', 'ch8', 'ch9', 'ch10']);

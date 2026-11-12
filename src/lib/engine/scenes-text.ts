@@ -294,7 +294,7 @@ export function quoteCardScene(g: SceneCtx): void {
   roundRect(ctx, x + 44, y + 40, 8, ch - 80, 4);
   ctx.fill();
   // kicker
-  setFont(ctx, 28, 700); // v9 (D-07): floor
+  setFont(ctx, 34, 700); // v9 (D-07): floor
   ctx.fillStyle = soft ? PALETTE.inkFaint : PALETTE.goldDeep;
   ctx.textAlign = 'left';
   ctx.fillText((s.kicker as string).toUpperCase(), x + 84, y + 78);
@@ -476,7 +476,7 @@ export function takeawaysScene(g: SceneCtx): void {
     ctx.lineTo(x + 210 + 300, y + 130 + titleLines.length * 56);
     ctx.stroke();
     // points — each point advances by its own wrapped line count
-    setFont(ctx, 30, 600);
+    setFont(ctx, 34, 600);
     let ptY = y + 190 + titleLines.length * 56;
     pts.forEach((pt, i) => {
       const pp = clamp01((t - 500 - i * 550) / 700);
@@ -569,7 +569,7 @@ export function commentPromptScene(g: SceneCtx): void {
   setFont(ctx, 84, 700);
   ctx.fillStyle = PALETTE.ink;
   ctx.fillText(q, W / 2, H * 0.32);
-  setFont(ctx, 32, 600);
+  setFont(ctx, 34, 600);
   ctx.fillStyle = PALETTE.inkSoft;
   const sub = s.sub as string;
   ctx.fillText(sub, W / 2, H * 0.42);
@@ -594,7 +594,7 @@ export function commentPromptScene(g: SceneCtx): void {
     const toneCol = i % 2 ? PALETTE.up : PALETTE.gold;
     ctx.save();
     ctx.globalAlpha = bp * 0.95;
-    setFont(ctx, 28, 600); // v9 (D-07): floor
+    setFont(ctx, 34, 600); // v9 (D-07): floor
     const tw = ctx.measureText(c).width;
     const AV = 30; // avatar column
     ctx.fillStyle = i % 2 ? PALETTE.upSoft : PALETTE.goldWash;
@@ -652,7 +652,7 @@ export function endScreenScene(g: SceneCtx): void {
   // frames of the film are no longer 80% near-white.
   scenePlate(ctx, W, H, g.chapterTone ?? 'gold');
   bokehField(ctx, W, H, t, { intensity: 1.1, seed: 261, gold: 0.6 });
-  kMotifs(ctx, W, H, t, 0.05);
+  kMotifs(ctx, W, H, t, 0);
   // P2-3 (audit Table 4 — "coins only where money moves"): the end
   // screen's five floating coins were the same "sprinkles doing zero
   // work" as the gas pump's — no money moves in a farewell. Gone; the
@@ -693,33 +693,26 @@ export function endScreenScene(g: SceneCtx): void {
   ctx.lineTo(nx + 420, ny + 190); ctx.lineTo(nx + 500, ny + 110);
   ctx.lineTo(nx + 580, ny + 80);
   ctx.stroke();
-  setFont(ctx, 28, 700); // v9 (D-07): floor
+  setFont(ctx, 34, 700); // v9 (D-07): floor
   ctx.fillStyle = PALETTE.goldDeep;
   ctx.textAlign = 'left';
   ctx.fillText('NEXT WEEK', nx + 24, ny + 330);
-  setFont(ctx, 29, 600);
+  setFont(ctx, 34, 600);
   ctx.fillStyle = PALETTE.ink;
   wrapText(ctx, nextVideoTitle, 600, 29, 600).forEach((ln, i) => {
     ctx.fillText(ln, nx + 24, ny + 366 + i * 38);
   });
   ctx.restore();
 
-  // ── v10.1 (panel 11 re-review): right-zone BRAND MARK — the pair judge
-  // read the right half as "still largely vacant". A large soft gold K3D
-  // (10% alpha, background layer) fills the void with the channel's own
-  // mark; YouTube's end-screen elements overlay it cleanly at upload.
-  {
-    const kp = clamp01((t - 500) / 1200);
-    if (kp > 0) {
-      ctx.save();
-      // BLUEPRINT Phase 5: the FAR plane — 0.12x the camera (vs the card's
-      // 0.45x mid plane): the layers separate under the pullback.
-      ctx.translate(camState.dx * 0.12, camState.dy * 0.12);
-      ctx.globalAlpha = 0.10 * kp;
-      drawK3D(ctx, W * 0.74, H * 0.40, 300, kp, t, false); // P0-2: watermark K — no face (background furniture)
-      ctx.restore();
-    }
-  }
+  // AUDIT-ROUND-2 (fix 24, panel round 2 — "OR NOTHING"): the big soft
+  // background K3D at whisper alpha was judged AGAIN as a ghost stamp
+  // ("reads as texture rather than a deliberate mark") and it stacked a
+  // THIRD K on a frame that already carries the teaser-card K and the
+  // channel lockup — the audit's C3: "character, card, giant watermark K,
+  // subscribe, captions all fighting". The four-ghost motif field is already
+  // gone (kMotifs = 0 here); the right zone now breathes — the farewell
+  // frame belongs to the card, the host and the subscribe, and the brand
+  // rides the card's own K. Nothing else.
 
   // host waving, presenting the card from its right (inside safe zone) ──
   // v3 (P0-3): v2 renderer. v4 (vision panel, flagged twice): the host stood
@@ -809,11 +802,11 @@ export function endScreenScene(g: SceneCtx): void {
       ctx.moveTo(sx, sy - 1); ctx.lineTo(sx + 13, sy - 14);
       ctx.moveTo(sx, sy - 1); ctx.lineTo(sx + 13, sy + 12);
       ctx.stroke();
-      setFont(ctx, 30, 700);
+      setFont(ctx, 34, 700);
       ctx.fillStyle = PALETTE.ink;
       ctx.textAlign = 'left';
       ctx.fillText('SUBSCRIBE', sx + 34, sy - 4);
-      setFont(ctx, 28, 600);
+      setFont(ctx, 34, 600);
       ctx.fillStyle = PALETTE.inkFaint;
       ctx.fillText('— data-driven breakdowns, every week', sx + 34 + ctx.measureText('SUBSCRIBE').width + 76, sy - 4);
       ctx.restore();
@@ -829,7 +822,7 @@ export function endScreenScene(g: SceneCtx): void {
     setFont(ctx, 48, 700);
     ctx.fillStyle = PALETTE.ink;
     ctx.fillText(channelName.toUpperCase(), W * 0.28, H * 0.155);
-    setFont(ctx, 27, 600);
+    setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.inkSoft;
     ctx.fillText('data-driven breakdowns, every week', W * 0.28, H * 0.155 + 46);
     ctx.restore();

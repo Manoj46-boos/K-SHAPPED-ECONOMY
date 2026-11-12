@@ -64,7 +64,7 @@ function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   scenePlate(ctx, W, H, g.chapterTone ?? 'up');
   bokehField(ctx, W, H, g.t, { intensity: 0.9, seed: 7 });
   lightRays(ctx, W, H, g.t, { alpha: 0.6 });
-  kMotifs(ctx, W, H, g.t, 0.05);
+  kMotifs(ctx, W, H, g.t, 0.18);
 
   const stage = g.s.stage as string;
   const hx = HOST_X(W, side);
@@ -258,7 +258,7 @@ function hostChips(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
     if (ap > 0) {
       ctx.save();
       ctx.globalAlpha = ap;
-      setFont(ctx, 30, 700);
+      setFont(ctx, 34, 700);
       const tw = ctx.measureText(ribbon).width;
       const rx = hx - tw / 2 - 30;
       const ry = H * 0.2;
@@ -294,7 +294,7 @@ function hostChips(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   if (chipTxt) {
     const ap = clamp01((t - 900) / 600);
     if (ap > 0) {
-      setFont(ctx, 28, 600); // v9 (D-07): floor
+      setFont(ctx, 34, 600); // v9 (D-07): floor
       const tw = ctx.measureText(chipTxt).width;
       ctx.save();
       ctx.globalAlpha = ap * 0.85;
@@ -347,7 +347,7 @@ export function hostSceneV2(g: SceneCtx): void {
   scenePlate(ctx, W, H, g.chapterTone ?? 'up');
   bokehField(ctx, W, H, t, { intensity: 0.85, seed: 7 });
   lightRays(ctx, W, H, t, { alpha: 0.45 });
-  kMotifs(ctx, W, H, t, 0.04);
+  kMotifs(ctx, W, H, t, 0.18);
   // P1-6 (report): the editorial host's halo — the close-up composition
   // gets the strongest lift (his face is the film's recurring close shot)
   subjectHalo(ctx, W * 0.28, H * 0.46, 520, 0.7);
@@ -367,11 +367,25 @@ export function hostSceneV2(g: SceneCtx): void {
   // Deterministic: each sentence's block is a hash of its line id; the
   // entrance walks to the FIRST sentence's block, every later walk starts
   // at the previous sentence's block — continuity is exact, no teleports.
-  // Guard-safe: all blocks sit left of the editorial column (max envelope
-  // 537+237 = 774 < 806).
-  const BLOCKS = [W * 0.24, W * 0.28, W * 0.26];
+  // AUDIT-ROUND-2 (fix 15 — STAGE BLOCKS WIDENED): the old set spanned
+  // W*0.24–0.28 — a travel of four percent of frame width, a weight shift
+  // the panel refused to call blocking (B4: "on screen the presenter
+  // shifts his weight, he does not cross a stage"). The set now spans
+  // 0.18 → 0.42: mid-scene walks cross a real stage (~230px at 1080p,
+  // ~38px at the phone gate) — and the widened walks are exactly what
+  // the fix-12 walk extremes finally show off. The type column shifts
+  // right with the far block (0.42 → 0.47) so the host never plates his
+  // own headline (guard-clean: host envelope at the far block 899+269
+  // = 1168 < the kicker's new left edge 903… verified by the render
+  // sweep below).
+  // Guard sweep (696s): the 0.18 block's envelope crossed the LEFT frame
+  // edge under the max breathing zoom (scale 1.149 about centre pushes
+  // left-of-centre content outward). 0.22 is the widest LEFT block the
+  // edge envelope certifies; the set still spans 0.22-0.42 (~385px of
+  // crossing at 1080p) — the stage is genuinely crossed.
+  const BLOCKS = [W * 0.22, W * 0.31, W * 0.42];
   const blockFor = (id?: string): number => {
-    if (!id) return W * 0.28; // not speaking → the house block (old default)
+    if (!id) return W * 0.30; // not speaking → the house block (centre of the set)
     return BLOCKS[Math.floor(hashStr(id) * BLOCKS.length) % BLOCKS.length];
   };
   const hxTarget = blockFor(g.sentenceId);
@@ -398,7 +412,7 @@ export function hostSceneV2(g: SceneCtx): void {
     // head top sat ~70px from the frame edge (the panel read "cropped
     // avatar" beside the logo). 2.10 keeps the close staging with ~145px
     // of headroom; the draw-scale change below matches.
-    const r = walkIn(t, hxTarget - 560, hxTarget, 1600, arrive, 2.1);
+    const r = walkIn(t, hxTarget - 560, hxTarget, 1600, arrive, 2.05);
     hx = r.x;
     pose = r.walking ? r.pose : arrive;
     if (r.walking) walkPhase = r.phase;
@@ -417,7 +431,7 @@ export function hostSceneV2(g: SceneCtx): void {
         pointBias: 'right', // AUDIT-3 / §1.5
       });
       // P0-5: rigScale matched to the new 2.10 draw scale (above).
-      const r = walkIn(st, fromX, toX, 900, arrive, 2.1);
+      const r = walkIn(st, fromX, toX, 900, arrive, 2.05);
       hx = r.x;
       pose = r.walking
         ? r.pose
@@ -439,30 +453,31 @@ export function hostSceneV2(g: SceneCtx): void {
   // v3 (panel P0-4): nods + articulate mouth on the editorial host too
   const nodP = g.speaking ? nodPulse(g.beatT, g.wordTimes) : 0;
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  // P1-6 (audit Table 3): the word-accent SMEAR — the presenting arm
-  // carries its three-ghost motion trail on every gesture spring (the
-  // audit's "arms are passive stumps" — the opt existed, never driven).
-  const smr = g.speaking ? accentPulse(g.beatT, g.wordTimes) : 0;
-  // P1-1 (report): close staging — the editorial host is the film's only
-  // large-face composition, so the face draws 40% larger than body-proportional
-  // (expressions survive a phone screen); body 1.42 → 1.85 (+30%).
-  // BLUEPRINT Phase 1: the editorial host's walk carries the landing
-  // squash too (walkStrike off the same walkPhase).
-  // AUDIT-PHASE-2 -> P0-5 (audit Table 2 — the phone-gate re-block):
-  // draw scale 2.40 -> 2.10, ground H*0.62 -> H*0.64. The 2.40 figure
-  // crowded the frame top (head ~70px from the edge, beside the logo —
-  // the panel read "a cropped avatar sprite"). 2.10/H*0.64 keeps the
-  // close staging (face ~40px at 320px, still legible) with ~145px of
-  // headroom, and the shadow envelope (bottom ≈767) stays clear of the
-  // worst-case caption pill (776).
+  // P1-6 (audit Table 3): the word-accent SMEAR — in the word's strike
+  // window only (fix 13) — paused during the walk settle.
+  const smr = g.speaking ? accentPulse(g.beatT, g.wordTimes) * (walkPhase !== undefined ? 0 : 1) : 0;
+  // AUDIT-ROUND-2 (fix 10 — ONE SCALE REGISTRY): the editorial host joins
+  // the canonical presenting scale — 2.10 → 2.05, faceScale REMOVED (the
+  // audit: "faceScale reserved for reaction windows only"; A4 convicted
+  // the drift: host 2.05 vs editorial 2.10+1.4 face — "a head noticeably
+  // larger in some frames... an inconsistency a viewer feels but cannot
+  // name"). The fix-9 face floor carries the legibility the faceScale used
+  // to fake; the close-up register stays the reaction windows' job.
+  // The signature scene's 1.56 counterweight and the diagram-figure table
+  // are their own registry entries (below) — the HOST is one person,
+  // film-wide, at 2.05.
   drawStickmanV2(
-    ctx, hx, H * 0.64, 2.1, t,
-    { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk, smear: smr, faceScale: 1.4, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true, parallaxAmt: 0.55 }, // P2-4: hero moment — clear space, deep differential
+    ctx, hx, H * 0.64, 2.05, t,
+    { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk, smear: smr, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true, parallaxAmt: 0.55 }, // P2-4: hero moment — clear space, deep differential
     11
   );
 
   // ── editorial type block, right two-thirds ──
-  const hx2 = W * 0.42;
+  // AUDIT-ROUND-2 (fix 15 companion): the column shifts W*0.42 → W*0.47 so
+  // the far stage block (W*0.42) never plates the kicker/headline — the
+  // host PRESENTS BESIDE his content (fix 4's converse) instead of
+  // standing under it.
+  const hx2 = W * 0.47;
   const head = (g.s.headline as string) ?? 'Two numbers\nthat don’t add up.';
   const lines = head.split('\n');
   const sub = (g.s.sub as string) ??
@@ -470,7 +485,7 @@ export function hostSceneV2(g: SceneCtx): void {
 
   // kicker chip
   const kick = (g.s.kicker as string) ?? 'THE K-SHAPED ECONOMY · CH 01';
-  setFont(ctx, 28, 600); // v9 (D-07): floor
+  setFont(ctx, 34, 600); // v9 (D-07): floor
   const kw = ctx.measureText(kick).width;
   registerRect('hostV2:kicker', hx2, 168, kw + 48, 52);
   const ap = clamp01((t - 150) / 500);
@@ -502,7 +517,7 @@ export function hostSceneV2(g: SceneCtx): void {
     registerRect('hostV2:headline', hx2, 240, W - hx2 - 180, 320);
     let hSize = 88;
     setFont(ctx, hSize, 700, FONT_SERIF);
-    const maxHeadW = W - hx2 - 150;
+    const maxHeadW = W - hx2 - 200; // guard sweep: survives the exit camera
     while (Math.max(...lines.map((l) => ctx.measureText(l).width)) > maxHeadW && hSize > 54) {
       hSize -= 3;
       setFont(ctx, hSize, 700, FONT_SERIF);
@@ -540,38 +555,46 @@ export function hostSceneV2(g: SceneCtx): void {
     ctx.translate(0, (1 - easeOutCubic(fp)) * 24);
     const fx0 = hx2 + 12; // P0-5 panel note: +12 — optical alignment, the rounded card's edge against the flush text column
     const fy0 = 604;
-    const fw = W - hx2 - 180;
+    // Panel fix (guard sweep, 692s): the right margin widens 180 → 240 so
+    // the card survives the worst exit camera (truck + 1.06 push) without
+    // crossing the frame edge — the wider column shift demanded it.
+    const fw = W - hx2 - 240;
     const fh = 152;
     registerRect('hostV2:kfig', fx0, fy0, fw, fh);
     card(ctx, fx0, fy0, fw, fh, { r: 24 });
     const jx = fx0 + 120;
     const jy = fy0 + fh / 2;
+    // Panel round 2: the arrows scale with the card (they were fixed at
+    // +660/+678 and, under the narrower column, their tips ran under the
+    // MARKETS / MAIN STREET labels). Tips now stop at 55% of card width —
+    // clear of the right-aligned labels by construction.
+    const tipX = fx0 + fw * 0.55;
     // the market line — the formation's up-arm color, rising off the junction
     ctx.strokeStyle = PALETTE.upVivid;
     ctx.lineWidth = 7;
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(jx, jy);
-    ctx.lineTo(fx0 + 660, fy0 + 30);
+    ctx.lineTo(tipX, fy0 + 30);
     ctx.stroke();
     ctx.fillStyle = PALETTE.upVivid;
     ctx.beginPath();
-    ctx.moveTo(fx0 + 678, fy0 + 26);
-    ctx.lineTo(fx0 + 652, fy0 + 22);
-    ctx.lineTo(fx0 + 658, fy0 + 42);
+    ctx.moveTo(tipX + 18, fy0 + 26);
+    ctx.lineTo(tipX - 8, fy0 + 22);
+    ctx.lineTo(tipX - 2, fy0 + 42);
     ctx.closePath();
     ctx.fill();
     // the main-street line — the formation's down-arm color, falling
     ctx.strokeStyle = PALETTE.downVivid;
     ctx.beginPath();
     ctx.moveTo(jx, jy);
-    ctx.lineTo(fx0 + 660, fy0 + fh - 30);
+    ctx.lineTo(tipX, fy0 + fh - 30);
     ctx.stroke();
     ctx.fillStyle = PALETTE.downVivid;
     ctx.beginPath();
-    ctx.moveTo(fx0 + 678, fy0 + fh - 26);
-    ctx.lineTo(fx0 + 652, fy0 + fh - 22);
-    ctx.lineTo(fx0 + 658, fy0 + fh - 42);
+    ctx.moveTo(tipX + 18, fy0 + fh - 26);
+    ctx.lineTo(tipX - 8, fy0 + fh - 22);
+    ctx.lineTo(tipX - 2, fy0 + fh - 42);
     ctx.closePath();
     ctx.fill();
     // the junction — where the two paths split
@@ -697,7 +720,7 @@ export function splitNumbersScene(g: SceneCtx): void {
   if (cornerNote) {
     const ap = clamp01((t - 1600) / 700);
     if (ap > 0) {
-      setFont(ctx, 28, 600); // v9 (D-07): 24→28 floor
+      setFont(ctx, 34, 600); // v9 (D-07): 24→28 floor
       const tw = ctx.measureText(cornerNote).width;
       ctx.save();
       ctx.globalAlpha = ap * 0.9;
@@ -738,7 +761,7 @@ function drawNumberPanel(
   ctx.globalAlpha = ap;
   ctx.translate(0, (1 - easeOutCubic(ap)) * 40);
   card(ctx, x, y, w, h, { r: 34 });
-  setFont(ctx, 27, 600);
+  setFont(ctx, 34, 600);
   ctx.fillStyle = PALETTE.inkFaint;
   ctx.textAlign = 'left';
   ctx.fillText(kicker, x + 44, y + 66);
@@ -770,7 +793,7 @@ function drawNumberPanel(
     // cold open shipped “called the economy “good” or “excell…””. Two wrap
     // lines max; if the wrapped stack would overrun the panel body the
     // label auto-shrinks onto one line instead (never truncates).
-    setFont(ctx, 28, 600); // v9 (D-07): floor
+    setFont(ctx, 34, 600); // v9 (D-07): floor
     let lines = wrapText(ctx, st.label, w - 88, 25, 600).slice(0, 2);
     const stackedBottom = 150 + (stats.length - 1) * rowGap + 136;
     if (lines.length > 1 && stackedBottom > h - 18) {
@@ -871,7 +894,7 @@ export function divergeKScene(g: SceneCtx): void {
       setFont(ctx, 200, 700, FONT_DISPLAY);
       ctx.fillStyle = PALETTE.upVivid;
       ctx.fillText('+18%', xL, H * 0.36);
-      setFont(ctx, 30, 700);
+      setFont(ctx, 34, 700);
       ctx.fillStyle = PALETTE.up;
       ctx.fillText('THE MARKET · PAST YEAR', xL, H * 0.36 + 54);
     }
@@ -881,7 +904,7 @@ export function divergeKScene(g: SceneCtx): void {
       setFont(ctx, 200, 700, FONT_DISPLAY);
       ctx.fillStyle = PALETTE.downVivid;
       ctx.fillText('16%', xR, H * 0.62);
-      setFont(ctx, 30, 700);
+      setFont(ctx, 34, 700);
       ctx.fillStyle = PALETTE.down;
       ctx.fillText('AMERICANS CALL THE ECONOMY GOOD', xR, H * 0.62 + 54);
     }
@@ -1043,6 +1066,56 @@ export function divergeKScene(g: SceneCtx): void {
   }
   ctx.restore();
 
+  // AUDIT-ROUND-2 (fix 19): the presenting host's deferred REST pass — set
+  // by the host block below, drawn AFTER the K/labels/second character so
+  // the near arm lands IN FRONT of the letter (far-arm → K → near-arm).
+  let hostRestPass: { hx: number; hy: number; hScale: number; hFace: number; hAlpha: number; pose: import('./stickman').Pose; talk: number } | null = null;
+  // AUDIT-ROUND-2 (fix 19 — Z-ORDER + CONTACT, THE SPLIT DRAW): the
+  // presenting host now draws in TWO passes around the letter — far limbs
+  // BEFORE the K (behind its stem), body + near arm AFTER it (in front) —
+  // killing the z-order impossibility the panel caught in the signature
+  // frame ("the host's arm passes in front of the K's upper diagonal but
+  // his body is behind the stem... for your brand hero object this
+  // layering error is fatal"). The draw order is far-arm → K → near-arm,
+  // and the near pass carries kContact — the small contact shadow where
+  // the fist meets the stem, so "the presenter touches what he presents"
+  // finally has its shadow.
+  const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
+  if (opening && t < 4800) {
+    // the close-up block owns the host until 4.8s — nothing to draw here
+  } else {
+    const settlePose = Stickman.poseAt(t, {
+      gesture: upArmK < 0.5 ? 'heroPoint' : 'leanOnK',
+      speaking: g.speaking,
+      sentenceId: g.sentenceId,
+      prevSentenceId: g.prevSentenceId,
+      sentenceT: g.sentenceT,
+      wordTimes: g.gWordTimes,
+    });
+    let hx = W * 0.46;
+    let hy = H * 0.6611; // P1-1: raised with the +30% scale
+    let hScale = 1.56;
+    let hFace = 1;
+    let hAlpha = clamp01(t / 400);
+    let pose = settlePose;
+    if (opening) {
+      // the slide: close-up staging -> presenting spot over 700ms
+      const tp = clamp01((t - 4800) / 700);
+      hx = lerp(W * 0.30, W * 0.46, tp);
+      hy = lerp(H * 0.615, H * 0.6611, tp);
+      hScale = lerp(2.6, 1.56, tp);
+      hFace = 1 + 0.8 * (1 - tp);
+      hAlpha = 1;
+      pose = blendPose(POSES.shock, settlePose, tp);
+    }
+    // FAR pass — shadow + far limbs, drawn BEFORE the K (behind the letter)
+    drawStickmanV2(ctx, hx, hy, hScale, t,
+      { pose, alpha: hAlpha, look: 0.9, talk, faceScale: hFace, parallax: true, phase: 'far' }, 5);
+    // (the REST pass — near leg, torso, scarf, NEAR ARM, head — draws after
+    // the K, the labels and the second character; see the end of the scene)
+    hostRestPass = { hx, hy, hScale, hFace, hAlpha, pose, talk };
+  }
+
   // the full K fades in as the lines complete (the lines ARE the K)
   if (growP > 0.55) {
     ctx.save();
@@ -1101,7 +1174,7 @@ export function divergeKScene(g: SceneCtx): void {
     // arm labels — halo-backed, clear of arm tips
     const halo = (x: number, y: number, text: string, color: string): void => {
       glowBlob(ctx, x, y, 120, '#FFFFFF', 0.9);
-      setFont(ctx, 30, 700);
+      setFont(ctx, 34, 700);
       ctx.textAlign = 'left';
       ctx.fillStyle = color;
       ctx.fillText(text, x, y);
@@ -1144,7 +1217,7 @@ export function divergeKScene(g: SceneCtx): void {
       ctx.save();
       ctx.globalAlpha = ap;
       const txt = 'a twist for your portfolio — later in this video';
-      setFont(ctx, 26, 600);
+      setFont(ctx, 34, 600);
       const tw = ctx.measureText(txt).width;
       const cx = W / 2 - tw / 2 - 28;
       // v5: the chip lived at H-236 — INSIDE the caption pill's band
@@ -1176,57 +1249,14 @@ export function divergeKScene(g: SceneCtx): void {
     }
   }
 
-  // host on the left presenting the K — v3 (panel P0-3): v2 renderer, same
-  // body style as every other scene. v8: pulled inward (0.19→0.24 W) and
-  // scaled up (1.05→1.2) — the vision panel measured the left half of the
-  // signature frame ~45% empty with a lone small host. The K formation is
-  // the hero; the host is its counterweight, not a spectator.
-  // P1-1 (report): 1.2 → 1.56 (+30%) and the ground lifts 756 → 714 so the
-  // feet+shadow envelope (bottom 714+36·1.56 = 770) clears even a worst-case
-  // 2-row pill (top 796, camera envelope 776). The stance is now the
-  // asymmetric heroPresent pose — the signature scene stops looking like a
-  // stock idle.
-  // AUDIT-3 / §1.5 + §3.3 (report Phase 1.5 contact poses + Phase 3.3 "the
-  // K as a place"): the host moved from the far-left spectator position
-  // (W*0.24, pointing at empty air — BEFORE panel: "he's the biggest
-  // element in frame, standing in dead space") to BESIDE THE LETTER at
-  // W*0.46. His raised presenting hand now terminates ON the K's stem
-  // (the heroPoint angle at 1.56× lands the hand glyph at the stem's
-  // left edge) — the presenter finally TOUCHES the object he presents,
-  // and the overlap is a true occlusion (he draws after the K).
-  // BLUEPRINT Phase 5: in `opening` mode the host does not present at
-  // second zero — he arrives as the SHOCKED CLOSE-UP (see the re-cut block
-  // above) and slides from that staging into the presenting spot as the K
-  // tears apart (one motivated reframe, not a cut).
-  const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  if (opening && t < 4800) {
-    // the close-up block owns the host until 4.8s — nothing to draw here
-  } else {
-    const settlePose = Stickman.poseAt(t, {
-      gesture: upArmK < 0.5 ? 'heroPoint' : 'leanOnK',
-      speaking: g.speaking,
-      sentenceId: g.sentenceId,
-      prevSentenceId: g.prevSentenceId,
-      sentenceT: g.sentenceT,
-      wordTimes: g.gWordTimes,
-    });
-    let hx = W * 0.46;
-    let hy = H * 0.6611; // P1-1: raised with the +30% scale
-    let hScale = 1.56;
-    let hFace = 1;
-    let hAlpha = clamp01(t / 400);
-    let pose = settlePose;
-    if (opening) {
-      // the slide: close-up staging -> presenting spot over 700ms
-      const tp = clamp01((t - 4800) / 700);
-      hx = lerp(W * 0.30, W * 0.46, tp);
-      hy = lerp(H * 0.615, H * 0.6611, tp);
-      hScale = lerp(2.6, 1.56, tp);
-      hFace = 1 + 0.8 * (1 - tp);
-      hAlpha = 1;
-      pose = blendPose(POSES.shock, settlePose, tp);
-    }
-    drawStickmanV2(ctx, hx, hy, hScale, t, { pose, alpha: hAlpha, look: 0.9, talk, faceScale: hFace, parallax: true }, 5);
+  // AUDIT-ROUND-2 (fix 19): the REST pass — the near arm (and body/head)
+  // draw AFTER the K: the raised hand passes IN FRONT of the letter's stem
+  // with its contact shadow, the far arm behind it. One figure, correct
+  // occlusion, the signature scene finally touches.
+  if (hostRestPass) {
+    drawStickmanV2(ctx, hostRestPass.hx, hostRestPass.hy, hostRestPass.hScale, t,
+      { pose: hostRestPass.pose, alpha: hostRestPass.hAlpha, look: 0.9, talk: hostRestPass.talk,
+        faceScale: hostRestPass.hFace, parallax: true, phase: 'rest', kContact: true }, 5);
   }
   softBloom(ctx, W, H, t - 3800, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)
 }
@@ -1276,7 +1306,7 @@ export function channelIntroScene(g: SceneCtx): void {
     setFont(ctx, 64, 700);
     ctx.fillStyle = PALETTE.ink;
     ctx.fillText(channelName.toUpperCase(), cx, cy + 250);
-    setFont(ctx, 32, 600);
+    setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.inkSoft;
     ctx.fillText('growing capital with actual data — not hot takes', cx, cy + 310);
     ctx.restore();
@@ -1287,7 +1317,7 @@ export function channelIntroScene(g: SceneCtx): void {
     ctx.save();
     ctx.globalAlpha = mp;
     ctx.textAlign = 'center';
-    setFont(ctx, 28, 600);
+    setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.fillText('the whole range — never just the best headline', cx, cy + 380);
     ctx.restore();
@@ -1398,11 +1428,11 @@ function miniPanel(
   ctx.globalAlpha = ap;
   ctx.translate(0, (1 - easeOutCubic(ap)) * 30);
   card(ctx, x, y, w, h, { r: 28 });
-  setFont(ctx, 28, 700);
+  setFont(ctx, 34, 700);
   ctx.fillStyle = tone;
   ctx.textAlign = 'left';
   ctx.fillText(title, x + 38, y + 62);
-  setFont(ctx, 27, 600);
+  setFont(ctx, 34, 600);
   ctx.fillStyle = PALETTE.inkSoft;
   ctx.fillText(sub, x + 38, y + 108);
   // sparkline
@@ -1469,31 +1499,49 @@ export function paradoxResolveScene(g: SceneCtx): void {
     drawK3D(ctx, W * 0.4, H * 0.47, 115, 1, t, false);
     ctx.restore();
   }
-  const lines = [
-    'record highs — and most of the country left behind',
-    'because most of it was never really in the market',
-    'and those in it have more riding on it than ever',
-  ];
-  lines.forEach((ln, i) => {
-    const lp = clamp01((t - 2800 - i * 700) / 700);
-    if (lp <= 0) return;
-    ctx.save();
-    ctx.globalAlpha = lp;
-    ctx.textAlign = 'left';
-    // block-level auto-fit: the longest line must clear the right safe
-    // margin (1040 + 760 = 1800), floor TYPE_FLOOR (28) — never clip
-    let ls = 32;
-    setFont(ctx, ls, 600);
-    while (Math.max(...lines.map((l) => ctx.measureText(l).width)) > 760 && ls > TYPE_FLOOR) {
-      ls -= 1;
+  // AUDIT-ROUND-2 (fix 3 — KILL BODY PARAGRAPHS ON FRAMES): three stacked
+  // reading lines rode the right side for ~4s of the beat — at the feed
+  // gate the panel read "body unreadable" (the phone-gate table's
+  // f-paradoxResolve verdict). The VO already carries all three lines; the
+  // frame now carries ONE focal line (the audit's "on-screen text max 12
+  // words per frame") at 44px — above the new TYPE_FLOOR — with the two
+  // supporting lines GONE (voiceover only). One line, one read, one focal
+  // point; the K and the reacting host own the frame.
+  const focalLine = 'record highs — and most of the country left behind';
+  {
+    const lp = clamp01((t - 2800) / 700);
+    if (lp > 0) {
+      ctx.save();
+      ctx.globalAlpha = lp;
+      ctx.textAlign = 'left';
+      // Panel round 2: the single 44px line CLIPPED at the right frame edge
+      // ("...left be—" mid-phrase). The audit's own rule: "where text
+      // cannot fit, the content must wrap or shorten — never shrink". It
+      // now WRAPS at the READ floor into two lines (x 1040, maxW 780 —
+      // inside the right safe margin), one focal statement, fully on frame.
+      let ls = 44;
       setFont(ctx, ls, 600);
+      const maxW = 780;
+      while (ctx.measureText(focalLine).width > maxW && ls > TYPE_FLOOR) {
+        ls -= 1;
+        setFont(ctx, ls, 600);
+      }
+      // wrap at the final size — never below the floor, never past the edge
+      const wordsArr = focalLine.split(' ');
+      const lines: string[] = [];
+      let cur = '';
+      for (const wd of wordsArr) {
+        const trial = cur ? cur + ' ' + wd : wd;
+        if (ctx.measureText(trial).width > maxW && cur) { lines.push(cur); cur = wd; }
+        else cur = trial;
+      }
+      if (cur) lines.push(cur);
+      ctx.fillStyle = PALETTE.inkSoft;
+      registerRect('paradox:focalLine', 1040, 440, maxW, 64 + (lines.length - 1) * 54);
+      lines.forEach((ln, j) => ctx.fillText(ln, 1040, 470 + j * 54));
+      ctx.restore();
     }
-    ctx.fillStyle = i === 2 ? PALETTE.goldDeep : PALETTE.inkSoft;
-    // the guard sees the whole lines block from the first landing line
-    registerRect('paradox:takeawayLines', 1040, 440, 760, 170);
-    ctx.fillText(ln, 1040, 470 + i * 52);
-    ctx.restore();
-  });
+  }
   // gold rule between the K and the annotations — one unit, visually
   {
     const rp = clamp01((t - 2600) / 600);
@@ -1521,6 +1569,12 @@ export function paradoxResolveScene(g: SceneCtx): void {
     prevSentenceId: g.prevSentenceId,
     sentenceT: g.sentenceT,
     wordTimes: g.gWordTimes,
+    // AUDIT-ROUND-2 (fix 4 — UN-STRAND THE HOST): the pointing gesture now
+    // carries the pointBias — and fix 11's headYaw rides the same term, so
+    // the host's EYELINE connects to the K and the focal line he
+    // presents (C5: "two stick men, one pointing, one mid-air, with no
+    // eyeline match").
+    pointBias: 'right',
   });
   // BLUEPRINT Phase 2 (report §11): the paradox resolve's dedicated pose
   // key — WRY, the knowing half-smile (one brow up, one down, head
@@ -1529,7 +1583,11 @@ export function paradoxResolveScene(g: SceneCtx): void {
   if (rP > 0.02) pose = blendPose(pose, POSES.wry, rP);
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) * (1 - rP) : 0;
   drawStickmanV2(
-    ctx, W * 0.14, H * 0.667, 1.3, t,
+    // AUDIT-ROUND-2 (fix 4): W*0.14 → W*0.26 — the host stands BESIDE the
+    // K in his gesture cone instead of stranded at the frame's edge
+    // ("two unexplained tiny figures" at the gate). His raised hand now
+    // terminates toward the letter's stem.
+    ctx, W * 0.26, H * 0.667, 1.3, t,
     {
       pose, alpha: clamp01((t - 600) / 500), look: 0.5, talk,
       // AUDIT-PHASE-3: faceScale peak 1.65 -> 1.8 — the paradox reaction

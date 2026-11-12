@@ -110,9 +110,17 @@ export function bokehField(
   // did NOT follow, so the bokeh slides against the scene plane at ~0.45×.
   const camX2 = camState.dx * (1 - BG_PARALLAX);
   const camY2 = camState.dy * (1 - BG_PARALLAX);
+  // AUDIT-ROUND-2 (fix 23 — BOKEH DEPTH BANDS): the ring alpha band was
+  // 0.55-0.62 across ALL discs — a 7-percent spread the eye flattens; the
+  // panel read the field as "the same stock circles pasted on every frame:
+  // one size, one opacity, zero depth layering" / "UI watermarks, not
+  // motion". THREE explicit depth bands now — NEAR (r≈60, alpha 0.75,
+  // slight blur fill), MID (r≈40, alpha 0.50), FAR (r≈22, alpha 0.25, gold
+  // rare) — one texture becomes a legible depth stack.
   for (let i = 0; i < N; i++) {
-    const depth = 0.35 + hash01(i + seed * 31) * 0.65;
-    const speed = 16 + depth * 40;
+    const band = i % 3;                    // 0 near · 1 mid · 2 far — deterministic mix
+    const depth = band === 0 ? 0.95 : band === 1 ? 0.62 : 0.3;
+    const speed = 16 + (2 - band) * 40;
     const bx = (hash01(i * 3.7 + seed) * W + drift(t / 9000 + i * 3, i) * 40 * depth - camX2 * depth + W) % W;
     const by =
       (hash01(i * 7.1 + seed * 5) * H - (t / 1000) * speed - camY2 * depth + Math.sin(t / 5000 + i) * 20 + H * 4) % H;
@@ -122,15 +130,18 @@ export function bokehField(
     // cap drops to 0.18 AND gold motes render at 0.72× radius with a
     // dimmer alpha ceiling: gold is a rare sparkle, never a stain. The
     // field itself is carried by teal-white.
-    const isGold = hash01(i * 5.3 + seed) < goldRatio;
-    // v8.2: gold motes also get a hard radius cap (14px core) — the v8.1
-    // recheck still found one large gold mote reading as a blotch. Gold is
-    // sparkle-sized, always; teal-white motes may stay large and soft.
+    // AUDIT-ROUND-2 (fix 23): gold lives ONLY in the far band — a distant
+    // sparkle, never a near-field stain (the v8 'aged paper' lesson, kept).
+    const isGold = band === 2 && hash01(i * 5.3 + seed) < goldRatio * 2.6;
     // AUDIT-2: every radius multiplies by camState.scale — the bokeh now
     // participates in the camera (the "world zooms and the effects do
     // not" flat-read, fixed at every call site from one factor).
-    const r = Math.min((8 + hash01(i * 2.3) * 28) * depth * (isGold ? 0.72 : 1), isGold ? 14 : 1e9)
-      * camState.scale;
+    // fix 23: the BAND SIZES — 60 / 40 / 22 (± variance), gold capped.
+    const r = Math.min(
+      (band === 0 ? 54 + hash01(i * 2.3) * 14 : band === 1 ? 36 + hash01(i * 2.3) * 10 : 19 + hash01(i * 2.3) * 6)
+        * (isGold ? 0.72 : 1),
+      isGold ? 14 : 1e9
+    ) * camState.scale;
     // v8: alpha floor 0.10→0.13 — the v5 field was sub-visible after
     // YouTube's transcode on phone screens (the panel saw "muddy smudges",
     // i.e. the bottom of the range, and nothing else). Barely-there is now
@@ -148,13 +159,17 @@ export function bokehField(
     // varied discs — still light-register, never confetti.
     // AUDIT-PHASE-1: ring alpha floor 0.40 -> 0.55 — lens artifacts
     // survive the 320 px downsample instead of vanishing.
-    const ringA = Math.min(
-      isGold ? 0.55 : 0.62,
-      (isGold ? 0.55 + hash01(i * 9.2) * 0.15 : 0.55 + hash01(i * 9.2) * 0.22) *
-        intensity * (0.55 + depth * 0.45)
-    );
+    // AUDIT-ROUND-2 (fix 23): the BAND ALPHAS — 0.75 / 0.50 / 0.25 — the
+    // spread the eye reads as DEPTH (replacing the old 0.55-0.62 flat band).
+    const ringA = (band === 0 ? 0.75 : band === 1 ? 0.5 : 0.25) * intensity;
     ctx.beginPath();
     ctx.arc(bx, by, r, 0, Math.PI * 2);
+    if (band === 0) {
+      // the NEAR band: a slight blur fill under the ring — defocus, not a
+      // hard stencil (the lens disc you actually notice)
+      ctx.fillStyle = isGold ? rgba(PALETTE.gold, ringA * 0.16) : rgba('#7FB8AC', ringA * 0.16);
+      ctx.fill();
+    }
     ctx.strokeStyle = isGold ? rgba(PALETTE.gold, ringA) : rgba('#7FB8AC', ringA);
     ctx.lineWidth = Math.max(2, r * 0.2); // ring reads at 320px
     ctx.stroke();
@@ -316,39 +331,43 @@ export function sparkles(
   }
 }
 
-// ── Floating K motifs in background (brand watermark texture) ───────────────
+// ── The watermark K (brand mark, background layer) ──────────────────────────
+/**
+ * AUDIT-ROUND-2 (fix 24 — THE WATERMARK DECISION): the four ghost motifs
+ * at whisper alpha were judged "a placeholder logo stamp, not designed
+ * light-play", and at 320px they were invisible dead weight — the audit's
+ * rule: "a brand watermark either declares or disappears; the middle is
+ * noise". The four ghosts are gone. ONE crisp K outline, top-right, at
+ * 0.18 alpha with a one-light offset shadow (the same lower-left vector
+ * every shadow in the film obeys) — a designed mark at a fraction of the
+ * old render cost. Scenes that already carry their own brand object pass
+ * alpha = 0 (the "or nothing" branch) — the end screen keeps its big K3D
+ * and draws no second mark.
+ */
 export function kMotifs(
   ctx: CanvasRenderingContext2D,
   W: number,
   H: number,
   t: number,
-  alpha = 0.05
+  alpha = 0.18
 ): void {
+  if (alpha <= 0.01) return; // "or nothing" — the frame already carries the brand
   ctx.save();
+  // fixed top-right (inside the 140px safe margin), gently camera-coupled
+  // so the mark rides the background plane
+  const x = Math.min(W - 300, W * 0.84 + Math.sin(t / 7000) * 8
+    - camState.dx * (1 - BG_PARALLAX) * 0.6);
+  const y = H * 0.17 + Math.cos(t / 6000) * 6;
+  const s = 118 * camState.scale;
+  // the one-light offset — the mark's shadow falls lower-left, exactly
+  // like every card, chip and figure shadow in the film (P3-3)
+  ctx.globalAlpha = alpha * 0.5;
+  ctx.strokeStyle = rgba(PALETTE.goldDeep, 0.5);
+  drawK(ctx, x - 5, y + 8, s, 5);
+  // the mark itself — one crisp K outline at the declared alpha
   ctx.globalAlpha = alpha;
   ctx.strokeStyle = PALETTE.gold;
-  // P1-6 (report): larger K-motif watermarks — the v8 field was 3 motifs
-  // at 34-64px, which read as specks at 1080p and as NOTHING after the
-  // platform transcode. Four motifs at 52-120px (weight 4) still sit at
-  // whisper alpha, but the brand texture survives a phone screen. Gold
-  // stays capped at low alpha — big AND loud read as a stain, not a mark.
-  // v10 (panel VFX-4): motifs pulled inward — at the old positions a
-  // half-cut K bled off the right edge on wide scenes and read as an
-  // export artifact ("a cropped K glyph looks like a bug", ownerWorker
-  // frame). Every motif now sits fully inside the 140px safe margin.
-  ctx.lineWidth = 4;
-  for (let i = 0; i < 4; i++) {
-    // v3 (panel P1-2): counter-drift against the camera at ~0.45× — the
-    // motifs sit behind the scene plane
-    const x = (W * (0.18 + i * 0.21) + Math.sin(t / 7000 + i * 2) * 30
-      - camState.dx * (1 - BG_PARALLAX) * 1.4 + W) % W;
-    const y = H * (0.24 + hash01(i * 8.8) * 0.44) + Math.cos(t / 6000 + i) * 22;
-    // P1-6 round 2: floor raised 52 → 64 — the panel read the two smallest
-    // marks (52px) as 'specks'; the family now spans 64-120px
-    // AUDIT-2 / §10.4: watermark scale rides the camera (camState.scale).
-    const s = (64 + hash01(i * 3.3) * 56) * camState.scale;
-    drawK(ctx, Math.min(Math.max(x, 170), W - 170), Math.min(Math.max(y, 190), H - 260), s, 4);
-  }
+  drawK(ctx, x, y, s, 5);
   ctx.restore();
 }
 
@@ -416,38 +435,21 @@ export function drawK(
 /**
  * PANEL-12 / P3.1 (report §15.1) — a TRUE oblique extrusion for the K.
  *
- * The v2 "3D" was an offset-copy stack (4 faded duplicates) — the panel
- * read its edges as "soft gray ghost lines / doubled strokes". This is a
- * real extrusion of the K outline: the K is three strokes; every stroke
- * segment is a quad of its two endpoints ± the width normal; each quad's
- * side walls are extruded along a per-stroke depth vector and filled,
- * and the ink face lands on top. The walls are inset by half the stroke
- * width so the squared corners stay inside the face's round caps.
- *
- * AUDIT-2 / §10.4 (report Phase 3, D3): the TWO WALLS shade by the
- * light — the wall whose outward normal faces the light (upper-right)
- * renders one step brighter than the wall facing away.
- *
- * BLUEPRINT Phase 3 (report §11 — ONE 3D LANGUAGE): the audit convicted
- * the extrusion as "a flat decal with offset shadows… parallel offsets
- * scream drop-shadow layer style" on three counts, all fixed here:
- *  • DEPTH 0.14 -> 0.26 of letter size (K3D.depthFrac) — a sliver
- *    becomes volume; 26% of a 210px K is a 55px wall at 1080p, 9px at
- *    the 320px gate.
- *  • SOLID WALL TONES — the lit wall in the object's OWN ink, the
- *    shadow wall a 45% tint toward the background (hexLerp): an opaque
- *    value STEP reads as geometry; two transparent grays read as
- *    nothing (the old 0.26/0.11 alpha pair).
- *  • CONVERGENCE — every stroke extrudes TOWARD ONE VANISHING POINT
- *    (K3D.vp) instead of a shared constant vector: perspective, not a
- *    layer style. The per-stroke d vector is normalized and scaled to
- *    the depth, shortened for strokes near the VP (true convergence).
+ * AUDIT-ROUND-2 (fix 16 — ONE EXTRUSION AXIS): per-stroke convergence
+ * toward a single vanishing point was mathematically true perspective and
+ * perceptually a DEFECT — the trained eye read "the stem's depth face
+ * offsets left while the upper diagonal's flips right… two flat letters
+ * glued at different offsets". All three strokes now extrude along ONE
+ * FIXED depth vector — down-left, 30° off the horizontal (K3D.axisDeg),
+ * away from the film's upper-right light — with the upper arm's depth
+ * foreshortened 12%. Solidity first, perspective second: one consistent
+ * axis reads as a solid; convergence at these sizes reads as a mistake.
  */
 function extrudeStroke(
   ctx: CanvasRenderingContext2D,
   x0: number, y0: number, x1: number, y1: number,   // stroke segment
   w: number, depth: number, colLit: string, colShadow: string,
-  d: { x: number; y: number }                        // BLUEPRINT: per-stroke depth vector (toward the VP)
+  d: { x: number; y: number }                        // AUDIT-ROUND-2: the ONE fixed depth vector
 ): void {
   const nx = -(y1 - y0), ny = x1 - x0;
   const L = Math.hypot(nx, ny) || 1;
@@ -548,90 +550,100 @@ export function drawK3D(
   ctx.translate(x, pivY);
   ctx.rotate(wPh * AMP.kWobbleDeg * Math.PI / 180);
   ctx.translate(-x, -pivY);
-  // the TRUE extrusion — BLUEPRINT Phase 3: per-stroke convergence toward
-  // ONE vanishing point, SOLID wall tones, depth 0.26 (see extrudeStroke)
+  // the TRUE extrusion — AUDIT-ROUND-2 (fix 16): ONE fixed depth axis for
+  // all three strokes (down-left, K3D.axisDeg), the upper arm's depth
+  // foreshortened 12% (it sits "higher" in the oblique projection).
   const stemF = Math.min(1, grow * 2);
   const upArm = clamp01(grow * 2 - 0.6);
   const dnArm = clamp01(grow * 2 - 1.1);
   // AUDIT-2 / D3: the extrusion deepens as the camera pushes (camState
   // .scale-1 rides the depth) — the letter's volume answers the lens.
   const depth = s * K3D.depthFrac * (0.9 + 0.1 * clamp01(grow)) * (0.85 + 0.15 * camState.scale);
-  // the per-stroke depth vectors: each stroke's walls run TOWARD the
-  // vanishing point (K3D.vp), magnitude = depth.
-  // AUDIT-PHASE-4: perspective shortening REMOVED — the old persp factor
-  // made the stem's walls shorter than the arms' walls (visually
-  // inconsistent, "the vanishing logic is inconsistent" audit verdict).
-  // All three strokes now extrude the SAME depth magnitude — the K reads
-  // as a solid extruded object, not a perspective trick.
-  const strokeD = (x0: number, y0: number, x1: number, y1: number): { x: number; y: number } => {
-    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
-    const vx = K3D.vp.x - mx, vy = K3D.vp.y - my;
-    const vl = Math.hypot(vx, vy) || 1;
-    return { x: (vx / vl) * depth, y: (vy / vl) * depth };
-  };
+  // THE ONE FIXED AXIS — down-left at K3D.axisDeg (30° below horizontal),
+  // away from the upper-right light. Every wall of every stroke runs
+  // parallel to this vector: one object, one extrusion, one read.
+  const axis = K3D.axisDeg * Math.PI / 180;
+  const dAll = { x: -Math.cos(axis) * depth, y: Math.sin(axis) * depth };
+  const dArmUp = { x: dAll.x * 0.88, y: dAll.y * 0.88 }; // foreshortened
   // AUDIT-PHASE-4: SOLID GOLD material — the lit wall in the object's
   // OWN gold (signature material), the shadow wall in gold-oxide
-  // (#8F6E12). The audit verdict was "a slate-teal letter with a gold
-  // outline" — the K now reads as unmistakably a GOLD OBJECT, not a
-  // slate-teal letter with gold trim. One material, one signature.
+  // (#8F6E12). One material, one signature.
   const colLit = PALETTE.goldDisplay;
   const colShadow = PALETTE.goldDeep;
   const W_K = 30;
-  extrudeStroke(ctx, x, y - s * stemF, x, y + s * stemF, W_K, depth, colLit, colShadow,
-    strokeD(x, y - s * stemF, x, y + s * stemF));
+  extrudeStroke(ctx, x, y - s * stemF, x, y + s * stemF, W_K, depth, colLit, colShadow, dAll);
   if (upArm > 0) {
-    extrudeStroke(ctx, x, y + s * 0.1, x + s * 1.15 * upArm, y - s * 1.05 * upArm, W_K, depth, colLit, colShadow,
-      strokeD(x, y + s * 0.1, x + s * 1.15 * upArm, y - s * 1.05 * upArm));
+    extrudeStroke(ctx, x, y + s * 0.1, x + s * 1.15 * upArm, y - s * 1.05 * upArm, W_K, depth, colLit, colShadow, dArmUp);
   }
   if (dnArm > 0) {
-    extrudeStroke(ctx, x, y + s * 0.1, x + s * 1.15 * dnArm, y + s * 1.05 * dnArm, W_K, depth, colLit, colShadow,
-      strokeD(x, y + s * 0.1, x + s * 1.15 * dnArm, y + s * 1.05 * dnArm));
+    extrudeStroke(ctx, x, y + s * 0.1, x + s * 1.15 * dnArm, y + s * 1.05 * dnArm, W_K, depth, colLit, colShadow, dAll);
   }
   // P2-1 (audit Table 4 — "AO at stem-arm junctions"): the junctions
-  // where the arms meet the stem held no ambient occlusion — flat walls
+  // where the arms meet the stem hold no ambient occlusion — flat walls
   // meeting flat walls. A soft goldDeep radial at the vertex (where both
   // arms root into the stem) darkens the wall seams BEFORE the face
   // strokes paint — the face stays bright, the seams recede, and the
   // object reads as assembled mass instead of layered cut-outs.
+  // AUDIT-ROUND-2 (fix 17 — WIDENED AO WEDGE): the wedge widens (0.36r →
+  // 0.46r) and the core deepens — the junction reads as the assembled
+  // mass it is; the chamfer band above it catches the light.
   if (upArm > 0.35 && dnArm > 0.2) {
     const jx = x + s * 0.12;
     const jy = y + s * 0.14;
-    // panel r2: AO base brighter-mid (the K must not drift ochre) and
-    // the occlusion TIGHTER (0.36r, 0.5 core) so it reads as a contact
-    // wedge, not a wash
-    const ao = ctx.createRadialGradient(jx, jy, 1, jx, jy, s * 0.36);
-    ao.addColorStop(0, rgba(PALETTE.goldDeep, 0.5));
-    ao.addColorStop(0.55, rgba(PALETTE.goldDeep, 0.22));
+    const ao = ctx.createRadialGradient(jx, jy, 1, jx, jy, s * 0.46);
+    ao.addColorStop(0, rgba(PALETTE.goldDeep, 0.55));
+    ao.addColorStop(0.55, rgba(PALETTE.goldDeep, 0.24));
     ao.addColorStop(1, rgba(PALETTE.goldDeep, 0));
     ctx.fillStyle = ao;
     ctx.beginPath();
-    ctx.arc(jx, jy, s * 0.36, 0, Math.PI * 2);
+    ctx.arc(jx, jy, s * 0.46, 0, Math.PI * 2);
     ctx.fill();
   }
   // gold rim — a wide soft gold pass UNDER the face; the ink face
   // covers its centre and the gold peeks only at the silhouette edge
   // (a lit edge, not a halo)
-    // AUDIT-PHASE-1: gold rim alpha 0.16 -> 0.55 — the K's gold rim
-    // becomes a lit edge, not a hint.
-    drawK(ctx, x, y, s, 38, rgba(PALETTE.gold, 0.55), grow);
-  // face strokes — AUDIT-PHASE-4: now in the signature gold material
-  drawK(ctx, x, y, s, 30, PALETTE.goldDisplay, grow);
-  // AUDIT-PHASE-4: BRUSHED-METAL STRIATION — alternating 0.4/0.6 alpha
-  // vertical bands clipped to the K's face. The K reads as brushed gold
-  // (a signature material), not a flat gold fill.
-  if (grow > 0.6) {
+  // AUDIT-PHASE-1: gold rim alpha 0.16 -> 0.55 — the K's gold rim
+  // becomes a lit edge, not a hint.
+  drawK(ctx, x, y, s, 38, rgba(PALETTE.gold, 0.55), grow);
+  // AUDIT-ROUND-2 (fix 17 — BEVEL + GOLD RAMP): the flat goldDisplay face
+  // + striation bands read as "one mustard plus noise… no bevel, no edge
+  // highlight… real premium gold in flat-style design is a 2-3 tone ramp
+  // plus one white glint". The face is now a THREE-TONE RAMP — #F5E6A8
+  // specular streak on the upper third, goldDisplay mid, goldDeep base —
+  // and a CHAMFER BAND: a bright 3-stop gradient stroke inset along the
+  // front-face outline (the "edge catches the light" cue — the same ramp
+  // the struck-coin routine already uses, ported one scene over). The
+  // striation noise and the sweeping sheen band are gone; one white glint
+  // dot lands on the stem (below).
+  {
+    // the face ramp — one vertical 3-stop gradient across all three strokes
+    const ramp = ctx.createLinearGradient(x, y - s, x, y + s);
+    ramp.addColorStop(0, '#F5E6A8');   // specular streak — upper third
+    ramp.addColorStop(0.33, PALETTE.goldDisplay); // mid
+    ramp.addColorStop(1, PALETTE.goldDeep);        // base
+    drawK(ctx, x, y, s, 30, ramp as unknown as string, grow);
+    // the CHAMFER — a bright inset stroke along the face's own outline,
+    // carrying a light-axis gradient (bright where the light catches the
+    // bevel, deep on the shadow side): the edge between face and walls.
+    const cham = ctx.createLinearGradient(x + s * 0.9, y - s * 0.9, x - s * 0.7, y + s * 0.7);
+    cham.addColorStop(0, '#FFE9A8');
+    cham.addColorStop(0.45, PALETTE.goldDisplay);
+    cham.addColorStop(1, rgba(PALETTE.goldDeep, 0.85));
+    drawK(ctx, x, y, s, 13, cham as unknown as string, grow);
+  }
+  // fix 17: the WHITE GLINT — one bright specular dot on the stem's
+  // upper section (the "plus one white glint" of premium gold; replaces
+  // the old sweeping sheen band).
+  if (grow > 0.8) {
     ctx.save();
+    ctx.globalAlpha = clamp01((grow - 0.8) / 0.2);
+    const gl = ctx.createRadialGradient(x - 4, y - s * 0.55, 0.5, x - 4, y - s * 0.55, 9);
+    gl.addColorStop(0, 'rgba(255, 252, 235, 0.95)');
+    gl.addColorStop(1, 'rgba(255, 252, 235, 0)');
+    ctx.fillStyle = gl;
     ctx.beginPath();
-    ctx.rect(x - s * 1.4, y - s * 1.3, s * 2.8, s * 2.6);
-    ctx.clip();
-    for (let bx = -s * 1.4; bx < s * 1.4; bx += 6) {
-      ctx.strokeStyle = rgba(PALETTE.goldDeep, ((Math.floor(bx / 6) % 2) === 0) ? 0.18 : 0.06);
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(x + bx, y - s * 1.3);
-      ctx.lineTo(x + bx, y + s * 1.3);
-      ctx.stroke();
-    }
+    ctx.ellipse(x - 4, y - s * 0.55, 9, 6.5, -0.5, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
   // AUDIT-PHASE-4: ANTHROPOMORPHIZATION — the K gets a FACE. Two ink-dot
@@ -640,34 +652,46 @@ export function drawK3D(
   // forward to seeing — the Kurzgesagt-duck move. Only renders once the
   // K is fully grown (grow > 0.7) so the reveal ritual lands first.
   // P0-2: gated on `face` — the one-mascot rule above.
+  // AUDIT-ROUND-2 (fix 18 — FACE ON THE FRONT PLANE): the dots and smile
+  // drew in screen space at the letter's vertex — the panel read "eyes
+  // straddle the stem/depth-face seam and the smile crosses onto the
+  // lower diagonal… the face is applied like a sticker, ignoring the
+  // letter's internal geometry", with the right eye floating in the
+  // counter reading as a stray dot. The face now draws in the FRONT
+  // FACE's local frame: translated ALONG the single depth axis (12% of
+  // depth, toward the viewer — proud of the face plane), scaled with
+  // the depth, rotated with the wobble (it already rides the wobble
+  // transform), and POSITIONED ON THE STEM's face — the eyes sit across
+  // the stem's width, the right eye clear of the counter, the smile
+  // under them still on the stem face. A face ON the object reads as a
+  // mascot; a face NEAR the object reads as a sticker.
   if (face && grow > 0.7) {
     const faceAlpha = clamp01((grow - 0.7) / 0.3);
+    // the face rides the front plane: proud of it by 12% of the depth
+    // (opposite the extrusion axis), scaled with the depth
+    const fShift = 0.12;
+    const fS = 1 - 0.1 * K3D.depthFrac;
     ctx.save();
     ctx.globalAlpha = faceAlpha;
+    ctx.translate(-dAll.x * fShift, -dAll.y * fShift);
+    ctx.scale(fS, fS);
     ctx.fillStyle = PALETTE.ink;
-    // eyes — two dots above the vertex
+    // eyes — ON the stem's face, across its width (±0.075s; the stem's
+    // face is ±0.071s wide at s=210 — the eyes cover it, edge to edge)
     ctx.beginPath();
-    ctx.arc(x - s * 0.18, y - s * 0.05, s * 0.08, 0, Math.PI * 2);
-    ctx.arc(x + s * 0.18, y - s * 0.05, s * 0.08, 0, Math.PI * 2);
+    ctx.arc(x - s * 0.075, y - s * 0.16, s * 0.058, 0, Math.PI * 2);
+    ctx.arc(x + s * 0.075, y - s * 0.16, s * 0.058, 0, Math.PI * 2);
     ctx.fill();
-    // smile — a small arc below the vertex
+    // smile — under the eyes, still on the stem face, spanning it
     ctx.strokeStyle = PALETTE.ink;
-    ctx.lineWidth = Math.max(2, s * 0.05);
+    ctx.lineWidth = Math.max(2.4, s * 0.05);
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(x - s * 0.15, y + s * 0.18);
-    ctx.quadraticCurveTo(x, y + s * 0.28, x + s * 0.15, y + s * 0.18);
+    ctx.moveTo(x - s * 0.085, y - s * 0.04);
+    ctx.quadraticCurveTo(x, y + s * 0.035, x + s * 0.085, y - s * 0.04);
     ctx.stroke();
     ctx.restore();
   }
-  // gold sheen — a narrow specular band, not a wash
-  const sweep = (t / 2400) % 1;
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(x - s * 1.4, y - s * 1.3 + sweep * s * 2.6, s * 2.8, s * 0.28);
-  ctx.clip();
-  drawK(ctx, x, y, s, 30, rgba(PALETTE.gold, 0.30), grow);
-  ctx.restore();
   ctx.restore();
 }
 

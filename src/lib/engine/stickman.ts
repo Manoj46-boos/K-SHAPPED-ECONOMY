@@ -53,6 +53,14 @@ export interface Pose {
   eyeL?: number;
   eyeR?: number;
   shoulderDrop?: number;
+  /** AUDIT-ROUND-2 (fix 11 — HEAD YAW AT CONTENT): the head turns toward
+   *  the pose's pointBias (max 14°, AMP.headYawDeg) — the missing rotation
+   *  term that makes the EYELINE connect (the audit's C5: "the audience
+   *  reads connection through the head yaw first, eyes second"). The v2
+   *  renderer pivots the whole head about the neck, so the head displaces
+   *  toward the content while the pupils keep their 7px look travel ON
+   *  TOP. Blended like every other key; default 0. */
+  headYaw?: number;
   /** P1-2 (audit Table 3): explicit hand glyph override — 'fist' or the
    *  count glyphs 'count1'/'count2'/'count3' (a fist with N fingers
    *  extended). Default = auto by rig scale (fan / mitten). */
@@ -68,6 +76,7 @@ const base = (): Pose => ({
   lLift: 0, rLift: 0, lToe: 0, rToe: 0,
   pelvisTilt: 0, shoulderTilt: 0,
   eyeL: 1, eyeR: 1, shoulderDrop: 0,
+  headYaw: 0,
 });
 
 export const POSES: Record<string, Pose> = {
@@ -252,10 +261,15 @@ export class Stickman {
         //    hand traces a curve through space, not a straight line.
         // All pure functions of (t, sentence data) — scrub-safe.
         const st = opts.sentenceT ?? 1e9;
-        const anti = st < 150 ? Math.sin((st / 150) * Math.PI) * 0.3 : 0;
+        // AUDIT-ROUND-2 (fix 14 — GESTURE AMPLITUDE): anticipation recoil
+        // 0.3 → 0.45 — the wind-up must be FELT, not inferred.
+        const anti = st < 150 ? Math.sin((st / 150) * Math.PI) * 0.45 : 0;
         const sT = Math.max(0, st - 150);
         const fUp = clamp01(springTo(0, 1, sT, 150, 19)) - anti;
-        const fLo = clamp01(springTo(0, 1, Math.max(0, sT - 70), 150, 19)) - anti * 0.7;
+        // AUDIT-ROUND-2 (fix 14): elbow cascade 70 → 90ms behind the
+        // shoulder — a wave that visibly travels DOWN the limb at phone
+        // scale (70ms downsampled to a snap at 320px).
+        const fLo = clamp01(springTo(0, 1, Math.max(0, sT - 90), 150, 19)) - anti * 0.7;
         const up = blendPose(prevPose, cyc, fUp);
         const lo = blendPose(prevPose, cyc, fLo);
         pose = { ...up, lAL: lo.lAL, rAL: lo.rAL };
@@ -270,10 +284,16 @@ export class Stickman {
           }
         }
         const arc = Math.sin(Math.PI * clamp01(fUp));
+        // AUDIT-ROUND-2 (fix 14 — GESTURE AMPLITUDE): forearm accent 16 →
+        // 26°, arc bias 7 → 12° (the panel: "poses are readable but pose-y,
+        // not acted" — at the host's scale the old pair moved the hand
+        // ~30px at 1080p, 5px at 320px: a whisper). 26°/12° clears the
+        // phone gate; the left arm counters proportionally so the figure
+        // stays balanced.
         pose = {
           ...pose,
-          rAL: pose.rAL + accent * 16 + arc * 7,
-          lAU: pose.lAU - accent * 10 - arc * 5,
+          rAL: pose.rAL + accent * 26 + arc * 12,
+          lAU: pose.lAU - accent * 16 - arc * 8,
         };
       } else {
         // legacy fallback (no sentence data — e.g. the shorts cutter):
@@ -358,7 +378,11 @@ export class Stickman {
     const sR = Math.sin((ph - 0.47) * Math.PI * 2) * 0.92;
     const cA = Math.cos((ph - 0.05) * Math.PI * 2); // arms lag legs 0.05
     const sA = Math.sin((ph - 0.05) * Math.PI * 2);
-    const swing = 26 * speed;
+    // AUDIT-ROUND-2 (fix 12 — WALK EXTREMES): swing 26 → 38° (AMP.swingDeg).
+    // The old stride spread ~28% of body height; a readable cartoon walk
+    // wants 40%+. The math stays exact — feet still plant, pelvis still
+    // ground-anchored; only the caricature amplitude changes.
+    const swing = AMP.swingDeg * speed;
     // (9) strike pulses fire AT each foot's contact: LEFT lands at
     // phi=0.5 (its swing window is (0, 0.5)); RIGHT at phi~=0.97 (its
     // 0.47-lagged swing ends). ~0.1 phase wide, squared.
@@ -428,11 +452,14 @@ export class Stickman {
     const passP = pulse(0.25, 0.09) + pulse(0.75, 0.09);
     const pushL = Math.pow(pulse(0.43, 0.06), 2);
     const pushR = Math.pow(pulse(0.9, 0.06), 2);
+    // AUDIT-ROUND-2 (fix 12): absorb 4.5 → 9px (AMP.absorbPx), pass raise
+    // 2.5 → 5px (AMP.passRaisePx), chin tuck 3 → 6° (AMP.chinTuckDeg) —
+    // every caricature term doubled to clear the phone gate.
     return {
       ...base(),
-      rootY: rootY + absorb * 4.5 - passP * 2.5,
+      rootY: rootY + absorb * AMP.absorbPx - passP * AMP.passRaisePx,
       lean: 4 + s * 2 + (strikeL + strikeR) * 3 + 3 - c * 2 + absorb * 2,
-      headTilt: -(strikeL + strikeR) * 3 + passP * 2 + (pushL + pushR) * 2.5,
+      headTilt: -(strikeL + strikeR) * AMP.chinTuckDeg + passP * 2 + (pushL + pushR) * 2.5,
       lLU, lLL, rLU, rLL,
       lAU: lAUw,
       lAL: lAUw + Math.max(0, -cA) * 24 - 2,
@@ -583,12 +610,15 @@ export function drawStickman(
 
   // head (filled with bg color to occlude) + face
   const tiltR = (pose.lean + pose.headTilt) * D2R;
-  const headCX = neckX + Math.sin(tiltR) * (RIG.neck + RIG.headR * 0.9);
+  const yawR = (pose.headYaw ?? 0) * D2R;
+  const headCX = neckX + Math.sin(tiltR) * (RIG.neck + RIG.headR * 0.9) + Math.sin(yawR) * 10;
   const headCY = neckY - Math.cos(tiltR) * (RIG.neck + RIG.headR * 0.9);
-  const nod = (r.nod ?? 0) * 4;
+  // AUDIT-ROUND-2 (fix 14): nod pulse 4 → 7px — the word-accent nod must
+  // survive the 320px gate.
+  const nod = (r.nod ?? 0) * 7;
   ctx.save();
   ctx.translate(headCX, headCY + nod);
-  ctx.rotate(tiltR * 0.6);
+  ctx.rotate(tiltR * 0.6 + yawR * 0.5);
   ctx.fillStyle = PALETTE.bgTop;
   ctx.strokeStyle = ink;
   ctx.lineWidth = w;
@@ -721,15 +751,22 @@ export function riseIn(t: number, dur = 600): number {
 }
 
 /** P1-6 (100-judge audit, Table 3 — GRADUATED SMEARS): the word-onset
- * accent pulse that drives the arm's three-ghost motion trail. Faster
- * attack than nodPulse — the smear reads as VELOCITY, not emphasis:
- * peaks ~70ms after the word fires, decays over ~260ms. Same
- * wordTimes the talk envelope uses; scrub-safe. */
+ * accent pulse that drives the arm's motion trail. Faster attack than
+ * nodPulse — the smear reads as VELOCITY, not emphasis.
+ * AUDIT-ROUND-2 (fix 13 — SMEAR DISCIPLINE): the old window ran from 40ms
+ * BEFORE the word to 260ms after — the ghost trail lived through the whole
+ * word, so single-frame dumps (scrub previews, thumbnails, the audit's own
+ * evidence) caught "a gray ghost pose mid-transition" and read it as a
+ * rendering bug. The strike window is now 60-160ms AFTER the word onset —
+ * exactly the ballistic phase of the accent — so the smear exists only
+ * while the limb is genuinely at speed and never pollutes a settled hold.
+ * Scrub-safe. */
 export function accentPulse(t: number, wordTimes: number[]): number {
   let p = 0;
   for (const wt of wordTimes) {
-    if (t >= wt - 40 && t < wt + 260) {
-      p = Math.max(p, Math.sin(((t - wt + 40) / 300) * Math.PI));
+    // fire ONLY in the 60-160ms strike window after the word fires
+    if (t >= wt + 60 && t < wt + 160) {
+      p = Math.max(p, Math.sin(((t - wt - 60) / 100) * Math.PI));
     }
     if (wt > t + 300) break;
   }
