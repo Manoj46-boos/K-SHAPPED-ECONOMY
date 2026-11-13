@@ -183,21 +183,31 @@ const HERO_MOVES: Record<number, { scene: string; move: 'pullback' | 'push' | 't
   // exit/mid grid + edge checks). A tripod with a tremor is now an
   // operator; the amplitudes below are what the guard still certifies
   // clean with content envelopes unchanged.
-  0: { scene: 'divergeK', move: 'pullback', amt: 0.095 },     // ch1 — the K reveals itself as the camera retreats
-  1: { scene: 'chartJourney', move: 'truck', amt: 235 },      // ch2 — travel with the S&P timeline
-  2: { scene: 'chartJourney', move: 'truck', amt: -135 },     // ch3 — sentiment falls, the camera pans the other way
-  3: { scene: 'gasPump', move: 'truck', amt: 210 },           // ch4 — pan between the two households
-  4: { scene: 'aiDatacenter', move: 'push', amt: 0.06 },      // ch5 — into the scale of the build-out
-  5: { scene: 'paradoxResolve', move: 'pullback', amt: 0.085 }, // ch6 — the reveal breathes out
+  //
+  // PHASE-0 (100-judge report §6, Fix 4 — DOUBLE THE HERO AMPLITUDES):
+  // the pixel audit's direction verdict: "camera amplitude sub-perceptual
+  // at the phone gate — pushes ride 0.93-1.09, drift 52/32px; single-digit
+  // pixel motion for most of the film". The report's prescription: pull-
+  // backs to ~0.15-0.18, trucks to 300-400px, one guard re-sweep as the
+  // referee. fundSplit's truck holds at 60 (the QA-SWEEP corridor note
+  // below — the host corridor has no headroom; its 24% empty-band fix
+  // came from content, not camera). takeaways' push holds (the reading
+  // column owns the width).
+  0: { scene: 'divergeK', move: 'pullback', amt: 0.16 },      // ch1 — the K reveals itself as the camera retreats (2x)
+  1: { scene: 'chartJourney', move: 'truck', amt: 380 },      // ch2 — travel with the S&P timeline (1.6x)
+  2: { scene: 'chartJourney', move: 'truck', amt: -300 },     // ch3 — sentiment falls, the camera pans the other way (2.2x)
+  3: { scene: 'gasPump', move: 'truck', amt: 360 },           // ch4 — pan between the two households (1.7x)
+  4: { scene: 'aiDatacenter', move: 'push', amt: 0.12 },      // ch5 — into the scale of the build-out (2x)
+  5: { scene: 'paradoxResolve', move: 'pullback', amt: 0.15 }, // ch6 — the reveal breathes out (1.8x)
   // QA-SWEEP: fundSplit's truck 110 → 60 — the ±55px swing (plus drift ±22
   // and the 0.40× foreground parallax on the side host) squeezed the host
   // corridor between the right stat-card column (right edge 1446) and the
   // frame edge past what any static position satisfies: at 110 the guard's
   // edge rule flagged 11-28px clips at the group exit. At 60 the corridor
   // clears both sides with margin; the twist still travels.
-  6: { scene: 'fundSplit', move: 'truck', amt: 60 },          // ch7 — the twist travels
-  7: { scene: 'takeaways', move: 'push', amt: 0.045 },        // ch8 — lean into the lesson
-  8: { scene: 'endScreen', move: 'pullback', amt: 0.102 },    // ch9 — the wide farewell
+  6: { scene: 'fundSplit', move: 'truck', amt: 60 },          // ch7 — the twist travels (held: corridor certified)
+  7: { scene: 'takeaways', move: 'push', amt: 0.09 },         // ch8 — lean into the lesson (2x)
+  8: { scene: 'endScreen', move: 'pullback', amt: 0.18 },     // ch9 — the wide farewell (1.8x)
 };
 
 /**

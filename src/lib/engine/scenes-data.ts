@@ -1726,7 +1726,10 @@ export function ownerWorkerScene(g: SceneCtx): void {
     ctx.globalAlpha = ap;
     ctx.textAlign = 'center';
     setFont(ctx, 34, 700);
-    ctx.fillStyle = tone.main;
+    // PHASE-0 round 4 (ownerWorker RMS 25.9): panel titles ride the vivid
+    // ramp — the two titles are the frame's biggest type; vivid carries
+    // the contrast the flat-frame flag asked for.
+    ctx.fillStyle = tone.vivid ?? tone.main;
     ctx.fillText(pnl.title.toUpperCase(), x + 340, H * 0.24);
     // mini stickman: shareholder on a rising line / worker on flat ground
     // PANEL-9 R7d (panel text plated by the caption pill): the figure stood
@@ -1746,7 +1749,11 @@ export function ownerWorkerScene(g: SceneCtx): void {
     const hy = H * 0.6;
     const riseSlope = -116 / 340; // the owner's line: (hy+26)→(hy−90) over ±170
     if (side === 'left') {
-      ctx.strokeStyle = rgba(PALETTE.up, 0.8);
+      // PHASE-0 (report §6, Fix 3 — ownerWorker RMS 24.8, the flat-frame
+      // flag): the ground lines deepen to full-opacity vivid ink (the
+      // panel text steps inkSoft -> ink) — the class-diagram's ink mass
+      // carries the frame's contrast.
+      ctx.strokeStyle = PALETTE.upVivid;
       ctx.lineWidth = 12;
       ctx.lineCap = 'round';
       ctx.beginPath();
@@ -1754,7 +1761,7 @@ export function ownerWorkerScene(g: SceneCtx): void {
       ctx.lineTo(hx + 170, hy - 90);
       ctx.stroke();
     } else {
-      ctx.strokeStyle = rgba(PALETTE.grid, 0.7);
+      ctx.strokeStyle = rgba(PALETTE.inkSoft, 0.9);
       ctx.lineWidth = 12;
       ctx.lineCap = 'round';
       ctx.beginPath();
@@ -1825,7 +1832,7 @@ export function ownerWorkerScene(g: SceneCtx): void {
       }
     }
     setFont(ctx, 34, 600);
-    ctx.fillStyle = PALETTE.inkSoft;
+    ctx.fillStyle = PALETTE.ink; // PHASE-0 (Fix 3): inkSoft -> ink (flat-frame flag)
     // R7d: baselines 726 / 768 (was 918 / 962) — above CAPTION_ZONE_TOP,
     // 46px below the figure's ground line so the two never touch.
     wrapText(ctx, pnl.line, 560, 30, 600).forEach((ln, j) => {
@@ -1904,10 +1911,14 @@ export function fundSplitScene(g: SceneCtx): void {
   if (gp > 0) {
     const gx = W * 0.333;
     const gy = H * 0.28;
-    // gold segment — 7 HEAVY bars, 56 wide, 300 tall, 78px pitch
+    // PHASE-0 (report §6, Fix 3): the 7 bars take the DISPLAY gold (was
+    // tone gold = same value, made explicit here) and the 493 wall's
+    // pillar fill rises 0.62 -> 0.72 — the audit's fundSplit twin measured
+    // the best saturation in the film (0.130) but the gray wall still
+    // washed at the gate; the wall needs to read as MASS.
     for (let i = 0; i < 7; i++) {
       const p2 = clamp01((t - 1400 - i * 110) / 460);
-      ctx.fillStyle = PALETTE.gold;
+      ctx.fillStyle = PALETTE.goldDisplay;
       roundRect(ctx, gx + i * 78, gy, 56, 300 * easeOutCubic(p2) + 8, 10);
       ctx.fill();
     }
@@ -1920,7 +1931,8 @@ export function fundSplitScene(g: SceneCtx): void {
     const grayX = gx + 7 * 78 + 86;
     for (let i = 0; i < 80; i++) {
       const p2 = clamp01((t - 1900 - i * 12) / 520);
-      ctx.fillStyle = rgba(PALETTE.grid, 0.62);
+      // PHASE-0 (Fix 3): 0.62 -> 0.72 (see note above — the wall reads as mass).
+      ctx.fillStyle = rgba(PALETTE.grid, 0.72);
       const col = i % 20;
       const row = Math.floor(i / 20);
       roundRect(ctx, grayX + col * 27, gy + 132 + row * 46, 20, 34 * easeOutCubic(p2) + 4, 3);
@@ -1942,7 +1954,12 @@ export function fundSplitScene(g: SceneCtx): void {
     if (sp2 <= 0) return;
     ctx.save();
     ctx.globalAlpha = sp2;
-    const y = H * 0.40 + i * 128;
+    // PHASE-0 (report §6, Fix 2 — KILL THE EMPTY BANDS, fundSplit 24%):
+    // the stat chips rode 0.40H+128px pitch under the fund box while the
+    // whole 0.62-0.86H band sat empty (the phone gate's worst flag). The
+    // chips now cascade from 0.56H at 150px pitch — they fill the band
+    // under the 7-vs-493 graphic instead of stacking beside the box.
+    const y = H * 0.56 + i * 150;
     const c = TONE(st.tone || 'default');
     registerRect(`fundSplit:stat${i}`, W * 0.09, y, 420, 104);
     card(ctx, W * 0.09, y, 420, 104, { r: 24 });
@@ -1984,6 +2001,9 @@ export function fundSplitScene(g: SceneCtx): void {
       // 34px exit lift with ≥2px to spare (guard v2 sweeps it — it is now
       // REGISTERED, which is how D-09 escaped the v9 sweep in the first
       // place: unregistered content is invisible to the guard).
+      // PHASE-0 note: stays at the 996 below-pill gap anchor (D-09) — the
+      // re-anchored stat chips (0.56H, 150px pitch) end at ~0.78H, clear
+      // of this chip's band by >150px; the guard sweep is the referee.
       const chy = 996;
       registerRect('fundSplit:callbackChip', W / 2 - tw / 2 - 28, chy, tw + 56, 54);
       ctx.fillStyle = PALETTE.goldWash;

@@ -78,7 +78,12 @@ export function bigTextScene(g: SceneCtx): void {
       // The hierarchy is now unambiguous: line 1 at 118px (auto-fit to 1660),
       // line 2 at 62px/600 — a 1.9× editorial ratio, statement + kicker.
       const size = i === 0 ? 118 : 62;
-      ctx.translate(W / 2, H * 0.36 + i * 118);
+      // PHASE-0 round 3 (bigText's residual 27% band measured at y 0-48 of
+      // 180 — the zone ABOVE line 1's cap): line 1's baseline moves to
+      // 0.30H (cap top ~0.21H); line 2 to 0.49H; underline 0.62H; host
+      // 0.672H. Top gap ~0.21H < 20% bar. A statement beat starts high and
+      // heavy — the top-heavy stack is also the correct editorial read.
+      ctx.translate(W / 2, H * 0.30 + i * 190);
       ctx.scale(scale, scale);
       if (i === 0) {
         setFont(ctx, size, 700, FONT_DISPLAY);
@@ -100,23 +105,26 @@ export function bigTextScene(g: SceneCtx): void {
   drawBlock(0, 1); // the solid block
   // AUDIT-2 / §10.4: the impact triple's visible members — ring + glow
   // (the micro-shake was applied at the top of the scene).
-  impactRing(ctx, W / 2, H * 0.4, t, 340, 210);
+  // PHASE-0 (Fix 2): ring + glow pivot to the new statement center (0.40H).
+  impactRing(ctx, W / 2, H * 0.36, t, 340, 210);
   if (t >= 340 && t < 340 + 66) {
     // the double-radius glow frame — one beat of the number's own light
-    glowBlob(ctx, W / 2, H * 0.36, 640, '#F7F0DC', 0.30);
+    glowBlob(ctx, W / 2, H * 0.32, 640, '#F7F0DC', 0.30);
   }
   // supportive underline
+  // PHASE-0 round 2: the underline sits at 0.62H between line 2 (0.50H)
+  // and the host (0.672H) — the three-element stack leaves no 20% gap.
   const up2 = clamp01((t - 1500) / 700);
   if (up2 > 0) {
     ctx.save();
     ctx.globalAlpha = up2;
     ctx.strokeStyle = PALETTE.gold;
-    ctx.lineWidth = 7;
+    ctx.lineWidth = 9;
     ctx.lineCap = 'round';
-    const w = 420 * easeOutCubic(up2);
+    const w = 560 * easeOutCubic(up2);
     ctx.beginPath();
-    ctx.moveTo(W / 2 - w / 2, H * 0.66);
-    ctx.lineTo(W / 2 + w / 2, H * 0.66);
+    ctx.moveTo(W / 2 - w / 2, H * 0.62);
+    ctx.lineTo(W / 2 + w / 2, H * 0.62);
     ctx.stroke();
     ctx.restore();
   }
@@ -162,7 +170,33 @@ export function stampCardScene(g: SceneCtx): void {
   // the frame alone.
   bg(g, 221, 0.55, 0.88, 0);
   const cx = W / 2;
-  const cy = H * 0.42;
+  // PHASE-0 round 2 (stampCard band went 23% -> 25%: the sub move alone
+  // left the 0.10-0.30H zone dead above the stamp). A kicker chip at
+  // 0.18H anchors the top — the stamp verdict needs a context line ("THE
+  // RECEIPTS" register: what is being stamped and why). The stamp holds
+  // 0.44H, the sub at cy+180 (~0.61H), the host envelope 0.667H+.
+  {
+    const kp = clamp01((t - 150) / 450);
+    if (kp > 0) {
+      ctx.save();
+      ctx.globalAlpha = kp;
+      const kx = 'THE RECEIPTS — CHECK THE RECORD';
+      setFont(ctx, 34, 700);
+      const tw = ctx.measureText(kx).width;
+      ctx.fillStyle = rgba(PALETTE.white, 0.85);
+      roundRect(ctx, W / 2 - tw / 2 - 30, H * 0.18 - 30, tw + 60, 60, 30);
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = rgba(PALETTE.up, 0.6);
+      roundRect(ctx, W / 2 - tw / 2 - 30, H * 0.18 - 30, tw + 60, 60, 30);
+      ctx.stroke();
+      ctx.fillStyle = PALETTE.inkSoft;
+      ctx.textAlign = 'center';
+      ctx.fillText(kx, W / 2, H * 0.18 + 10);
+      ctx.restore();
+    }
+  }
+  const cy = H * 0.44;
   const ap = clamp01(t / 500);
   // P1-10 (report §12.10): the stamp draws as a function of dx so the slam
   // frame can draw it TWICE — solid at 0, plus a 1.5% offset ghost at 0.35
@@ -237,9 +271,12 @@ export function stampCardScene(g: SceneCtx): void {
       ctx.stroke();
     }
     ctx.textAlign = 'center';
+    // PHASE-0 (Fix 2): the sub moves from cy+160 (0.49H — left the band
+    // below it dead) to cy+180 with its own fade-in clock — it fills the
+    // pre-host gap; the checkmark keeps its position (outside the word).
     setFont(ctx, 40, 600);
     ctx.fillStyle = PALETTE.inkSoft;
-    ctx.fillText(s.sub as string, cx, cy + 160);
+    ctx.fillText(s.sub as string, cx, cy + 180);
     ctx.restore();
     // P2-3: no sparkle burst on the stamp statement (see bigText note).
   }
@@ -563,6 +600,32 @@ export function commentPromptScene(g: SceneCtx): void {
   bg(g, 251, 0.5);
   const q = s.question as string;
   const ap = clamp01(t / 800);
+  // PHASE-0 (report §6, Fix 2 — KILL THE EMPTY BANDS, commentPrompt 21%):
+  // the question rode 0.32H with nothing above it — the whole top band
+  // read empty at the phone gate. A "YOUR TURN" kicker chip at 0.20H
+  // (gold wash pill, the comment-field prompt) gives the frame a top
+  // anchor; the question and sub then cascade 0.32/0.42H under it.
+  {
+    const kp = clamp01((t - 200) / 500);
+    if (kp > 0) {
+      ctx.save();
+      ctx.globalAlpha = kp;
+      const kx = 'YOUR TURN — DROP A COMMENT';
+      setFont(ctx, 34, 700);
+      const tw = ctx.measureText(kx).width;
+      ctx.fillStyle = PALETTE.goldWash;
+      roundRect(ctx, W / 2 - tw / 2 - 30, H * 0.20 - 30, tw + 60, 60, 30);
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = rgba(PALETTE.gold, 0.7);
+      roundRect(ctx, W / 2 - tw / 2 - 30, H * 0.20 - 30, tw + 60, 60, 30);
+      ctx.stroke();
+      ctx.fillStyle = PALETTE.goldDeep;
+      ctx.textAlign = 'center';
+      ctx.fillText(kx, W / 2, H * 0.20 + 10);
+      ctx.restore();
+    }
+  }
   ctx.save();
   ctx.globalAlpha = ap;
   ctx.textAlign = 'center';

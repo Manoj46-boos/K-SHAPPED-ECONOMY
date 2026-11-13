@@ -72,18 +72,28 @@ export const PALETTE: Palette = {
   // AUDIT-PHASE-1: ivory canvas deepens to warm cream (#FFFFFF -> #F4EFE1)
   // — drops mean luminance ~16 points, every frame reads as warm cream
   // instead of whiteboard. Brand identity preserved (still Morning Ivory).
-  bgTop: '#F4EFE1',
-  // AUDIT-PHASE-1: bgBottom deepens #E9F1ED -> #D7E5DF — the ground
-  // gradient strengthens; figure gains a floor to stand on.
-  bgBottom: '#D7E5DF',
-  bgSoft: '#EAF1ED',
+  //
+  // PHASE-0 (100-judge report §6, Fix 1 — THE REGISTER PASS): the pixel
+  // audit measured 19 rendered frames at mean luminance 222-235/255 (~88%
+  // bright), RMS contrast 24-54, saturation 0.04-0.13 — "a clean white
+  // presentation, not flat-animation cinema". The register deepens one more
+  // step, everywhere, by constants only: bgTop #F4EFE1 -> #EDE6D2 (warm
+  // cream, -8 lum) and bgBottom #D7E5DF -> #C9DAD4 (-9 lum). Target mean
+  // luminance 200-210 with RMS 40+ per frame — the report's own gate.
+  bgTop: '#EDE6D2',
+  // PHASE-0: bgBottom deepens #D7E5DF -> #C9DAD4 — the ground gradient
+  // strengthens further; the figure's floor gains mass.
+  bgBottom: '#C9DAD4',
+  // PHASE-0: bgSoft deepens #EAF1ED -> #DFE9E4 — the haze bands and neutral
+  // plates ride this value; they follow the new register down.
+  bgSoft: '#DFE9E4',
   // AUDIT-PHASE-1: ink deepens #2E4A43 -> #1F3328 — deeper ink raises
   // perceived ink-mass weight without changing the hue family. Still
   // slate-teal, still AAA contrast, just visibly heavier.
   ink: '#1F3328',
   inkSoft: '#4F5D59',
   inkFaint: '#65736F',
-  card: '#FFFFFF',
+  card: '#FBFAF4',
   cardBorder: '#DCE9E5',
   // v8: the three neutral ROLES the brown hexes used to fill. One source
   // of truth; scenes must use these, never hand-hexed greys.
@@ -105,17 +115,28 @@ export const PALETTE: Palette = {
   // as gold, not brown.
   goldDisplay: '#D9B224',
   goldInk: '#8F6E12',
-  goldWash: '#F7F0DC',
+  // PHASE-0 (report §6, Fix 1 — THE REGISTER PASS, round 2): the first
+  // pass deepened bgTop/bgBottom but the rendered frames barely moved —
+  // because the FRAME's brightness is set by the PLATE BLEND, not the
+  // base: upSoft/goldWash/downSoft at 0.82 over bgTop computed back to
+  // ~233 mean luminance (measured on the chartTwin AFTER frame: 232.8).
+  // The soft tones themselves are the register. Each drops ~10 lum:
+  //   upSoft   #D9EFEA -> #C9E2DA (the data rooms' teal field)
+  //   goldWash #F7F0DC -> #EDE2C2 (statement/end rooms' gold field)
+  //   downSoft #FAE7E1 -> #F2DAD2 (mood rooms' coral field — gentlest
+  //                                step: coral rooms already ran lowest)
+  // Target: every scene frame lands 200-215 mean luminance, RMS 30+.
+  goldWash: '#EDE2C2',
   up: '#0B6E63',
-  upSoft: '#D9EFEA',
+  upSoft: '#C9E2DA',
   down: '#C2542E',
-  downSoft: '#FAE7E1',
+  downSoft: '#F2DAD2',
   // v10 (panel COLOR-3): the vivid data-ink ramp — strokes only, never text
   upVivid: '#00937F',
   downVivid: '#E85C31',
   inkDeep: '#243B35',
   muted: '#B2C4C1',
-  chipBg: '#FFFFFF',
+  chipBg: '#FBFAF4',
   white: '#FFFFFF',
 };
 
@@ -462,21 +483,29 @@ export function scenePlate(
   W: number,
   H: number,
   tone: 'up' | 'down' | 'gold' | 'neutral' = 'neutral',
-  strength = 0.72
+  strength = 0.82
 ): void {
+  // PHASE-0 (report §6, Fix 1): default plate strength 0.72 -> 0.82 — the
+  // audit measured data/host rooms still washing out under the 0.72 blend
+  // with the old bright base. With the deepened bgTop the 0.82 plate lands
+  // the report's tonal-mass target on data rooms and host stages without
+  // touching lightness elsewhere (statement beats keep their explicit
+  // 0.88).
   // P1-2 note: the neutral tone is #E0EFE9 (was #EAF4F1) — the old value's
   // red channel (234) still landed >235 after the 0.72 blend, so every
   // 'neutral'-chapter frame kept failing the near-white acceptance. #E0EFE9
   // blends to r≈233: a whisper deeper, still the lightest room in the film.
+  // PHASE-0: neutral follows the register down: #E0EFE9 -> #DCE9E3.
   const soft =
     tone === 'up' ? PALETTE.upSoft
     : tone === 'down' ? PALETTE.downSoft
     : tone === 'gold' ? PALETTE.goldWash
-    : '#E0EFE9';
+    : '#DCE9E3';
   ctx.save();
   // P1-2 + panel re-review: 0.72 default; the film's LOUDEST beats
   // (bigText/stampCard hard cuts) pass 0.88 — a room the slam can land in
   // ("a barely-there wash is not a tonal field", round-2 judge note).
+  // PHASE-0 (report §6, Fix 1): 0.72 -> 0.82 (see signature note above).
   ctx.fillStyle = rgba(soft, strength);
   ctx.fillRect(0, 0, W, H);
   // BLUEPRINT Phase 4 (report §11): the 5% darker FLOOR BAND — a soft
@@ -486,12 +515,16 @@ export function scenePlate(
   // on, not a lightbox they float over. Soft-edged (a gradient, never a
   // hard stripe), light-register (5% ink over the plate), background —
   // never registered with the collision guard.
+  // PHASE-0 (report §6, Fix 1): the floor band deepens 0.035/0.055 ->
+  // 0.06/0.085 — the ground line is the single cheapest depth cue on
+  // every host frame; it survives the 6x downsample where the plate's
+  // tonal difference alone does not.
   {
     const bandTop = H * 0.66;
     const fg = ctx.createLinearGradient(0, bandTop, 0, H);
     fg.addColorStop(0, rgba(PALETTE.ink, 0));
-    fg.addColorStop(0.45, rgba(PALETTE.ink, 0.035));
-    fg.addColorStop(1, rgba(PALETTE.ink, 0.055));
+    fg.addColorStop(0.45, rgba(PALETTE.ink, 0.06));
+    fg.addColorStop(1, rgba(PALETTE.ink, 0.085));
     ctx.fillStyle = fg;
     ctx.fillRect(0, bandTop, W, H - bandTop);
   }

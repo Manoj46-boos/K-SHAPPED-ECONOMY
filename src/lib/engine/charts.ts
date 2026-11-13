@@ -87,7 +87,7 @@ function niceStep(raw: number): number {
 export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): void {
   const {
     x, y, w, h, series, p, t, yFormat = 'index',
-    gridLines = 4, lineWidth = 5.5, showYAxis = true,
+    gridLines = 4, lineWidth = 6.5, showYAxis = true,
   } = opts;
   const [yMin, yMax] = yBounds(opts);
   // v10.1 (panel 11 re-review): the plot frame is CONTENT — a side host's
@@ -171,10 +171,13 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
   void gridLines;
 
   // context band (e.g. "typical range")
+  // PHASE-0 round 4 (chartJourney RMS 27.0 — flat-frame flag): context
+  // band fill 0.07 -> 0.14, stroke 2 -> 3. The journey chart's band + peak
+  // band are its second-largest ink mass; they now read.
   if (opts.band) {
     const by1 = y + h - ((opts.band.to - yMin) / (yMax - yMin)) * h;
     const by2 = y + h - ((opts.band.from - yMin) / (yMax - yMin)) * h;
-    ctx.fillStyle = rgba(PALETTE.gold, 0.07);
+    ctx.fillStyle = rgba(PALETTE.gold, 0.14);
     roundRect(ctx, x, Math.min(by1, by2), w, Math.abs(by2 - by1), 14);
     ctx.fill();
     setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor
@@ -190,11 +193,11 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     const xFrac1 = opts.peakBand.to / all[all.length - 1][0];
     const bx = x + xFrac0 * w;
     const bw = (xFrac1 - xFrac0) * w;
-    ctx.fillStyle = rgba(PALETTE.gold, 0.10);
+    ctx.fillStyle = rgba(PALETTE.gold, 0.16); // PHASE-0 round 4: 0.10 -> 0.16 (flat-frame flag)
     roundRect(ctx, bx, y, bw, h, 12);
     ctx.fill();
-    ctx.strokeStyle = rgba(PALETTE.gold, 0.35);
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = rgba(PALETTE.gold, 0.45);
+    ctx.lineWidth = 3;
     roundRect(ctx, bx, y, bw, h, 12);
     ctx.stroke();
     ctx.save();
@@ -210,7 +213,12 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
 
   // area under first series
   const s0 = series[0];
-  const tone0 = TONE(s0.tone).main;
+  // PHASE-0 (report §6, Fix 3 — RAISE DATA-INK SATURATION): the area fill
+  // rides the VIVID ramp (upVivid/downVivid) at 0.26/0.07 — the audit
+  // measured mean saturation 0.04-0.13 per frame ("washed after
+  // transcode"); the areas are the largest single data-ink mass in the
+  // film, so they carry the register rise.
+  const tone0 = TONE(s0.tone).vivid ?? TONE(s0.tone).main;
   if (series.length === 1) {
     ctx.save();
     ctx.beginPath();
@@ -226,8 +234,9 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     // v8: 0.18/0.02 → 0.22/0.05 — the panel read the v5 fills as "pale
     // sludge" after transcode; a touch more ink makes the area read teal
     // at a glance without darkening the frame
-    g.addColorStop(0, rgba(tone0, 0.22));
-    g.addColorStop(1, rgba(tone0, 0.05));
+    // PHASE-0: 0.22/0.05 → 0.26/0.07 (see note above).
+    g.addColorStop(0, rgba(tone0, 0.26));
+    g.addColorStop(1, rgba(tone0, 0.07));
     ctx.fillStyle = g;
     ctx.fill();
     ctx.restore();
@@ -270,7 +279,11 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       }
     }
     // glow underlay
-    ctx.strokeStyle = rgba(strokeCol, 0.16);
+    // PHASE-0 (report §6, Fix 3 — chartJourney RMS 26.9, flat-frame flag):
+    // the underlay runs at full vivid alpha 0.16 -> 0.24 and the main
+    // line's default width rises 5.5 -> 6.5 — the journey chart IS the
+    // frame; its ink mass carries the contrast.
+    ctx.strokeStyle = rgba(strokeCol, 0.24);
     ctx.lineWidth = lineWidth * 2.6;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -788,6 +801,11 @@ export function statCard(
   ctx.globalAlpha = Math.min(1, ap * 1.6);
   ctx.translate(0, rise);
   const c = TONE(tone).main;
+  // PHASE-0 (report §6, Fix 3 — RAISE DATA-INK SATURATION): the stat
+  // card's number and accent line ride the VIVID ramp (was tone.main) —
+  // the card numeral is the frame's biggest data-ink mass after the pie
+  // and the bars; vivid is one step brighter and survives the transcode.
+  const cVivid = TONE(tone).vivid ?? c;
   // v10 (panel COLOR-4): tone-tinted card shadow — the card reads as lit by
   // its own number (teal card, teal-whisper shadow) instead of neutral slate
   card(ctx, x, y, w, h, { r: opts.compact ? 22 : 30, tint: c });
@@ -800,7 +818,8 @@ export function statCard(
   const labelBase = opts.compact ? 128 : 192;
   const labelStep = opts.compact ? 34 : 38;
   // tone top accent line
-  ctx.fillStyle = c;
+  // PHASE-0 (Fix 3): accent line rides cVivid.
+  ctx.fillStyle = cVivid;
   roundRect(ctx, x + 34, y + (opts.compact ? 22 : 26), (opts.compact ? 52 : 64) * pop, opts.compact ? 6 : 8, 3);
   ctx.fill();
   // big number
@@ -817,7 +836,9 @@ export function statCard(
     }
   }
   setFont(ctx, bigSize, 700);
-  ctx.fillStyle = c;
+  // PHASE-0 (Fix 3): the big numeral rides cVivid (gold keeps goldDeep —
+  // the AA note above: goldDisplay on white is fill-grade only).
+  ctx.fillStyle = tone === 'gold' ? PALETTE.goldDeep : cVivid;
   ctx.fillText(bigText, x + 34, y + bigBase);
   // label
   setFont(ctx, labelSize, 600);
@@ -842,7 +863,9 @@ export function statCard(
         ctx.fillStyle = TONE(tone === 'down' ? 'down' : tone).soft;
         roundRect(ctx, x + 34, tagY + li * 44, tw + 30, 38, 19);
         ctx.fill();
-        ctx.fillStyle = c;
+        // PHASE-0 (Fix 3): tag chip text rides cVivid for consistency with
+        // the numeral (gold keeps its AA-safe goldDeep).
+        ctx.fillStyle = tone === 'gold' ? PALETTE.goldDeep : cVivid;
         ctx.fillText(ln, x + 49, tagY + li * 44 + 26);
       });
     }

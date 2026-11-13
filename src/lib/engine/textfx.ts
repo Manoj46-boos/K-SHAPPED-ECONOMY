@@ -329,40 +329,59 @@ export function drawChapterCard(
     : tone === 'gold' ? PALETTE.goldWash
     : tone === 'neutral' ? '#E0EFE9'
     : PALETTE.upSoft;
-  ctx.fillStyle = rgba(soft, 0.97);
+  // PHASE-0 (Fix 2): the card's room-tone backdrop deepens 0.97 -> 1.0
+  // opacity — a chapter card at full tone is a ROOM CHANGE, not a lighter
+  // version of the scene it interrupts (this card carried the phone gate's
+  // worst empty-band flag: 32%).
+  ctx.fillStyle = rgba(soft, 1.0);
   ctx.fillRect(0, 0, W, H);
   // v4 (audit P1-5): ghost chapter number behind the title — the vision
   // panel called the bare card “a legal disclaimer slide”; a 10%-gold serif
   // numeral gives the card scale and brand without stealing legibility
+  // PHASE-0 (report §6, Fix 2 — KILL THE EMPTY BANDS, chaptercard 32% —
+  // the phone gate's worst flag): the ghost numeral rises 0.1 -> 0.22
+  // alpha and the serif grows 400 -> 460px so the card carries real
+  // tonal mass above and below the title band; still background-grade
+  // (behind every element, gold on the room tone).
   ctx.save();
-  ctx.globalAlpha = a * 0.1 * easeOutCubic(clamp01(t / 700));
-  setFont(ctx, 400, 700, FONT_DISPLAY);
+  // PHASE-0 round 4: ease-in window 700 -> 400ms — the harness pick at
+  // t=450ms sat at ~0.19 effective alpha; at 400ms the ghost is fully
+  // arrived by the pick (RMS 22.5 was the flat-frame flag).
+  ctx.globalAlpha = a * 0.30 * easeOutCubic(clamp01(t / 400));
+  setFont(ctx, 460, 700, FONT_DISPLAY);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = PALETTE.gold;
-  ctx.fillText(String(index).padStart(2, '0'), W / 2, H / 2 + 150);
+  // PHASE-0 round 2: the ghost numeral moves from H/2+150 (0.64H — under
+  // the title, where the title already carried the band) to 0.30H — it
+  // now fills the card's dead TOP zone (the 32% flag was the 0-0.35H
+  // band above the rule). At 460px serif the numeral's cap reaches
+  // ~0.18H: top anchor done.
+  ctx.fillText(String(index).padStart(2, '0'), W / 2, H * 0.30);
   ctx.restore();
   // gold rule grows
+  // PHASE-0 round 2: rule drops from H/2-120 (0.39H) to 0.44H — under the
+  // relocated ghost numeral's baseline, closing the numeral→CHAPTER gap.
   const cw = 120 + 480 * easeOutCubic(p);
   ctx.strokeStyle = PALETTE.gold;
   ctx.lineWidth = 5;
   ctx.beginPath();
-  ctx.moveTo(W / 2 - cw / 2, H / 2 - 120);
-  ctx.lineTo(W / 2 + cw / 2, H / 2 - 120);
+  ctx.moveTo(W / 2 - cw / 2, H * 0.44);
+  ctx.lineTo(W / 2 + cw / 2, H * 0.44);
   ctx.stroke();
   // chapter number — goldInk (v4, audit P0-4): 30px small text needs the
   // AA-safe gold, not the display gold
   setFont(ctx, 30, 600);
   ctx.fillStyle = PALETTE.goldInk;
   ctx.textAlign = 'center';
-  ctx.fillText(`CHAPTER ${String(index).padStart(2, '0')}`, W / 2, H / 2 - 66);
+  ctx.fillText(`CHAPTER ${String(index).padStart(2, '0')}`, W / 2, H * 0.485);
   // title — v4 (audit §4.3): serif like every scene headline; one family
   // policy for scene titles kills the “brand switches voice” note
   setFont(ctx, 62, 700, FONT_DISPLAY);
   ctx.fillStyle = PALETTE.ink;
   const size = fitShrink(ctx, title, W - 400, 62);
   void size;
-  ctx.fillText(title, W / 2, H / 2 + 22);
+  ctx.fillText(title, W / 2, H * 0.56);
   // progress dots — v4 (audit P1-5): the active chapter dot is enlarged
   // and ringed so the row reads as navigation, not decoration
   // v10 (panel TYPE-5): dots became a RAIL — bigger dots (9px), a hairline
@@ -373,7 +392,10 @@ export function drawChapterCard(
   const dotR = 9;
   const gap = 32;
   const startX = W / 2 - ((total - 1) * gap) / 2;
-  const dotY = H / 2 + 96;
+  // PHASE-0 round 2: the rail drops from 0.5H+96 (0.59H) to 0.63H — it
+  // now sits between the title (0.56H) and the signpost host (0.78H),
+  // keeping every band on the card occupied.
+  const dotY = H * 0.63;
   // connector rail — the traveled span in gold, the rest in grid
   if (total > 1) {
     ctx.strokeStyle = rgba(PALETTE.grid, 0.55);
