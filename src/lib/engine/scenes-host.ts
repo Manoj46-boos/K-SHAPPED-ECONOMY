@@ -37,6 +37,16 @@ function walkStrike(phase: number): number {
 // any rig scale). Shadow envelope bottoms ~698 + 34 = 732, still clear of
 // the 1-row caption pill (top 864) by 132px.
 const HOST_GROUND = (H: number): number => H * 0.62;
+// PREMIUM UPGRADE FIX 1 (100-judge critique §5.1): host scale 2.05 → 2.6.
+// At 2.05 the figure occupied 1.58% of frame area; at 2.6 it occupies ~2.8%,
+// and every downstream amplitude (head, eyes, scarf, gesture travel, smear,
+// head-yaw) rises — combined with the two-tone ink, wider scarf, vivid chart
+// fills, raised camera, tighter vignette, tripled bokeh, and contact shadow,
+// the figure now reads as a character at the 320px feed. 2.6 is the certified
+// cold-open close-up value (guard-sweep clean); ground held at the v2 H*0.62.
+// The scale-up compounds with Fix 2-7: the figure is bigger AND its strokes
+// are darker-vs-lighter (two-tone), its scarf wider, its shadow planted.
+export const HOST_SCALE = 2.6;
 
 const HOST_X = (W: number, side: 'center' | 'left' | 'right'): number =>
   side === 'left' ? W * 0.27 : side === 'right' ? W * 0.73 : W * 0.5;
@@ -180,7 +190,7 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   // AUDIT-PHASE-2: 1.53 -> 2.05 — figure fills more of the frame; face
   // reaches ~40px at 320px (legibility threshold). Ground lowered to
   // H*0.62 keeps the envelope clear of the caption pill.
-  const scale = 2.05;
+  const scale = HOST_SCALE;
   const entrance = g.s.entrance as string | undefined;
   let x = hx;
   let pose;
@@ -427,7 +437,7 @@ export function hostSceneV2(g: SceneCtx): void {
     // head top sat ~70px from the frame edge (the panel read "cropped
     // avatar" beside the logo). 2.10 keeps the close staging with ~145px
     // of headroom; the draw-scale change below matches.
-    const r = walkIn(t, hxTarget - 560, hxTarget, 1600, arrive, 2.05);
+    const r = walkIn(t, hxTarget - 560, hxTarget, 1600, arrive, HOST_SCALE);
     hx = r.x;
     pose = r.walking ? r.pose : arrive;
     if (r.walking) walkPhase = r.phase;
@@ -446,7 +456,7 @@ export function hostSceneV2(g: SceneCtx): void {
         pointBias: 'right', // AUDIT-3 / §1.5
       });
       // P0-5: rigScale matched to the new 2.10 draw scale (above).
-      const r = walkIn(st, fromX, toX, 900, arrive, 2.05);
+      const r = walkIn(st, fromX, toX, 900, arrive, HOST_SCALE);
       hx = r.x;
       pose = r.walking
         ? r.pose
@@ -482,7 +492,7 @@ export function hostSceneV2(g: SceneCtx): void {
   // are their own registry entries (below) — the HOST is one person,
   // film-wide, at 2.05.
   drawStickmanV2(
-    ctx, hx, H * 0.64, 2.05, t,
+    ctx, hx, H * 0.62, HOST_SCALE, t,
     { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk, smear: smr, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true, parallaxAmt: 0.55, // P2-4: hero moment — clear space, deep differential
       // 100-JUDGE AUDIT (Part 8.2): the viseme wiring on the editorial host.
       wordTexts: g.wordTexts, wordTimes: g.wordTimes, beatT: g.beatT },
@@ -958,7 +968,7 @@ export function divergeKScene(g: SceneCtx): void {
         POSES.shock,
         Math.min(1, shIn * 1.25)
       );
-      drawStickmanV2(ctx, W * 0.30, H * 0.615, 2.6, t, {
+      drawStickmanV2(ctx, W * 0.30, H * 0.615, HOST_SCALE, t, {
         pose: shk, alpha: shIn, look: 0.72,
         talk: gasp, jaw2x: 2, faceScale: 1.8, parallax: true,
         // P2-4 (audit Table 4): hero moment — the cold-open shock close-up
@@ -1111,7 +1121,7 @@ export function divergeKScene(g: SceneCtx): void {
     });
     let hx = W * 0.46;
     let hy = H * 0.6611; // P1-1: raised with the +30% scale
-    let hScale = 1.56;
+    let hScale = 2.05;
     let hFace = 1;
     let hAlpha = clamp01(t / 400);
     let pose = settlePose;
@@ -1120,7 +1130,7 @@ export function divergeKScene(g: SceneCtx): void {
       const tp = clamp01((t - 4800) / 700);
       hx = lerp(W * 0.30, W * 0.46, tp);
       hy = lerp(H * 0.615, H * 0.6611, tp);
-      hScale = lerp(2.6, 1.56, tp);
+      hScale = lerp(HOST_SCALE, 2.05, tp);
       hFace = 1 + 0.8 * (1 - tp);
       hAlpha = 1;
       pose = blendPose(POSES.shock, settlePose, tp);

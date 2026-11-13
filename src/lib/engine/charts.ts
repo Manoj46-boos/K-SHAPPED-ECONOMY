@@ -446,14 +446,17 @@ export function pieChart(
     const drawA1 = Math.min(a1, a0 + frac * sweep);
     const appeared = clamp01((p - 0.08 * i) / 0.4);
     if (appeared > 0 && drawA1 > a0 + 0.001) {
-      const tone = TONE(s.tone).main;
+      const toneObj = TONE(s.tone);
+      const tone = toneObj.main;
       const isHi = !!s.tone && s.tone !== 'muted';
       const pop = 1 + (isHi ? easeOutBack(appeared) * 0.028 : 0);
       const rr = r * pop * (0.94 + 0.06 * easeOutQuad(appeared));
       ctx.save();
       // v8: the "other" segment — track color at 0.62 (was warm greige at
       // 0.5): the panel read it as "a stain next to the gold wedge"
-      ctx.fillStyle = isHi ? tone : rgba(PALETTE.track, 0.62);
+      // PREMIUM UPGRADE FIX 3 (100-judge critique §5.1): highlighted pie wedges
+      // use the vivid data-ink so the wedge mass survives the phone transcode.
+      ctx.fillStyle = isHi ? (toneObj.vivid ?? tone) : rgba(PALETTE.track, 0.62);
       ctx.beginPath();
       ctx.moveTo(cx, cy);
       ctx.arc(cx, cy, rr, a0 + gap, drawA1 - gap);
@@ -513,6 +516,11 @@ export function barRow(
   const overshoot = easeOutBack(clamp01(p / 0.7));
   const bw = Math.max(6, (value / maxV) * w * growE * (0.94 + 0.06 * overshoot));
   const c = TONE(tone).main;
+  // PREMIUM UPGRADE FIX 3 (100-judge critique §5.1): bar data fills use the
+  // VIVID data-ink (upVivid/downVivid) — one step brighter than tone.main so
+  // the bar survives the platform re-encode on a phone. Gradient alpha raised
+  // 0.78 → 0.92 so the fill reads as solid mass, not watercolor.
+  const cVivid = TONE(tone).vivid ?? c;
   ctx.save();
   // label
   ctx.textBaseline = 'alphabetic';
@@ -528,8 +536,8 @@ export function barRow(
   ctx.fill();
   // value bar
   const g = ctx.createLinearGradient(x, 0, x + bw, 0);
-  g.addColorStop(0, rgba(c, 0.78));
-  g.addColorStop(1, c);
+  g.addColorStop(0, rgba(cVivid, 0.92));
+  g.addColorStop(1, cVivid);
   ctx.fillStyle = g;
   roundRect(ctx, x, by, Math.max(30, bw), 30, 15);
   ctx.fill();

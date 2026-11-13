@@ -252,9 +252,11 @@ function cameraV2(
     camScale *= 1 - AMP.anticipation * Math.sin((gt / 700) * Math.PI);
   }
   // slow consistent drift, always screen-left-to-right (no beatIndex term)
-  // AUDIT-2 / §10.3: 22/13 → 34/20 — a settling frame that BREATHES.
-  let camX = Math.sin(gt / 7300) * 22;
-  let camY = Math.cos(gt / 9100) * 13;
+  // PREMIUM UPGRADE FIX 4 (100-judge critique §5.1): 22/13 → 52/32 — the
+  // baseline drift rises above the 6px phone-feed perception threshold
+  // (52px at 1080p = 8.7px at the 320px gate). The settling frame BREATHES.
+  let camX = Math.sin(gt / 7300) * 52;
+  let camY = Math.cos(gt / 9100) * 32;
   // AUDIT-2 / §10.3 (report Phase 2): THE WHIP-TRUCK — every scene-group
   // entry lands with a fast 300ms camera settle from a displaced start
   // (~40px horizontal + a 3px drop), direction alternating by group

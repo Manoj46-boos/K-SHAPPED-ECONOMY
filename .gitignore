@@ -99,3 +99,6 @@ tools/parallax-probe.mjs
 tools/guard-probe.mjs
 tools/stitch-truck-pair.mjs
 tools/stitch-dolly.mjs
+
+# 100-judge panel BEFORE/AFTER deliverables (PNGs, metrics — not repo content)
+download/before-after/

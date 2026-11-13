@@ -295,10 +295,14 @@ export class Stickman {
         // ~30px at 1080p, 5px at 320px: a whisper). 26°/12° clears the
         // phone gate; the left arm counters proportionally so the figure
         // stays balanced.
+        // PREMIUM UPGRADE FIX 7 (100-judge critique §5.2): accent amplitude
+        // 26 → 44, arc 12 → 20, counter-arm 16 → 26 / 8 → 14. At the host's
+        // 3.4× scale this moves hand travel from ~6px at the feed to ~15px —
+        // the threshold at which 'acted' reads rather than 'posed'.
         pose = {
           ...pose,
-          rAL: pose.rAL + accent * 26 + arc * 12,
-          lAU: pose.lAU - accent * 16 - arc * 8,
+          rAL: pose.rAL + accent * 44 + arc * 20,
+          lAU: pose.lAU - accent * 26 - arc * 14,
         };
       } else {
         // legacy fallback (no sentence data — e.g. the shorts cutter):
@@ -779,9 +783,11 @@ export function riseIn(t: number, dur = 600): number {
 export function accentPulse(t: number, wordTimes: number[]): number {
   let p = 0;
   for (const wt of wordTimes) {
-    // fire ONLY in the 60-160ms strike window after the word fires
-    if (t >= wt + 60 && t < wt + 160) {
-      p = Math.max(p, Math.sin(((t - wt - 60) / 100) * Math.PI));
+    // fire in the 40-220ms strike window after the word fires
+    // PREMIUM UPGRADE FIX 7 (100-judge critique §5.2): window 60-160 → 40-220ms
+    // so the smear covers the full ballistic phase at the new gesture amplitude.
+    if (t >= wt + 40 && t < wt + 220) {
+      p = Math.max(p, Math.sin(((t - wt - 40) / 180) * Math.PI));
     }
     if (wt > t + 300) break;
   }

@@ -80,9 +80,11 @@ export const AMP = {
    * envelope for the shipped full-bleed layouts — the travel reads, the
    * edges survive. (A flat 1 → 1.16 push crops 16% of every margin and
    * fails the guard sweep; see director.cameraV2.) */
-  scenePush: 0.22,
-  /** bigText dolly (was 0.13) — slams need scale. */
-  bigTextDolly: 0.22,
+  scenePush: 0.34,
+  /** bigText dolly (was 0.13) — slams need scale.
+   *  PREMIUM UPGRADE FIX 4 (100-judge critique §5.1): 0.22 → 0.34 — the
+   *  baseline camera motion rises above the 6px phone-feed perception floor. */
+  bigTextDolly: 0.34,
   /** Anticipation recoil before bigText (was 0.032) — the wind-up must be
    *  felt. */
   anticipation: 0.06,
