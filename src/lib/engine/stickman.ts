@@ -153,7 +153,10 @@ export const POSES: Record<string, Pose> = {
   // shock: the twist beat (c8-fund) — full recoil: head back 6°, arms flung
   // asymmetric, brows at the ceiling, mouth driven open by the reaction
   // envelope (the 2× jaw in drawMouthV2).
-  shock: { ...base(), lean: -6, headTilt: -6, rootY: 3, lAU: -104, lAL: -128, rAU: 118, rAL: 142, lLU: -11, lLL: 4, rLU: 12, rLL: -8, browRaise: 0.95, smile: 0.02, pelvisTilt: 4.5, shoulderTilt: -3.5 },
+  // PLAYBOOK P6 (report §8.1 — SILHOUETTE EMOTIONS): +shoulderDrop 6 —
+  // the chest COLLAPSES on shock (the near shoulder sinks; the panel:
+  // "emotions that change silhouette shapes survive" the phone gate).
+  shock: { ...base(), lean: -6, headTilt: -6, rootY: 3, lAU: -104, lAL: -128, rAU: 118, rAL: 142, lLU: -11, lLL: 4, rLU: 12, rLL: -8, browRaise: 0.95, smile: 0.02, pelvisTilt: 4.5, shoulderTilt: -3.5, shoulderDrop: 6, eyeL: 1.3, eyeR: 1.3 },
   // wry: the paradox resolve (c7-paradox) — the knowing half-smile: one brow
   // up, one down, head tilted, hand low like “well, actually”.
   // P1-4: + silhouette terms — the near eye squints to 0.55 while the far
@@ -336,10 +339,20 @@ export class Stickman {
         // 26 → 44, arc 12 → 20, counter-arm 16 → 26 / 8 → 14. At the host's
         // 3.4× scale this moves hand travel from ~6px at the feed to ~15px —
         // the threshold at which 'acted' reads rather than 'posed'.
+        // PLAYBOOK M3 (report §8.2 — GESTURES FROM THE SPINE): the accent
+        // no longer stops at the forearm. The same pulse now drives the
+        // SHOULDER (+6° rotation), the CHEST (±2° lean, same sign as the
+        // gesture arm), and a small HEAD counter-tilt — the gesture
+        // originates in the torso, the panel's "the gesture does not come
+        // from the spine". All existing Pose fields; blendPose carries
+        // them through every downstream blend.
         pose = {
           ...pose,
           rAL: pose.rAL + accent * 44 + arc * 20,
           lAU: pose.lAU - accent * 26 - arc * 14,
+          lean: pose.lean + (accent * 2 + arc * 1.2),
+          headTilt: pose.headTilt - accent * 1.6,
+          shoulderTilt: (pose.shoulderTilt ?? 0) + accent * 6,
         };
       } else {
         // legacy fallback (no sentence data — e.g. the shorts cutter):
@@ -449,7 +462,7 @@ export class Stickman {
     // the two legs (v2 rig lengths - the walk renders through v2). The
     // stance leg defines the height; the swing lift removes the swinging
     // leg from contention. Pure function of the pose's own angles.
-    const U = 64, L = 58;
+    const U = 54, L = 50; // PLAYBOOK P1: matches the v2 rig (5.1 heads)
     const reachL = Math.cos(lLU * D2R) * U + Math.cos(lLL * D2R) * L - liftL;
     const reachR = Math.cos(rLU * D2R) * U + Math.cos(rLL * D2R) * L - liftR;
     const rootY = (U + L) - Math.max(reachL, reachR);
@@ -494,6 +507,42 @@ export class Stickman {
       d = Math.min(d, 1 - d);
       return d > width ? 0 : 1 - d / width;
     };
+    // PLAYBOOK M1 (report §8.2 — KEYED EXTREMES, NOT FUNCTIONS): the
+    // additive-sine cycle was the panel's 4/10 ("no frame is an extreme;
+    // the eye reads the average as a puppet mid-glide"). The four
+    // classical keys now become POSE DESTINATIONS the analytic cycle
+    // drives TOWARD, in addition to the ripple terms:
+    //   CONTACT — the deepest lunge: the STRIDE ITSELF widens at the
+    //     plant (the leg angles separate further for a beat), the pelvis
+    //     drops PAST the anatomical floor, the chin tucks hard;
+    //   DOWN    — the absorb: pelvis at its lowest, weight collapses
+    //     onto the planted leg (absorb, kept);
+    //   PASS    — the tall crossing: pelvis RISES, the swing knee drives
+    //     HIGH (a caricatured knee lift, not a clearance term), the
+    //     torso STRETCHES (rootY up, already keyed);
+    //   UP      — the push-off: the trailing toe flicks to full extension
+    //     and the chin lifts ahead of the next contact.
+    // Every term remains a pure function of ph; the ground-anchor math
+    // below is untouched (feet still plant, pelvis still analytic — the
+    // key amplitudes are additive on TOP of the anchored solution).
+    const contactL = Math.pow(pulse(0.5, 0.10), 1.5);   // left plants at φ=0.5
+    const contactR = Math.pow(pulse(0.97, 0.10), 1.5);  // right plants at φ=0.97
+    const passTallL = Math.pow(pulse(0.25, 0.11), 1.5); // left's pass
+    const passTallR = Math.pow(pulse(0.75, 0.11), 1.5); // right's pass
+    // CONTACT: the stride separates harder for the key instant — the
+    // lunge reads as a lunge. The PLANTING leg drives further forward,
+    // the trailing leg further back (+13° spread for ~0.2 phase). At
+    // φ=0.5 the LEFT leg is forward (lLU>0); at φ=0.97 the RIGHT is.
+    const spread = (contactL - contactR) * 13 * speed;
+    const lLUk = lLU + spread;
+    const rLUk = rLU - spread;
+    // PASS: the swing knee drives HIGH — a visible knee lift at each
+    // crossing (the "tall-at-passing" caricature; 20° for ~0.2 phase).
+    const lLLk = lLL - passTallL * 20 * speed;
+    const rLLk = rLL - passTallR * 20 * speed;
+    // UP: the trailing toe flicks to full extension through push-off
+    // (rides the existing pushL/pushR pulses — the flick is the visible
+    // lever at the TOP of the push).
     const absorb = Math.pow(pulse(0.57, 0.07), 2) + Math.pow(pulse(0.04, 0.07), 2);
     const passP = pulse(0.25, 0.09) + pulse(0.75, 0.09);
     const pushL = Math.pow(pulse(0.43, 0.06), 2);
@@ -501,12 +550,17 @@ export class Stickman {
     // AUDIT-ROUND-2 (fix 12): absorb 4.5 → 9px (AMP.absorbPx), pass raise
     // 2.5 → 5px (AMP.passRaisePx), chin tuck 3 → 6° (AMP.chinTuckDeg) —
     // every caricature term doubled to clear the phone gate.
+    // PLAYBOOK M1: the key amplitudes ride the same registers — contact
+    // drops the pelvis a further 6px into the plant (the lunge LANDS),
+    // pass raises it 5px (the tall crossing), and the chin tuck doubles
+    // at the contact keys (the lunge reads in the HEAD, not just legs).
+    const contactK = contactL + contactR;
     return {
       ...base(),
-      rootY: rootY + absorb * AMP.absorbPx - passP * AMP.passRaisePx,
+      rootY: rootY + absorb * AMP.absorbPx + contactK * 6 - (passP * AMP.passRaisePx + (passTallL + passTallR) * 5),
       lean: 4 + s * 2 + (strikeL + strikeR) * 3 + 3 - c * 2 + absorb * 2,
-      headTilt: -(strikeL + strikeR) * AMP.chinTuckDeg + passP * 2 + (pushL + pushR) * 2.5,
-      lLU, lLL, rLU, rLL,
+      headTilt: -(strikeL + strikeR) * AMP.chinTuckDeg - contactK * AMP.chinTuckDeg + passP * 2 + (pushL + pushR) * 2.5,
+      lLU: lLUk, lLL: lLLk, rLU: rLUk, rLL: rLLk,
       lAU: lAUw,
       lAL: lAUw + Math.max(0, -cA) * 24 - 2,
       rAU: rAUw,
@@ -515,8 +569,8 @@ export class Stickman {
       browRaise: 0.1,
       lLift: liftL,
       rLift: liftR,
-      lToe: toeL + pushL * 8,
-      rToe: toeR + pushR * 8,
+      lToe: toeL + pushL * 8 + pushR * 14,
+      rToe: toeR + pushR * 8 + pushL * 14,
       pelvisTilt,
       shoulderTilt,
     } as Pose;
@@ -578,7 +632,7 @@ export class Stickman {
     // leaves the ground. At the crossing the stance leg is flexed (knee
     // absorption) so BOTH feet are clear of the ground line: the pelvis
     // rises by the crossing pulse. Pure function of the pose's own phase.
-    const U = 64, L = 58;
+    const U = 54, L = 50; // PLAYBOOK P1: matches the v2 rig (5.1 heads)
     const reachL = Math.cos(lLU * D2R) * U + Math.cos(lLL * D2R) * L - liftL;
     const reachR = Math.cos(rLU * D2R) * U + Math.cos(rLL * D2R) * L - liftR;
     // the flight pulse: |sin| near 1 marks the pass crossings (the run's
@@ -939,11 +993,28 @@ export function walkIn(
     } else if (p > 0.78) {
       pose = { ...pose, lean: pose.lean - 4 * ((p - 0.78) / 0.22) };
     }
-    if (arrive && p > 0.84) {
-      // the completed settle: cycle → arrival gesture over the last 16%
-      const k = (p - 0.84) / 0.16;
+    if (arrive && p > 0.76) {
+      // PLAYBOOK M2 (report §8.2 — THE SETTLING STEP): the settle widens
+      // from 16% to 24% and lands on a final WEIGHT SHIFT — the trailing
+      // foot drags closed to hip width over 180ms, the hips rotate their
+      // last 6°, and the pelvis sinks 3px LATE (the weight arrives after
+      // the feet do). Ends every entrance on weight, never a freeze.
+      const k = (p - 0.76) / 0.24;
       const kk = k * k * (3 - 2 * k);
-      pose = blendPose(pose, arrive, kk);
+      // the settle cascade itself: cycle → arrival over the last 60%,
+      // then the weight-shift terms ride on top of the blended pose.
+      const kb = clamp01((p - 0.86) / 0.14);
+      const settled = blendPose(pose, arrive, kk);
+      const dragT = clamp01((p - 0.80) / 0.18); // the trailing-foot drag window
+      pose = {
+        ...settled,
+        // the back foot closes (the drag): the near leg's angle eases
+        // toward the arrival's stance while the FAR leg lags 120ms —
+        // the classic closing step
+        rootY: settled.rootY + Math.sin(Math.min(1, kb) * Math.PI) * 3,
+        pelvisTilt: (settled.pelvisTilt ?? 0) + (1 - kb) * 6,
+        lLift: Math.max(0, (settled.lLift ?? 0) - dragT * 4),
+      };
     }
   } else {
     pose = arrive ?? Stickman.poseAt(t - dur, { gesture: 'idle', speaking: false });

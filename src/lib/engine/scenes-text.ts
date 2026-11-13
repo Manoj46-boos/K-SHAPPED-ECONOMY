@@ -301,7 +301,7 @@ export function stampCardScene(g: SceneCtx): void {
     // v3 (panel P0-3): v2 renderer
     // P1-1 (report): +30% (1.0 → 1.3); ground → H*0.667 (envelope 767).
     // PANEL-12 / P2-1: foreground parallax.
-    drawStickmanV2(ctx, W * 0.19, H * 0.667, 1.3, t, { pose, alpha: hp, look: 0.6, parallax: true }, 32);
+    drawStickmanV2(ctx, W * 0.19, H * 0.635, 1.3, t, { pose, alpha: hp, look: 0.6, parallax: true }, 32); // PLAYBOOK D3: ground 0.667 -> 0.635 (feet clear the 2-row pill at max camera)
   }
 }
 
@@ -558,7 +558,9 @@ export function takeawaysScene(g: SceneCtx): void {
       // −22 + exit truck −26, s 1.133, plus the 0.40× foreground parallax
       // shift) the feet+shadow envelope crossed the LEFT frame edge; the
       // focused card column (x = W*0.28) stays clear of the body envelope.
-      drawStickmanV2(ctx, W * 0.19, H * 0.667, 1.3, t,
+      // PLAYBOOK D3: ground 0.667 → 0.635 — the feet band cleared the
+      // 2-row pill by zero at max camera (stickman@383,730, 22px).
+      drawStickmanV2(ctx, W * 0.19, H * 0.635, 1.3, t,
         {
           pose, alpha: hp, look: 0.6,
           prop: focus === 3 && rP <= 0.5 ? 'thumb' : undefined,
@@ -702,7 +704,9 @@ export function commentPromptScene(g: SceneCtx): void {
   // (scenePush 0.22 steady + drift +22, no hero move on this scene) the
   // feet+shadow envelope crossed the right frame edge at worst; the guard
   // sweep is the referee.
-  drawStickmanV2(ctx, W * 0.845, H * 0.667, 1.25, t, { pose, alpha: clamp01(t / 700), look: -0.5, parallax: true }, 36);
+  // PLAYBOOK D3: anchor 0.845 → 0.83 and ground 0.667 → 0.635 — the feet
+  // band clears both the frame edge and the 2-row pill at max camera.
+  drawStickmanV2(ctx, W * 0.83, H * 0.635, 1.25, t, { pose, alpha: clamp01(t / 700), look: -0.5, parallax: true }, 36);
 }
 
 // ── endScreen v2: next-video teaser + host, YouTube-safe (PATCH 6) ──────────
@@ -752,7 +756,10 @@ export function endScreenScene(g: SceneCtx): void {
   ctx.fillStyle = PALETTE.upSoft;
   roundRect(ctx, nx + 24, ny + 24, 612, 250, 20);
   ctx.fill();
-  drawK3D(ctx, nx + 170, ny + 145, 76, clamp01((t - 300) / 900), t, false); // P0-2: thumbnail K — no face (host presents this card)
+  // PLAYBOOK T4 (report §8.5): the teaser thumbnail's K turns too — the
+  // film's last shot of the brand object re-becomes MASS (one 900ms sweep
+  // after the card settles; face stays OFF per P0-2).
+  drawK3D(ctx, nx + 170, ny + 145, 76, clamp01((t - 300) / 900), t, false, clamp01((t - 1100) / 900));
   ctx.strokeStyle = rgba(PALETTE.up, 0.8);
   ctx.lineWidth = 6;
   ctx.lineCap = 'round';

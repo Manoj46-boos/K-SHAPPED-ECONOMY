@@ -437,6 +437,11 @@ function handGlyph(
   // count poses had nothing to count WITH. The fist: a rounded mass + a
   // thumb bar; countN: the same fist with N fingers extended — a hand
   // that literally counts, at any scale.
+  // PLAYBOOK P4: an unadorned (undefined) mode at presenting scale
+  // (rig ≥ 1.0) routes to the PALM below — the presenting vocabulary.
+  if (mode === undefined && rigScale >= 1.0 && s >= 15) {
+    mode = 'palm';
+  }
   if (mode === 'fist' || mode === 'count1' || mode === 'count2' || mode === 'count3') {
     const n = mode === 'fist' ? 0 : Number(mode.slice(5));
     ctx.save();
@@ -488,7 +493,12 @@ function handGlyph(
       s * 0.26, s * 0.13, col);
     return;
   }
-  // ── THE BOLD MITT (everything below true hero scale) ──
+  // ── THE BOLD MITT (small background glyphs only) ──
+  // PLAYBOOK P4 (report §8.1 — PALM FROM RIG 1.0): the presenting cycle
+  // runs palm poses that rendered as mitts for ~90% of screen time —
+  // "hands stop being mitts in every non-hero frame". The mitt now owns
+  // only TRUE background scale (rig < 1.0, glyph < 15): the far hand and
+  // the tiny secondary characters. Everything presenting is a PALM.
   // AUDIT-ROUND-2 (fix 8 — HANDS: COMMIT): the three-tier system
   // (mitten < 0.85 / bold mitt 0.85-2.0 / fan ≥ 2.0) failed in its middle
   // band — exactly where the side hosts and the editorial host live. The
@@ -499,11 +509,11 @@ function handGlyph(
   // gap reads as anatomy — rooted just inside the palm's edge and exiting
   // steeply outward so background cuts a real V between thumb and palm.
   // The articulated fan still waits for true hero scale (≥ 2.0).
-  // Panel round 2: the far hand (glyph s 12) rendered FAN fingers that the
-  // re-review read as "thin uneven nubs" — at 12 units no interior anatomy
-  // survives. The mitt now owns every glyph smaller than s 15 too; the fan
-  // only at TRUE hero scale — rig >= 2.0 AND a glyph that can carry fingers.
-  if (rigScale < 2.0 || s < 15) {
+  // PLAYBOOK P4 continued: default glyph routing — an unadorned hand
+  // (no explicit mode) at PRESENTING scale (rig ≥ 1.0) now renders the
+  // PALM instead of falling through to the mitt. Explicit modes
+  // (fist/count/palm) keep their glyphs at every scale.
+  if (rigScale < 1.0 || s < 15) {
     ctx.save();
     ctx.translate(x + Math.sin(a) * s * 0.5, y + Math.cos(a) * s * 0.5);
     ctx.rotate(a);
@@ -605,10 +615,14 @@ function scarfTail(
   // at the feed) — the minimum at which the brand-color accent survives the
   // transcode. The scarf is the single thumbnail-recognizability asset the
   // film has; it must read at feed scale.
-  taper(ctx, x0, y0, fxp, fyp, 26.3, 20.9, colUnder);
-  taper(ctx, fxp, fyp, ex, ey, 20.9, 13.0, colUnder);
-  taper(ctx, x0, y0, fxp, fyp, 23.4, 18.0, colTop);
-  taper(ctx, fxp, fyp, ex, ey, 18.0, 10.1, colTop);
+  // PLAYBOOK P5 (report §8.1): ×1.6 AGAIN (26.3→42 root) — the scarf is the
+  // brand mark and must read at 4-6px at the 320px feed; at ×1.8 it was still
+  // 1.8-2.5px. 42/33/21 root-fold-tip widths put the midpoint at ~26px
+  // (4.3px at the feed) — the thumbnail-recognizability register.
+  taper(ctx, x0, y0, fxp, fyp, 42.1, 33.4, colUnder);
+  taper(ctx, fxp, fyp, ex, ey, 33.4, 20.8, colUnder);
+  taper(ctx, x0, y0, fxp, fyp, 37.4, 28.8, colTop);
+  taper(ctx, fxp, fyp, ex, ey, 28.8, 16.2, colTop);
   // the fold crease — the one seam a real scarf HAS (the two-tone hint
   // at the bend, in the under colour)
   ctx.strokeStyle = rgba(colUnder, 0.85);
@@ -861,10 +875,8 @@ export function drawStickmanV2(
   // envelope so the collision guard can assert the caption pill never
   // plates a host's footing again. Shadow: rx 118, ry 26 centered at
   // groundY+8 (groundShadowV2), feet within ±40px of cx at groundY.
-  registerRect(
-    `stickman@${Math.round(cx)},${Math.round(groundY)}`,
-    cx - 122 * scale, groundY - 12 * scale, 244 * scale, 48 * scale
-  );
+  // PLAYBOOK D3: the registration itself moved into the hostBody branch
+  // below (same-cls exemption); this block is the non-host default.
   // v10.1 (panel 11 re-review): the feet-only envelope let the statCards
   // host plate a stat card's number+tag unseen — the body above the feet
   // was never registered. Full-body envelope (head to feet) as cls 'host'
@@ -879,6 +891,25 @@ export function drawStickmanV2(
       `hostBody@${Math.round(cx)},${Math.round(groundY)}`,
       cx - 128 * scale, groundY - 296 * scale, 256 * scale, 296 * scale,
       'host'
+    );
+    // PLAYBOOK D3 (report §8.3): the same figure's own feet band must be
+    // EXEMPT from the host-vs-content pass by construction — the guard's
+    // containment skip only fires when the band is FULLY inside the body
+    // envelope; at P1's shorter legs the shadow band (which extends
+    // below groundY) pokes out and the guard flagged the figure against
+    // ITSELF 163 times in the sweep. The feet band of a hostBody figure
+    // registers with the noEdge-style exemption: same cls, never
+    // compared. (The band still asserts against the pill + fixed
+    // furniture checks above — only the host-vs-content self-check dies.)
+    registerRect(
+      `stickman@${Math.round(cx)},${Math.round(groundY)}`,
+      cx - 122 * scale, groundY - 12 * scale, 244 * scale, 48 * scale,
+      'host'
+    );
+  } else {
+    registerRect(
+      `stickman@${Math.round(cx)},${Math.round(groundY)}`,
+      cx - 122 * scale, groundY - 12 * scale, 244 * scale, 48 * scale
     );
   }
   // AUDIT-ROUND-2 (fix 19 — the split draw): 'far' renders shadow + far
@@ -911,8 +942,14 @@ export function drawStickmanV2(
   // panel's numbers — weight ±7.5px (AMP.weightShift) driving a ±4.0°
   // shoulder counter (AMP.shoulderCounterDeg). Hips and shoulders oppose
   // each other on a line a phone viewer can finally SEE.
-  const weight = Math.sin(t / 4600 + seed * 2.3) * AMP.weightShift;
-  const counter = Math.sin(t / 4600 + seed * 2.3);
+  // PLAYBOOK M5 (report §8.2 — THE BREATH-HOLD): constant life reads as
+  // simulation. Every 3rd weight cycle (a 13.8s clock) the idle terms
+  // drop 60% for one cycle — the contrast makes the alive cycles read
+  // as alive. Pure function of t; scrub-safe.
+  const holdCycle = ((t / 4600 + seed * 0.31) % 3) / 3; // 0..1 within the 3-cycle group
+  const holdK = holdCycle > 0.667 ? 0.4 : 1;             // the last cycle of every 3 runs quiet
+  const weight = Math.sin(t / 4600 + seed * 2.3) * AMP.weightShift * holdK;
+  const counter = Math.sin(t / 4600 + seed * 2.3) * holdK;
   ctx.translate(weight, 0);
   ctx.rotate(Math.sin(t / 6200 + seed * 0.9) * 0.003);
   // the pose-level contrapposto offsets (applied on a COPY — callers'
@@ -933,7 +970,11 @@ export function drawStickmanV2(
   // figure was 7.2 heads tall on pin legs — the panel read "coat hanger".
   // The new stack is ~6.4 heads and reads "person". Head stroke 8→9 so
   // the face keeps its ink weight at the shorter scale.
-  const U_LEG = 64, L_LEG = 58, TORSO = 88, U_ARM = 58, L_ARM = 54;
+  // PLAYBOOK P1 (report §8.1 — 5.0-5.2 HEADS): Becker-grade cartoon hosts
+  // run 4.5-5.5 heads with a chest nearly double the waist. Legs drop to
+  // 54/50, torso to 78 — the stack is now ~5.1 heads and the figure
+  // reads "a character" before "a stick". Chest rises below (17→22).
+  const U_LEG = 54, L_LEG = 50, TORSO = 78, U_ARM = 58, L_ARM = 54;
   const pelvisY = -U_LEG - L_LEG + pose.rootY;
   // BLUEPRINT Phase 2: the hip anchors ride the pelvis tilt — right hip
   // rises when pelvisTilt is positive (weight onto the left leg), left
@@ -1109,8 +1150,13 @@ export function drawStickmanV2(
     // as breathing, not as a vertical bob. The shoulders also rise 2px on
     // inhale (shoulderY offset below).
     const chestBreathe = 1 + Math.sin(t / 2400 + seed * 3.1) * 0.04;
+    // PLAYBOOK P2 (report §8.1 — DRAWN OUTLINE, NOT A FILLED CAPSULE):
+    // Becker characters are read by their OUTLINES at 20px. Chest rises
+    // 17→22 (a 2:1 chest-to-waist read) and the whole mass gains a 3.5px
+    // ink outline path — the concave neck→trapezius→deltoid contour that
+    // makes a filled shape read as a drawn body.
     const wH = prof ? 17.5 : 15, wW = prof ? 13 : 11;
-    const wC = (prof ? 20 : 17) * chestBreathe, wS = (prof ? 17.5 : 15) * chestBreathe;
+    const wC = (prof ? 24 : 22) * chestBreathe, wS = (prof ? 20 : 19) * chestBreathe;
     const rX = (h: number, w: number) => tdx * h + tnx * w;
     const rY = (h: number, w: number) => ty0 + tdy * h + tny * w;
     const lX = (h: number, w: number) => tdx * h - tnx * w;
@@ -1138,6 +1184,14 @@ export function drawStickmanV2(
     ctx.quadraticCurveTo(lX(0.25, wH * 0.7), lY(0.25, wH * 0.7), lX(0, wH), lY(0, wH));
     ctx.closePath();
     ctx.fill();
+    // PLAYBOOK P2 — THE DRAWN OUTLINE: the same path stroked in ink at
+    // 3.5px, with the neck→shoulder junctions pinched concave (the
+    // trapezius read). A filled capsule reads as clip-art; a stroked
+    // contour reads as drawn. Stroke runs INSIDE the fill edge so the
+    // silhouette width is unchanged for the collision guard.
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
     // shoulder caps — small rounded delts at the shoulder line
     ctx.beginPath();
     ctx.arc(rX(0.92, wS * 0.6), rY(0.92, wS * 0.6), wS * 0.45, 0, Math.PI * 2);
@@ -1255,8 +1309,9 @@ export function drawStickmanV2(
     // the hand NOW
     const ex = sx + Math.sin(aU) * U_ARM + Math.sin(aL) * L_ARM;
     const ey = sy + Math.cos(aU) * U_ARM + Math.cos(aL) * L_ARM;
-    // the hand one accent-swing ago (rAL at current − accent*26°)
-    const swing = 26 * Math.PI / 180 * sm;
+    // the hand one accent-swing ago (rAL at current − accent*44°; M3
+    // raised the accent amplitude, so the sweep window widens to match)
+    const swing = 44 * Math.PI / 180 * sm;
     const aLprev = aL - swing;
     const px = sx + Math.sin(aU) * U_ARM + Math.sin(aLprev) * L_ARM;
     const py = sy + Math.cos(aU) * U_ARM + Math.cos(aLprev) * L_ARM;
@@ -1264,11 +1319,27 @@ export function drawStickmanV2(
     const lx = ex + (ex - px) * 0.18;
     const ly = ey + (ey - py) * 0.18;
     ctx.save();
-    // ONE elongated taper spanning previous-hand → past-current-hand:
-    // wide at the trailing end (elbow-ish mass), narrow at the lead
-    ctx.globalAlpha = alpha * 0.45 * sm;
-    taper(ctx, px, py, lx, ly, INK.armNear[1] * 0.95, INK.armNear[2] * 0.7, ink);
-    // 3 ghost finger-stubs along the swept arc, behind the hand
+    // PLAYBOOK M4 (report §8.2 — DEFORMATION SMEARS): the ghost trail
+    // read as "motion blur". A real smear frame is a DEFORMED DRAWING —
+    // the arm itself drawn 3× along its sweep with progressive width
+    // squash (each pass narrower and shorter, the classic multi-limb
+    // smear of hand-drawn animation), plus the finger-stubs. All three
+    // passes are full ink drawings at stepped alphas, not translucent
+    // overlays: at the feed this reads as a limb in motion, not a blur.
+    const passes = 3;
+    for (let f = 0; f < passes; f++) {
+      // pass 0 = the leading edge (near-full width), 1..2 trail back
+      const k = f / passes;                       // 0 .. 0.67 back along the sweep
+      const squash = 1 - f * 0.28;                // width squash per pass
+      const fax = sx + (px - sx) * k * 0.8;
+      const fay = sy + (py - sy) * k * 0.8;
+      const hx = ex + (px - ex) * k;
+      const hy = ey + (py - ey) * k;
+      ctx.globalAlpha = alpha * (f === 0 ? 0.72 : f === 1 ? 0.34 : 0.16) * sm;
+      taper(ctx, fax, fay, hx, hy,
+        INK.armNear[1] * squash, INK.armNear[2] * squash * 0.75, ink);
+    }
+    // 3 drawn finger-stubs along the swept arc, behind the hand
     for (let f = 0; f < 3; f++) {
       const fa = (1 - f / 3) * sm * 0.5;
       const k = 0.28 + f * 0.22;
@@ -1456,7 +1527,25 @@ export function drawStickmanV2(
   // rotating in 3D, not just pivoting in 2D. At full yaw (14°) the head
   // compresses to 88% width, reading as a head turning away.
   const yawMag = Math.abs((pose.headYaw ?? 0) / AMP.headYawDeg);
-  ctx.scale(faceS * (1 - 0.12 * yawMag), faceS);
+  // PLAYBOOK P3 (report §8.1 — JAW/CHEEK CHANNEL): a 12px mouth is
+  // sub-pixel at the feed; the HEAD itself must act. On the OPEN visemes
+  // (A/E/H envelope or C/E/F/H shapes) the head squash-drives: 4%
+  // vertical squash and the chin anchor drops 3 units — the whole skull
+  // reads "jaw open" at 320px. Computed here (before the transform
+  // consumes it); the mouth block below reuses the same viseme.
+  let jawOpen = 0;
+  {
+    let vmPre: import('./stickman-v2').Viseme = 'X';
+    if (r.talk && (r.talk > 0.15) && (r as any).wordTexts && (r as any).wordTimes) {
+      vmPre = visemeAt((r as any).beatT ?? 0, (r as any).wordTimes ?? [], (r as any).wordTexts ?? []);
+    }
+    const openShape = vmPre === 'C' || vmPre === 'E' || vmPre === 'F' || vmPre === 'H';
+    jawOpen = openShape ? clamp01(r.talk ?? 0) : (r.talk ?? 0) > 0.55 ? ((r.talk ?? 0) - 0.55) / 0.45 : 0;
+  }
+  // the jaw channel rides the head scale — squash on the vertical axis
+  // (jaw open = the skull shortens) and a matching widening on X (volume
+  // preservation, the classic squash-and-stretch pair).
+  ctx.scale(faceS * (1 - 0.12 * yawMag) * (1 + jawOpen * 0.04), faceS * (1 - jawOpen * 0.04));
   // Panel round 2: the head outline yaws ±14° about the neck; the FACE
   // rotates an additional fraction of the same term about the head's own
   // centre (+6° at full yaw) — the features lead the turn the way a real
@@ -1765,6 +1854,8 @@ export function drawStickmanV2(
   // array that drives the talk envelope also drives the viseme — zero
   // additional data flow cost. The host call site passes the beat's word
   // texts; without them the viseme defaults to 'X' (the original envelope).
+  // PLAYBOOK P3: jawOpen (the head squash channel) is computed above the
+  // transform stack; this block draws the mouth shape itself.
   {
     let vm: import('./stickman-v2').Viseme = 'X';
     if (r.talk && (r.talk > 0.15) && (r as any).wordTexts && (r as any).wordTimes) {

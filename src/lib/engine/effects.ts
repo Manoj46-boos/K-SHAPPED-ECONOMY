@@ -39,7 +39,17 @@ export const BG_PARALLAX = 0.45;
  * the frame's own guard pass).
  */
 export function depthShift(depth: number): { dx: number; dy: number; scale: number } {
-  const f = depth - BG_PARALLAX; // motion RELATIVE to the background plane
+  // PLAYBOOK T3 (report §8.5 — PARALLAX ON THE DATA PLANES): the
+  // differential was invisible whenever the camera move itself was small,
+  // because both terms scaled with the same quiet motion. The depth factor
+  // now AMPLIFIES with the camera's own gesture: when camState reports a
+  // big move (hero beats, reaction windows — |scale-1| large or |dx| big),
+  // planes separate exactly then (0.4 × the hero amplitude, the report's
+  // number); when the camera is quiet, planes hold (no idle shimmer).
+  // Pure function of camState — scrub-determinism preserved exactly.
+  const heroAmt = Math.min(1, Math.abs(camState.scale - 1) / 0.12 + Math.abs(camState.dx) / 90);
+  const boost = 1 + 0.4 * heroAmt;
+  const f = (depth - BG_PARALLAX) * boost; // motion RELATIVE to the background plane
   return {
     dx: camState.dx * f,
     dy: camState.dy * f,
@@ -162,55 +172,72 @@ export function bokehField(
     // AUDIT-ROUND-2 (fix 23): gold lives ONLY in the far band — a distant
     // sparkle, never a near-field stain (the v8 'aged paper' lesson, kept).
     const isGold = band === 2 && hash01(i * 5.3 + seed) < goldRatio * 2.6;
-    // AUDIT-2: every radius multiplies by camState.scale — the bokeh now
+    // AUDIT-2: every radius multiplies by camState.scale — the field now
     // participates in the camera (the "world zooms and the effects do
     // not" flat-read, fixed at every call site from one factor).
-    // fix 23: the BAND SIZES — 60 / 40 / 22 (± variance), gold capped.
     const r = Math.min(
       (band === 0 ? 54 + hash01(i * 2.3) * 14 : band === 1 ? 36 + hash01(i * 2.3) * 10 : 19 + hash01(i * 2.3) * 6)
         * (isGold ? 0.72 : 1),
       isGold ? 14 : 1e9
     ) * camState.scale;
-    // v8: alpha floor 0.10→0.13 — the v5 field was sub-visible after
-    // YouTube's transcode on phone screens (the panel saw "muddy smudges",
-    // i.e. the bottom of the range, and nothing else). Barely-there is now
-    // actually there. (Superseded for the ring stroke by ringA below — the
-    // caps taught the field restraint; the rings carry their own ramp.)
-    // P1-1 (report §12.1): CRISP STROKED DISCS, not glow stains. The
-    // radial-gradient blob read as a soft stain ("aged paper", twice-convicted
-    // panel verdict); a ring with a hard inner edge reads as a LENS artifact —
-    // the bokeh look the field was always meant to have.
-    // Panel re-review calibration: the first ring pass (alpha floor 0.16 off
-    // the v8.2 caps) was judged "one lonely ring… a token gesture" — a thin
-    // ring covers ~10× less area than the blob it replaces, so it needs real
-    // ink to register. Rings now carry their OWN alpha ramp (0.26–0.62,
-    // depth-weighted so far discs stay quieter): a field of confident,
-    // varied discs — still light-register, never confetti.
-    // AUDIT-PHASE-1: ring alpha floor 0.40 -> 0.55 — lens artifacts
-    // survive the 320 px downsample instead of vanishing.
-    // AUDIT-ROUND-2 (fix 23): the BAND ALPHAS — 0.75 / 0.50 / 0.25 — the
-    // spread the eye reads as DEPTH (replacing the old 0.55-0.62 flat band).
-    const ringA = (band === 0 ? 0.75 : band === 1 ? 0.5 : 0.25) * intensity;
-    ctx.beginPath();
-    ctx.arc(bx, by, r, 0, Math.PI * 2);
-    if (band === 0) {
-      // the NEAR band: a slight blur fill under the ring — defocus, not a
-      // hard stencil (the lens disc you actually notice)
-      ctx.fillStyle = isGold ? rgba(PALETTE.gold, ringA * 0.16) : rgba('#7FB8AC', ringA * 0.16);
-      ctx.fill();
-    }
-    ctx.strokeStyle = isGold ? rgba(PALETTE.gold, ringA) : rgba('#7FB8AC', ringA);
-    ctx.lineWidth = Math.max(2, r * 0.2); // ring reads at 320px
-    ctx.stroke();
-    if (r > 14) {
-      // large discs only: inner highlight arc — the light bending through
-      // the lens edge, what separates a disc from a drawn circle
+    // PLAYBOOK V1 (report §8.4 — DATA-ARTIFACT AIR): the disc interior is
+    // replaced by drifting CHART FRAGMENTS — sparkline, tick ruler, K
+    // contour. Three judges independently convicted the rings as "soap
+    // bubbles... swap for grid lines, chart ticks, or actual data
+    // artifacts to earn the Data Desk branding". The depth-band alpha
+    // ladder survives as the fragment alpha (near reads, far whispers);
+    // render cost DROPS (open strokes, no fills, no highlight arcs).
+    const fragA = (band === 0 ? 0.16 : band === 1 ? 0.12 : 0.07) * intensity;
+    const fragCol = isGold ? PALETTE.gold : '#7FB8AC';
+    const kind = i % 3;                    // 0 sparkline · 1 ruler · 2 K
+    const rot = (hash01(i * 11.7 + seed * 3) - 0.5) * 0.6;
+    ctx.save();
+    ctx.translate(bx, by);
+    ctx.rotate(rot + Math.sin(t / 6000 + i) * 0.04);
+    ctx.globalAlpha = fragA;
+    ctx.strokeStyle = fragCol;
+    ctx.lineWidth = Math.max(1.6, r * 0.07);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (kind === 0) {
+      // SPARKLINE — a 5-point market line in a fragment-sized window
+      const w2 = r * 1.1, h2 = r * 0.55;
       ctx.beginPath();
-      ctx.arc(bx - r * 0.25, by - r * 0.25, r * 0.45, -2.6, -1.2);
-      ctx.strokeStyle = 'rgba(255,255,255,' + Math.min(0.5, ringA * 0.85).toFixed(3) + ')';
-      ctx.lineWidth = Math.max(1, r * 0.08);
+      const pts = 5;
+      for (let k = 0; k < pts; k++) {
+        const px = -w2 / 2 + (w2 * k) / (pts - 1);
+        const py = h2 * (0.5 - hash01(i * 13.3 + k * 7.7 + seed));
+        if (k === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    } else if (kind === 1) {
+      // TICK RULER — a baseline with 4 ticks, the chart-axis fragment
+      const w2 = r * 1.05;
+      ctx.beginPath();
+      ctx.moveTo(-w2 / 2, 0);
+      ctx.lineTo(w2 / 2, 0);
+      ctx.stroke();
+      for (let k = 0; k < 4; k++) {
+        const tx = -w2 / 2 + (w2 * k) / 3;
+        ctx.beginPath();
+        ctx.moveTo(tx, 0);
+        ctx.lineTo(tx, -r * 0.16 - hash01(i + k * 3) * r * 0.08);
+        ctx.stroke();
+      }
+    } else {
+      // K CONTOUR — the brand glyph at fragment scale, 3 strokes
+      const s2 = r * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(-s2 * 0.35, -s2);
+      ctx.lineTo(-s2 * 0.35, s2);            // the stem
+      ctx.moveTo(s2 * 0.05, -s2 * 0.15);
+      ctx.lineTo(s2 * 0.55, -s2);            // the upper arm
+      ctx.moveTo(s2 * 0.05, -s2 * 0.15);
+      ctx.lineTo(s2 * 0.6, s2);              // the lower leg
       ctx.stroke();
     }
+    ctx.restore();
   }
 }
 

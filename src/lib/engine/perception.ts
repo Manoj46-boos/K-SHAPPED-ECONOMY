@@ -94,8 +94,13 @@ export const AMP = {
    *  to the host's head; the face reaches 30-40% of frame width during
    *  the reaction window (was ~15%). Fixes the audit's worst frame
    *  (paradoxResolve 3/10) — the "plot twist reaction does not exist"
-   *  verdict. */
-  reactionAmp: { paradox: 0.45, fund: 0.55, three: 0.50 } as Record<string, number>,
+   *  verdict.
+   *  PLAYBOOK D2 (report §8.3 — REAL REACTION CLOSE-UPS): a close-up is
+   *  0.9-1.1, not half a push. The face now fills the frame's attention
+   *  for the window's full 1.6s while the DOF collapses the room. The
+   *  reaction beat remains a guard-exempt transient (same class as the
+   *  cut punch), so the sweep stays clean. */
+  reactionAmp: { paradox: 0.95, fund: 1.1, three: 0.9 } as Record<string, number>,
   /** AUDIT-ROUND-2 (fix 11): the head-yaw cap, deg — the head turns toward
    *  the pointBias the arms use (eyelines connect: C5). 14° displaces the
    *  v2 head ~10px at host scale about the neck — a turn the phone gate
@@ -103,8 +108,11 @@ export const AMP = {
   headYawDeg: 14,
   /** Brow-raise travel, px (was x5) — faces must act at 320px. */
   browTravelPx: 14,
-  /** Phase 5: reaction windows tighten to a beat, not a hold. */
-  reactionWindowMs: 1200,
+  /** Phase 5: reaction windows tighten to a beat, not a hold.
+   *  PLAYBOOK D2: 1200 -> 1600ms — the close-up needs a full breath to
+   *  land (a reaction cut shorter than 1.5s reads as a flash, not a
+   *  beat). */
+  reactionWindowMs: 1600,
   /** Phase 5: the whip-truck on scene entry (was 40px). */
   whipPx: 90,
   /** Phase 5: hard-cut scale punch on ALL scene changes (was 0.035).

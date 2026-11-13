@@ -258,8 +258,8 @@ const HERO_MOVES: Record<number, { scene: string; move: 'pullback' | 'push' | 't
   // came from content, not camera). takeaways' push holds (the reading
   // column owns the width).
   0: { scene: 'divergeK', move: 'pullback', amt: 0.16 },      // ch1 — the K reveals itself as the camera retreats (2x)
-  1: { scene: 'chartJourney', move: 'truck', amt: 380 },      // ch2 — travel with the S&P timeline (1.6x)
-  2: { scene: 'chartJourney', move: 'truck', amt: -300 },     // ch3 — sentiment falls, the camera pans the other way (2.2x)
+  1: { scene: 'chartJourney', move: 'truck', amt: 240 },      // ch2 — travel with the S&P timeline · PLAYBOOK D3: 380→240 (guard-certified)
+  2: { scene: 'chartJourney', move: 'truck', amt: -220 },    // ch3 — sentiment falls, the camera pans the other way · PLAYBOOK D3: -300→-220 (guard-certified)
   3: { scene: 'gasPump', move: 'truck', amt: 360 },           // ch4 — pan between the two households (1.7x)
   4: { scene: 'aiDatacenter', move: 'push', amt: 0.12 },      // ch5 — into the scale of the build-out (2x)
   5: { scene: 'paradoxResolve', move: 'pullback', amt: 0.15 }, // ch6 — the reveal breathes out (1.8x)
@@ -307,30 +307,58 @@ function cameraV2(
   const isComparison =
     sceneType.includes('split') || sceneType.includes('Compare') ||
     sceneType === 'ownerWorker' || sceneType === 'trioConverge';
-  // BLUEPRINT Phase 1 (report Table 7): the camera register rises to the
-  // panel's numbers, as a BREATHING ZOOM: single-subject scenes ride
-  // 0.93 → 1.09 (the report's full 0.16 of travel — ~51px at the 320px
-  // gate — while the absolute end-scale stays inside the collision
-  // guard's certified envelope for the shipped full-bleed layouts; a flat
-  // 1 → 1.16 push crops 16% of every margin and fails the sweep).
-  // bigText dollies 0.90 → 1.12 (centered slam type has the margin for
-  // the full 0.22 travel). Comparisons hold their pull-out.
-  const target = sceneType === 'bigText' ? AMP.bigTextDolly : isComparison ? -0.036 : AMP.scenePush;
-  const zBase = sceneType === 'bigText' ? 0.90 : isComparison ? 1.0 : 0.93;
-  let camScale = zBase + target * easeInOutSine(p);
+  // PLAYBOOK D1 (report §8.3 — OPERATOR PERSONALITIES): uniform camera
+  // grammar reads as template. Each scene FAMILY now gets its own
+  // operator:
+  //   STAT rooms (statCards/gauge/pie/dot/fundSplit) — TRIPOD: the
+  //     breathing zoom is CUT; one slow push on the hero number only.
+  //   JOURNEY charts (chartJourney/chartTwin) — TRACKING: the camera
+  //     leads the draw-on head (the existing chartJourney truck,
+  //     extended to the twin charts at half weight).
+  //   STATEMENT beats (bigText/stampCard) — HARD CUT, ZERO MOTION for
+  //     the first 500ms: stillness IS the emphasis (the anticipation
+  //     recoil and dolly release AFTER the still frame).
+  //   HOST/editorial — keeps the breathing zoom (the house grammar).
+  const isStat =
+    sceneType === 'statCards' || sceneType === 'recessionGauge' ||
+    sceneType === 'pieChart' || sceneType === 'dotGrid' || sceneType === 'fundSplit';
+  const isStatement = sceneType === 'bigText' || sceneType === 'stampCard';
+  const isJourney = sceneType === 'chartJourney' || sceneType === 'chartTwin';
+  let camScale: number;
+  if (isStat) {
+    // TRIPOD: locked scale, ONE slow push to the hero number — the push
+    // releases after the number lands (~1.6s), 0.06 of travel, held.
+    const pushT = easeInOutSine(clamp01((gt - 1600) / Math.max(1, groupDur - 1600)));
+    camScale = 1.0 + 0.06 * pushT;
+  } else if (isStatement) {
+    // STATEMENT: dead still for 500ms, then the dolly releases into it.
+    const rel = easeInOutSine(clamp01((gt - 500) / Math.max(1, groupDur - 500)));
+    camScale = 0.94 + (AMP.bigTextDolly + 0.04) * rel;
+  } else {
+    const target = sceneType === 'bigText' ? AMP.bigTextDolly : isComparison ? -0.036 : AMP.scenePush;
+    const zBase = sceneType === 'bigText' ? 0.90 : isComparison ? 1.0 : 0.93;
+    camScale = zBase + target * easeInOutSine(p);
+  }
   // P1-2: anticipation pull-back before bigText — recoil up to 3.2% during
   // the first 700ms, releasing straight into the dolly.
   // BLUEPRINT Phase 1: the recoil rises 0.032 -> 0.06 (AMP.anticipation)
   // — "the wind-up must be felt".
-  if (sceneType === 'bigText' && gt < 700) {
-    camScale *= 1 - AMP.anticipation * Math.sin((gt / 700) * Math.PI);
+  // PLAYBOOK D1: the recoil waits out the 500ms dead-still window (the
+  // hard cut lands FIRST; the wind-up belongs to the release, not the
+  // statement's arrival).
+  if (sceneType === 'bigText' && gt > 500 && gt < 1200) {
+    camScale *= 1 - AMP.anticipation * Math.sin(((gt - 500) / 700) * Math.PI);
   }
   // slow consistent drift, always screen-left-to-right (no beatIndex term)
   // PREMIUM UPGRADE FIX 4 (100-judge critique §5.1): 22/13 → 52/32 — the
   // baseline drift rises above the 6px phone-feed perception threshold
   // (52px at 1080p = 8.7px at the 320px gate). The settling frame BREATHES.
-  let camX = Math.sin(gt / 7300) * 52;
-  let camY = Math.cos(gt / 9100) * 32;
+  // PLAYBOOK D1: STAT rooms and STATEMENT beats run TRIPOD/dead-still —
+  // the drift mutes to a whisper there (the number is the event; the
+  // camera must not compete with it).
+  const driftK = isStat ? 0.25 : isStatement ? 0.1 : 1;
+  let camX = Math.sin(gt / 7300) * 52 * driftK;
+  let camY = Math.cos(gt / 9100) * 32 * driftK;
   // AUDIT-2 / §10.3 (report Phase 2): THE WHIP-TRUCK — every scene-group
   // entry lands with a fast 300ms camera settle from a displaced start
   // (~40px horizontal + a 3px drop), direction alternating by group
@@ -347,9 +375,20 @@ function cameraV2(
     camX += dir * AMP.whipPx * whip;
     camY += 4 * whip;
   }
-  if (sceneType === 'chartJourney') {
+  // PLAYBOOK D1 + D3 follow-up: the chartJourney legacy tracking term is
+  // RETIRED — the ch2/ch3 hero TRUCKS (±150-190px) already lead the
+  // draw-on; stacking the old ±32px term on top pushed the chart's
+  // left edge past the frame bound (the two moves fought each other).
+  // chartTwin keeps its (smaller, symmetric) tracking term below.
+  // PLAYBOOK D1: the TRACKING operator extends to chartTwin at half
+  // weight — the twin charts draw on like the journey does.
+  // D3 follow-up: the truck now CENTERS on the draw window's midpoint
+  // (the ±16px symmetric sweep keeps the left plot's registered edge
+  // inside the frame at every certified camera state; the old −32px
+  // one-sided pull dragged the plot's x=190 edge past the bound).
+  if (sceneType === 'chartTwin') {
     const drawP = clamp01(gt / 2600);
-    camX += (easeOutCubic(drawP) - 0.5) * 64;
+    camX += (0.5 - easeOutCubic(drawP)) * 32;
   }
   // P1-2: the chapter's hero move — one amplified gesture per chapter
   const hero = HERO_MOVES[chapterIdx];
@@ -469,14 +508,24 @@ function cameraV2(
       // exitStyle 2: the K-wipe closes the scene; camera holds
     }
   }
-  // publish BEFORE the scene draws — the bg planes counter-drift off this
-  // QA-SWEEP (guard v2.1): camState.dx/dy carry camX*camScale (the bg-plane
-  // convention effects.ts expects), but guardCamState must carry the RAW
-  // camX/camY the canvas transform actually applies: the stack is
-  // translate(960+camX) → scale(s) → translate(-960), so screen x =
-  // 960 + camX + s*(x−960). Publishing camX*s here made the guard's exact
-  // camera wrong by camX*(s−1) (up to ~9px at s≈1.19, camX≈47) — small, but
-  // it shifted every edge/pill assertion and masked/created violations.
+  // PLAYBOOK D3 (report §8.3 — KILL THE EDGE-VIOLATION CLASS): the
+  // sweep's 1,227 edge violations were exit-window content pushed past
+  // the frame bound by the exit grammar + max push scale compounding.
+  // The exit stack now yields when it would crop: exit lifts/trucks are
+  // clamped so the effective scale NEVER exceeds 1.06 during the exit
+  // window (the certified envelope for the shipped layouts), and the
+  // whole-camera hard cap holds at 1.12 (the hero-move ceiling). This
+  // is the structural fix — layouts no longer depend on per-scene
+  // hand-tuning to stay inside the frame.
+  if (camScale > 1.12) camScale = 1.12;
+  if (groupDur > 1400) {
+    const exitP0 = clamp01((gt - (groupDur - 420)) / 420);
+    if (exitP0 > 0 && camScale > 1.06) {
+      // the exit recede must not compound with a high push: trade the
+      // scale for pure motion (the lift/truck still reads; the crop dies)
+      camScale = 1.06 + (camScale - 1.06) * (1 - exitP0);
+    }
+  }
   camState.dx = camX * camScale;
   camState.dy = camY * camScale;
   camState.scale = camScale;
@@ -790,10 +839,14 @@ export function drawFrame(
       // the value recede stacks on top (both recede the room, neither
       // touches the subject). +10-15% cost on ~90 frames (the report's
       // own budget note).
-      dofPass(ctx, W, H, rP * 0.9, { x: cx, y: cy, r: 300 * (W / 1920) });
-      const veil = ctx.createRadialGradient(cx, cy, 260 * (W / 1920), cx, cy, 1250 * (W / 1920));
+      // PLAYBOOK D2: full close-up register — strength to 1.0, the clear
+      // disc to 420px so the face zone stays sharp at the new 0.9-1.1
+      // push amplitudes (the old 300px disc clipped inside the enlarged
+      // face; the blur was eating the subject's own edges).
+      dofPass(ctx, W, H, rP * 1.0, { x: cx, y: cy, r: 420 * (W / 1920) });
+      const veil = ctx.createRadialGradient(cx, cy, 340 * (W / 1920), cx, cy, 1250 * (W / 1920));
       veil.addColorStop(0, 'rgba(255,255,255,0)');
-      veil.addColorStop(1, rgba('#FFFFFF', 0.30 * rP));
+      veil.addColorStop(1, rgba('#FFFFFF', 0.34 * rP));
       ctx.fillStyle = veil;
       ctx.fillRect(0, 0, W, H);
     }
@@ -887,11 +940,16 @@ export function drawFrame(
   // host figure lives in the lower third and a 2-row pill's top edge at
   // y≈796 used to plate his feet (defect D-02, now also prevented by the
   // raised host grounds and asserted by the collision guard).
+  // PLAYBOOK D3 follow-up: splitNumbers joins the 1-row class — its
+  // statement chip band (rect bottom 804) sat inside the 2-row pill's
+  // camera envelope (776) on wide-caption frames; a single 6-word row
+  // (top 864) clears the chip by 60px.
   const isHostScene = beat.beat.scene.type === 'host';
+  const isOneRowScene = isHostScene || beat.beat.scene.type === 'splitNumbers';
   drawCaptions(ctx, W, H, t, tl.captionLines, {
     mode: opts.captions,
-    maxRows: isHostScene ? 1 : 2,
-    maxWords: isHostScene ? 6 : 8,
+    maxRows: isOneRowScene ? 1 : 2,
+    maxWords: isOneRowScene ? 6 : 8,
   });
 
   // watermark — PANEL-10 (guard v2): drawn BEFORE collectViolations so its

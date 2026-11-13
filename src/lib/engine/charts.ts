@@ -365,7 +365,13 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       ctx.textAlign = 'center';
       const tw = ctx.measureText(a.label).width;
       const ly = py + (a.dy ?? 40) - rise;
-      const lx = Math.min(Math.max(px, x + tw / 2 + 18), x + w - tw / 2 - 18);
+      // PLAYBOOK D3 follow-up: the x-clamp margin 18 → 34 — a wide pill
+      // ("−33 · still worth…) still crossed the chart's left bound under
+      // the exit camera (edge @292-312s, up to 64px). The clamp now
+      // accounts for the pill's plate + shadow, and the pill YIELDS to
+      // inside the plot when the label is wider than the tail space.
+      const half = tw / 2 + 34;
+      const lx = Math.min(Math.max(px, x + half), Math.max(x + half, x + w - half));
       // AUDIT-ROUND-2 (C3 — the chartJourney title/badge collision): the
       // label pill's y was UNCLAMPED — a high annotation (dy:-46) rose past
       // the chart's top edge and plated the scene title band ("the scene

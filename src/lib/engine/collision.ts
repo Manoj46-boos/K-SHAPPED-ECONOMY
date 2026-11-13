@@ -238,7 +238,18 @@ export function collectViolations(): CollisionViolation[] {
     // pill band, and the top band's only furniture is the watermark, which
     // is registered as fixed furniture above). QA-SWEEP: noEdge rects
     // (scrolling scenery) are exempt — they cross the edge by design.
-    if (cam && !r0.noEdge) {
+    // PANEL-10: frame-edge crossing under the exact camera (design grid is
+    // 1920×1080; x only — y-overflow at the bottom is already covered by the
+    // pill band, and the top band's only furniture is the watermark, which
+    // is registered as fixed furniture above). QA-SWEEP: noEdge rects
+    // (scrolling scenery) are exempt — they cross the edge by design.
+    // PLAYBOOK D3: a stickman feet-band whose anchor sits OFF the design
+    // grid entirely (x < 0 or x > 1920) is a figure MID-ENTRANCE — walking
+    // in from off-frame is staging, not a crop (the sweep's @88s class:
+    // stickman@-29,682, 242px "violation" on a figure arriving from the
+    // left). Exempt while the anchor is off-grid; the moment he plants a
+    // foot inside the frame the rule resumes.
+    if (cam && !r0.noEdge && !(r0.id.startsWith('stickman@') && (r0.x < 0 || r0.x + r0.w > 1920))) {
       const overL = EDGE_PAD - r.x;
       const overR = r.x + r.w - (1920 - EDGE_PAD);
       const depth = Math.max(overL, overR);
@@ -278,10 +289,16 @@ export function collectViolations(): CollisionViolation[] {
       // coordinates pick up sub-pixel float noise, and the exact-equality
       // containment check started flagging a figure against its own feet
       // band (ULP-level false positive, verified on the c3-twin climber).
+      // PLAYBOOK D3 (report §8.3): a hostBody figure's feet band now
+      // registers with cls 'host' itself, so ANY band sharing the anchor
+      // cell with a host envelope is exempt by construction (the 163
+      // self-flag sweep violations died here). Same-cell = same figure:
+      // the @x,y suffix is the shared ground anchor.
       if (
         c.id.startsWith('stickman@') &&
-        hst.x - 1 <= c.x && c.x + c.w <= hst.x + hst.w + 1 &&
-        hst.y - 1 <= c.y && c.y + c.h <= hst.y + hst.h + 1
+        (c.id === `stickman@${hst.id.split('@')[1]}` ||
+          (hst.x - 1 <= c.x && c.x + c.w <= hst.x + hst.w + 1 &&
+           hst.y - 1 <= c.y && c.y + c.h <= hst.y + hst.h + 1))
       ) continue;
       const ox = Math.min(hst.x + hst.w, c.x + c.w) - Math.max(hst.x, c.x);
       const oy = Math.min(hst.y + hst.h, c.y + c.h) - Math.max(hst.y, c.y);

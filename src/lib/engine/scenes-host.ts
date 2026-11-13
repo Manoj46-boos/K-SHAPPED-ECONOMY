@@ -1415,7 +1415,7 @@ export function channelIntroScene(g: SceneCtx): void {
     rAL: pose.rAL + Math.sin(t / 560) * 14,
   };
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, W * 0.85, H * 0.667, 1.27, t, { pose: wavePose, alpha: clamp01((t - 600) / 500), look: -0.6, talk, parallax: true }, 9);
+  drawStickmanV2(ctx, W * 0.84, H * 0.645, 1.27, t, { pose: wavePose, alpha: clamp01((t - 600) / 500), look: -0.6, talk, parallax: true }, 9); // PLAYBOOK D3: 0.85 -> 0.84, ground -> 0.645 (edge + pill clear)
 }
 
 // ── recapSplit (used at ch5 open and ch10 open) ─────────────────────────────
@@ -1488,7 +1488,7 @@ export function recapSplitScene(g: SceneCtx): void {
     wordTimes: g.gWordTimes,
   });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, W * 0.86, H * 0.676, 1.12, t, { pose, alpha: clamp01((t - 700) / 500), look: -0.4, talk, parallax: true }, 17);
+  drawStickmanV2(ctx, W * 0.84, H * 0.645, 1.12, t, { pose, alpha: clamp01((t - 700) / 500), look: -0.4, talk, parallax: true }, 17); // PLAYBOOK D3: 0.86 -> 0.84, ground 0.676 -> 0.645 (edge + pill clear at max camera)
 }
 
 function miniPanel(
@@ -1577,7 +1577,12 @@ export function paradoxResolveScene(g: SceneCtx): void {
     ctx.globalAlpha = kp;
     // P0-2 (one-mascot rule): this K shares the frame with the reacting
     // host — face OFF ("never beside a second mascot").
-    drawK3D(ctx, W * 0.4, H * 0.47, 115, 1, t, false);
+    // PLAYBOOK T4 (report §8.5 — THE K-TURN WHERE THE K LANDS): the
+    // resolve is an ACT-close; the glyph re-becomes MASS as the paradox
+    // strikes — the same 30°→95° sweep the cold open and kDef run, once,
+    // 600ms after the K appears.
+    const turnP = clamp01((t - 2800) / 900);
+    drawK3D(ctx, W * 0.4, H * 0.47, 115, 1, t, true, turnP);
     ctx.restore();
   }
   // AUDIT-ROUND-2 (fix 3 — KILL BODY PARAGRAPHS ON FRAMES): three stacked
@@ -1602,7 +1607,10 @@ export function paradoxResolveScene(g: SceneCtx): void {
       // inside the right safe margin), one focal statement, fully on frame.
       let ls = 44;
       setFont(ctx, ls, 600);
-      const maxW = 780;
+      // PLAYBOOK D3 follow-up: maxW 780 → 700 and x 1040 → 1000 — the
+      // wrapped line's right edge (1820) crossed the frame bound under
+      // the max camera + drift (edge, 38-48px on the exit sweep).
+      const maxW = 700;
       while (ctx.measureText(focalLine).width > maxW && ls > TYPE_FLOOR) {
         ls -= 1;
         setFont(ctx, ls, 600);
@@ -1618,8 +1626,8 @@ export function paradoxResolveScene(g: SceneCtx): void {
       }
       if (cur) lines.push(cur);
       ctx.fillStyle = PALETTE.inkSoft;
-      registerRect('paradox:focalLine', 1040, 440, maxW, 64 + (lines.length - 1) * 54);
-      lines.forEach((ln, j) => ctx.fillText(ln, 1040, 470 + j * 54));
+      registerRect('paradox:focalLine', 1000, 440, maxW, 64 + (lines.length - 1) * 54);
+      lines.forEach((ln, j) => ctx.fillText(ln, 1000, 470 + j * 54));
       ctx.restore();
     }
   }
