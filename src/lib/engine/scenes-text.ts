@@ -158,6 +158,11 @@ export function bigTextScene(g: SceneCtx): void {
     const squash = sinceLand >= 0 && sinceLand < 300
       ? Math.sin((sinceLand / 300) * Math.PI)
       : 0;
+    // 100-JUDGE PANEL / Phase 1 item 4 — CAST BY SILHOUETTE (report §6
+    // Phase 1): "the count host gets rolled sleeves" — the counting
+    // gesture is work; the sleeves roll. Driven inside drawStickmanV2
+    // from the pose's own rHand count glyph (cuff at the forearm, on
+    // the body's ivory) so every count host inherits it.
     drawStickmanV2(ctx, W * 0.83, H * 0.672, 1.17, t, { pose, alpha: hp, look: -0.6, parallax: true, squash }, 31);
   }
 }

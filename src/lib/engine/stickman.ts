@@ -63,9 +63,21 @@ export interface Pose {
   headYaw?: number;
   /** P1-2 (audit Table 3): explicit hand glyph override — 'fist' or the
    *  count glyphs 'count1'/'count2'/'count3' (a fist with N fingers
-   *  extended). Default = auto by rig scale (fan / mitten). */
-  lHand?: 'fist' | 'count1' | 'count2' | 'count3';
-  rHand?: 'fist' | 'count1' | 'count2' | 'count3';
+   *  extended). Default = auto by rig scale (fan / mitten).
+   *  100-JUDGE PANEL / Phase 1 item 5 — HAND VOCABULARY (report §6
+   *  Phase 1): 'palm' joins the union — the presenting hand. "Point-
+   *  with-gaze, palm-open present, count with eye contact on numerals.
+   *  Hands stop being mitts in every non-hero frame." The palm renders
+   *  as an open hand addressing the audience; distinct from the count
+   *  glyphs and the pointing index. */
+  lHand?: 'fist' | 'count1' | 'count2' | 'count3' | 'palm';
+  rHand?: 'fist' | 'count1' | 'count2' | 'count3' | 'palm';
+  /** 100-JUDGE PANEL / Phase 1 item 3 — TAKE GRAMMAR (report §6 Phase 1):
+   * 0..1 blink closure the take() helper drives through its overshoot
+   * (closed → opening across the settle). The v2 renderer multiplies it
+   * into eyeOpen; the idle blink clock stays untouched. Undefined = the
+   * idle blink owns the eyes (default). */
+  blinkT?: number;
 }
 
 const base = (): Pose => ({
@@ -92,7 +104,7 @@ export const POSES: Record<string, Pose> = {
   talkC: { ...base(), lAU: -20, lAL: -28, rAU: 54, rAL: 70, smile: 0.3, lean: 3, lLU: -8, rLU: 9, rLL: 6 },
   pointR: { ...base(), rAU: 78, rAL: 96, lAU: -8, lAL: -6, headTilt: -3, lean: 3, lLU: -8, rLU: 9, rLL: 5 },
   pointL: { ...base(), lAU: -78, lAL: -96, rAU: 8, rAL: 6, headTilt: 3, lean: -2, lLU: -7, rLU: 9, rLL: 5 },
-  present: { ...base(), lAU: -26, lAL: -32, rAU: 54, rAL: 76, smile: 0.5, lean: 2, lLU: -8, rLU: 9, rLL: 6 },
+  present: { ...base(), lAU: -26, lAL: -32, rAU: 54, rAL: 76, smile: 0.5, lean: 2, lLU: -8, rLU: 9, rLL: 6, rHand: 'palm' }, // Phase 1 item 5: palm-open present
   think: { ...base(), rAU: 14, rAL: 150, lAU: -14, lAL: -10, headTilt: 5, browRaise: 0.35 },
   shrug: { ...base(), lAU: -66, lAL: -132, rAU: 68, rAL: 128, headTilt: 6, browRaise: 0.6, smile: 0.15 },
   wave: { ...base(), rAU: 104, rAL: 152, lAU: -8, lAL: -6, smile: 0.7, browRaise: 0.4 },
@@ -239,11 +251,20 @@ export class Stickman {
         // pointing gesture takes 2 of 5 slots so the presenter TALKS
         // TOWARD his content (chart, cards, type block) instead of
         // gesturing into dead space beside it.
+        // 100-JUDGE PANEL / Phase 1 item 5 — HAND VOCABULARY (report §6
+        // Phase 1): the presenting cycle now carries the full hand
+        // vocabulary — the palm-open PRESENT (rHand 'palm') and the
+        // COUNT gestures (rHand 'countN', counting with eye contact
+        // on the numerals the host is presenting) join the pointing
+        // slots. The metronome dead-list (talk/talk/talk/point) becomes
+        // a vocabulary list: every sentence picks a distinct HAND, not
+        // just a distinct arm angle — "hands stop being mitts in every
+        // non-hero frame".
         const list = opts.pointBias === 'right'
-          ? ['talkA', 'pointR', 'talkB', 'pointR', 'present']
+          ? ['talkA', 'pointR', 'present', 'count2', 'pointR', 'talkB', 'count1']
           : opts.pointBias === 'left'
-            ? ['talkB', 'pointL', 'talkA', 'pointL', 'present']
-            : ['talkA', 'talkB', 'talkC', 'present', 'pointR'];
+            ? ['talkB', 'pointL', 'present', 'count2', 'pointL', 'talkA', 'count1']
+            : ['talkA', 'talkB', 'present', 'count2', 'pointR', 'count3', 'talkC'];
         const pick = (id: string): Pose =>
           POSES[list[Math.min(list.length - 1, Math.floor(hashStr(id) * list.length))]];
         const cyc = pick(opts.sentenceId);
@@ -804,6 +825,54 @@ export function nodPulse(t: number, wordTimes: number[]): number {
     if (wt > t + 300) break;
   }
   return p;
+}
+
+/**
+ * 100-JUDGE PANEL / Phase 1 item 3 — A TAKE GRAMMAR (report §6 Phase 1):
+ * "New helper take(t, t0) in stickman.ts: a 2-frame hold — then 20%
+ * overshoot on browRaise + a blink + a head-torso double-bounce, driven
+ * on the twist/shock/warm lines. ~40 lines, pure function of t."
+ *
+ * The take is the animation grammar of RECOGNITION: the body freezes
+ * for a beat (the hold), then over-commits (the overshoot) before
+ * settling. blendable over whatever pose the beat already carries —
+ * callers apply it with blendPose at the reaction windows. Timeline
+ * (all pure functions of elapsed dt = t - t0):
+ *   0-66ms    HOLD — nothing moves (the 2-frame freeze at 30fps)
+ *   66-200ms  OVERSHOOT — browRaise overshoots +20% past target, the
+ *              head recoils back 4° (headTilt) while the torso leans
+ *              opposite (the double-bounce's first arc), blink closed
+ *   200-380ms SETTLE — the overshoot eases back, the head-torso pair
+ *              bounces through zero into +2° counter (second arc),
+ *              blink opens
+ *   >380ms    identity — the beat's own pose resumes exactly
+ * Scrub-safe: every term is a closed function of dt; at dt<0 or dt>380
+ * it returns the untouched pose.
+ */
+export function take(pose: Pose, t: number, t0: number): Pose {
+  const dt = t - t0;
+  if (dt < 0 || dt > 380) return pose;
+  // HOLD (0-66ms): the freeze — return the pose with the hold's tiny
+  // rootY drop (a held breath reads as a 2px settle, not a teleport).
+  if (dt < 66) {
+    return { ...pose, rootY: (pose.rootY ?? 0) + 2 };
+  }
+  const k = (dt - 66) / 314; // 0..1 across overshoot+settle
+  // OVERSHOOT (66-200ms): 20% past the pose's own browRaise, head back,
+  // torso opposite; SETTLE (200-380ms): bounce through zero, overshoot
+  // -0.12 the other way, damp to 0.
+  const over = dt < 200 ? easeOutCubic((dt - 66) / 134) : 1;
+  const settle = dt >= 200 ? Math.sin((dt - 200) / 180 * Math.PI) : 0;
+  const bounce = dt < 200 ? over : -0.35 * settle;
+  return {
+    ...pose,
+    browRaise: clamp01(pose.browRaise + 0.20 * (dt < 200 ? over : -0.5 * settle)),
+    headTilt: (pose.headTilt ?? 0) - 4 * bounce,
+    lean: (pose.lean ?? 0) + 2.4 * bounce,
+    rootY: (pose.rootY ?? 0) + 1.5 * bounce,
+    // the blink: closed through the overshoot, opening across the settle
+    blinkT: dt < 200 ? 0 : undefined,
+  };
 }
 
 export const mixPose = blendPose;

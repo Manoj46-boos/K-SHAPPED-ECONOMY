@@ -9,9 +9,9 @@ import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, lerp, springTo } fr
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
 import { bokehField, kMotifs, lightRays, drawK, drawK3D, floatCoins, sparkles, hazeBands, impactRing, microShake } from './effects';
 import { SceneCtx } from './scene-context';
-import { reactionAt } from './scene-context';
+import { reactionAt, reactionStart } from './scene-context';
 import { lineChart, pieChart, barRow, dotGrid, gauge, statCard, sourceTag, sceneTitle, wrapText } from './charts';
-import { Stickman, POSES, blendPose, accentPulse } from './stickman';
+import { Stickman, POSES, blendPose, accentPulse, take } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
 import { registerRect, registerText } from './collision';
 
@@ -97,6 +97,21 @@ function hostSmall(
   // envelope (the old >0.5 hard swap read as a glitch mid-cycle).
   if (reaction > 0.02 && POSES[reactionPose]) {
     pose = blendPose(pose, POSES[reactionPose], clamp01(reaction * 1.15));
+  }
+  // 100-JUDGE PANEL / Phase 1 item 3 — TAKE GRAMMAR (report §6 Phase 1):
+  // the reaction window now opens with a TAKE — a 2-frame hold, then a
+  // 20% brow overshoot + blink + head-torso double-bounce, layered over
+  // whatever pose the window has blended in. take() is a pure function of
+  // (t, t0) and returns the pose untouched outside its 380ms window, so
+  // the existing reaction envelope, camera push and talk pause all keep
+  // their exact clocks. t0 = the reaction clock's own start (gt scaled):
+  // the REACTIONS table gives each window (start, end) in the group-local
+  // clock — the take fires at the window's start beat.
+  // Wired at all THREE pivots (twist/paradox/takeaway): every hostSmall
+  // call site with a reaction envelope inherits it.
+  {
+    const r0 = reactionStart(g.s.sceneKey, g.t, g.d);
+    if (r0 >= 0) pose = take(pose, g.t, r0);
   }
   // BLUEPRINT Phase 2 (judge round-2 calibration): the reaction beat holds
   // the mouth OPEN in a gasp (talk 0.88 drives the round-O shape, and the
@@ -1792,6 +1807,11 @@ export function ownerWorkerScene(g: SceneCtx): void {
       look: 0.3,
       scarf: side === 'left', // v10: the owner wears the brand; the worker doesn't
       shadowRot: side === 'left' ? Math.atan(riseSlope) : 0,
+      // 100-JUDGE PANEL / Phase 1 item 4 — CAST BY SILHOUETTE (report §6
+      // Phase 1): the worker gets a CAP. Owner = scarf + climb, worker =
+      // cap + facepalm — accessory per role, never scale: the pair reads
+      // as cast, not copies.
+      variant: side === 'right' ? 'worker' : undefined,
     }, 21 + i);
     // v10: the worker's line gets a terminal down-tick — the trend the VO
     // names ("not a paycheck for whoever doesn't"), drawn where the eye lands

@@ -32,6 +32,22 @@ import { AMP, INK } from './perception';
 
 const D2R = Math.PI / 180;
 
+/**
+ * 100-JUDGE PANEL / Phase 1 item 1 — THE CHOSEN-ONE COLOR (report §6
+ * Phase 1, "One owned color"): the host's body-mass color, ONE constant
+ * for the whole film. goldDeep (#8F6E12) over the toned rooms is a
+ * silhouette the thumbnail and the 320px feed both read — the single
+ * biggest character-score item on the panel's list. Becker head,
+ * hands, shoe wedges and limb strokes stay ink (the joints); the
+ * prof/walker background variants keep ink (different PEOPLE, not the
+ * brand). Referenced by the torso mass and the rolled-sleeve cuffs.
+ */
+const BODY_MASS = '#8F6E12';
+/** Phase 1 item 1: the arm mass above rig scale 1.2 rides the body
+ * color (sleeves of the SAME suit); below it ink keeps the far limbs
+ * readable against toned plates. */
+const ARM_MASS = '#8F6E12';
+
 const lerp2 = (a: number, b: number, t: number): number => a + (b - a) * t;
 
 /**
@@ -403,7 +419,9 @@ export function limb2(
  * palm mass plus the opposed thumb — the silhouette of a hand at small
  * scale, where individual fingers are sub-feed-pixel anyway.
  */
-type HandMode = 'fist' | 'count1' | 'count2' | 'count3' | undefined;
+// 100-JUDGE PANEL / Phase 1 item 5 — HAND VOCABULARY: 'palm' joins the
+// glyph set (the presenting hand — an open palm addressing the audience).
+type HandMode = 'fist' | 'count1' | 'count2' | 'count3' | 'palm' | undefined;
 
 function handGlyph(
   ctx: CanvasRenderingContext2D,
@@ -439,6 +457,35 @@ function handGlyph(
     taper(ctx, x + Math.sin(a) * s * 0.06, y + Math.cos(a) * s * 0.06,
       x + Math.sin(a + 1.15) * s * 0.52, y + Math.cos(a + 1.15) * s * 0.52,
       s * 0.28, s * 0.15, col);
+    return;
+  }
+  // ── 100-JUDGE PANEL / Phase 1 item 5 — THE PALM (report §6 Phase 1):
+  // "palm-open present" — the presenting hand. A rounded palm mass with
+  // FOUR fingers TOGETHER (a presenting hand addresses the audience with
+  // the fingers side-by-side — the opposite read from the splayed count)
+  // and a wide opposed thumb. Distinct silhouette from fist / count /
+  // point at the phone gate: the presenting vocabulary the panel asked
+  // for ("hands stop being mitts in every non-hero frame").
+  if (mode === 'palm') {
+    ctx.save();
+    ctx.translate(x + Math.sin(a) * s * 0.42, y + Math.cos(a) * s * 0.42);
+    ctx.rotate(a);
+    ctx.fillStyle = col;
+    // the palm — wider than the fist, shorter than the mitt
+    roundRect(ctx, -s * 0.62, -s * 0.52, s * 1.24, s * 1.1, s * 0.4);
+    ctx.fill();
+    ctx.restore();
+    // four fingers together — a fan of 4 tight tapers (±0.09 rad)
+    for (let f = 0; f < 4; f++) {
+      const off = (f - 1.5) * 0.09;
+      taper(ctx, x + Math.sin(a) * s * 0.62, y + Math.cos(a) * s * 0.62,
+        x + Math.sin(a + off) * s * 1.28, y + Math.cos(a + off) * s * 1.28,
+        s * 0.24, s * 0.11, col);
+    }
+    // the opposed thumb — wide base, past the palm's side
+    taper(ctx, x + Math.sin(a) * s * 0.5, y + Math.cos(a) * s * 0.5,
+      x + Math.sin(a + 1.05) * s * 1.0, y + Math.cos(a + 1.05) * s * 1.0,
+      s * 0.26, s * 0.13, col);
     return;
   }
   // ── THE BOLD MITT (everything below true hero scale) ──
@@ -735,8 +782,12 @@ export function drawStickmanV2(
     /** AUDIT-3 / §3.1 (report Phase 3.1 — differentiate character two):
      *  'prof' draws the round-glasses + wide-torso variant (a different
      *  PERSON, not the host at another scale). The signature-scene coffee
-     *  character uses it; default = the host template. */
-    variant?: 'prof';
+     *  character uses it; default = the host template.
+     *  100-JUDGE PANEL / Phase 1 item 4 — CAST BY SILHOUETTE (report §6
+     *  Phase 1): 'worker' draws the flat-cap variant — "the worker gets
+     *  a cap". Accessory + color per role, never scale: the ownerWorker
+     *  panels read as CAST, not copies. */
+    variant?: 'prof' | 'worker';
     /** BLUEPRINT Phase 2 (report §11): the reaction-beat jaw multiplier —
      *  the shock/wry/warm poses drive a 2x jaw opening on the twist so the
      *  gasp reads at 320px. Drive from the reaction envelope at the call
@@ -1008,6 +1059,12 @@ export function drawStickmanV2(
   // the camera can frame and the light can hit. A taper reads as a line;
   // a capsule reads as a body.
   const prof = r.variant === 'prof';
+  // 100-JUDGE PANEL / Phase 1 item 4 — CAST BY SILHOUETTE: the worker's
+  // flat cap (report: "the worker gets a cap"). Drawn on the becker
+  // head's crown: a brim bar + a soft dome, both in the head's own ink
+  // with an ivory brim-edge line so the cap reads as a DIFFERENT
+  // silhouette at 320px — the ownerWorker pair becomes cast, not copies.
+  const worker = r.variant === 'worker';
   {
     const tx0 = 0, ty0 = pelvisY + 4, tx1 = neckX, ty1 = neckY;
     const tdx = tx1 - tx0, tdy = ty1 - ty0;
@@ -1025,7 +1082,18 @@ export function drawStickmanV2(
     const rY = (h: number, w: number) => ty0 + tdy * h + tny * w;
     const lX = (h: number, w: number) => tdx * h - tnx * w;
     const lY = (h: number, w: number) => ty0 + tdy * h - tny * w;
-    ctx.fillStyle = ink;
+    // 100-JUDGE PANEL / Phase 1 item 1 — THE CHOSEN-ONE COLOR (report
+    // §6 Phase 1): "commit the host to a single silhouette color — the
+    // film already owns gold; a goldDeep body mass with ink joints reads
+    // premium and survives the feed." The host's torso mass becomes
+    // goldDeep (#8F6E12) — one owned color, registered as a constant
+    // (BODY_MASS) so every variant can reference the same identity.
+    // Becker head, hands, shoe wedges and limb strokes stay ink — the
+    // gold body is the thumbnail signature; ink keeps the joints, face
+    // and silhouette edges so contrast never collapses. The prof variant
+    // keeps its wider ink torso (a different PERSON — the coffee prof
+    // is not the brand).
+    ctx.fillStyle = prof ? ink : BODY_MASS;
     ctx.beginPath();
     ctx.moveTo(rX(0, wH), rY(0, wH));
     ctx.quadraticCurveTo(rX(0.25, wH * 0.7), rY(0.25, wH * 0.7), rX(0.45, wW), rY(0.45, wW));
@@ -1060,9 +1128,12 @@ export function drawStickmanV2(
   // reinforcing; rides the lean angle so it stays anatomically on the
   // chest through poses. Draws at 75% alpha so it never fights the
   // scarf's brand primacy.
-  if (r.scarf !== false) {
+  // Phase 1 item 1: the band RETIRES on the host — the torso mass now
+  // IS the gold signature (BODY_MASS); a gold band on a gold body reads
+  // as decoration. The scarf + knot remain the collar brand.
+  if (r.scarf !== false && prof) {
     const bandY = pelvisY - TORSO * 0.55;
-    const bandW = (prof ? 24 : INK.torso[0]) * 0.9 + 8;
+    const bandW = (INK.torso[0]) * 0.9 + 8;
     ctx.save();
     ctx.translate(neckX * 0.5, bandY);
     ctx.rotate(leanR2);
@@ -1182,7 +1253,11 @@ export function drawStickmanV2(
   // shoulder anchor rides the shoulder-line counter-tilt (Phase 2's
   // second rotation term — the near shoulder rises when shT is positive)
   // and the P1-4 shoulder drop.
-  const hand = limb2(ctx, neckX + 4 + Math.sin(shT) * 4, neckY + 3 - Math.sin(shT) * 9 + shDrop, pose.rAU, pose.rAL, U_ARM, L_ARM, INK.armNear[0], INK.armNear[1], INK.armNear[2], ink);
+  // Phase 1 item 1: the host's near arm rides the ARM_MASS sleeve color
+  // (the same suit as the torso); the hand glyph stays ink. Below rig
+  // scale 1.2 the arm stays ink — the far-limb atmospheric register.
+  const nearArmCol = scale >= 1.2 && r.variant !== 'prof' ? ARM_MASS : ink;
+  const hand = limb2(ctx, neckX + 4 + Math.sin(shT) * 4, neckY + 3 - Math.sin(shT) * 9 + shDrop, pose.rAU, pose.rAL, U_ARM, L_ARM, INK.armNear[0], INK.armNear[1], INK.armNear[2], nearArmCol);
   // Panel round 2 (fix 21): the torso rim drawn under the near arm was
   // OCCLUDED by it ("a stub near the shoulder, a sliver at mid-torso").
   // The rim re-draws here — AFTER the arm — as an upper-right edge on the
@@ -1222,7 +1297,32 @@ export function drawStickmanV2(
   // scale, the mitten below rig scale 0.85 (BLUEPRINT: threshold 1.0 ->
   // 0.85 so the glyph never switches mid-scene on a scaled host),
   // selected right here.
-  handGlyph(ctx, hand.ex, hand.ey, pose.rAL, 16, ink, scale, pose.rHand); // P1-2 r3: rig scale picks the glyph tier
+  handGlyph(ctx, hand.ex, hand.ey, pose.rAL, 16, ink, scale, pose.rHand); // P1-2 r3: rig scale picks the glyph tier; Phase 1: hands stay ink
+  // 100-JUDGE PANEL / Phase 1 item 4 — CAST BY SILHOUETTE (report §6
+  // Phase 1): "the count host gets rolled sleeves." When the near hand
+  // runs a count glyph, the sleeve's cuff ROLLS — a bright ivory band at
+  // the forearm's 30% point (just above where the count fingers root),
+  // on the goldDeep sleeve so it reads as folded cloth at 320px. The
+  // counting gesture becomes WORK: a body preparing to count, not a
+  // mannequin that always had bare arms.
+  if (pose.rHand && pose.rHand.startsWith('count') && nearArmCol === ARM_MASS) {
+    const aL = pose.rAL * D2R;
+    const sx3 = neckX + 4 + Math.sin(shT) * 4;
+    const sy3 = neckY + 3 - Math.sin(shT) * 9 + shDrop;
+    const aU3 = pose.rAU * Math.PI / 180;
+    // the cuff sits at 30% along the FOREARM (upper-arm end → hand)
+    const exU = sx3 + Math.sin(aU3) * U_ARM;
+    const eyU = sy3 + Math.cos(aU3) * U_ARM;
+    const cfx = exU + Math.sin(aL) * L_ARM * 0.3;
+    const cfy = eyU + Math.cos(aL) * L_ARM * 0.3;
+    ctx.save();
+    ctx.translate(cfx, cfy);
+    ctx.rotate(aL);
+    ctx.fillStyle = '#F7EFD8';
+    roundRect(ctx, -6.5, -9, 13, 18, 4);
+    ctx.fill();
+    ctx.restore();
+  }
   if (r.prop === 'thumb') {
     // a short stub above the fist — reads as a raised thumb at any scale
     ctx.strokeStyle = ink;
@@ -1286,7 +1386,14 @@ export function drawStickmanV2(
   const nod = (r.nod ?? 0) * 7;
   // P1-1 (report): face scale for close staging — applied around the head
   // centre so the neck attachment point stays put; only the face grows.
-  const faceS = r.faceScale ?? 1;
+  // 100-JUDGE PANEL / Phase 1 item 2 — HEAD CARICATURE, NOT FLOORS
+  // (report §6 Phase 1): "raise the becker head to 1.25x its
+  // body-proportional size and let the eye radius run to 9 units at
+  // host scale; brow arcs widen to 6px. Caricature replaces the eyeFloor
+  // mechanism on hero scales." Default faceScale 1 -> 1.25 (explicit
+  // caller overrides still win); eye radius 7.5 -> 9 and brow stroke
+  // 4.6 -> 6 below.
+  const faceS = r.faceScale ?? 1.25;
   // P1-1 (100-judge audit, Table 3 — HEAD REDESIGN): the shipped head
   // (cream fill + 14px ink outline) read as "a dark ring around a tan
   // disc — big-head/ninja-hood stick figure": the outline is heavy
@@ -1349,6 +1456,41 @@ export function drawStickmanV2(
     ctx.ellipse(0, -1, 32, 38, 0, 0, Math.PI * 2);
     ctx.stroke();
   }
+  // 100-JUDGE PANEL / Phase 1 item 4 — CAST BY SILHOUETTE (report §6
+  // Phase 1): "the worker gets a cap." A flat cap on the crown: the dome
+  // rides the egg's top arc (ink, one tone off the becker head via an
+  // ivory edge line so it separates at 320px), and a forward brim bar
+  // juts toward the look direction — the silhouette change that reads
+  // as a DIFFERENT PERSON, not a scaled host. Caps ride the yaw/nod
+  // transform stack already in place (drawn in head-local space).
+  if (worker) {
+    // the dome — a clipped arc over the crown, following the egg
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(0, -1, 32, 38, 0, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = ink;
+    ctx.beginPath();
+    ctx.ellipse(0, -20, 33, 24, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // the crown seam — an ivory arc at the dome's lower edge so the cap
+    // reads as a cap ON the head, not a darker skullcap region
+    ctx.strokeStyle = rgba('#F7EFD8', 0.9);
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(0, -20, 33, 24, 0, Math.PI * 0.08, Math.PI * 0.92);
+    ctx.stroke();
+    ctx.restore();
+    // the brim — a flat bar jutting toward the look direction
+    const brimDir = (r.look ?? 0) >= 0 ? 1 : -1;
+    ctx.fillStyle = ink;
+    ctx.save();
+    ctx.translate(brimDir * 6, -16);
+    ctx.rotate(brimDir * -0.08);
+    roundRect(ctx, brimDir > 0 ? 0 : -26, -5, 26, 10, 4);
+    ctx.fill();
+    ctx.restore();
+  }
   // the nose — a small wedge at mid-face (white on becker, ink on cream)
   {
     const noseCol = becker ? rgba('#FFFFFF', 0.5) : rgba(ink, 0.4);
@@ -1393,6 +1535,10 @@ export function drawStickmanV2(
   if (bt < 60) closed = 0.5 * (1 - Math.cos((bt / 60) * Math.PI));
   else if (bt < 90) closed = 1;
   else if (bt < 150) closed = 0.5 * (1 + Math.cos(((bt - 90) / 60) * Math.PI));
+  // 100-JUDGE PANEL / Phase 1 item 3 — TAKE GRAMMAR: the take() helper's
+  // blink closure rides ON TOP of the idle clock (closed through the
+  // overshoot, opening across the settle — see stickman.ts take()).
+  closed = Math.max(closed, pose.blinkT ?? 0);
   const blink = 1 - closed * 0.88;
   // AUDIT-2 / 1.2 (report §10.2, C2) — the EXPRESSION RIG, three
   // components, all pure functions of the existing pose weights:
@@ -1427,7 +1573,11 @@ export function drawStickmanV2(
   // at 1080p, 2.5px at the gate on the solid-ink head where the white
   // dots carry their own contrast), spacing ±11 kept. The reaction
   // close-ups already proved the mechanism (they scored highest).
-  const eyeFloorR = scale > 1.5 ? 7.5 : 5.4;
+  // Phase 1 item 2 (report §6): the floor IS the caricature now —
+  // 7.5 -> 9 units ("let the eye radius run to 9 units at host scale").
+  // The 1.25x head + 9-unit eyes is the Becker-grade caricature that
+  // reads at 320px from ANY staging, not just close-ups.
+  const eyeFloorR = scale > 1.5 ? 9 : 5.4;
   if (becker) {
     ctx.fillStyle = '#FFFFFF';
     ctx.beginPath();
@@ -1472,17 +1622,19 @@ export function drawStickmanV2(
   // the solid-ink head carried "zero interior clutter" right up to the
   // point where it carried NO expression hardware above the eyes — the
   // audit's prescription: "one bold white brow arc on becker head (reads
-  // at distance, carries surprise)". TWO arcs now — one per eye — bold
-  // (4.6px), white, arching with browRaise (the surprise read) and
-  // kinking with browAngle (the concern read). They live ABOVE the
-  // enlarged eyes, still inside the head's silhouette: the face gains
-  // its last expression channel without surrendering the
-  // silhouette-first design.
+  // at distance, carries surprise)". TWO arcs now — one per eye — bold,
+  // white, arching with browRaise (the surprise read) and kinking with
+  // browAngle (the concern read). They live ABOVE the enlarged eyes,
+  // still inside the head's silhouette: the face gains its last
+  // expression channel without surrendering the silhouette-first design.
+  // Phase 1 item 2 (report §6): brow arcs widen 4.6 -> 6px — "brow arcs
+  // widen to 6px"; with the 9-unit eyes the whole face caricature reads
+  // at the 320px gate.
   if (becker) {
     const bRaise = pose.browRaise * AMP.browTravelPx;
     const bAng = pose.browAngle * D2R;
     ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 4.6;
+    ctx.lineWidth = 6;
     ctx.lineCap = 'round';
     const browArc = (dir: number): void => {
       const x0 = dir * (6 + eyeDX), x1 = dir * (19 + eyeDX);

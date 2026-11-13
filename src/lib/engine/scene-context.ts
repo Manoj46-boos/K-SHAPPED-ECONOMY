@@ -96,3 +96,21 @@ export function reactionAt(sceneKey: string, gt: number, d: number): number {
   start = Math.min(start, Math.max(800, d - dur - 250));
   return window4(gt, start, start + 320, start + dur - 320, start + dur);
 }
+
+/**
+ * 100-JUDGE PANEL / Phase 1 item 3 — TAKE GRAMMAR (report §6 Phase 1):
+ * the reaction window's absolute start time on the SAME clock
+ * reactionAt() consumes — so the take() helper (the 2-frame hold +
+ * 20% overshoot + blink + double-bounce) can fire at the window's own
+ * start and the two envelopes can never drift apart. Returns -1 when
+ * the scene has no reaction window (the caller skips the take).
+ */
+export function reactionStart(sceneKey: string, gt: number, d: number): number {
+  const spec = REACTIONS[sceneKey];
+  if (!spec) return -1;
+  const dur = Math.min(spec.durMs, Math.max(900, d * 0.3));
+  let start = Math.max(1400, d * spec.atFrac);
+  start = Math.min(start, Math.max(800, d - dur - 250));
+  // the take fires only while the window is actually live at this gt
+  return gt >= start && gt <= start + dur ? start : -1;
+}
