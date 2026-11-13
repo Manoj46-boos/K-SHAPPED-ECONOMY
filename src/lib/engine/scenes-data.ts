@@ -7,7 +7,7 @@
 
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, lerp, springTo } from './easing';
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
-import { bokehField, kMotifs, lightRays, drawK, drawK3D, floatCoins, sparkles, hazeBands, impactRing, microShake } from './effects';
+import { bokehField, kMotifs, lightRays, drawK, drawK3D, floatCoins, sparkles, hazeBands, impactRing, microShake, depthShift } from './effects';
 import { SceneCtx } from './scene-context';
 import { reactionAt, reactionStart } from './scene-context';
 import { lineChart, pieChart, barRow, dotGrid, gauge, statCard, sourceTag, sceneTitle, wrapText } from './charts';
@@ -908,7 +908,15 @@ export function kDefScene(g: SceneCtx): void {
   if (grow > 0.55) {
     ctx.save();
     ctx.globalAlpha = kA2;
-    drawK3D(ctx, kx, ky, S, 1, t);
+    // 100-JUDGE PANEL / Phase 3 item 2 — THE K-TURN (report §6 Phase 3:
+    // "On the cold-open tear and the kDef naming beat, sweep the
+    // extrusion axis from 30 to 95 degrees over 900ms while the camera
+    // pushes — the glyph becomes a mass, once per act"). The kDef beat's
+    // turn: the naming payoff window (t 2800-3700, the sentence that
+    // lands the name) — the extrusion rotates 30° → 95° eased, the walls
+    // swinging toward the lens exactly as the face takes the frame.
+    const turnP = clamp01((t - 2800) / 900);
+    drawK3D(ctx, kx, ky, S, 1, t, true, turnP);
     ctx.restore();
   }
   // travelers
@@ -1661,12 +1669,26 @@ export function statCardsScene(g: SceneCtx): void {
   const hero = cards[heroIdx >= 0 ? heroIdx : cards.length - 1] ?? { big: '', label: '', tag: '', tone: 'gold' };
   const chips = cards.filter((_, i) => i !== heroIdx);
   const tone = TONE(hero.tone || 'gold');
+  // 100-JUDGE PANEL / Phase 3 item 5 — PER-OBJECT DEPTH FACTORS (report
+  // §6 Phase 3: "Extend the parallax differential to the K, hero racks,
+  // and chart columns"). The hero rack rides the MID plane (depth 0.7 —
+  // it travels at 0.7× the camera, 0.25× against the background), the
+  // demoted chip row rides FARTHER (0.55): a camera push now separates
+  // the data planes instead of scaling them as one flat card. The K's
+  // own call sites carry the same factor (the brand object rides the
+  // mid plane with the hero content everywhere).
+  const heroDepth = depthShift(0.7);
+  const chipDepth = depthShift(0.55);
   // ── THE HERO CARD — 1150px wide (60% of frame), one 190px numeral ──
   const hx0 = 180;
   const hy0 = H * 0.22;
   const hw = 1150;
   const hh = 400;
-  registerRect('statCards:hero', hx0, hy0, hw, hh);
+  // P3-5: the hero rack's mid-plane translate (the guard registers the
+  // SHIFTED rect — the depth offset is part of the frame's truth)
+  registerRect('statCards:hero', hx0 + heroDepth.dx, hy0 + heroDepth.dy, hw, hh);
+  ctx.save();
+  ctx.translate(heroDepth.dx, heroDepth.dy);
   card(ctx, hx0, hy0, hw, hh, { r: 34, tint: tone.main });
   const heroP = clamp01((t - 300) / 900);
   if (heroP > 0) {
@@ -1703,7 +1725,13 @@ export function statCardsScene(g: SceneCtx): void {
   if (t > 1300 && t < 2200) {
     sparkles(ctx, hx0 + hw * 0.35, hy0 + 180, t, t - 1300, { count: 9, radius: 150 });
   }
+  // P3-5: end the hero rack's mid-plane translate
+  ctx.restore();
   // ── THE TWO DEMOTED STATS — pill chips in one quiet row beneath the hero ──
+  // P3-5: the chip row rides the FARTHER plane (0.55) — a push separates
+  // the hero rack from its own summary row
+  ctx.save();
+  ctx.translate(chipDepth.dx, chipDepth.dy);
   chips.forEach((c, i) => {
     const cp2 = clamp01((t - 1500 - i * 550) / 700);
     if (cp2 <= 0) return;
@@ -1733,6 +1761,7 @@ export function statCardsScene(g: SceneCtx): void {
     ctx.fillText(short, cx2 + 34 + bw + 26, cy2 + 54);
     ctx.restore();
   });
+  ctx.restore();
   sourceTag(ctx, W, s.source as string, H - 60);
   // AUDIT-ROUND-2 (fix 4 — UN-STRAND THE HOST): the host at W*0.845 was
   // "cropped awkwardly and gestures at nothing" — the content now ends at

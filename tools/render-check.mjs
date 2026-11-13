@@ -31,7 +31,7 @@ if (!fs.existsSync(OUT)) fs.mkdirSync(OUT, { recursive: true });
 // ── one-time engine compile (scene/render modules only — no browser deps) ───
 if (!fs.existsSync(path.join(BUILD, 'director.js'))) {
   const files = [
-    'theme', 'easing', 'effects', 'stickman', 'stickman-v2', 'charts', 'textfx',
+    'theme', 'easing', 'effects', 'particles', 'stickman', 'stickman-v2', 'charts', 'textfx',
     'scene-context', 'scene-props', 'scenes-host', 'scenes-data', 'scenes-text',
     'analytics', 'script-data', 'timeline', 'director', 'thumbnail', 'shorts',
   ].map((f) => path.join(REPO, 'src', 'lib', 'engine', f + '.ts'));

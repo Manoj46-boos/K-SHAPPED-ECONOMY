@@ -7,7 +7,8 @@
 
 import { clamp01, easeInQuad, easeInOutSine, easeOutCubic } from './easing';
 import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI } from './theme';
-import { drawGrain, lightVignette, bokehField, scalePunch, camState, guardCamState, kWipe, fgBokeh } from './effects';
+import { drawGrain, lightVignette, bokehField, scalePunch, camState, guardCamState, kWipe, fgBokeh, dofPass } from './effects';
+import { drawParticles, emitterKindFor } from './particles';
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
 import { Timeline, beatAt } from './timeline';
 import { SceneCtx, SceneDrawer, REACTIONS, reactionAt } from './scene-context';
@@ -659,6 +660,21 @@ export function drawFrame(
     }
     paintBg(ctx, 1920, 1080, gt, chapterTone);
   }
+  // 100-JUDGE PANEL / Phase 3 item 1 — THE EMITTER PARTICLE LAYER (report
+  // §6 Phase 3, p.17): world atmosphere between the scene drawer and the
+  // fgBokeh lens plane — heat shimmer over the datacenter, gold motes over
+  // the money rooms, cold drift over the mood chapters, dust in the walk
+  // scenes. Pure functions of (t, camState), per-chapter materials via
+  // emitterKindFor(), the 120-particle cap structural in particles.ts.
+  // Budget note (the report's own): +8-12% per-frame render cost — well
+  // inside the Dell budget; statement frames (bigText/stampCard) get none,
+  // the same register the fgBokeh skip uses.
+  {
+    const kind = emitterKindFor(beat.beat.scene.type);
+    if (kind !== 'none') {
+      drawParticles(ctx, 1920, 1080, t, kind, beat.chapter * 13 + 7);
+    }
+  }
   // AUDIT-3 / §3.5 (report Phase 3.5 — DEPTH PAYOFF): the foreground
   // bokeh pass — two/three large defocused discs drifting IN FRONT of the
   // scene (over the world, under the captions/watermark). The missing near
@@ -688,6 +704,18 @@ export function drawFrame(
       const spec = REACTIONS[beat.beat.scene.sceneKey];
       const cx = (spec?.px ?? 960) * (W / 1920);
       const cy = (spec?.py ?? 540) * (H / 1080) - 140 * (H / 1080);
+      // 100-JUDGE PANEL / Phase 3 item 3 — DEPTH OF FIELD on the reaction
+      // windows (report §6 Phase 3, p.17: "Render the background layer to
+      // a 960x540 offscreen buffer, blur (stackblur-style, ~10px),
+      // composite under the sharp host during the three reaction
+      // windows"). The blurred world composites EXCEPT the host's disc —
+      // his head zone stays sharp (the close-up gains literal focus), the
+      // room behind him collapses. Strength rides the same reactionAt()
+      // clock as the camera push and the veil; drawn BEFORE the veil so
+      // the value recede stacks on top (both recede the room, neither
+      // touches the subject). +10-15% cost on ~90 frames (the report's
+      // own budget note).
+      dofPass(ctx, W, H, rP * 0.9, { x: cx, y: cy, r: 300 * (W / 1920) });
       const veil = ctx.createRadialGradient(cx, cy, 260 * (W / 1920), cx, cy, 1250 * (W / 1920));
       veil.addColorStop(0, 'rgba(255,255,255,0)');
       veil.addColorStop(1, rgba('#FFFFFF', 0.30 * rP));

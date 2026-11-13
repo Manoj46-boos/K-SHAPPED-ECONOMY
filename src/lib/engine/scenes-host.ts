@@ -5,7 +5,7 @@
 
 import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, hashStr, lerp } from './easing';
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg, scenePlate, FONT_DISPLAY, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
-import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp, subjectHalo, microShake, impactRing } from './effects';
+import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp, subjectHalo, microShake, impactRing, depthShift } from './effects';
 import { Stickman, POSES, blendPose, walkIn, nodPulse, accentPulse, walkSmear, take } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
 import { SceneCtx } from './scene-context';
@@ -1172,7 +1172,23 @@ export function divergeKScene(g: SceneCtx): void {
   if (growP > 0.55) {
     ctx.save();
     ctx.globalAlpha = kA;
-    drawK3D(ctx, kx, ky, S, 1, t);
+    // 100-JUDGE PANEL / Phase 3 item 2 — THE K-TURN (report §6 Phase 3:
+    // "On the cold-open tear ... sweep the extrusion axis from 30 to 95
+    // degrees over 900ms while the camera pushes — the glyph becomes a
+    // mass, once per act"). The cold-open turn: the face first EXISTs at
+    // growP 0.55 (t ≈ 6.07s — opening growP = (t-4800)/2300), so the
+    // sweep runs t 6.07-6.97s and the TEAR fires at growP 0.5+0.14 ≈
+    // 7.13s — the extrusion rotates 30° → 95° eased through the window
+    // where the camera is pushing and the letter completes, reading as
+    // MASS at the instant it tears itself into its two arms. After the
+    // tear it RESTS at 30° (the turn is an event; the resting oblique
+    // returns as the arms settle).
+    const turnP = opening ? clamp01((t - 6070) / 900) : 0;
+    // P3-5 (100-judge Phase 3): the brand object rides its own depth
+    // plane (0.85 — front-side): a camera push scales the letter at its
+    // own rate, the mid-plane content sliding behind it. Pure camState.
+    const kd = depthShift(0.85);
+    drawK3D(ctx, kx + kd.dx, ky + kd.dy, S * kd.scale, 1, t, true, turnP);
     ctx.restore();
     // small population dots riding each arm
     const dotA = clamp01((t - 2600) / 600);
