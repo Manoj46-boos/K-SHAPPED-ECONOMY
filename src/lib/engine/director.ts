@@ -502,13 +502,25 @@ export function drawFrame(
 
   // speaking state + word times (local to beat)
   const wordTimes: number[] = [];
+  // 100-JUDGE AUDIT (Part 8.2): the word texts, filtered and ordered EXACTLY
+  // like wordTimes — the viseme estimator consumes the pair 1:1.
+  const wordTexts: string[] = [];
   let speaking = false;
   for (const s of beat.sentences) {
     const sLocal = s.startMs - beat.startMs;
-    if (t >= sLocal - 60 && t <= sLocal + s.audioDurMs + 200) speaking = true;
+    // 100-JUDGE AUDIT (root-cause fix): this check compared ABSOLUTE time
+    // `t` against BEAT-LOCAL `sLocal`, so `speaking` was false for every
+    // beat that starts after ~30s of film time — silently zeroing the talk
+    // envelope, the word-accent nods, the smear and the viseme on every
+    // later beat (the panel's "frozen mouth" verdict, finally explained).
+    // The correct comparison is bt (beat-local) against sLocal (beat-local).
+    if (bt >= sLocal - 60 && bt <= sLocal + s.audioDurMs + 200) speaking = true;
     for (const w of s.words) {
       const wt = sLocal + w.t;
-      if (wt >= bt - 2000 && wt <= bt + 400) wordTimes.push(wt);
+      if (wt >= bt - 2000 && wt <= bt + 400) {
+        wordTimes.push(wt);
+        wordTexts.push(w.w);
+      }
       if (wt > bt + 400) break;
     }
   }
@@ -552,6 +564,7 @@ export function drawFrame(
     beat: beat.beat,
     speaking,
     wordTimes,
+    wordTexts,
     gWordTimes,
     sentenceId: activeSent?.lineId,
     prevSentenceId: prevSent?.lineId,

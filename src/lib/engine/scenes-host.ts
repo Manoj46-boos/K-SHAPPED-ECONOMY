@@ -242,10 +242,19 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   drawStickmanV2(
     ctx, x, hy, scale, t,
     { pose, alpha: fade, look: lookRight, nod: nodP, scarf: true, talk, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true,
-      // 100-JUDGE AUDIT (Part 8.2): pass the beat's word texts + times + beatT
-      // so the viseme estimator can shape the mouth per the active word.
-      wordTexts: g.beat?.sentences?.flatMap(s => s.words.map(w => w.w)),
-      wordTimes: g.gWordTimes,
+      // 100-JUDGE AUDIT (Part 9.1): the smear — the computed accentPulse
+      // (smr) was never passed at this call site, so the smear frames and
+      // the counter-arm NEVER FIRED on the main host ("the opt existed,
+      // never driven" — twice now). Passed here, the elongated smear body
+      // + ghost finger-stubs render in the 60-160ms strike window.
+      smear: smr,
+      // 100-JUDGE AUDIT (Part 8.2): word texts + times for the viseme —
+      // ALIGNED 1:1 (same filter, same order), both in the BEAT clock to
+      // match beatT. (The first wiring passed gWordTimes — the GROUP
+      // clock — against beatT, and the full word list against a filtered
+      // time list: a double misalignment that left the mouth static.)
+      wordTexts: g.wordTexts,
+      wordTimes: g.wordTimes,
       beatT: g.beatT,
     },
     11
@@ -474,7 +483,9 @@ export function hostSceneV2(g: SceneCtx): void {
   // film-wide, at 2.05.
   drawStickmanV2(
     ctx, hx, H * 0.64, 2.05, t,
-    { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk, smear: smr, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true, parallaxAmt: 0.55 }, // P2-4: hero moment — clear space, deep differential
+    { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk, smear: smr, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true, parallaxAmt: 0.55, // P2-4: hero moment — clear space, deep differential
+      // 100-JUDGE AUDIT (Part 8.2): the viseme wiring on the editorial host.
+      wordTexts: g.wordTexts, wordTimes: g.wordTimes, beatT: g.beatT },
     11
   );
 
@@ -1262,7 +1273,10 @@ export function divergeKScene(g: SceneCtx): void {
   if (hostRestPass) {
     drawStickmanV2(ctx, hostRestPass.hx, hostRestPass.hy, hostRestPass.hScale, t,
       { pose: hostRestPass.pose, alpha: hostRestPass.hAlpha, look: 0.9, talk: hostRestPass.talk,
-        faceScale: hostRestPass.hFace, parallax: true, phase: 'rest', kContact: true }, 5);
+        faceScale: hostRestPass.hFace, parallax: true, phase: 'rest', kContact: true,
+        // 100-JUDGE AUDIT (Part 8.2): the viseme wiring on the signature
+        // scene's rest pass (the pass that draws the head + mouth).
+        wordTexts: g.wordTexts, wordTimes: g.wordTimes, beatT: g.beatT }, 5);
   }
   softBloom(ctx, W, H, t - 3800, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)
 }

@@ -1108,55 +1108,47 @@ export function drawStickmanV2(
   const shDrop = pose.shoulderDrop ?? 0;
   // 100-JUDGE AUDIT (Part 9.1 — REAL SMEAR FRAMES). The old 2-ghost trail
   // read as "three arms" / "rubbery" on stills and vanished at the phone
-  // gate. A real smear frame is ONE elongated tapered polygon stretched
-  // along the limb's motion vector, plus 3-4 ghost finger-stubs trailing
-  // the hand. It exists for 1-2 frames at peak velocity and is invisible
-  // at rest. The motion vector is approximated by the difference between
-  // the current pose and the previous-frame pose (the caller's smear
-  // value already encodes this — it fires in the 60-160ms strike window).
+  // gate. A real smear frame is ONE elongated drawing spanning the arc the
+  // hand just swept, existing 1-2 frames at peak velocity, invisible at
+  // rest. Stateless geometry: the sweep is reconstructed from the CURRENT
+  // pose minus the accent swing (stickman.ts drives rAL by accent*26°, so
+  // the hand one accent ago sits at rAL - sm*26°) — pure function of the
+  // pose, scrub-determinism preserved. The smear's leading edge extends
+  // 18% PAST the hand (the classic smear overshoot), the taper narrows
+  // toward the trail, and 3 finger-stubs dot the swept arc behind the hand.
   if ((r.smear ?? 0) > 0.12) {
     const sm = clamp01(r.smear ?? 0);
-    // the elongated smear body — ONE tapered polygon stretched 1.5x along
-    // the gesture arc, low-alpha, drawn UNDER the solid arm
     const sx = neckX + 4 + Math.sin(shT) * 4;
     const sy = neckY + 3 - Math.sin(shT) * 9 + shDrop;
     const aU = pose.rAU * Math.PI / 180;
     const aL = pose.rAL * Math.PI / 180;
-    // the hand position (current)
+    // the hand NOW
     const ex = sx + Math.sin(aU) * U_ARM + Math.sin(aL) * L_ARM;
     const ey = sy + Math.cos(aU) * U_ARM + Math.cos(aL) * L_ARM;
-    // the trailing position (where the hand was a beat ago): offset opposite
-    // to the gesture direction by ~18% of the arm length × smear strength
-    const trailDX = -Math.sin(aL) * L_ARM * 0.35 * sm;
-    const trailDY = -Math.cos(aL) * L_ARM * 0.35 * sm;
+    // the hand one accent-swing ago (rAL at current − accent*26°)
+    const swing = 26 * Math.PI / 180 * sm;
+    const aLprev = aL - swing;
+    const px = sx + Math.sin(aU) * U_ARM + Math.sin(aLprev) * L_ARM;
+    const py = sy + Math.cos(aU) * U_ARM + Math.cos(aLprev) * L_ARM;
+    // the leading edge — 18% past the hand along the sweep direction
+    const lx = ex + (ex - px) * 0.18;
+    const ly = ey + (ey - py) * 0.18;
     ctx.save();
-    ctx.globalAlpha = alpha * 0.42 * sm;
-    ctx.fillStyle = ink;
-    // the smear body — a long tapered polygon from the trail position to
-    // the current hand, wider at the shoulder, narrow at the hand
-    const dx = ex - (ex + trailDX), dy = ey - (ey + trailDY);
-    const L = Math.hypot(dx, dy) || 1;
-    const nx = -dy / L, ny = dx / L;
-    const wShoulder = INK.armNear[0] * 0.9;
-    const wHand = INK.armNear[2] * 0.6;
-    ctx.beginPath();
-    ctx.moveTo(sx + nx * wShoulder / 2, sy + ny * wShoulder / 2);
-    ctx.lineTo(ex + nx * wHand / 2, ey + ny * wHand / 2);
-    ctx.lineTo(ex - nx * wHand / 2, ey - ny * wHand / 2);
-    ctx.lineTo(sx - nx * wShoulder / 2, sy - ny * wShoulder / 2);
-    ctx.closePath();
-    ctx.fill();
-    // 3 ghost finger-stubs trailing the hand — short tapered lines fanned
-    // along the motion vector, each at decreasing alpha
+    // ONE elongated taper spanning previous-hand → past-current-hand:
+    // wide at the trailing end (elbow-ish mass), narrow at the lead
+    ctx.globalAlpha = alpha * 0.45 * sm;
+    taper(ctx, px, py, lx, ly, INK.armNear[1] * 0.95, INK.armNear[2] * 0.7, ink);
+    // 3 ghost finger-stubs along the swept arc, behind the hand
     for (let f = 0; f < 3; f++) {
-      const fa = (1 - f / 3) * sm * 0.55;
-      const fLen = 14 - f * 3;
-      const fAng = aL + (f - 1) * 0.18;
+      const fa = (1 - f / 3) * sm * 0.5;
+      const k = 0.28 + f * 0.22;
+      const fx = ex + (px - ex) * k;
+      const fy = ey + (py - ey) * k;
       ctx.globalAlpha = alpha * fa;
-      taper(ctx, ex, ey,
-        ex + Math.sin(fAng) * fLen + trailDX * 0.4,
-        ey + Math.cos(fAng) * fLen + trailDY * 0.4,
-        5, 2, ink);
+      taper(ctx, fx, fy,
+        fx + (px - ex) * 0.09,
+        fy + (py - ey) * 0.09,
+        5.5, 2, ink);
     }
     ctx.restore();
   }

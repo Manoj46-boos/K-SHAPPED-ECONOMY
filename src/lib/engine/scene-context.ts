@@ -23,6 +23,10 @@ export interface SceneCtx {
   speaking: boolean;
   /** word onset times local to the beat (ms) */
   wordTimes: number[];
+  /** 100-JUDGE AUDIT (Part 8.2): the word TEXTS aligned 1:1 with wordTimes
+   *  (same filter, same order) — the viseme estimator consumes the pair to
+   *  shape the mouth per the active word. Beat-local, like wordTimes. */
+  wordTexts: string[];
   /** P1-6 (report §12.6): word onset times local to the SCENE GROUP (ms) —
    *  the same onsets as wordTimes, in the g.t clock that poseAt consumes. */
   gWordTimes: number[];
