@@ -166,6 +166,14 @@ const picks = [
   ['17-takeaways', beatTime('takeaways', 1)],
   ['18-commentPrompt', beatTime('commentPrompt', 0)],
   ['19-endScreen', beatTime('endScreen', 0)],
+  // 100-JUDGE PANEL / Phase 2 item 3: the sit-back-on-stat-card evidence
+  // frame — a statCards scene at +5.0s beat-local (the host is perched on
+  // the hero card's edge, past the 2.4s sit landing).
+  ['21-statCards-sitback', (() => {
+    const hits = tl.beats.filter((b) => b.beat.scene.type === 'statCards');
+    const b = hits[0];
+    return b ? { t: b.startMs + 5000, label: 'statCards+5s' } : undefined;
+  })()],
 ];
 
 // a chapter-card frame (transition moment)

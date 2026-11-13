@@ -160,6 +160,22 @@ export const POSES: Record<string, Pose> = {
   // opens 1.12 (the squint-smirk reads at 320px where brow values die)
   // and the near shoulder drops 4.5px (the slouch).
   wry: { ...base(), lean: 5, headTilt: 7, lAU: -16, lAL: -12, rAU: 38, rAL: 96, lLU: -8, rLU: 9, rLL: 5, browRaise: 0.62, browAngle: -10, smile: 0.45, pelvisTilt: 3.2, shoulderTilt: -2.6, eyeL: 0.55, eyeR: 1.12, shoulderDrop: 4.5 },
+  // ── 100-JUDGE PANEL / Phase 2 item 3 — A SIT-AND-RISE FOR THE MOOD
+  // CHAPTERS (report §6 Phase 2, p.14): "One new pose pair (sitBack on
+  // the stat card edge) with the ground-contact math the walk already
+  // uses. Staging variety; the 12-second-hold risk dies with it."
+  // sitBack: the settled perch — the host sits on a stat card's edge,
+  // thighs near-horizontal, shins planted, weight on the hands. The
+  // leg angles ride the SAME pelvis anchor the walk uses (hip angles
+  // from the pelvis, knees below); rootY drops the pelvis to the seat
+  // height (the card edge lives ~92px above the ground line at host
+  // scale — rootY +58 sinks the hip onto it).
+  sitBack: { ...base(), rootY: 58, lean: 8, headTilt: 4, lLU: 82, lLL: 6, rLU: 86, rLL: 10, lAU: -20, lAL: -36, rAU: 26, rAL: 30, smile: 0.3, browRaise: 0.2, pelvisTilt: 2, shoulderTilt: -1.5 },
+  // sitRise: the push-up off the edge — weight driving through the
+  // planted feet, hands pressing the card, the body at 60% between
+  // sitBack and standing. The rise reads as EFFORT: arms straight,
+  // brow down, pelvis still on the seat line.
+  sitRise: { ...base(), rootY: 22, lean: 14, headTilt: -2, lLU: 56, lLL: 2, rLU: 60, rLL: 6, lAU: -44, lAL: -58, rAU: 48, rAL: 62, browRaise: 0.35, smile: 0.1, pelvisTilt: 1, shoulderTilt: -0.5 },
   // warm: the final takeaway (c9-three) — earned optimism, chest open,
   // soft raised brows, the big smile.
   // P1-4: + silhouette terms — both eyes widen 1.15 (soft wide-eyed
@@ -504,6 +520,156 @@ export class Stickman {
       pelvisTilt,
       shoulderTilt,
     } as Pose;
+  }
+
+  /**
+   * 100-JUDGE PANEL / Phase 2 item 1 — LOCOMOTION SET (report §6 Phase
+   * 2, p.14): "Add runPose (a 70-degree-stride, 2-phase, airborne-pass
+   * walkPose variant with a flight term), hurryWalk (cadence 1.6x, lean
+   * 14 degrees), and slumpWalk (stride 30 degrees, head down 12) as pure
+   * functions beside walkPose. The pelvis-anchoring math generalizes
+   * directly. The host's body can answer urgency and defeat, not only
+   * composure."
+   *
+   * RUNPOSE — a 2-phase run derived from the same analytic machinery:
+   *   • STRIDE: swing amplitude 38° -> 70° (the caricatured run
+   *     spread; ~62% of body height reads as sprint at this rig).
+   *   • 2-PHASE: the legs swap roles exactly once per cycle (no
+   *     double-support window — stance is a single instant, the way a
+   *     run actually works).
+   *   • FLIGHT TERM: both feet leave the ground through the pass —
+   *     rootY gains a −(liftL + liftR − 2·min) term so the pelvis
+   *     RISES when both swings peak; when both lifts exceed the stance
+   *     reach, the root offsets ABOVE the anatomical floor (airborne).
+   *     The math stays pure: rootY remains a closed function of the
+   *     pose's own angles.
+   *   • ARMS PUMP: 84° amplitude, elbows flexed to 96° (a run pumps,
+   *     it never swings); torso leans 12° into the velocity.
+   *   • GROUND TRUTH preserved: at each contact instant the stance
+   *     foot reaches exactly rootY (the anchor math carries over).
+   */
+  static runPose(phase: number, speed = 1): Pose {
+    const ph = ((phase % 1) + 1) % 1;
+    const s = Math.sin(ph * Math.PI * 2);
+    const c = Math.cos(ph * Math.PI * 2);
+    // 2-phase: the legs swap roles exactly half a cycle apart — the
+    // ANTIPHASE pair (when one sweeps forward the other sweeps back, the
+    // inter-leg spread riding the full 70° swing)
+    const phR = ph + 0.5;
+    const sR = Math.sin(phR * Math.PI * 2);
+    const cR = Math.cos(phR * Math.PI * 2);
+    // STRIDE: 70° — the run's caricatured spread
+    const swing = 70 * speed;
+    // strike pulses: LEFT lands at φ=0, RIGHT at φ=0.5 (2-phase)
+    const strikeL = Math.pow(Math.max(0, (-c - 0.86) / 0.14), 2);
+    const strikeR = Math.pow(Math.max(0, (-cR - 0.86) / 0.14), 2);
+    // swing arcs — a run lifts BOTH feet higher than the walk
+    const liftL = Math.max(0, s) * AMP.swingLiftPx * 1.6 * speed;
+    const liftR = Math.max(0, sR) * AMP.swingLiftPx * 1.6 * speed;
+    // legs: swing leg sweeps the FULL 70°; knees flex harder (34° swing
+    // clearance, 26° absorption — a run absorbs with the knee)
+    const lLU = -c * swing * 0.5 - 5;
+    const rLU = -cR * swing * 0.5 + 5;
+    const lLL = lLU - Math.max(0, s) * 34 * speed - strikeL * 26;
+    const rLL = rLU - Math.max(0, sR) * 34 * speed - strikeR * 26;
+    // GROUND ANCHOR + FLIGHT: the anatomical floor comes from the stance
+    // leg; the FLIGHT term fires through the pass — the window around
+    // each leg's vertical crossing (ph ≈ 0.25 / 0.75) where a run's body
+    // leaves the ground. At the crossing the stance leg is flexed (knee
+    // absorption) so BOTH feet are clear of the ground line: the pelvis
+    // rises by the crossing pulse. Pure function of the pose's own phase.
+    const U = 64, L = 58;
+    const reachL = Math.cos(lLU * D2R) * U + Math.cos(lLL * D2R) * L - liftL;
+    const reachR = Math.cos(rLU * D2R) * U + Math.cos(rLL * D2R) * L - liftR;
+    // the flight pulse: |sin| near 1 marks the pass crossings (the run's
+    // two airborne windows per cycle), squared for a snappier arc
+    const flight = Math.pow(Math.abs(Math.sin(ph * Math.PI * 2)), 3);
+    const rootY = (U + L) - Math.max(reachL, reachR) - flight * 16 * speed;
+    // pelvis/shoulder: the run's counter-rotation is FASTER and bigger
+    const pelvisTilt = Math.sin(ph * Math.PI * 4) * 7 * speed;
+    const shoulderTilt = -Math.sin(ph * Math.PI * 4) * 5.5 * speed;
+    // toe roll — the run's toes flick through toe-off harder
+    const toeFor = (p: number): number => {
+      const sp = ((p % 1) + 1) % 1;
+      if (sp < 0.5) {
+        return AMP.toeUpDeg - (AMP.toeUpDeg - AMP.toeDownDeg) * (sp * 2);
+      }
+      const u = (sp - 0.5) * 2;
+      const settle = AMP.toeDownDeg * 0.7;
+      return u < 0.2 ? settle * (1 - u / 0.2) : settle + (AMP.toeUpDeg - settle) * ((u - 0.2) / 0.8);
+    };
+    // ARMS PUMP: 84° amplitude, elbows at 96° flex — a run pumps
+    const armAmp = 1.1;
+    const lAUr = -c * swing * armAmp * 0.6 - 10 + s * 5;
+    const rAUr = c * swing * armAmp * 0.6 + 10 - s * 5;
+    return {
+      ...base(),
+      rootY,
+      lean: 12 + s * 3 + (strikeL + strikeR) * 4,   // torso drives INTO the velocity
+      headTilt: -6 - (strikeL + strikeR) * 4 + s * 1.5, // chin leads; strikes tuck it
+      lLU, lLL, rLU, rLL,
+      lAU: lAUr,
+      lAL: lAUr - 96,                                // pumping elbow flexion
+      rAU: rAUr,
+      rAL: rAUr + 96,
+      smile: 0.15,
+      browRaise: 0.3,                                // the effort read
+      lLift: liftL,
+      rLift: liftR,
+      lToe: toeFor(ph) + 6,
+      rToe: toeFor(ph + 0.5) + 6,
+      pelvisTilt,
+      shoulderTilt,
+    } as Pose;
+  }
+
+  /**
+   * Phase 2 item 1 — HURRYWALK: "cadence 1.6x, lean 14 degrees." The
+   * urgent walk — the presenter crossing his stage faster than composure
+   * allows. Pure wrapper: walkPose's analytic machinery at 1.6× tempo
+   * (the caller advances phase 1.6× per unit ground distance), with the
+   * lean and cadence caricature layered on. Arms pre-flex (a hurried man
+   * never lets his arms hang), the brow reads effort, the stride rides
+   * the walk's exact planting math.
+   */
+  static hurryWalk(phase: number, speed = 1.6): Pose {
+    const p = Stickman.walkPose(phase, speed);
+    return {
+      ...p,
+      lean: p.lean + 14,          // the report's 14° forward drive
+      headTilt: p.headTilt - 3,   // chin leads the lean
+      lAU: p.lAU - 12,            // pre-flexed arms — hurry carries in the elbows
+      rAU: p.rAU + 12,
+      lAL: p.lAL - 14,
+      rAL: p.rAL + 14,
+      browRaise: Math.max(p.browRaise, 0.25),
+      smile: Math.min(p.smile, 0.15),
+    };
+  }
+
+  /**
+   * Phase 2 item 1 — SLUMPWALK: "stride 30 degrees, head down 12." The
+   * defeat walk — the mood chapters' body language. Walk machinery at a
+   * 30° stride (speed 0.79 scales swing 38° -> 30°), with the head
+   * DOWN 12°, shoulders rolled forward, the pelvis sagging. The same
+   * pelvis-anchored math; the EMOTION is three additive terms.
+   */
+  static slumpWalk(phase: number, speed = 0.79): Pose {
+    const p = Stickman.walkPose(phase, speed);
+    return {
+      ...p,
+      headTilt: p.headTilt + 12,       // the report's head-down 12°
+      lean: p.lean - 5,                // the shoulders roll back off the hip
+      rootY: p.rootY + 4,              // the pelvis sags toward the ground
+      lAU: p.lAU + 18,                 // arms hang — no swing left in them
+      rAU: p.rAU - 18,
+      lAL: p.lAL - 8,
+      rAL: p.rAL - 8,
+      shoulderTilt: (p.shoulderTilt ?? 0) * 0.5,
+      browRaise: 0.05,
+      browAngle: 10,                   // the concern read
+      smile: 0,
+    };
   }
 
   static blinkScale(t: number, seed: number): number {
@@ -857,16 +1023,17 @@ export function take(pose: Pose, t: number, t0: number): Pose {
   if (dt < 66) {
     return { ...pose, rootY: (pose.rootY ?? 0) + 2 };
   }
-  const k = (dt - 66) / 314; // 0..1 across overshoot+settle
   // OVERSHOOT (66-200ms): 20% past the pose's own browRaise, head back,
   // torso opposite; SETTLE (200-380ms): bounce through zero, overshoot
-  // -0.12 the other way, damp to 0.
-  const over = dt < 200 ? easeOutCubic((dt - 66) / 134) : 1;
+  // -0.12 the other way, damp to 0. The overshoot envelope is
+  // CONTINUOUS at the 200ms boundary (over reaches 1.0 exactly there,
+  // then the settle's sine takes over from 0 — no pop).
+  const over = clamp01(easeOutCubic(Math.min(1, (dt - 66) / 134)));
   const settle = dt >= 200 ? Math.sin((dt - 200) / 180 * Math.PI) : 0;
   const bounce = dt < 200 ? over : -0.35 * settle;
   return {
     ...pose,
-    browRaise: clamp01(pose.browRaise + 0.20 * (dt < 200 ? over : -0.5 * settle)),
+    browRaise: clamp01(pose.browRaise + 0.20 * (dt < 200 ? over : 1 - 0.5 * settle)),
     headTilt: (pose.headTilt ?? 0) - 4 * bounce,
     lean: (pose.lean ?? 0) + 2.4 * bounce,
     rootY: (pose.rootY ?? 0) + 1.5 * bounce,
@@ -876,5 +1043,26 @@ export function take(pose: Pose, t: number, t0: number): Pose {
 }
 
 export const mixPose = blendPose;
+
+/**
+ * 100-JUDGE PANEL / Phase 2 item 2 — SMEARS AS EVENTS (report §6 Phase
+ * 2, p.14): "Drive r.smear from scene events (walk mid-stride, the
+ * tear, reaction entries) in addition to word accents; allow leg
+ * smears on the run."
+ *
+ * WALKSMEAR — the mid-stride event: the swing leg's peak-velocity
+ * window. The walk's swing occupies phase (0, 0.5) per leg; the foot
+ * moves fastest at mid-swing (φ ≈ 0.25 / 0.75) where the leg sweeps
+ * through vertical. This fires a 0..1 smear envelope there — the body
+ * answers the stride with motion streaks exactly where the eye already
+ * reads velocity. Pure function of the walk's own phase; scrub-safe.
+ */
+export function walkSmear(walkPhase: number | undefined): number {
+  if (walkPhase === undefined) return 0;
+  const ph = ((walkPhase % 0.5) + 0.5) % 0.5; // per-leg half-cycle
+  // peak at mid-swing (ph 0.25), dead at the contacts (ph 0 / 0.5)
+  const d = Math.abs(ph - 0.25);
+  return d > 0.14 ? 0 : 1 - d / 0.14;
+}
 export const easeVal = easeOutCubic;
 export const softMix = mix;

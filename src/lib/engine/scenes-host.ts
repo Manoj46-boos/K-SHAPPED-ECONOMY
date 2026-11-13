@@ -6,10 +6,10 @@
 import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, hashStr, lerp } from './easing';
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg, scenePlate, FONT_DISPLAY, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
 import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp, subjectHalo, microShake, impactRing } from './effects';
-import { Stickman, POSES, blendPose, walkIn, nodPulse, accentPulse } from './stickman';
+import { Stickman, POSES, blendPose, walkIn, nodPulse, accentPulse, walkSmear, take } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
 import { SceneCtx } from './scene-context';
-import { reactionAt } from './scene-context';
+import { reactionAt, reactionStart } from './scene-context';
 import { sourceTag, wrapText } from './charts';
 import { registerRect } from './collision';
 
@@ -238,7 +238,20 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   // P1-6 (audit Table 3): the word-accent SMEAR — the presenting arm
   // carries its three-ghost motion trail on every gesture spring (the
   // audit's "arms are passive stumps" — the opt existed, never driven).
-  const smr = g.speaking ? accentPulse(g.beatT, g.wordTimes) : 0;
+  // 100-JUDGE PANEL / Phase 2 item 2 — SMEARS AS EVENTS (report §6
+  // Phase 2): the smear now also fires on SCENE EVENTS, not only word
+  // accents — the walk's own MID-STRIDE peak (walkSmear on the swing
+  // leg's fastest window) and the REACTION ENTRY (the first 240ms of
+  // the reaction window: the body snapping to the twist reads as
+  // velocity, which is what a smear IS). Max of the three sources —
+  // one envelope, whichever event is live.
+  const reactionEntry = clamp01((t - reactionStart(g.s.sceneKey, t, g.d)) / 240) > 0
+    && t - reactionStart(g.s.sceneKey, t, g.d) < 240 ? 1 - (t - reactionStart(g.s.sceneKey, t, g.d)) / 240 : 0;
+  const smr = Math.max(
+    g.speaking ? accentPulse(g.beatT, g.wordTimes) : 0,
+    walkSmear(walkPhase),
+    0.8 * reactionEntry
+  );
   // AUDIT-3 / §1.5 round 2 (panel: "eye-line should follow the gesture"):
   // the side hosts now commit their full gaze toward their content.
   const lookRight = g.s.lookRight ? 1 : g.s.lookLeft ? -1 : side === 'left' ? 1 : side === 'right' ? -1 : 0;
@@ -478,6 +491,18 @@ export function hostSceneV2(g: SceneCtx): void {
   // v3 (panel P0-4): nods + articulate mouth on the editorial host too
   const nodP = g.speaking ? nodPulse(g.beatT, g.wordTimes) : 0;
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
+  // 100-JUDGE PANEL / Phase 2 item 4 — TAKE GRAMMAR WIRING (report §6
+  // Phase 2: "Wire Phase 1's take() to the twist (c8-fund), the
+  // paradox, and the final takeaway — the three reaction windows
+  // already exist as clocks"). The EDITORIAL host joins the side hosts'
+  // Phase 1 wiring: the take fires at the reaction window's start on
+  // the same reactionStart() clock the camera push consumes. Pure
+  // function of t — the pose math outside the 380ms window is
+  // untouched.
+  {
+    const r0 = reactionStart(g.s.sceneKey, t, g.d);
+    if (r0 >= 0) pose = take(pose, t, r0);
+  }
   // P1-6 (audit Table 3): the word-accent SMEAR — in the word's strike
   // window only (fix 13) — paused during the walk settle.
   const smr = g.speaking ? accentPulse(g.beatT, g.wordTimes) * (walkPhase !== undefined ? 0 : 1) : 0;

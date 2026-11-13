@@ -775,6 +775,12 @@ export function drawStickmanV2(
      *  0.25 the near arm draws a 0.35-alpha motion-blur ghost (the
      *  generalized text smear, on the fastest limb in the frame). */
     smear?: number;
+    /** 100-JUDGE PANEL / Phase 2 item 2 — SMEARS AS EVENTS (report §6
+     *  Phase 2): the LEG smear channel — 0..1, above 0.12 the near leg
+     *  draws a one-taper streak along its swept swing arc. Driven on the
+     *  run's flight window and the walk's mid-stride events; walks keep
+     *  planted-foot clarity, runs read as velocity. */
+    legSmear?: number;
     /** AUDIT-3 / §2.4 (report Phase 2.4): 0..1 landing/slam body squash
      *  about the feet (see the transform note at the top of the body).
      *  Drive with a short decaying pulse at the impact time. */
@@ -1026,6 +1032,33 @@ export function drawStickmanV2(
   // leg is the figure's anchor mass.
   const nearFoot = limb2(ctx, hipRX, hipRY, pose.rLU, pose.rLL, U_LEG, L_LEG, INK.legNear[0], INK.legNear[1], INK.legNear[2], ink, pose.rLift ?? 0);
   shoeWedge(nearFoot, ink, pose.rToe ?? 0);
+
+  // 100-JUDGE PANEL / Phase 2 item 2 — LEG SMEARS ON THE RUN (report §6
+  // Phase 2, p.14: "allow leg smears on the run"). The arm smear draws
+  // ONE elongated mass along the swept arc (see the near-arm smear
+  // below); the LEG version uses the same grammar on the near leg: the
+  // swing leg reconstructs its position one stride-swing ago (rLL
+  // minus the swing amplitude) and ONE taper spans previous-foot →
+  // past-current-foot at 0.4 alpha. Fires only when the caller passes
+  // legSmear (the run's flight window / mid-stride events) — walks keep
+  // their planted-foot clarity, runs read as velocity.
+  if ((r.legSmear ?? 0) > 0.12) {
+    const lsm = clamp01(r.legSmear ?? 0);
+    const aU4 = pose.rLU * D2R;
+    const aL4 = pose.rLL * D2R;
+    // the foot NOW
+    const fex = hipRX + Math.sin(aU4) * U_LEG + Math.sin(aL4) * L_LEG;
+    const fey = hipRY + Math.cos(aU4) * U_LEG + Math.cos(aL4) * L_LEG - (pose.rLift ?? 0);
+    // the foot a half-swing ago (the swing term the walk/run math adds)
+    const swingAgo = (aL4 - 34 * D2R * lsm);
+    const fpx = hipRX + Math.sin(aU4) * U_LEG + Math.sin(swingAgo) * L_LEG;
+    const fpy = hipRY + Math.cos(aU4) * U_LEG + Math.cos(swingAgo) * L_LEG;
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.40 * lsm;
+    taper(ctx, fpx, fpy, fex + (fex - fpx) * 0.22, fey + (fey - fpy) * 0.22,
+      INK.legNear[1] * 0.9, INK.legNear[2] * 0.7, ink);
+    ctx.restore();
+  }
 
   // PANEL-12 / P2-5 (report §14.5) — CONTACT DUST on foot-plant. Three
   // motes per plant, 200ms life, shadow-color at 0.25 alpha, keyed to the

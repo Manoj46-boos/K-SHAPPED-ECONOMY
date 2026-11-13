@@ -59,7 +59,19 @@ function hostSmall(
   // the certified default; hero moments (kDef's naming beat, the
   // cold-open shock) pass 0.55; hosts planted INSIDE data pass false.
   parallax = true,
-  parallaxD = 0.4
+  parallaxD = 0.4,
+  // 100-JUDGE PANEL / Phase 2 item 3 — A SIT-AND-RISE FOR THE MOOD
+  // CHAPTERS (report §6 Phase 2): "One new pose pair (sitBack on the
+  // stat card edge) with the ground-contact math the walk already
+  // uses. Staging variety; the 12-second-hold risk dies with it."
+  // sitAt: the beat-local ms when the host SITS (the card's settle
+  // beat); undefined = the standing cycle (every existing call site).
+  // The sit: sitRise (the push-off) for 480ms, then sitBack (the
+  // perch) held; groundY0 shifts up to the seat line so the hips land
+  // ON the card's edge — the same pelvis-anchored contact math, the
+  // seat standing in for the ground line.
+  sitAt?: number,
+  seatY?: number
 ): void {
   // v10 (panel CHAR-1/CHAR-3): the side host CYCLES through a gesture set
   // instead of holding one pose for the whole scene — "two poses: shrug,
@@ -134,8 +146,24 @@ function hostSmall(
   // never driven). Paused during reaction windows (the reaction pose is
   // a hold, not a spring).
   const smear = g.speaking ? accentPulse(g.beatT, g.wordTimes) * (1 - reaction) : 0;
+  // 100-JUDGE PANEL / Phase 2 item 3 — the SIT-AND-RISE. When sitAt is
+  // set, the standing cycle blends into sitRise (the 480ms push-off)
+  // then settles into sitBack (the perch on the card edge). The ground
+  // line shifts to the SEAT (the card's bottom edge) so the pelvis
+  // lands ON it — the same ground-contact math, the seat in place of
+  // the floor. blendPose carries the transition (the house 480ms
+  // spring), so the sit is a LANDING, not a teleport.
+  let groundY2 = groundY;
+  if (sitAt !== undefined) {
+    const sitP = clamp01((g.t - sitAt) / 480);
+    if (sitP > 0) {
+      const sitPose = sitP < 1 ? blendPose(POSES.sitRise, POSES.sitBack, sitP) : POSES.sitBack;
+      pose = blendPose(pose, sitPose, easeOutCubic(sitP));
+      groundY2 = seatY !== undefined ? lerp(groundY, seatY, easeOutCubic(sitP)) : groundY;
+    }
+  }
   drawStickmanV2(
-    g.ctx, x, groundY, scale, g.t,
+    g.ctx, x, groundY2, scale, g.t,
     {
       // P2-4 (audit Table 4 — depth with intent): the side hosts now
       // ENTER WITH THE WHIP — alpha ramps from t=160 (was 500), so the
@@ -1711,7 +1739,14 @@ export function statCardsScene(g: SceneCtx): void {
   // x 1330 (the hero card) and the host stands BESIDE it in his gesture
   // cone: pointL reaches INTO the hero card, the bias-driven headYaw
   // (fix 11) turns his face to it, and his feet sit clear of the chip row.
-  hostSmall(g, W * 0.845, 'pointL', 19, g.H * 0.615, 1.09, 0, 'aha', 1.4, 1, true);
+  // 100-JUDGE PANEL / Phase 2 item 3 — SIT-BACK ON THE STAT CARD EDGE
+  // (report §6 Phase 2): once the hero numeral has landed (2.4s), the
+  // host PERCHES on the hero card's bottom edge — sitRise for the
+  // 480ms push-off, then sitBack held. The 12-second-hold risk the
+  // report flagged dies here: the mood chapter's host stages ON its
+  // data, the seat line = the card's bottom edge (hy0 + hh), the
+  // ground-contact math unchanged.
+  hostSmall(g, W * 0.845, 'pointL', 19, g.H * 0.615, 1.09, 0, 'aha', 1.4, 1, true, 0.4, 2400, hy0 + hh + 26);
 }
 
 // ── ownerWorker scene ────────────────────────────────────────────────────────
