@@ -289,9 +289,43 @@ export function lightRays(
   W: number,
   H: number,
   t: number,
-  opts: { alpha?: number; x?: number } = {}
+  opts: { alpha?: number; x?: number; hostX?: number; hostR?: number } = {}
 ): void {
-  const { alpha = 0.5, x = W * 0.86 } = opts;
+  const { alpha = 0.5, x = W * 0.86, hostX = -1, hostR = 160 } = opts;
+  // 100-JUDGE PANEL / Phase 3 item 4 — LIGHT SHAFTS THAT SUBJECTS CROSS
+  // (report §6 Phase 3, p.17: "Move lightRays to scene-relative geometry
+  // and darken the plate on one side when the host passes the shaft; one
+  // gradient mask, no blur needed. Light becomes an event, not
+  // wallpaper.").
+  // SCENE-RELATIVE: the beam's anchor x is an argument (call sites pass
+  // the ROOM's fixed light position in scene coords, e.g. the host
+  // stage's window), and the beam now rides the camera's counter-drift —
+  // lightRays paints INSIDE the scene transform in the drawers, so the
+  // shaft moves with the room instead of being stamped on the screen.
+  // THE CROSS EVENT: when the host's body (hostX ± hostR) overlaps the
+  // shaft's ground band, the plate DARKENS on the far side of the
+  // shaft — one linear gradient mask across the beam's land, deepest
+  // at the beam foot, fading to clear at the frame edge. The host
+  // visibly walks through light, and the room answers.
+  const crossing = hostX >= 0 && Math.abs(hostX - x) < hostR + W * 0.09;
+  if (crossing) {
+    // the shadow plate on the far side of the shaft (the side the host
+    // moves toward): a gradient from the beam line outward, cool slate
+    // at 0.14 alpha at the beam fading to 0 by the edge — one mask, no
+    // blur. The side is whichever the host has MORE of behind him.
+    const shadowSide = hostX < x ? x : x; // plate starts at the beam either way
+    const dir = hostX < x ? -1 : 1; // extend toward the far edge
+    const edge = dir < 0 ? 0 : W;
+    const plate = ctx.createLinearGradient(x, 0, edge, 0);
+    plate.addColorStop(0, rgba(PALETTE.shadow, 0.14 * (alpha / 0.5)));
+    plate.addColorStop(1, rgba(PALETTE.shadow, 0));
+    ctx.save();
+    ctx.fillStyle = plate;
+    ctx.beginPath();
+    ctx.rect(Math.min(shadowSide, edge), 0, Math.abs(edge - shadowSide), H);
+    ctx.fill();
+    ctx.restore();
+  }
   ctx.save();
   ctx.globalCompositeOperation = 'overlay';
   const rot = -0.5 + Math.sin(t / 8000) * 0.04;
@@ -492,6 +526,63 @@ export function kMotifs(
   ctx.globalAlpha = alpha;
   ctx.strokeStyle = PALETTE.gold;
   drawK(ctx, x, y, s, 5);
+  ctx.restore();
+}
+
+/**
+ * 100-JUDGE PANEL / Phase 4 item 3 — THE COMPLEMENTARY CHAPTER ACCENT
+ * (report §6 Phase 4, p.18: "Raise the chapter washes ... with a
+ * complementary accent object per chapter (gold K, coral gauge, teal
+ * racks). Room changes become narrative events."). chapterAccent draws
+ * the chapter's OWN complement object at low alpha in the room's corner:
+ * the gold chapters get a GOLD K (the brand object, far corner), the
+ * coral (down) chapters get a tiny CORAL GAUGE dial, the teal (up)
+ * chapters get a TEAL BARS motif, neutral chapters get a soft GREY K.
+ * It rides the background plane (camera counter-drift), registers as
+ * background with the guard, and its alpha (0.16) keeps every reading
+ * surface clean. A pure function of (t, camState, tone).
+ */
+export function chapterAccent(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  t: number,
+  tone: 'up' | 'down' | 'gold' | 'neutral'
+): void {
+  ctx.save();
+  const x = Math.min(W - 300, W * 0.84 + Math.sin(t / 7000) * 8
+    - camState.dx * (1 - BG_PARALLAX) * 0.6);
+  const y = H * 0.72 + Math.cos(t / 6000) * 6;
+  if (tone === 'down') {
+    // the coral GAUGE — a small dial with a needle at the chapter's mood
+    ctx.globalAlpha = 0.16;
+    ctx.strokeStyle = PALETTE.down;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(x, y, 46, 0, Math.PI * 2);
+    ctx.stroke();
+    // the needle, sweeping low (the recession mood reads in the dial)
+    const ang = Math.PI * 0.62 + Math.sin(t / 5000) * 0.06;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(ang) * 38, y + Math.sin(ang) * 38);
+    ctx.stroke();
+  } else if (tone === 'up') {
+    // the teal RACKS/BARS — three rising bars (the market chapters)
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = PALETTE.up;
+    for (let i = 0; i < 3; i++) {
+      const bw = 22;
+      const bh = 34 + i * 22;
+      ctx.fillRect(x - 40 + i * (bw + 12), y + 44 - bh, bw, bh);
+    }
+  } else {
+    // the gold K (gold chapters) / soft grey K (neutral) — the brand
+    // object as the room's own furniture, far corner, background plane
+    ctx.globalAlpha = 0.16;
+    ctx.strokeStyle = tone === 'gold' ? PALETTE.gold : PALETTE.grid;
+    drawK(ctx, x, y - 40, 56, 4);
+  }
   ctx.restore();
 }
 

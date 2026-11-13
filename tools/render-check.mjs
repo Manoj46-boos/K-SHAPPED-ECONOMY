@@ -142,8 +142,56 @@ function beatTime(type, nth = 0) {
   const hits = tl.beats.filter((b) => b.beat.scene.type === type);
   const b = hits[Math.min(nth, hits.length - 1)];
   if (!b) return null;
-  // pick ~55% into the beat so entries have settled
-  return { t: b.startMs + (b.endMs - b.startMs) * 0.55, label: `ch${b.chapter + 1}-${b.beatIndex}` };
+  // pick ~55% into the beat so entries have settled.
+  // 100-JUDGE PANEL / Phase 4 item 1 — 12s caps note: the pick must ALSO
+  // sit settled inside the beat's SCENE GROUP: the cap re-split the runs,
+  // and a beat-time 55% can now land 0.5s after a fresh group seam (the
+  // camera punch + entry window — a true reframe frame, but the WORST
+  // moment to audit layout from). Pick 55% of the OVERLAP of the beat
+  // and its group: settled on both clocks. (The seam frames themselves
+  // are audited by the exit/mid sweep the full render-check runs.)
+  const tBeat = b.startMs + (b.endMs - b.startMs) * 0.55;
+  // group = the capped sub-group covering tBeat: consecutive run of the
+  // same sceneKey, packed at ≤12s (mirrors director.computeGroups)
+  let i = 0, grp = null;
+  while (i < tl.beats.length) {
+    const key = tl.beats[i].beat.scene.sceneKey;
+    let end = i;
+    while (end + 1 < tl.beats.length && tl.beats[end + 1].beat.scene.sceneKey === key) end++;
+    const CAP = 12000;
+    const seams = [];
+    for (let k = i; k <= end; k++) {
+      const beat = tl.beats[k];
+      seams.push(beat.startMs);
+      if (beat.endMs - beat.startMs > CAP) {
+        for (const s of beat.sentences.slice(1)) seams.push(s.startMs);
+      }
+    }
+    const runStart = seams[0];
+    const runEnd = tl.beats[end].endMs;
+    let gFrom = runStart;
+    while (gFrom < runEnd) {
+      let gTo = gFrom;
+      for (let si = 0; si < seams.length; si++) {
+        const cand = seams[si];
+        if (cand > gFrom && cand - gFrom <= CAP) gTo = cand;
+      }
+      if (runEnd - gFrom <= CAP) gTo = runEnd;
+      if (gTo <= gFrom) gTo = runEnd;
+      if (tBeat >= gFrom && tBeat < gTo) { grp = { s: gFrom, e: gTo }; break; }
+      gFrom = gTo;
+    }
+    if (grp) break;
+    i = end + 1;
+  }
+  let t = tBeat;
+  if (grp) {
+    // 55% of the beat∩group overlap, i.e. settled on BOTH clocks
+    const lo = Math.max(b.startMs, grp.s);
+    const hi = Math.min(b.endMs, grp.e);
+    if (hi > lo) t = lo + (hi - lo) * 0.55;
+  }
+  return { t, label: `ch${b.chapter + 1}-${b.beatIndex}` };
 }
 
 const picks = [

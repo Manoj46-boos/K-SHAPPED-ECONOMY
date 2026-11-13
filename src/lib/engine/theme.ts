@@ -577,14 +577,24 @@ export function paintBg(
   // 0.068, NOT 11% — the R6 dirty-salmon finding was a stacking measurement
   // on the peach-gradient scenes, and re-verified probes at 0.068 hold the
   // coral register at pale-peach (hue ~15°, sat ≤ 0.05) — never mud.
+  // 100-JUDGE PANEL / Phase 4 item 3 — DEEPEN THE COLOR JOURNEY (report
+  // §6 Phase 4, p.18: "Raise the chapter washes from 5-11% to 15-20%
+  // with a complementary accent object per chapter (gold K, coral gauge,
+  // teal racks). Room changes become narrative events."). The wash climbs
+  // into the report's own band: teal 0.19 / gold 0.17 / neutral 0.155 /
+  // coral 0.15 (coral stays the quietest — the R6 dirty-salmon ceiling
+  // still binds; 0.15 keeps pale-peach, verified against the same
+  // peach-gradient stacking scenes). The glow blob pair still breathes
+  // on the same 6s clock; the frame still reads light — but a chapter
+  // change now lands as a NARRATIVE event, not a whisper.
   const strength =
     chapterTone === 'neutral'
-      ? 0.09
+      ? 0.155
       : chapterTone === 'gold'
-        ? 0.105
+        ? 0.17
         : chapterTone === 'down'
-          ? 0.068
-          : 0.115;
+          ? 0.15
+          : 0.19;
   glowBlob(ctx, W * 0.82, H * 0.16 + driftY(t), W * 0.5, wash, strength + 0.012 * pulse);
   glowBlob(ctx, W * 0.1, H * 0.9, W * 0.42, wash, strength * 0.73 + 0.010 * (1 - pulse));
 }

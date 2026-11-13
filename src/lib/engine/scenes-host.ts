@@ -73,12 +73,22 @@ function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   // in a lit space instead of on a lightbox.
   scenePlate(ctx, W, H, g.chapterTone ?? 'up');
   bokehField(ctx, W, H, g.t, { intensity: 0.9, seed: 7 });
-  lightRays(ctx, W, H, g.t, { alpha: 0.6 });
   kMotifs(ctx, W, H, g.t, 0.18);
 
   const stage = g.s.stage as string;
   const hx = HOST_X(W, side);
   const hy = HOST_GROUND(H);
+
+  // 100-JUDGE PANEL / Phase 3 item 4 — LIGHT SHAFTS THAT SUBJECTS CROSS
+  // (report §6 Phase 3): the shaft anchors to the ROOM at W*0.38 — chosen
+  // against the film's ACTUAL host staging AND entry path (hosts enter
+  // sliding W*0.30 → W*0.46, left hosts stand W*0.27, center W*0.5): the
+  // beam sits ON the entry path, so every host ARRIVES through the light
+  // (the entry slide crosses the shaft — the crossing reads as an event),
+  // and left-host stages stand beside it (|518−730| = 212 < 343 band):
+  // the presenter stands IN the room's light, the far-side plate darkens
+  // (one gradient mask, no blur). The HOST's x rides in as hostX.
+  lightRays(ctx, W, H, g.t, { alpha: 0.6, x: W * 0.38, hostX: hx, hostR: 170 });
 
   // P1-6 (report): the subject halo — a soft radial lift behind the host so
   // he reads as lit in a room, not drawn on paper. Before the spotlight so

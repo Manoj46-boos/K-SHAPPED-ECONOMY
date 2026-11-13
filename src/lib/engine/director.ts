@@ -7,7 +7,7 @@
 
 import { clamp01, easeInQuad, easeInOutSine, easeOutCubic } from './easing';
 import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI } from './theme';
-import { drawGrain, lightVignette, bokehField, scalePunch, camState, guardCamState, kWipe, fgBokeh, dofPass } from './effects';
+import { drawGrain, lightVignette, bokehField, scalePunch, camState, guardCamState, kWipe, fgBokeh, dofPass, chapterAccent } from './effects';
 import { drawParticles, emitterKindFor } from './particles';
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
 import { Timeline, beatAt } from './timeline';
@@ -88,17 +88,80 @@ interface Group {
 
 function computeGroups(tl: Timeline): Group[] {
   const groups: Group[] = [];
+  // 100-JUDGE PANEL / Phase 4 item 1 — HARD 12-SECOND SCENE CAPS (report
+  // §6 Phase 4, p.18: "Split any group over 12s at its natural sentence
+  // seam (the reframe machinery already exists; the timeline builder
+  // needs the cap). Removes the swipe-risk pattern the film's own audit
+  // flagged.").
+  // The Kurzgesagt law: if the script advances, the image advances. A
+  // scene group (consecutive beats sharing a sceneKey) held longer than
+  // 12s reads as a still page with a voice over it — the retention risk
+  // the report's own audit flagged. Measured on the real timeline: 40 of
+  // 48 groups ran over (worst 79.9s), so the cap is the single biggest
+  // rhythm change in the film.
+  // MECHANISM: every beat boundary is a natural seam (a beat owns its
+  // sentences); INSIDE a >12s beat the sentence startMs values are the
+  // seams. The split boundary list for a run is therefore: the run's
+  // first beat's start, then every later beat's start, then every
+  // mid-beat sentence start (of beats longer than the cap) — then the
+  // seams are greedily packed so no group exceeds the cap. The scene
+  // drawer is unchanged — the SAME scene renders on both sides
+  // (sceneKey is equal); gt resets at the new group's start, which is
+  // exactly the reframe/reset machinery the camera grammar, exits,
+  // bokeh/particle phase and reaction clock already run on at every
+  // group start. Deterministic: a pure function of the timeline.
+  const SCENE_CAP_MS = 12000;
+  // pass 1 — build the run of consecutive beats sharing a sceneKey,
+  // collecting all sentence seams as candidate boundaries.
   let i = 0;
   while (i < tl.beats.length) {
-    const start = i;
     const key = tl.beats[i].beat.scene.sceneKey;
     let end = i;
     while (end + 1 < tl.beats.length && tl.beats[end + 1].beat.scene.sceneKey === key) end++;
-    groups.push({
-      startMs: tl.beats[start].startMs,
-      endMs: tl.beats[end].endMs,
-      beatIdx: start,
-    });
+    // the seam candidates for this run (absolute ms, ascending)
+    const seams: number[] = [];
+    for (let b = i; b <= end; b++) {
+      const beat = tl.beats[b];
+      seams.push(beat.startMs);
+      if (beat.endMs - beat.startMs > SCENE_CAP_MS) {
+        // long beat: its sentence starts are the inner seams (skip the
+        // first — it is beat.startMs, already pushed)
+        for (const s of beat.sentences.slice(1)) {
+          seams.push(s.startMs);
+        }
+      }
+    }
+    // pass 2 — greedy pack: for the current group start, take the FARTHEST
+    // seam that keeps the span ≤ cap (always at least one seam: the next,
+    // because a sentence is the atomic rhythm unit — a >12s sentence
+    // stays whole; the report caps groups, not sentences). Close there
+    // and restart. The tail closes at the run's end.
+    const runStart = seams[0];
+    const runEnd = tl.beats[end].endMs;
+    let gFrom = runStart;
+    while (gFrom < runEnd) {
+      // candidates: every seam after gFrom (plus the run end)
+      let gTo = gFrom;
+      for (let si = 0; si < seams.length; si++) {
+        const cand = seams[si];
+        if (cand > gFrom && cand - gFrom <= SCENE_CAP_MS) {
+          gTo = cand;
+        }
+      }
+      if (runEnd - gFrom <= SCENE_CAP_MS) {
+        gTo = runEnd; // the whole tail fits
+      }
+      if (gTo <= gFrom) {
+        // no seam fits — a single >cap sentence span: keep it WHOLE (a
+        // sentence is the atomic rhythm unit; the report caps groups,
+        // not sentences) — progress is guaranteed because the next
+        // iteration's seam scan starts after gFrom, and runEnd always
+        // terminates the loop when the tail fits
+        gTo = runEnd;
+      }
+      groups.push({ startMs: gFrom, endMs: gTo, beatIdx: i });
+      gFrom = gTo;
+    }
     i = end + 1;
   }
   return groups;
@@ -673,6 +736,18 @@ export function drawFrame(
     const kind = emitterKindFor(beat.beat.scene.type);
     if (kind !== 'none') {
       drawParticles(ctx, 1920, 1080, t, kind, beat.chapter * 13 + 7);
+    }
+  }
+  // 100-JUDGE PANEL / Phase 4 item 3 — THE COMPLEMENTARY CHAPTER ACCENT
+  // (report §6 Phase 4, p.18): each chapter's FIRST group carries the
+  // chapter's own accent object (gold K / coral gauge / teal racks) in the
+  // room's corner at background alpha — the room change lands as a
+  // narrative event alongside the deepened 15-20% washes. Background
+  // plane (never guard-registered), pure function of (t, camState, tone).
+  {
+    const firstBeatOfChapter = tl.beats.find((b) => b.chapter === beat.chapter);
+    if (firstBeatOfChapter && beat.beatIndex === firstBeatOfChapter.beatIndex) {
+      chapterAccent(ctx, 1920, 1080, t, chapterTone);
     }
   }
   // AUDIT-3 / §3.5 (report Phase 3.5 — DEPTH PAYOFF): the foreground

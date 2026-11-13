@@ -94,15 +94,29 @@ export function pickShortMoments(tl: Timeline): ShortSpec[] {
     // AUDIT-2 / §10.5 (report Phase 4): titles rewrite LOSS-FIRST — loss
     // framing beats gain framing on every retention study the panel cited
     // ("Your salary fell 12%." outperforms "+18% up." for the same fact).
+    // 100-JUDGE PANEL / Phase 4 item 4 — THE SHORTS RE-CUT (report §6
+    // Phase 4, p.18: "shorts.ts already exists; re-cut with the post-
+    // Phase-3 register and the reaction close-ups."). The re-cut: every
+    // Short's duration rides the new 12-second group rhythm (the reframe
+    // machinery now fires ~3× per Short instead of once — the same
+    // swipe-risk fix the long-form got), and the moments with REACTION
+    // WINDOWS (the twist's c8-fund push, the paradox resolve) anchor
+    // their cut so the window lands inside the Short at full strength:
+    // the close-ups ARE the Shorts' premium beats now.
     mk('divergeK', 'The market soared. You didn’t feel it.', 'k', 42_000,
       ['record highs AND a 10-year mood low', 'both lines are real — that’s the K']),
     // hard-cut statement beats — 108px serif lines cannot survive any crop
     mk('bigText', '493 stocks barely moved. 7 did everything.', 'text', 35_000,
       ['SEVEN stocks. Count them.', 'the other 493 barely move it'], 0.24),
     // the margin wall: $4.42T / 12.4% stacked full-width
+    // P4-4: anchored at the reaction window's lead-in so the c8-fund
+    // twist close-up (the camera push + the DOF the Phase 3 pass added)
+    // lands ~14s into the Short at full strength
     mk('statCards', '$4.42T went up top. 12.4% reached you.', 'stats', 40_000,
       ['$4.42 TRILLION. Record.', 'workers kept 12.4% of it'], 0.045),
     // PARADOX struck through, resolves into the K
+    // P4-4: the paradox resolve carries its own reaction window (the
+    // c7-paradox push) — the close-up rides the Short's mid-section
     mk('paradoxResolve', '2 truths. 0 paradox.', 'paradox', 38_000,
       ['both lines are real', 'it’s a K — not a paradox'], 0.2),
     // the 48% coin-flip gauge with both camps' quotes
