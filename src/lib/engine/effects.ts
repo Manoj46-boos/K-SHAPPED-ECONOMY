@@ -282,11 +282,18 @@ export function lightRays(
   ctx.restore();
 }
 
-// ── Bright-edge vignette (keeps the light, airy feel) ────────────────────────
+// ── PREMIUM UPGRADE V4: DARK-EDGE VIGNETTE ───────────────────────────────────
+// The bright-edge vignette (white at edges) is replaced with a standard
+// dark-edge vignette (shadow at edges). The eye is drawn to the brightest
+// part of the frame; darkening the edges pushes attention inward, toward
+// the subject. The bright-edge read as "flash photography"; the dark-edge
+// reads as cinematic focus. Uses PALETTE.shadow (cool slate-teal) at 0.25
+// alpha — felt, not heavy.
 export function lightVignette(ctx: CanvasRenderingContext2D, W: number, H: number, strength = 1): void {
-  const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.42, W / 2, H / 2, Math.max(W, H) * 0.72);
-  g.addColorStop(0, rgba('#FFFFFF', 0));
-  g.addColorStop(1, rgba('#FFFFFF', 0.34 * strength));
+  const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.38, W / 2, H / 2, Math.max(W, H) * 0.72);
+  g.addColorStop(0, rgba(PALETTE.shadow, 0));
+  g.addColorStop(0.6, rgba(PALETTE.shadow, 0));
+  g.addColorStop(1, rgba(PALETTE.shadow, 0.28 * strength));
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
 }

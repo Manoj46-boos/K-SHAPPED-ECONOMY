@@ -261,15 +261,19 @@ export class Stickman {
         //    hand traces a curve through space, not a straight line.
         // All pure functions of (t, sentence data) — scrub-safe.
         const st = opts.sentenceT ?? 1e9;
-        // AUDIT-ROUND-2 (fix 14 — GESTURE AMPLITUDE): anticipation recoil
-        // 0.3 → 0.45 — the wind-up must be FELT, not inferred.
+        // PREMIUM UPGRADE M2: GESTURE FOLLOW-THROUGH. The spring damping drops
+        // 19 -> 14 (more underdamped = ~9% overshoot) and the clamp01 is removed
+        // so the hand can punch PAST the target pose and settle with 2-3 visible
+        // bounces. The old 4% overshoot was below perception at the phone gate;
+        // the new 9% reads as a hand striking a pose, not an arm moving to a
+        // position. The lower bound is floored at 0 so the spring can't reverse.
         const anti = st < 150 ? Math.sin((st / 150) * Math.PI) * 0.45 : 0;
         const sT = Math.max(0, st - 150);
-        const fUp = clamp01(springTo(0, 1, sT, 150, 19)) - anti;
+        const fUp = Math.max(0, springTo(0, 1, sT, 150, 14) - anti);
         // AUDIT-ROUND-2 (fix 14): elbow cascade 70 → 90ms behind the
         // shoulder — a wave that visibly travels DOWN the limb at phone
         // scale (70ms downsampled to a snap at 320px).
-        const fLo = clamp01(springTo(0, 1, Math.max(0, sT - 90), 150, 19)) - anti * 0.7;
+        const fLo = Math.max(0, springTo(0, 1, Math.max(0, sT - 90), 150, 14) - anti * 0.7);
         const up = blendPose(prevPose, cyc, fUp);
         const lo = blendPose(prevPose, cyc, fLo);
         pose = { ...up, lAL: lo.lAL, rAL: lo.rAL };
@@ -733,6 +737,16 @@ export function walkIn(
   let pose: Pose;
   if (walking) {
     pose = Stickman.walkPose(phase, speed);
+    // PREMIUM UPGRADE M1: WALK ACCELERATION LEAN. The torso leans forward
+    // +8° during the first 22% of the walk (acceleration), returns to neutral
+    // in the cruise, and leans back -4° in the last 22% (deceleration). A
+    // heavy walk leans into its acceleration and resists its deceleration —
+    // the old flat lean read as gliding, not walking.
+    if (p < 0.22) {
+      pose = { ...pose, lean: pose.lean + 8 * (1 - p / 0.22) };
+    } else if (p > 0.78) {
+      pose = { ...pose, lean: pose.lean - 4 * ((p - 0.78) / 0.22) };
+    }
     if (arrive && p > 0.84) {
       // the completed settle: cycle → arrival gesture over the last 16%
       const k = (p - 0.84) / 0.16;

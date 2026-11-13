@@ -2,7 +2,7 @@
 
 Renders your complete YouTube script — **"Why Does Everyone Feel Broke When the Stock Market Is at Record Highs?"** — as a premium, light-themed stick-man explainer video, **frame by frame**, and saves a YouTube-ready MP4 straight to your laptop.
 
-- **~19–21 minutes** of finished video (35,000+ frames at 1080p/30)
+- **~20 minutes** of finished video (35,000+ frames at 1080p/30) — the full script, all 10 chapters
 - **Human-like neural voiceover** (free Microsoft Edge voices — Andrew by default)
 - **Original score** composed by code (royalty-free, fully monetizable) with automatic ducking under the voice
 - **Karaoke captions** synced word-by-word to the voice
@@ -176,15 +176,11 @@ institutionalized fixes (audit-round-2 fixes 6, 26, 31):
    a visible change every 1-2s and the value promise spoken by second
    10). Exits non-zero if any dead window exists.
 
-3. **The first-upload cut** — the runtime prescription (10-12 min):
-   ```
-   node tools/frame-dump.mjs --cut first --scene divergeK --nth 0 --frac 0.8 --out cut-frame.png
-   ```
-   `--cut first` renders from the **FIRST_UPLOAD_CUT** script (ch1 cold
-   open + ch2 market + ch8 twist + ch9 takeaways — `buildCut()` in
-   `src/lib/engine/script-data.ts`). Publish the full film as sequels
-   once the channel has traction; the shorts pipeline is the discovery
-   funnel.
+3. **The full 20-minute script** — the primary output. The default render
+   uses the complete SCRIPT (all 10 chapters) and produces the full ~20-minute
+   film. This is the primary video for the channel. The optional `--cut first`
+   flag in the harness renders a shorter 10-12 minute cut for testing only;
+   the shipped video is always the full script.
 
 Run these three before every upload and the phone gate, the retention
 cadence and the runtime rule enforce themselves.

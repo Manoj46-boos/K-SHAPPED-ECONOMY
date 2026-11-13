@@ -793,13 +793,15 @@ export function drawFrame(
   // 0.5 (charts/cards — texture the plate, spare the labels), statement
   // frames stay 0.3 (clean serif plates, unchanged).
   {
-    // fix 25: the scene-class grain register
+    // PREMIUM UPGRADE V6: GRAIN HALVED. Premium film grain runs at 0.15-0.25
+    // — felt, not seen. The old 0.3-0.6 textured the figure's limbs and the
+    // small type, fighting the reading surfaces. Halved across all tiers.
     const sceneType = beat.beat.scene.type;
     const grainAlpha =
-      sceneType === 'bigText' || sceneType === 'stampCard' ? 0.3
+      sceneType === 'bigText' || sceneType === 'stampCard' ? 0.15
       : ['host', 'divergeK', 'channelIntro', 'recapSplit', 'paradoxResolve',
-         'ownerWorker', 'endScreen', 'commentPrompt', 'takeaways'].includes(sceneType) ? 0.6
-      : 0.5;
+         'ownerWorker', 'endScreen', 'commentPrompt', 'takeaways'].includes(sceneType) ? 0.3
+      : 0.25;
     drawGrain(ctx, W, H, grainAlpha, t);
   }
   lightVignette(ctx, W, H, 0.30);

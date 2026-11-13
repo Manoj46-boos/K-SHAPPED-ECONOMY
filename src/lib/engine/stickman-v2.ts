@@ -24,7 +24,7 @@
  *  §8/C4 stroke weights + face features sized to survive the 320px feed.
  */
 
-import { PALETTE, rgba, roundRect } from './theme';
+import { PALETTE, rgba, roundRect, hexLerp } from './theme';
 import { clamp, clamp01, hash01 } from './easing';
 import { registerRect } from './collision';
 import { camState } from './effects';
@@ -649,7 +649,11 @@ export function drawStickmanV2(
   // AUDIT-3 / §2.4: the squash rides the figure transform ABOUT the
   // ground-contact origin (translate happens before scale, so the feet
   // stay planted while the body compresses).
-  if (squash > 0.001) ctx.scale(1 + 0.06 * squash, 1 - 0.09 * squash);
+  // PREMIUM UPGRADE M1: WALK WEIGHT. The contact squash rises from 6% to 18%
+  // (volume-preserving: width +18%, height -22%). The figure visibly compresses
+  // at each foot plant — the walk gains weight. The old 6% was below perception
+  // at the phone gate; 18% reads as a heavy landing.
+  if (squash > 0.001) ctx.scale(1 + 0.18 * squash, 1 - 0.22 * squash);
   ctx.scale(r.flip ? -scale : scale, scale);
   // v6 idle life: a 2.4s breath sway (±0.23°) around the ground contact —
   // the freeze between sentences read as a mannequin without it.
@@ -704,10 +708,12 @@ export function drawStickmanV2(
   if ((r.shadow ?? 1) > 0 && drawFar) groundShadowV2(ctx, 0, 0, 1, r.shadowSkew ?? 0, r.shadowRot ?? 0);
 
   const ink = PALETTE.ink;
-  // AUDIT-3 / Finding 1 (report §3.2 + Phase 1.1): ONE INK VALUE PER
-  // CHARACTER (see the long note above — depth from overlap and contact,
-  // never from splitting limb values).
-  const farInk = ink;
+  // PREMIUM UPGRADE 3D-1: VALUE-BASED DEPTH ON FAR LIMBS. The "one ink
+  // value" rule is reversed — Alan Becker's stickman uses a 12% value shift
+  // on far limbs for atmospheric perspective. The far limb recedes into
+  // the atmosphere; the near limb comes forward. Combined with the existing
+  // overlap depth cue, the figure gains 2.5D volume from one colour change.
+  const farInk = hexLerp(ink, PALETTE.bgSoft, 0.14);
   // AUDIT-3 / Walk 3.0 (§2.6): the shoe PITCHES with the stride (lToe/rToe
   // from walkPose) — heel-strike (toe up) through toe-off (toe down).
   // BLUEPRINT Phase 2 (report §11): the 18x8.5 ELLIPSE becomes a DRAWN
@@ -796,16 +802,53 @@ export function drawStickmanV2(
     }
   }
 
-  // torso — tapered spine. P0-5: the taper bias inverts (15 at the hips,
-  // 22 at the shoulders) — narrower hips, wider shoulders, grounded
-  // anatomy (the v2 bias was near-uniform).
-  // AUDIT-3 / §3.1: the 'prof' variant widens the taper (19.5/27.5) — a
-  // stockier silhouette that reads as a different build, not a scaled
-  // copy of the host (Finding C-3, “copy-paste coworker”).
+  // PREMIUM UPGRADE C2: TORSO AS SHAPED CAPSULE. The single taper (a spine
+  // line that widens) is replaced with a filled path: chest bulge, waist
+  // narrowing, hip block, shoulder caps. The figure gains silhouette mass
+  // the camera can frame and the light can hit. A taper reads as a line;
+  // a capsule reads as a body.
   const prof = r.variant === 'prof';
-  // BLUEPRINT Phase 2 (INK): torso taper 15/22 -> 19/30 (prof 24/35) —
-  // the chest mass the stocky silhouette needs at phone scale.
-  taper(ctx, 0, pelvisY + 4, neckX, neckY, prof ? 24 : INK.torso[0], prof ? 35 : INK.torso[1], ink);
+  {
+    const tx0 = 0, ty0 = pelvisY + 4, tx1 = neckX, ty1 = neckY;
+    const tdx = tx1 - tx0, tdy = ty1 - ty0;
+    const tL = Math.hypot(tdx, tdy) || 1;
+    const tnx = -tdy / tL, tny = tdx / tL;
+    // half-widths at 4 key points: hips(0), waist(0.45), chest(0.75), shoulders(1.0)
+    // PREMIUM UPGRADE M4: CHEST BREATHING. The chest widens ±4% on a 2.4s
+    // breath cycle — the torso expands on inhale, narrows on exhale. Reads
+    // as breathing, not as a vertical bob. The shoulders also rise 2px on
+    // inhale (shoulderY offset below).
+    const chestBreathe = 1 + Math.sin(t / 2400 + seed * 3.1) * 0.04;
+    const wH = prof ? 17.5 : 15, wW = prof ? 13 : 11;
+    const wC = (prof ? 20 : 17) * chestBreathe, wS = (prof ? 17.5 : 15) * chestBreathe;
+    const rX = (h: number, w: number) => tdx * h + tnx * w;
+    const rY = (h: number, w: number) => ty0 + tdy * h + tny * w;
+    const lX = (h: number, w: number) => tdx * h - tnx * w;
+    const lY = (h: number, w: number) => ty0 + tdy * h - tny * w;
+    ctx.fillStyle = ink;
+    ctx.beginPath();
+    ctx.moveTo(rX(0, wH), rY(0, wH));
+    ctx.quadraticCurveTo(rX(0.25, wH * 0.7), rY(0.25, wH * 0.7), rX(0.45, wW), rY(0.45, wW));
+    ctx.quadraticCurveTo(rX(0.6, wW * 1.1), rY(0.6, wW * 1.1), rX(0.75, wC), rY(0.75, wC));
+    ctx.quadraticCurveTo(rX(0.9, wC * 0.95), rY(0.9, wC * 0.95), rX(1.0, wS), rY(1.0, wS));
+    ctx.lineTo(lX(1.0, wS), lY(1.0, wS));
+    ctx.quadraticCurveTo(lX(0.9, wC * 0.95), lY(0.9, wC * 0.95), lX(0.75, wC), lY(0.75, wC));
+    ctx.quadraticCurveTo(lX(0.6, wW * 1.1), lY(0.6, wW * 1.1), lX(0.45, wW), lY(0.45, wW));
+    ctx.quadraticCurveTo(lX(0.25, wH * 0.7), lY(0.25, wH * 0.7), lX(0, wH), lY(0, wH));
+    ctx.closePath();
+    ctx.fill();
+    // shoulder caps — small rounded delts at the shoulder line
+    ctx.beginPath();
+    ctx.arc(rX(0.92, wS * 0.6), rY(0.92, wS * 0.6), wS * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(lX(0.92, wS * 0.6), lY(0.92, wS * 0.6), wS * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+    // hip block — a short horizontal bar at the pelvis for grounding
+    ctx.beginPath();
+    ctx.ellipse(tx0 + tdx * 0.08, ty0 + tdy * 0.08, wH * 1.1, wH * 0.45, Math.atan2(tdx, -tdy), 0, Math.PI * 2);
+    ctx.fill();
+  }
   // (fix 21's torso rim draws ONCE, after the near arm — see the pass by
   // the hand below; the under-arm pass was retired: its end anchored at the
   // neck centreline and the line drifted inside the torso, which the panel
@@ -1049,7 +1092,12 @@ export function drawStickmanV2(
     ctx.translate(-neckX, -neckY);
   }
   ctx.translate(headCX, headCY + nod);
-  ctx.scale(faceS, faceS);
+  // PREMIUM UPGRADE 3D-3: PSEUDO-3D HEAD TURN. The head narrows as it turns
+  // (scaleX squash proportional to yaw) — a cheap 2.5D read that the head is
+  // rotating in 3D, not just pivoting in 2D. At full yaw (14°) the head
+  // compresses to 88% width, reading as a head turning away.
+  const yawMag = Math.abs((pose.headYaw ?? 0) / AMP.headYawDeg);
+  ctx.scale(faceS * (1 - 0.12 * yawMag), faceS);
   // Panel round 2: the head outline yaws ±14° about the neck; the FACE
   // rotates an additional fraction of the same term about the head's own
   // centre (+6° at full yaw) — the features lead the turn the way a real
@@ -1058,23 +1106,41 @@ export function drawStickmanV2(
   // soft head shadow for depth
   ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
   ctx.beginPath();
-  ctx.arc(3, 5, 34, 0, Math.PI * 2);
+  ctx.ellipse(3, 5, 32, 38, 0, 0, Math.PI * 2);
   ctx.fill();
-  // AUDIT-PHASE-2: head fill switches from bgTop (white) to warm cream
-  // (#E8D5B7) — the head reads as a SOLID MASS at any scale, not a thin
-  // outline on white. Carries the silhouette the way Alan Becker's
-  // stickman heads do (filled, not outlined).
-  // P1-1: 'becker' goes one step further — the WHOLE head is ink; the
-  // features draw in white on top. 'thin' keeps the cream head but draws
-  // the ring at 9.5px — a line, not a hood.
+  // PREMIUM UPGRADE C1: EGG HEAD. The circle (34x34) is replaced with an
+  // egg ellipse (32 wide × 39 tall) + a chin extension + a nose wedge.
+  // A circle reads as a ball/bullet; an egg reads as a skull. This is the
+  // single highest-leverage character upgrade — the audience locks onto
+  // the head first. The chin gives a jawline; the nose gives facial depth.
   ctx.fillStyle = becker ? ink : '#E8D5B7';
   ctx.strokeStyle = ink;
-  ctx.lineWidth = headStroke; // P1-1: 14 -> 9.5 ('thin') — the outline is a
-  // drawn line again; the "ninja hood" ring is gone.
+  ctx.lineWidth = headStroke;
+  // the egg — taller than wide, slightly offset up for chin room
   ctx.beginPath();
-  ctx.arc(0, 0, 34, 0, Math.PI * 2);
+  ctx.ellipse(0, -1, 32, 38, 0, 0, Math.PI * 2);
   ctx.fill();
-  if (headStroke > 0) ctx.stroke();
+  // the chin — a subtle jaw extension below the ellipse
+  ctx.beginPath();
+  ctx.moveTo(-8, 33);
+  ctx.quadraticCurveTo(0, 41, 8, 33);
+  ctx.fill();
+  if (headStroke > 0) {
+    ctx.beginPath();
+    ctx.ellipse(0, -1, 32, 38, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // the nose — a small wedge at mid-face (white on becker, ink on cream)
+  {
+    const noseCol = becker ? rgba('#FFFFFF', 0.5) : rgba(ink, 0.4);
+    ctx.fillStyle = noseCol;
+    ctx.beginPath();
+    ctx.moveTo(2, -2);
+    ctx.lineTo(7, 2);
+    ctx.lineTo(2, 4);
+    ctx.closePath();
+    ctx.fill();
+  }
   // AUDIT-ROUND-2 (fix 21 — CHARACTER RIM LIGHT): the head's upper-right
   // rim — one warm ivory arc on the light side (the film's light is
   // upper-right; every shadow already falls lower-left). An EDGE, so it
@@ -1085,7 +1151,8 @@ export function drawStickmanV2(
     ctx.lineWidth = 3.2;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.arc(0, 0, 34 - 1.8, -Math.PI * 0.52, -Math.PI * 0.02);
+    // C1: rim light follows the egg ellipse, not the old circle
+    ctx.ellipse(0, -1, 32 - 1.8, 38 - 1.8, 0, -Math.PI * 0.52, -Math.PI * 0.02);
     ctx.stroke();
   }
   // eyes + glints
