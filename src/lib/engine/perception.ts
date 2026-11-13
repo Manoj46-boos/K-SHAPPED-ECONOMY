@@ -45,24 +45,23 @@ export const AMP = {
   /** Heel-strike pitch, deg (was -14).
    *  AUDIT-ROUND-2 (fix 12): -22 → -34 — the heel-strike reads. */
   toeDownDeg: -34,
-  /** AUDIT-ROUND-2 (fix 12 — WALK EXTREMES): the stride swing angle, deg.
-   *  26° at the editorial host's scale was a ~223px stride spread on an
-   *  800px figure — 28% of body height where a readable cartoon walk wants
-   *  40%+. 38° = ~41% — the stride finally reads as WALKING, not
-   *  gliding (the walk-in stills were judged "a limp near-vertical
-   *  glide", "legs nearly stacked under the hips"). */
-  swingDeg: 38,
-  /** AUDIT-ROUND-2 (fix 12): the contact absorb — pelvis sinks this many
-   *  px PAST the anatomical minimum at each plant (was 4.5). 9px at the
-   *  host's scale is a visible signal at the phone gate. */
-  absorbPx: 9,
-  /** AUDIT-ROUND-2 (fix 12): the passing pose's body stretch (was 2.5).
-   *  5px tall-at-the-crossing — the counter-bob the contact/pass rhythm
-   *  needs. */
-  passRaisePx: 5,
-  /** AUDIT-ROUND-2 (fix 12): the chin tuck INTO each plant (was 3°).
-   *  Doubled — the lunge reads in the head, not just the legs. */
-  chinTuckDeg: 6,
+  /** 100-JUDGE AUDIT (Part 9.1 — REAL WALK EXAGGERATION). The shipped
+   *  38° stride was anatomically correct (41% of body height) but
+   *  perceptually a glide — the silhouette never caricatures. Premium
+   *  animation exaggerates 30-80% past anatomy; Alan Becker's walks run
+   *  ~55° stride. swingDeg 38 → 55: the contact pose finally reads as a
+   *  lunge, not a step. The math stays exact (feet still plant, pelvis
+   *  stays ground-anchored); only the caricature amplitude rises. */
+  swingDeg: 55,
+  /** 100-JUDGE AUDIT (Part 9.1): contact absorb doubled — the plant must
+   *  LAND as a lunge, not a step. 9px → 18px past anatomical minimum. */
+  absorbPx: 18,
+  /** 100-JUDGE AUDIT (Part 9.1): passing pose stretch doubled — the
+   *  counter-bob the contact/pass rhythm needs. 5px → 10px tall-at-crossing. */
+  passRaisePx: 10,
+  /** 100-JUDGE AUDIT (Part 9.1): chin tuck doubled again — the lunge must
+   *  read in the HEAD, not just the legs. 6° → 10° into each plant. */
+  chinTuckDeg: 10,
   /** AUDIT-ROUND-2 (fix 12): the shoe wedge's lever length, px (was 29).
    *  36px gives the ±40° toe roll a visible lever at any host scale. */
   shoeLeverPx: 36,

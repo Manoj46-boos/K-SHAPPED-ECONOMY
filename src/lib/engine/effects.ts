@@ -105,7 +105,11 @@ export function bokehField(
   // DOUBLE the speed — few, confident, MOVING discs read as a lens;
   // many slow rings read as stamped confetti. The ring alpha floor
   // rises 0.26 -> 0.40 so the survivors register after the transcode.
-  const N = 9;
+  // 100-JUDGE AUDIT (Part 12.2): count lifted 9 → 14 — premium 2D
+  // animation needs more varied disc sizes and speeds to read as a
+  // real lens plane. Each disc still gets a depth band, still camera-
+  // scaled, still varies by hash; only the count rises.
+  const N = 14;
   // v3 (panel P1-2): motes counter-shift by the camera motion the background
   // did NOT follow, so the bokeh slides against the scene plane at ~0.45×.
   const camX2 = camState.dx * (1 - BG_PARALLAX);
@@ -205,7 +209,15 @@ export function fgBokeh(
   t: number,
   opts: { seed?: number; count?: number } = {}
 ): void {
-  const { seed = 5, count = 3 } = opts;
+  // 100-JUDGE AUDIT (Part 11.2 + 12.2 — MULTI-LAYER DEPTH-OF-FIELD).
+  // Three foreground discs over a 20-minute video is too few. Premium
+  // composition uses 8-12 foreground elements at varied depths, speeds
+  // and sizes. Default count lifted 3 → 10. Each disc gets a varied
+  // depth (0.75-1.25), varied speed coupling, and a soft radial gradient
+  // fill (defocus, not hard stencil). The blur filter is applied via
+  // offscreen canvas in the director's depth stack (see drawFrame); here
+  // we just draw more varied discs.
+  const { seed = 5, count = 10 } = opts;
   // 1.35× camera: foreground objects move MORE than the midground stage —
   // the differential the parallax planes were missing on the near side.
   const camX = camState.dx * 1.35;
@@ -623,19 +635,35 @@ export function drawK3D(
   // striation noise and the sweeping sheen band are gone; one white glint
   // dot lands on the stem (below).
   {
-    // the face ramp — one vertical 3-stop gradient across all three strokes
+    // 100-JUDGE AUDIT (Part 11.3 — PBR GOLD 7-TONE RAMP). The shipped
+    // 3-stop face ramp (specular → mid → base) collapses into "mustard
+    // plus noise" at the phone gate. Real PBR gold is a 5-7 tone ramp
+    // plus an environment reflection plus a Fresnel edge highlight.
+    // The 7-tone ramp: #FFF4D0 specular → #F5E6A8 bright → #D9B224 mid
+    // → #C9A227 base → #8F6E12 shadow → #5F4A0E deep shadow → #3F3208
+    // ambient occlusion. Each tone maps to a different lighting zone on
+    // the K's face — the audience reads "struck coin" instead of
+    // "mustard gradient".
     const ramp = ctx.createLinearGradient(x, y - s, x, y + s);
-    ramp.addColorStop(0, '#F5E6A8');   // specular streak — upper third
-    ramp.addColorStop(0.33, PALETTE.goldDisplay); // mid
-    ramp.addColorStop(1, PALETTE.goldDeep);        // base
+    ramp.addColorStop(0,    '#FFF4D0');   // specular highlight — top edge
+    ramp.addColorStop(0.15, '#F5E6A8');   // bright lit zone
+    ramp.addColorStop(0.40, '#D9B224');   // mid tone (goldDisplay)
+    ramp.addColorStop(0.65, '#C9A227');   // base gold
+    ramp.addColorStop(0.82, '#8F6E12');   // shadow zone
+    ramp.addColorStop(0.93, '#5F4A0E');   // deep shadow
+    ramp.addColorStop(1,    '#3F3208');   // ambient occlusion — bottom edge
     drawK(ctx, x, y, s, 30, ramp as unknown as string, grow);
     // the CHAMFER — a bright inset stroke along the face's own outline,
     // carrying a light-axis gradient (bright where the light catches the
     // bevel, deep on the shadow side): the edge between face and walls.
+    // 100-JUDGE AUDIT: the chamfer now carries 4 stops — the Fresnel edge
+    // highlight brightens where the surface normal is perpendicular to the
+    // camera (top + right edges face upper-right toward the light).
     const cham = ctx.createLinearGradient(x + s * 0.9, y - s * 0.9, x - s * 0.7, y + s * 0.7);
-    cham.addColorStop(0, '#FFE9A8');
-    cham.addColorStop(0.45, PALETTE.goldDisplay);
-    cham.addColorStop(1, rgba(PALETTE.goldDeep, 0.85));
+    cham.addColorStop(0,    '#FFFAE8');   // Fresnel edge — bright where normal ⊥ camera
+    cham.addColorStop(0.30, '#FFE9A8');   // lit edge
+    cham.addColorStop(0.65, PALETTE.goldDisplay);
+    cham.addColorStop(1,    rgba(PALETTE.goldDeep, 0.85));
     drawK(ctx, x, y, s, 13, cham as unknown as string, grow);
   }
   // fix 17: the WHITE GLINT — one bright specular dot on the stem's

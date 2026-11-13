@@ -241,7 +241,13 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   // that makes each footfall land (see stickman-v2's squash transform).
   drawStickmanV2(
     ctx, x, hy, scale, t,
-    { pose, alpha: fade, look: lookRight, nod: nodP, scarf: true, talk, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true },
+    { pose, alpha: fade, look: lookRight, nod: nodP, scarf: true, talk, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true,
+      // 100-JUDGE AUDIT (Part 8.2): pass the beat's word texts + times + beatT
+      // so the viseme estimator can shape the mouth per the active word.
+      wordTexts: g.beat?.sentences?.flatMap(s => s.words.map(w => w.w)),
+      wordTimes: g.gWordTimes,
+      beatT: g.beatT,
+    },
     11
   );
 }

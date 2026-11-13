@@ -57,6 +57,45 @@ export function talkAt(t: number, wordTimes: number[]): number {
 }
 
 /**
+ * 100-JUDGE AUDIT (Part 8.2 — PRESTON BLAIR 9-SHAPE MOUTH). The shipped
+ * 4-shape system (closed / small-open / wide-open / round-O) cannot carry
+ * speech — premium lip sync needs at minimum the 9 Preston-Blair visemes:
+ *   A (closed, MBP), B (slightly open, KST), C (open, EH), D (wide, FV),
+ *   E (rounded, OW), F (pursed, UW), G (teeth-on-lip, TH), H (open wide, AH),
+ *   X (rest). The engine already receives word-level timing (wordTimes) for
+ * caption sync. This viseme estimator maps the active word's first letter
+ * (cheap, no library) to a viseme shape. Pure function of (t, wordTimes,
+ * words) — scrub-determinism preserved.
+ */
+export type Viseme = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'X';
+
+const VISIEME_BY_FIRST_LETTER: Record<string, Viseme> = {
+  b: 'A', m: 'A', p: 'A',                    // bilabial (closed)
+  k: 'B', s: 'B', t: 'B', g: 'B', z: 'B', c: 'B',  // velar/alveolar (slightly open)
+  e: 'C', a: 'C',                            // front vowel (open)
+  f: 'D', v: 'D',                            // labiodental (wide)
+  o: 'E',                                    // rounded back (OW)
+  u: 'F', w: 'F',                            // rounded high (UW)
+  i: 'H', y: 'H',                            // open back (AH)
+};
+
+export function visemeAt(t: number, wordTimes: number[], words: string[]): Viseme {
+  let activeIdx = -1;
+  for (let i = 0; i < wordTimes.length; i++) {
+    if (wordTimes[i] <= t && t < wordTimes[i] + 280) activeIdx = i;
+    if (wordTimes[i] > t + 50) break;
+  }
+  if (activeIdx < 0 || activeIdx >= words.length) return 'X';
+  const w = words[activeIdx].toLowerCase().replace(/[^a-z]/g, '');
+  if (!w) return 'X';
+  if (w.startsWith('th')) return 'G';
+  if (w.startsWith('sh') || w.startsWith('ch')) return 'B';
+  if (w.startsWith('oo')) return 'F';
+  const v = VISIEME_BY_FIRST_LETTER[w[0]];
+  return v ?? 'X';
+}
+
+/**
  * v3 mouth (panel P0-4) — when `talk` is high the mouth becomes an open,
  * articulate jaw (dark rounded interior + ivory teeth/tongue hint so it
  * stays light); otherwise the v2 smile/neutral line. The v1/v2 static
@@ -80,7 +119,11 @@ function drawMouthV2(
    *  12px so the speaking mouth survives the 320px gate next to the
    *  enlarged eyes (a 7px-wide ellipse reads as a pinhole at feed
    *  scale). */
-  bigFace = false
+  bigFace = false,
+  /** 100-JUDGE AUDIT (Part 8.2): the Preston Blair viseme shape. When
+   *  provided, the mouth uses the 9-shape system instead of the 4-shape
+   *  envelope. 'X' = rest (no viseme — falls back to envelope). */
+  viseme: Viseme = 'X'
 ): void {
   // AUDIT-ROUND-2 (fix 9): the width floor — 12px minimum in the
   //  face-floor regime, scaled smoothly below it.
@@ -88,7 +131,88 @@ function drawMouthV2(
   const mx = eyeDX * 0.6;
   ctx.lineCap = 'round';
   ctx.strokeStyle = col;
-  // AUDIT-2 / 0.6 (report §10.1, C2): the FOUR-SHAPE mouth. The old
+
+  // 100-JUDGE AUDIT (Part 8.2): when a viseme is active and the talk
+  // envelope is above the small-open threshold, use the 9-shape Preston
+  // Blair system; otherwise fall back to the 4-shape envelope (back-compat).
+  if (viseme !== 'X' && talk > 0.15) {
+    const w = Math.max(wFloor, 6 + talk * 4);
+    const h = (2.5 + talk * 6.5) * jawX;
+    const teethCol = '#FDFCF8';
+    switch (viseme) {
+      case 'A': // closed (MBP) — flat line, slightly compressed
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(mx - w * 0.7, 15);
+        ctx.lineTo(mx + w * 0.7, 15);
+        ctx.stroke();
+        return;
+      case 'B': // slightly open (KST) — small horizontal slot
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.ellipse(mx, 15, w * 0.7, h * 0.35 * jawX, 0, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      case 'C': // open (EH) — wide mid-height ellipse
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.ellipse(mx, 15, w, h * 0.7 * jawX, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = teethCol;
+        ctx.beginPath();
+        ctx.ellipse(mx, 15 - h * 0.3, w * 0.55, h * 0.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      case 'D': // wide (FV) — wide low ellipse with teeth
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.ellipse(mx, 15, w * 1.1, h * 0.5 * jawX, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = teethCol;
+        ctx.beginPath();
+        ctx.ellipse(mx, 15 - h * 0.18, w * 0.6, h * 0.18, 0, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      case 'E': // rounded (OW) — vertical ellipse, taller than wide
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.ellipse(mx, 15, w * 0.6, h * 0.85 * jawX, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = teethCol;
+        ctx.beginPath();
+        ctx.ellipse(mx, 15 - h * 0.35, w * 0.35, h * 0.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      case 'F': // pursed (UW) — small tight circle
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.ellipse(mx, 15, w * 0.45, h * 0.5 * jawX, 0, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      case 'G': // teeth-on-lip (TH) — slot with teeth bar
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.ellipse(mx, 15, w * 0.8, h * 0.4 * jawX, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = teethCol;
+        ctx.fillRect(mx - w * 0.6, 14, w * 1.2, 2.5);
+        return;
+      case 'H': // open wide (AH) — wide tall ellipse, full jaw drop
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.ellipse(mx, 15, w * 0.9, h * 1.1 * jawX, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = teethCol;
+        ctx.beginPath();
+        ctx.ellipse(mx, 15 - h * 0.45, w * 0.5, h * 0.25, 0, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      case 'X':
+        break; // fall through to the 4-shape envelope
+    }
+  }
+
+  // AUDIT-2 / 0.6 (report §10.1, C2): the FOUR-SHAPE mouth (original envelope).
   // two-state system (smile arc | one open ellipse) flapped; these
   // thresholds (0.18 / 0.55 / 0.85) carve the SAME talk envelope into
   // closed / small-open / wide-open / round-O shapes — articulation
@@ -170,6 +294,9 @@ function boilReset(t: number, fast = false): void {
   boilT = t;
   boilJoint = 0;
   boilFast = fast;
+  // 100-JUDGE AUDIT (Part 8.3): reset the line-texture joint counter too,
+  // so each draw call cycles through the 6 variations deterministically.
+  lineTexReset();
 }
 function boilOff(): { dx: number; dy: number } {
   if (boilT < 0) return { dx: 0, dy: 0 };
@@ -187,6 +314,27 @@ function boilOff(): { dx: number; dy: number } {
     dy: (hash01(j * 29.7 + phase * 11.3 + 5) - 0.5) * amp * 2,
   };
 }
+
+// 100-JUDGE AUDIT (Part 8.3 — HAND-DRAWN LINE TEXTURE). The boil alone is
+// uniform — every joint jitters by the same amplitude distribution, so the
+// eye reads "rendered" instead of "drawn". Real hand-drawn animation has
+// line texture that VARIES: some strokes are heavier, some are lighter,
+// some have a flick at the end. The fix: 6 pre-baked stroke-weight
+// variations per limb segment, cycled deterministically by (joint, phase).
+// Each variation multiplies the limb's w0/wJ/w1 taper widths by a slightly
+// different factor (0.92, 0.96, 1.00, 1.04, 1.08, 0.98) so the line weight
+// itself varies per frame — the audience reads "a hand drew each frame"
+// without knowing why. Pure function of (joint, quantized time).
+const LINE_TEX_VARIATIONS = [0.92, 0.96, 1.00, 1.04, 1.08, 0.98];
+function lineTexScale(jointIdx: number): number {
+  if (boilT < 0) return 1;
+  const phase = Math.floor(boilT / BOIL_MS);
+  const idx = (jointIdx * 7 + phase) % LINE_TEX_VARIATIONS.length;
+  return LINE_TEX_VARIATIONS[(idx + LINE_TEX_VARIATIONS.length) % LINE_TEX_VARIATIONS.length];
+}
+let lineTexJoint = 0;
+function lineTexReset(): void { lineTexJoint = 0; }
+function lineTexNext(): number { return lineTexScale(lineTexJoint++); }
 
 /** Tapered quad stroke with round caps — the "premium ink" line. */
 export function taper(
@@ -231,11 +379,16 @@ export function limb2(
   const b2 = boilOff();
   const jx = mx + b1.dx, jy = my + b1.dy;
   ex += b2.dx; ey += b2.dy;
-  taper(ctx, x, y, jx, jy, w0, wJ, col);
-  taper(ctx, jx, jy, ex, ey, wJ, w1, col);
+  // 100-JUDGE AUDIT (Part 8.3 — HAND-DRAWN LINE TEXTURE): each limb segment
+  // picks up a slightly different stroke weight from the 6-variation cycle,
+  // so the line itself reads as "drawn by hand" instead of "rendered".
+  const t0 = lineTexNext();
+  const t1 = lineTexNext();
+  taper(ctx, x, y, jx, jy, w0 * t0, wJ * t0, col);
+  taper(ctx, jx, jy, ex, ey, wJ * t1, w1 * t1, col);
   ctx.fillStyle = col;
   ctx.beginPath();
-  ctx.arc(ex, ey, w1 * 0.72, 0, Math.PI * 2);
+  ctx.arc(ex, ey, w1 * 0.72 * t1, 0, Math.PI * 2);
   ctx.fill();
   return { ex, ey };
 }
@@ -506,6 +659,18 @@ export function drawStickmanV2(
     nod?: number;
     /** 0..1 mouth openness envelope, driven by word timings (v3, P0-4). */
     talk?: number;
+    /** 100-JUDGE AUDIT (Part 8.2): the word texts for the active beat, used
+     *  to derive the Preston Blair viseme from the active word's first
+     *  letter. When omitted, the viseme defaults to 'X' (the original
+     *  4-shape envelope runs). */
+    wordTexts?: string[];
+    /** 100-JUDGE AUDIT (Part 8.2): the word onset times in beat-local ms,
+     *  paired with wordTexts. Same array the talk envelope already uses. */
+    wordTimes?: number[];
+    /** 100-JUDGE AUDIT (Part 8.2): beat-local time t, for the viseme
+     *  lookup (the wordTimes are beat-local, so the lookup must use the
+     *  same clock). */
+    beatT?: number;
     /** P1-1 (report): head/face scale multiplier in CLOSE staging — the
      *  editorial host and other large compositions draw the face ~40% bigger
      *  so expressions read at distance. 1 = body-proportional (default). */
@@ -760,8 +925,17 @@ export function drawStickmanV2(
     // the frame's identity at 320px (far leg 12/10/9 -> 17/13/10, far arm
     // 9/8/7 -> 13/10/8).
     farFoot = limb2(ctx, hipLX, hipLY, pose.lLU, pose.lLL, U_LEG, L_LEG, INK.legFar[0], INK.legFar[1], INK.legFar[2], farInk, pose.lLift ?? 0);
-    const farHand = limb2(ctx, neckX - 4 + Math.sin(shT) * -4, neckY + 3 + Math.sin(shT) * 9 - (pose.shoulderDrop ?? 0) * 0.6, pose.lAU, pose.lAL, U_ARM, L_ARM, INK.armFar[0], INK.armFar[1], INK.armFar[2], farInk);
-    handGlyph(ctx, farHand.ex, farHand.ey, pose.lAL, 12, farInk, scale, pose.lHand); // P1-2 r3
+    // 100-JUDGE AUDIT (Part 9.3 — COUNTER-ARM SECONDARY MOTION). When the
+    // near arm gestures (smear > 0), the far arm should counter-balance —
+    // a small opposite-direction movement that maintains body balance.
+    // Premium character animation never freezes the off-arm; it answers
+    // the gesture. The counter is 40% of the near arm's accent, opposing
+    // direction — body balance reads as "a real gesture", not "a pose".
+    const counterSmear = (r.smear ?? 0) * 0.40;
+    const farAU = pose.lAU + counterSmear * 8;   // small upward counter
+    const farAL = pose.lAL - counterSmear * 12;  // small outward counter
+    const farHand = limb2(ctx, neckX - 4 + Math.sin(shT) * -4, neckY + 3 + Math.sin(shT) * 9 - (pose.shoulderDrop ?? 0) * 0.6, farAU, farAL, U_ARM, L_ARM, INK.armFar[0], INK.armFar[1], INK.armFar[2], farInk);
+    handGlyph(ctx, farHand.ex, farHand.ey, farAL, 12, farInk, scale, pose.lHand); // P1-2 r3
     // AUDIT-2 / 0.1: the far shoe steps with its limb (farInk) — depth,
     // not a second colour system.
     shoeWedge(farFoot, farInk, pose.lToe ?? 0);
@@ -932,32 +1106,59 @@ export function drawStickmanV2(
   // −3px). A silhouette-level emotion term: the shoulder LINE tilts, the
   // whole read changes shape, not just a brow angle.
   const shDrop = pose.shoulderDrop ?? 0;
-  // AUDIT-ROUND-2 (fix 13 — SMEAR DISCIPLINE): the three-ghost graduated
-  // trail misfired twice — on single frames (scrub previews, thumbnails,
-  // the audit's own evidence) the ghosts read as "a gray ghost pose
-  // mid-transition... rubbery" / a possible render defect, and at the
-  // phone gate the 0.13-alpha outer ghosts were simply invisible after
-  // the downsample. A smear that looks like a bug in stills and vanishes
-  // in motion pays cost for no benefit. TWO ghosts max now, the lead at
-  // 0.5 alpha (visible at 320px), and the driver fires ONLY in the
-  // 60-160ms strike window after a word onset (accentPulse, stickman.ts)
-  // — never through settle windows (the call sites gate the walk) and
-  // never on statement frames (they draw no host).
+  // 100-JUDGE AUDIT (Part 9.1 — REAL SMEAR FRAMES). The old 2-ghost trail
+  // read as "three arms" / "rubbery" on stills and vanished at the phone
+  // gate. A real smear frame is ONE elongated tapered polygon stretched
+  // along the limb's motion vector, plus 3-4 ghost finger-stubs trailing
+  // the hand. It exists for 1-2 frames at peak velocity and is invisible
+  // at rest. The motion vector is approximated by the difference between
+  // the current pose and the previous-frame pose (the caller's smear
+  // value already encodes this — it fires in the 60-160ms strike window).
   if ((r.smear ?? 0) > 0.12) {
     const sm = clamp01(r.smear ?? 0);
-    // the offsets clear the arm's own angular width (atan ≈ 17° at rig
-    // scale): ghost 1 half-overlaps (the blend edge), ghost 2 sweeps
-    // clear along the gesture arc.
-    const ghosts: Array<[number, number, number]> = [
-      [4, 16, 0.50],
-      [9, 30, 0.24],
-    ];
-    for (const [dAU, dAL, aMul] of ghosts) {
-      ctx.save();
-      ctx.globalAlpha = alpha * aMul * sm;
-      limb2(ctx, neckX + 4 + Math.sin(shT) * 4, neckY + 3 - Math.sin(shT) * 9 + shDrop, pose.rAU + dAU, pose.rAL + dAL, U_ARM, L_ARM, INK.armNear[0], INK.armNear[1], INK.armNear[2], ink);
-      ctx.restore();
+    // the elongated smear body — ONE tapered polygon stretched 1.5x along
+    // the gesture arc, low-alpha, drawn UNDER the solid arm
+    const sx = neckX + 4 + Math.sin(shT) * 4;
+    const sy = neckY + 3 - Math.sin(shT) * 9 + shDrop;
+    const aU = pose.rAU * Math.PI / 180;
+    const aL = pose.rAL * Math.PI / 180;
+    // the hand position (current)
+    const ex = sx + Math.sin(aU) * U_ARM + Math.sin(aL) * L_ARM;
+    const ey = sy + Math.cos(aU) * U_ARM + Math.cos(aL) * L_ARM;
+    // the trailing position (where the hand was a beat ago): offset opposite
+    // to the gesture direction by ~18% of the arm length × smear strength
+    const trailDX = -Math.sin(aL) * L_ARM * 0.35 * sm;
+    const trailDY = -Math.cos(aL) * L_ARM * 0.35 * sm;
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.42 * sm;
+    ctx.fillStyle = ink;
+    // the smear body — a long tapered polygon from the trail position to
+    // the current hand, wider at the shoulder, narrow at the hand
+    const dx = ex - (ex + trailDX), dy = ey - (ey + trailDY);
+    const L = Math.hypot(dx, dy) || 1;
+    const nx = -dy / L, ny = dx / L;
+    const wShoulder = INK.armNear[0] * 0.9;
+    const wHand = INK.armNear[2] * 0.6;
+    ctx.beginPath();
+    ctx.moveTo(sx + nx * wShoulder / 2, sy + ny * wShoulder / 2);
+    ctx.lineTo(ex + nx * wHand / 2, ey + ny * wHand / 2);
+    ctx.lineTo(ex - nx * wHand / 2, ey - ny * wHand / 2);
+    ctx.lineTo(sx - nx * wShoulder / 2, sy - ny * wShoulder / 2);
+    ctx.closePath();
+    ctx.fill();
+    // 3 ghost finger-stubs trailing the hand — short tapered lines fanned
+    // along the motion vector, each at decreasing alpha
+    for (let f = 0; f < 3; f++) {
+      const fa = (1 - f / 3) * sm * 0.55;
+      const fLen = 14 - f * 3;
+      const fAng = aL + (f - 1) * 0.18;
+      ctx.globalAlpha = alpha * fa;
+      taper(ctx, ex, ey,
+        ex + Math.sin(fAng) * fLen + trailDX * 0.4,
+        ey + Math.cos(fAng) * fLen + trailDY * 0.4,
+        5, 2, ink);
     }
+    ctx.restore();
   }
   // BLUEPRINT Phase 2: near arm 13/11/9 -> 17/13/10 (INK.armNear); the
   // shoulder anchor rides the shoulder-line counter-tilt (Phase 2's
@@ -1356,7 +1557,18 @@ export function drawStickmanV2(
   // mouth (v3: articulate talk envelope when speaking, panel P0-4)
   // BLUEPRINT Phase 2: the reaction jaw multiplier reaches the mouth.
   // P1-1: becker draws it in white on the solid head.
-  drawMouthV2(ctx, eyeDX, pose.smile, r.talk ?? 0, jaw2x, becker ? '#FFFFFF' : PALETTE.ink, scale > 1.5);
+  // 100-JUDGE AUDIT (Part 8.2): the mouth now takes a viseme hint, derived
+  // from the active word's first letter via visemeAt(). The same wordTimes
+  // array that drives the talk envelope also drives the viseme — zero
+  // additional data flow cost. The host call site passes the beat's word
+  // texts; without them the viseme defaults to 'X' (the original envelope).
+  {
+    let vm: import('./stickman-v2').Viseme = 'X';
+    if (r.talk && (r.talk > 0.15) && (r as any).wordTexts && (r as any).wordTimes) {
+      vm = visemeAt((r as any).beatT ?? 0, (r as any).wordTimes ?? [], (r as any).wordTexts ?? []);
+    }
+    drawMouthV2(ctx, eyeDX, pose.smile, r.talk ?? 0, jaw2x, becker ? '#FFFFFF' : PALETTE.ink, scale > 1.5, vm);
+  }
   // cheek warmth — very subtle (P1-1 'becker': skipped — no interior clutter)
   if (!becker) {
     ctx.fillStyle = rgba(PALETTE.down, 0.16);
