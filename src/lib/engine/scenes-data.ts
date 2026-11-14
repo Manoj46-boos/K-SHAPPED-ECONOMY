@@ -2069,7 +2069,9 @@ export function ownerWorkerScene(g: SceneCtx): void {
     // ramp — the two titles are the frame's biggest type; vivid carries
     // the contrast the flat-frame flag asked for.
     ctx.fillStyle = tone.vivid ?? tone.main;
-    ctx.fillText(pnl.title.toUpperCase(), x + 340, H * 0.24);
+    // 100-JUDGE REPORT fix E2: titles ride to H*0.17 — the figures scale
+    // to 1.4x (below) and need the headroom.
+    ctx.fillText(pnl.title.toUpperCase(), x + 340, H * 0.17);
     // mini stickman: shareholder on a rising line / worker on flat ground
     // PANEL-9 R7d (panel text plated by the caption pill): the figure stood
     // at H*0.72 with its wrap lines at H*0.85+j*44 (918/962) — the second
@@ -2129,16 +2131,19 @@ export function ownerWorkerScene(g: SceneCtx): void {
         ctx.save();
         ctx.globalAlpha = mp;
         ctx.strokeStyle = PALETTE.upVivid;
-        ctx.lineWidth = 9;
+        // 100-JUDGE REPORT fix E2: the trend marks were 9px strokes at
+        // whisper scale — sub-perceptual at the feed. 13px full-alpha ink,
+        // larger arrows, wider rhythm: the trend the VO speaks is READ.
+        ctx.lineWidth = 13;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         for (let k2 = 0; k2 < 3; k2++) {
-          const ax2 = hx - 120 + k2 * 118;
-          const ay2 = hy + 6 - (k2 + 0.5) * 38;
+          const ax2 = hx - 132 + k2 * 132;
+          const ay2 = hy + 6 - (k2 + 0.5) * 44;
           ctx.beginPath();
-          ctx.moveTo(ax2 - 14, ay2 + 10);
-          ctx.lineTo(ax2, ay2 - 12);
-          ctx.lineTo(ax2 + 14, ay2 + 10);
+          ctx.moveTo(ax2 - 20, ay2 + 14);
+          ctx.lineTo(ax2, ay2 - 17);
+          ctx.lineTo(ax2 + 20, ay2 + 14);
           ctx.stroke();
         }
         ctx.restore();
@@ -2148,16 +2153,16 @@ export function ownerWorkerScene(g: SceneCtx): void {
       if (mp > 0) {
         ctx.save();
         ctx.globalAlpha = mp;
-        ctx.strokeStyle = rgba(PALETTE.inkSoft, 0.85);
-        ctx.lineWidth = 8;
+        ctx.strokeStyle = PALETTE.ink; // E2: inkSoft 0.85 -> full ink
+        ctx.lineWidth = 12;
         ctx.lineCap = 'round';
         // the paycheck dashes — same length, same rhythm, until the last
         for (let k2 = 0; k2 < 4; k2++) {
-          const dashW = k2 === 3 ? 34 : 58;
-          const ax2 = hx - 130 + k2 * 66;
+          const dashW = k2 === 3 ? 44 : 72;
+          const ax2 = hx - 148 + k2 * 78;
           ctx.beginPath();
-          ctx.moveTo(ax2, hy + 34);
-          ctx.lineTo(ax2 + dashW, hy + 34);
+          ctx.moveTo(ax2, hy + 36);
+          ctx.lineTo(ax2 + dashW, hy + 36);
           ctx.stroke();
         }
         ctx.restore();
@@ -2169,7 +2174,12 @@ export function ownerWorkerScene(g: SceneCtx): void {
     // slope-rotated shadow; worker on the flat line at the shadow plane).
     // FIX 3: 0.86 -> 1.05 — the figures are the frame's subjects; at 0.86
     // they read as thumbnails in a two-thirds-empty room.
-    drawStickmanV2(ctx, hx, hy - (side === 'left' ? 44 : 0), 1.05, t, {
+    // 100-JUDGE PANEL REPORT (fix E2 — THE EMPTY CORE): 1.05 → 1.4 (lift
+    // 44 → 61 keeps the owner's soles ON his rising line) — the film's
+    // emotional core drew two 8%-area figures in a void; at 1.4 the pair
+    // approaches the 8-15% subject-area band the premium explainers live
+    // in, and the facepalm/climb poses finally read at the 320px gate.
+    drawStickmanV2(ctx, hx, hy - (side === 'left' ? 61 : 0), 1.4, t, {
       pose,
       alpha: clamp01((t - i * 700 - 200) / 500),
       look: 0.3,
@@ -2231,11 +2241,11 @@ export function ownerWorkerScene(g: SceneCtx): void {
     ctx.restore();
   });
     // AUDIT-3 / §2.5 (report Phase 2.5 — "a coin crossing the owner/worker
-    // divider"): the coins now straddle the dashed divider (cx = W/2,
-    // spread 110) — value visibly CROSSES from the worker's half to the
-    // owner's, the metaphor the scene narrates, and one more element
-    // occludes another (coins pass in front of the divider line).
-    floatCoins(ctx, W / 2, H * 0.5, t, 5, 110);
+    // divider"): the coins straddle the dashed divider — value visibly
+    // CROSSES from the worker's half to the owner's. E2: wider spread and
+    // one more coin so the crossing READS (five coins inside ±110 read as
+    // confetti hovering over the line).
+    floatCoins(ctx, W / 2, H * 0.5, t, 6, 150);
 }
 
 // ── fundSplit scene ──────────────────────────────────────────────────────────
