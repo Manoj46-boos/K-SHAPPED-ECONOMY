@@ -47,7 +47,14 @@ const HOST_GROUND = (H: number): number => H * 0.62;
 // cold-open close-up value (guard-sweep clean); ground held at the v2 H*0.62.
 // The scale-up compounds with Fix 2-7: the figure is bigger AND its strokes
 // are darker-vs-lighter (two-tone), its scarf wider, its shadow planted.
-export const HOST_SCALE = 2.6;
+// 100-JUDGE PANEL REPORT (fix C3 — SIZE THE FIGURE FOR ITS GATE): the
+// audit measured the host at 2.8% of frame area — premium explainer
+// figures occupy 8-15%, and at the 320px gate the host read as "a speck
+// in an empty field". The canonical presenting scale rises 2.6 → 3.0
+// (+15%): the face clears the feed floor with margin, editorial staging
+// was re-swept with the collision guard, and the feed-gate twin now
+// reads a CHARACTER, not a marker.
+export const HOST_SCALE = 3.0;
 
 const HOST_X = (W: number, side: 'center' | 'left' | 'right'): number =>
   side === 'left' ? W * 0.27 : side === 'right' ? W * 0.73 : W * 0.5;
@@ -734,43 +741,45 @@ export function hostSceneV2(g: SceneCtx): void {
     ctx.fillText('MAIN STREET', fx0 + fw - 24, fy0 + fh - 24);
     ctx.restore();
   }
-  // D9: on chartstand beats the stage's easel moves INSIDE the editorial
-  // column — the prop the host presents becomes the lower-right figure
-  // (the legacy W*0.68 easel plated the type block and left the host
-  // centered in front of an empty wall). Same easel geometry as
-  // hostStage's chartstand branch, scaled 0.8 and column-centered.
+  // D9: on chartstand beats the presented exhibit lives in the SAME
+  // certified slot the K-fig panel uses (fy0 604, fh 152 — bottom 756,
+  // clear of the caption pill) so the guard's envelope holds: a landscape
+  // chart card with the rising doodle and SHORT easel legs (to y 782 —
+  // 14px above the pill top). The C3 re-sweep caught the earlier taller
+  // easel plating the pill band by ~92px — the slot swap is structural.
   if (fp > 0 && stage === 'chartstand') {
     ctx.save();
     ctx.globalAlpha = fp;
     ctx.translate(0, (1 - easeOutCubic(fp)) * 24);
-    const ex = hx2 + (W - hx2 - 240) / 2;
-    const ey = 604 + 170;
-    ctx.save();
-    ctx.translate(ex, ey);
-    ctx.scale(0.8, 0.8);
-    ctx.translate(-ex, -ey);
-    card(ctx, ex - 210, ey - 160, 420, 320, { r: 24 });
-    ctx.strokeStyle = rgba(PALETTE.grid, 0.7);
+    const fx0 = hx2 + 12;
+    const fy0 = 604;
+    const fw = W - hx2 - 240;
+    const fh = 152;
+    registerRect('hostV2:easel', fx0, fy0, fw, fh);
+    card(ctx, fx0, fy0, fw, fh, { r: 24 });
+    // the rising chart doodle — the exhibit the host presents
+    ctx.strokeStyle = PALETTE.up;
     ctx.lineWidth = 7;
     ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(ex - 90, ey + 160);
-    ctx.lineTo(ex - 150, ey + 250);
-    ctx.moveTo(ex + 90, ey + 160);
-    ctx.lineTo(ex + 150, ey + 250);
-    ctx.stroke();
-    // abstract rising chart doodle on the easel
-    ctx.strokeStyle = PALETTE.up;
-    ctx.lineWidth = 8;
-    ctx.beginPath();
-    const pts = [
-      [ex - 150, ey + 90], [ex - 80, ey + 40], [ex - 30, ey + 66],
-      [ex + 30, ey - 30], [ex + 100, ey - 70],
+    ctx.lineJoin = 'round';
+    const ePts: Array<[number, number]> = [
+      [fx0 + 80, fy0 + fh - 40], [fx0 + 180, fy0 + fh - 86], [fx0 + 270, fy0 + fh - 56],
+      [fx0 + 360, fy0 + 44], [fx0 + fw - 96, fy0 + 38],
     ];
-    ctx.moveTo(pts[0][0], pts[0][1]);
-    for (const [px2, py2] of pts.slice(1)) ctx.lineTo(px2, py2);
+    ctx.beginPath();
+    ctx.moveTo(ePts[0][0], ePts[0][1]);
+    for (const [qx, qy] of ePts.slice(1)) ctx.lineTo(qx, qy);
     ctx.stroke();
-    ctx.restore();
+    // short easel legs below the card — the easel read, inside the band
+    ctx.strokeStyle = rgba(PALETTE.grid, 0.7);
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(fx0 + fw * 0.32, fy0 + fh);
+    ctx.lineTo(fx0 + fw * 0.28, fy0 + fh + 26);
+    ctx.moveTo(fx0 + fw * 0.68, fy0 + fh);
+    ctx.lineTo(fx0 + fw * 0.72, fy0 + fh + 26);
+    ctx.stroke();
     ctx.restore();
   }
 }
