@@ -461,6 +461,18 @@ export function glowBlob(
   ctx.fill();
 }
 
+/** PHASE-2 (report §11 Phase 2): linear hex lerp — the chapter wash mixes
+ *  the soft room tone toward its vivid accent. a/b are #RRGGBB, t 0..1. */
+export function mixHex(a: string, b: string, t: number): string {
+  const pa = parseInt(a.slice(1), 16);
+  const pb = parseInt(b.slice(1), 16);
+  const ch = (sa: number, sb: number) => Math.round(sa + (sb - sa) * t);
+  const r = ch((pa >> 16) & 255, (pb >> 16) & 255);
+  const g = ch((pa >> 8) & 255, (pb >> 8) & 255);
+  const bl = ch(pa & 255, pb & 255);
+  return '#' + ((1 << 24) | (r << 16) | (g << 8) | bl).toString(16).slice(1);
+}
+
 /** v10 (panel COLOR-2) — the editorial SCENE PLATE: a full-width, barely-
  *  tinted rounded plate that data scenes sit on. The v8 frames floated white
  *  cards on raw white — measured 72–93% near-white per frame, which the
@@ -470,14 +482,16 @@ export function glowBlob(
  *  after paintBg, before the bokeh (motes float over the plate = depth).
  *  Never registered with the guard — it is background, not reading content.
  *
- *  P1-2 (report §12.2): 0.5 → 0.72 alpha and FULL-BLEED. At 0.5 the upSoft
- *  plate still measured r>235 per pixel — it counted as near-white under the
- *  audit's own metric, so the "room" was invisible to the numbers (279 of 380
- *  scanned frames sat above the 58% near-white ceiling). At 0.72 every tone
- *  (up/down/gold) clears the r,g,b>235 bucket, and full-bleed removes the
- *  64px raw-white margins the rounded plate used to leave on every side.
- *  Host and statement scenes join the data rooms (hosts live in a room too)
- *  — the acceptance bar: NO frame above 58% near-white. */
+ *  PHASE-2 (report §11 Phase 2 — BRING BACK THE COLOR):
+ *  1. The multiply plate strength is CUT from ~0.48 to 0.30 (0.95 × 0.32):
+ *     the rooms lighten one step and stop drying into fog.
+ *  2. The chapter wash now ROUTES THROUGH THE VIVID ACCENTS the palette
+ *     already defines — each room tone mixes 17% toward its vivid accent
+ *     (up #0B6E63 teal / down #C2542E coral / gold #C9A227) so the plate
+ *     carries the chapter's hue at a perceptible chroma instead of grey-sage.
+ *  3. The acceptance bar is MEASURED per frame by the panel's pixel_audit
+ *     script: saturation ≥ 0.12 on every host and data frame while mean
+ *     luminance stays inside 180-215. */
 export function scenePlate(
   ctx: CanvasRenderingContext2D,
   W: number,
@@ -502,11 +516,21 @@ export function scenePlate(
   // 'neutral'-chapter frame kept failing the near-white acceptance. #E0EFE9
   // blends to r≈233: a whisper deeper, still the lightest room in the film.
   // PHASE-0: neutral follows the register down: #E0EFE9 -> #DCE9E3.
-  const soft =
+  const softBase =
     tone === 'up' ? PALETTE.upSoft
     : tone === 'down' ? PALETTE.downSoft
     : tone === 'gold' ? PALETTE.goldWash
     : '#DCE9E3';
+  // PHASE-2 (report §11 Phase 2): the chapter wash routes through the VIVID
+  // accent tones — each room tone leans on its accent's hue at a fixed 17%
+  // so the room reads as teal / coral / gold, never grey-sage.
+  const soft = mixHex(
+    softBase,
+    tone === 'down' ? PALETTE.down
+    : tone === 'gold' ? PALETTE.gold
+    : PALETTE.up,
+    0.17
+  );
   ctx.save();
   // 100-JUDGE PANEL REPORT (fix C1 — THE MULTIPLY REGISTER): three rounds
   // of "deepen bgTop" failed because alpha-over of pale colors converges
@@ -515,10 +539,33 @@ export function scenePlate(
   // arithmetic reason the register never moved). The plate composites
   // MULTIPLY at half strength: multiply actually darkens, and the room
   // finally reads as a tonal field instead of a slightly greener white.
+  // PHASE-2 (report §11 Phase 2): the multiply plate strength is CUT from
+  // ~0.48 (0.95 × 0.5) to 0.30 (0.95 × 0.32) — the rooms lighten one step;
+  // the vivid mixing above carries the color instead of the grey weight.
   ctx.globalCompositeOperation = 'multiply';
-  ctx.fillStyle = rgba(soft, strength * 0.5);
+  ctx.fillStyle = rgba(soft, strength * 0.32);
   ctx.fillRect(0, 0, W, H);
   ctx.globalCompositeOperation = 'source-over';
+  // PHASE-2 (report §11 Phase 2): THE VIVID CHAPTER WASH — a direct wash of
+  // the chapter's vivid accent over the plated room. Measured arithmetic
+  // (pixel_audit on the 9-frame set): the plate cut alone DROPS frame
+  // saturation (the multiply removes more chroma than a soft-tone mix
+  // returns), and the audit's (max−min) metric is hue-ordered — coral and
+  // gold align with the warm cream canvas and amplify, while teal fights
+  // it (teal's lowest channel is red, the canvas's highest). Calibrated
+  // per tone against the acceptance bar (sat ≥ 0.12, lum 180-215):
+  // teal rides upVivid softened 25% toward upSoft (a darker wash breaches
+  // the luminance floor on the card-less statement frames); coral stays
+  // near-whisper (the R6 dirty-salmon ceiling on peach-gradient scenes
+  // still binds); gold rooms already clear the bar on their own plate
+  // (0.130-0.142) and take only a unifying whisper.
+  const vividUp = mixHex(PALETTE.upVivid, PALETTE.upSoft, 0.25);
+  const vividWash =
+    tone === 'down' ? rgba(PALETTE.down, 0.16 * (strength / 0.95))
+    : tone === 'gold' ? rgba(PALETTE.gold, 0.10 * (strength / 0.95))
+    : rgba(vividUp, 0.34 * (strength / 0.95));
+  ctx.fillStyle = vividWash;
+  ctx.fillRect(0, 0, W, H);
   // BLUEPRINT Phase 4 (report §11): the FLOOR BAND — a soft gradient ramp
   // under the presenter's ground line (host ground ≈ 0.66·H; the band
   // ramps from there to the frame bottom). The frame gains a GROUND LINE:

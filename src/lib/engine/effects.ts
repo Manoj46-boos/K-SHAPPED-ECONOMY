@@ -474,7 +474,11 @@ export function lightVignette(ctx: CanvasRenderingContext2D, W: number, H: numbe
   // 100-JUDGE REPORT fix C2: corner alpha 0.55 → 0.62 — the edges carry
   // more of the frame's value structure (the film used 40 of its 255
   // luminance levels; the range is the point, not darkness).
-  g.addColorStop(1, rgba(PALETTE.shadow, 0.62 * strength));
+  // PHASE-2 (report §11 Phase 2): corner alpha CUT 0.62 → 0.42 — the
+  // report's prescribed 0.40-0.45 band. The corners stop drying the frame
+  // into the grey-sage fog; the drawn alpha is this constant × the
+  // call-site strength (the director's post-pass).
+  g.addColorStop(1, rgba(PALETTE.shadow, 0.42 * strength));
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
 }
