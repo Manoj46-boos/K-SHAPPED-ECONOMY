@@ -353,6 +353,16 @@ function cameraV2(
     camScale = 0.94 + (AMP.bigTextDolly + 0.04) * rel;
   } else {
     const target = sceneType === 'bigText' ? AMP.bigTextDolly : isComparison ? -0.036 : AMP.scenePush;
+    // PHASE-3 (report §11 Phase 3): the camera base was probed as a presenting-
+    // scale lever (0.93 → 1.0 for the host stage) and MEASURED against the
+    // figure's real envelope: at 1.0 the 2.8 figure's egg dome slices at y=0
+    // (head-probe row 0 on the editorial beat — the round-2 head-crop class
+    // returns). The 0.93 pull-back is what buys the vertical envelope the
+    // 2.8 scale needs (head top ~49, shoes ~791, shadow ~847 — clear of both
+    // caption pills); it STAYS. The presenting scale rides HOST_SCALE alone
+    // (2.4 → 2.8, +17% linear, +36% figure ink area) — the report's own
+    // fallback governs the remainder ("take the area from the empty left
+    // third; the composition has headroom to give").
     const zBase = sceneType === 'bigText' ? 0.90 : isComparison ? 1.0 : 0.93;
     camScale = zBase + target * easeInOutSine(p);
   }

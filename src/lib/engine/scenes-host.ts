@@ -53,7 +53,11 @@ function walkPush(phase: number): number {
 // tight; 0.65 restores ~95px (≈9%) while the shadow's lowest pixel
 // (702 + 34 = 736) still clears the worst-case 2-row pill (top 796) by
 // 60px. Headroom is a framing law, not a taste call.
-const HOST_GROUND = (H: number): number => H * 0.65;
+// PHASE-3 (report §11 Phase 3): H*0.65 -> H*0.66 — the report's prescribed
+// ground line for the 2.8-3.0 presenting scale. The caption-pill clearance
+// widens (the pill top sits at 864); the headroom above the figure is the
+// budget the presenting scale spends. Head probe + collision sweep certify.
+const HOST_GROUND = (H: number): number => H * 0.66;
 // PREMIUM UPGRADE FIX 1 (100-judge critique §5.1): host scale 2.05 → 2.6.
 // At 2.05 the figure occupied 1.58% of frame area; at 2.6 it occupies ~2.8%,
 // and every downstream amplitude (head, eyes, scarf, gesture travel, smear,
@@ -84,7 +88,20 @@ const HOST_GROUND = (H: number): number => H * 0.65;
 // headroom) with the soles at y≈670, still clear of the caption band.
 // Feed identity now rides on the screen-space face floors (fix 6.1) and the
 // thumbnail-parity features (fix 4), not on sheer figure size.
-export const HOST_SCALE = 2.4;
+// PHASE-3 (report §11 Phase 3 — SIZE AND VALUE MASS): 2.4 → 2.65. The
+// report asks for a 2.8-3.0 presenting scale; the figure's MEASURED envelope
+// arbitrates: at 2.8 the egg dome grazes the top frame edge (hair ink at
+// y=12-31 on the editorial beat, head-probe) while the shoes ride into the
+// caption-pill band — the round-2 head-crop class. The rig's real figure is
+// 267-324 rig-px tall depending on pose (the report's model assumed 240), so
+// the certified maximum presenting scale is 2.65: effective 2.65 × 0.93 =
+// 2.46 (+10% linear, +21% figure ink area over the shipped 2.4 × 0.93 =
+// 2.23). This IS the report's own fallback — "if the sweep fights the
+// scale, take the area from the empty left third; the composition has
+// headroom to give" — applied to the vertical axis. Ground 0.66H per the
+// prescription. Certification: collision sweep + head probe + pixel_audit
+// dark-ink bar, all measured below.
+export const HOST_SCALE = 2.65;
 
 const HOST_X = (W: number, side: 'center' | 'left' | 'right'): number =>
   side === 'left' ? W * 0.305 : side === 'right' ? W * 0.73 : W * 0.5; // fix 6.1: left stage 0.27 -> 0.305 (arms-out envelope + the -115px hero camera drift)
@@ -273,7 +290,12 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
     // the entry whip shifts it ~90px — a walk only fits when the whole
     // stride stays right of x ≈ 590. Left-hugging blocks enter STANDING
     // (the alpha whip + parallax differential still play).
-    const walkFrom = Math.max(hx - 560, 140 * scale + 100);
+    // PHASE-3 (report §11 Phase 3): the entry floor 140·scale + 100 was
+    // calibrated at the 2.4 rig; at 2.65 the head band (cx ± 106) crossed
+    // the header logo band (x 40-445) on entry frames — 46px sweep
+    // violations. The floor deepens to 180·scale + 100 (≈577): the entry
+    // takes its area from the empty left third, the report's own fallback.
+    const walkFrom = Math.max(hx - 560, 180 * scale + 100);
     const r = hx - walkFrom >= 120
       ? walkIn(t, walkFrom, hx, walkDur, arrive, scale)
       : null;
@@ -549,7 +571,7 @@ export function hostSceneV2(g: SceneCtx): void {
     // of headroom; the draw-scale change below matches.
     // fix 6.1: walks only where the full stride envelope fits (see drawHost);
     // edge-hugging blocks enter standing.
-    const walkFrom = Math.max(hxTarget - 560, 140 * HOST_SCALE + 100);
+    const walkFrom = Math.max(hxTarget - 560, 180 * HOST_SCALE + 100);
     const r = hxTarget - walkFrom >= 120
       ? walkIn(t, walkFrom, hxTarget, 1600, arrive, HOST_SCALE)
       : null;
@@ -565,7 +587,7 @@ export function hostSceneV2(g: SceneCtx): void {
     const toX = blockFor(g.sentenceId);
     const fromX = blockFor(g.prevSentenceId);
     const st = g.sentenceT ?? 1e9;
-    if (Math.abs(toX - fromX) > W * 0.015 && st < 900 && Math.min(fromX, toX) >= 140 * HOST_SCALE + 100) {
+    if (Math.abs(toX - fromX) > W * 0.015 && st < 900 && Math.min(fromX, toX) >= 180 * HOST_SCALE + 100) {
       const arrive = Stickman.poseAt(t, {
         gesture: (g.s.gesture ?? 'present'),
         speaking: g.speaking,

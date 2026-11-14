@@ -565,7 +565,12 @@ export function drawWatermark(
   // band (the fundSplit title under the ch6 rise did exactly that) is a
   // plating defect the pill-only guard could not see. Measured band: K mark
   // x 46..75, y 39..65; caps-height text from x≈82 (translate 58+24).
-  registerFixed('watermark', 40, 30, Math.max(240, 92 + tw), 46);
+  // PHASE-3: the band's width followed the old 92+tw estimate — 50px of
+  // empty rect past the drawn text end (82+tw). The trailing phantom edge
+  // plated the 2.65 figure's dome apex on two walk beats (11 sweep
+  // violations while the drawn head cleared the glyphs). The band now ends
+  // at the drawn ink: 42 + tw.
+  registerFixed('watermark', 40, 30, Math.max(240, 42 + tw), 46);
   void W;
 }
 

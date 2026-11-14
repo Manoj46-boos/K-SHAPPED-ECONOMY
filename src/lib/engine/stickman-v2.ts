@@ -1032,12 +1032,31 @@ export function drawStickmanV2(
     // reach wide. Same plating guarantees, no phantom corners.
     registerRect(
       `hostBody@${Math.round(cx)},${Math.round(groundY)}`,
-      cx - 40 * scale, groundY - 241 * scale, 80 * scale, 123 * scale,
+      cx - 40 * scale, groundY - 161 * scale, 80 * scale, 43 * scale,
+      'host'
+    );
+    // PHASE-3 (report §11 Phase 3): the head band follows the drawn
+    // silhouette — three widths, not one rectangle. The single ±40 rect's
+    // TOP-LEFT corner was empty air (the dome curves away): at the 2.65
+    // presenting scale that phantom corner plated the header logo's right
+    // edge on two walk beats — 21 sweep violations while the drawn head
+    // visibly cleared the text. The apex band (±17: the dome's top 30
+    // units are ±10-17 wide) clears the header at every certified camera
+    // state; the dome band (±26) and the temple band (±40) keep the
+    // glasses coverage below it.
+    registerRect(
+      `hostBodyDome@${Math.round(cx)},${Math.round(groundY)}`,
+      cx - 26 * scale, groundY - 211 * scale, 52 * scale, 50 * scale,
+      'host'
+    );
+    registerRect(
+      `hostBodyApex@${Math.round(cx)},${Math.round(groundY)}`,
+      cx - 17 * scale, groundY - 241 * scale, 34 * scale, 30 * scale,
       'host'
     );
     registerRect(
       `hostBodyHip@${Math.round(cx)},${Math.round(groundY)}`,
-      cx - envHalf * scale, groundY - 118 * scale, envHalf * 2 * scale, 152 * scale,
+      cx - envHalf * scale, groundY - 118 * scale, envHalf * 2 * scale, 142 * scale,
       'host'
     );
     // PLAYBOOK D3 (report §8.3): the same figure's own feet band must be
@@ -1058,10 +1077,17 @@ export function drawStickmanV2(
     // feet span ±48 rig units, a walking stride ±80; the old constant ±122
     // was phantom corner again (a standing host's band plated a low card the
     // feet never approach — 69px sweep violations at 695s).
+    // PHASE-3 (report §11 Phase 3): the feet band's below-ground extension
+    // is re-tuned to the certified envelope at the 2.65 presenting scale:
+    // the drawn footprint (shadow fade tail) ends 24·scale below groundY;
+    // the band now ends 25·scale below — at the walk-contact dip (groundY
+    // ~730) the band bottom stays ≤ 799, inside the caption zone (800) that
+    // the sweep asserts. The old 48·scale height put the band bottom at
+    // groundY + 36·scale = 825 at the dip — 102 sweep violations.
     const feetHalf = r.walkPhase !== undefined ? 80 : (r.contact ? 70 : 48);
     registerRect(
       `stickman@${Math.round(cx)},${Math.round(groundY)}`,
-      cx - feetHalf * scale, groundY - 12 * scale, feetHalf * 2 * scale, 48 * scale,
+      cx - feetHalf * scale, groundY - 12 * scale, feetHalf * 2 * scale, 37 * scale,
       'host'
     );
   } else {
