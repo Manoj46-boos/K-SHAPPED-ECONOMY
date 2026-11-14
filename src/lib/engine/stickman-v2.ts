@@ -573,7 +573,9 @@ function handGlyph(
   forearmAngle: number,          // the pose's lower-arm angle, degrees
   s: number, col: string,        // glyph size unit (16 near / 12 far at the call sites)
   rigScale = 1,                  // P1-2 r3: the figure's rig scale — picks the glyph tier
-  mode: HandMode = undefined     // P1-2: explicit glyph override (fist / countN)
+  mode: HandMode = undefined,    // P1-2: explicit glyph override (fist / countN)
+  grip = 1                       // PANEL ACCEPTANCE (audit FIX 5): the re-grip flex
+                                 // 0.84..1.16 — finger splay breathes on a slow clock
 ): void {
   const a = forearmAngle * D2R;
   // P1-2 (100-judge audit, Table 3 — HANDS): the FIST + COUNT glyphs.
@@ -600,8 +602,9 @@ function handGlyph(
     roundRect(ctx, -s * 0.4, -s * 0.32, s * 0.8, s * 0.74, s * 0.28);
     ctx.restore();
     // the N extended fingers — rooted inside the mass, splayed ±0.34 rad
+    // (the splay breathes with the re-grip clock)
     for (let f = 0; f < n; f++) {
-      const off = (f - (n - 1) / 2) * 0.34;
+      const off = (f - (n - 1) / 2) * 0.34 * grip;
       const fa = a + off;
       const bx = x + Math.sin(a) * s * 0.30, by = y + Math.cos(a) * s * 0.30;
       const ex = x + Math.sin(fa) * s * 1.04, ey = y + Math.cos(fa) * s * 1.04;
@@ -663,11 +666,12 @@ function handGlyph(
       [-0.42, 0.86, 1.0], [-0.14, 1.06, 1.05], [0.14, 1.0, 1.0], [0.42, 0.8, 0.95],
     ];
     for (const [off, len, wid] of fingers) {
-      const fa = a + off * 0.6;
+      const fa = a + off * 0.6 * grip; // the re-grip flex: splay breathes
+      const fl = len * (0.94 + 0.12 * (grip - 1) + 0.06); // and the reach flexes a step
       const bx = x + Math.sin(a) * s * 0.30 + nx * off * s * 0.5;
       const by = y + Math.cos(a) * s * 0.30 + ny * off * s * 0.5;
-      const ex = bx + Math.sin(fa) * s * len;
-      const ey = by + Math.cos(fa) * s * len;
+      const ex = bx + Math.sin(fa) * s * fl;
+      const ey = by + Math.cos(fa) * s * fl;
       const px2 = Math.sin(fa + Math.PI / 2), py2 = Math.cos(fa + Math.PI / 2);
       const w0 = s * 0.30 * wid, w1 = s * 0.13 * wid;
       const dx = Math.sin(fa), dy = Math.cos(fa);
@@ -876,18 +880,17 @@ export function groundShadowV2(
   // contact line, and one short horizon tick. Retired here:
   //   • the vertical 'puddle' gradient ellipse (a second soft mass hanging
   //     BELOW the contact line — the hovering-over-a-puddle double shadow);
-  //   • the ±130 soft stage line (a grey rule running through the shadow);
-  //   • the ±34 GOLD stage line at hero rigs — the "skateboard deck" the
-  //     brief itself named. The gold tick survives ONLY at background rigs
-  //     (≤1.2) at whisper alpha, where it reads as the brand's floor mark.
+  //   • the ±130 soft stage line (a grey rule running through the shadow).
+  // PANEL ACCEPTANCE (audit FIX 3 — THE SKATEBOARD LINE, FINAL): the ±34
+  // GOLD stage tick is retired at EVERY scale, including the background
+  // rigs (≤1.2) where the previous round re-located it at whisper alpha —
+  // the brief named this element and the re-render still read it as the
+  // deck under background figures. The ground language is now exactly the
+  // three-value system above; the brand's floor mark lives in the chapter
+  // cards, not under feet.
   ctx.strokeStyle = rgba(PALETTE.shadow, 0.22);
   ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(-70, 8); ctx.lineTo(70, 8); ctx.stroke();
-  if (scale <= 1.2) {
-    ctx.strokeStyle = rgba(PALETTE.gold, 0.35);
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(-22, 8); ctx.lineTo(22, 8); ctx.stroke();
-  }
   ctx.restore();
 }
 
@@ -971,10 +974,16 @@ export function drawStickmanV2(
      *  run's flight window and the walk's mid-stride events; walks keep
      *  planted-foot clarity, runs read as velocity. */
     legSmear?: number;
-    /** AUDIT-3 / §2.4 (report Phase 2.4): 0..1 landing/slam body squash
+    /** AUDIT-3 / §2.4 (report Phase 3.1): 0..1 landing/slam body squash
      *  about the feet (see the transform note at the top of the body).
      *  Drive with a short decaying pulse at the impact time. */
     squash?: number;
+    /** PANEL ACCEPTANCE (audit FIX 6 — THE LAUNCH HALF): 0..1 body STRETCH
+     *  about the ground contact — the volume-preserving inverse of squash
+     *  (height +6%, width −5%). Driven by the walk's push-off window and
+     *  the voice's ballistic launch pulse (launchPulse). Squash on impact,
+     *  stretch on launch: both halves of the classical pair. */
+    stretch?: number;
     /** AUDIT-3 / §3.1 (report Phase 3.1 — differentiate character two):
      *  'prof' draws the round-glasses + wide-torso variant (a different
      *  PERSON, not the host at another scale). The signature-scene coffee
@@ -1046,6 +1055,9 @@ export function drawStickmanV2(
   // transform stack below, after translate(cx, groundY). Pure function of
   // caller data.
   const squash = r.squash ?? 0;
+  // PANEL ACCEPTANCE (audit FIX 6): the launch stretch rides the same
+  // transform stack (see the scale call below the squash).
+  const stretch = Math.min(1, r.stretch ?? 0);
   // BLUEPRINT Phase 2: the jaw multiplier reaches the mouth (the shock
   // reaction's 2x gasp).
   const jaw2x = r.jaw2x ?? 1;
@@ -1081,10 +1093,23 @@ export function drawStickmanV2(
     // body envelope narrows to the body core (the reaching arm is accounted
     // for by the scene's declared contact + the hand's own rect). The sweep
     // and the frame review are the referees of the full staging.
-    const envHalf = r.contact ? 70 : 128;
+    const envHalf = r.contact ? 70 : 88;
+    // PANEL ACCEPTANCE (audit FIX 2 — THE TOP-EDGE RULE): the envelope is
+    // TWO BANDS, true to the drawn silhouette. ONE tall rect's top corners
+    // were empty air — at the 0.65 ground they grazed the 405px watermark
+    // band for ~360 phantom sweep violations. The HEAD band (±40 rig units:
+    // the head is ±24, the glasses temples ±33) owns the top 130 units —
+    // it is the band the top-edge rule and the watermark actually govern;
+    // the TORSO band (±88) owns the lower 152 units where arms and hips
+    // reach wide. Same plating guarantees, no phantom corners.
     registerRect(
       `hostBody@${Math.round(cx)},${Math.round(groundY)}`,
-      cx - envHalf * scale, groundY - 296 * scale, envHalf * 2 * scale, 296 * scale,
+      cx - 40 * scale, groundY - 241 * scale, 80 * scale, 123 * scale,
+      'host'
+    );
+    registerRect(
+      `hostBodyHip@${Math.round(cx)},${Math.round(groundY)}`,
+      cx - envHalf * scale, groundY - 118 * scale, envHalf * 2 * scale, 152 * scale,
       'host'
     );
     // PLAYBOOK D3 (report §8.3): the same figure's own feet band must be
@@ -1101,9 +1126,14 @@ export function drawStickmanV2(
     // that the full 122·scale band sweeps a registered object the body
     // itself never touches (the guard caught exactly that on the
     // datacenter's rack: 61px of phantom feet-band overlap).
+    // PANEL ACCEPTANCE: the band is also WALK-STATE aware — a standing host's
+    // feet span ±48 rig units, a walking stride ±80; the old constant ±122
+    // was phantom corner again (a standing host's band plated a low card the
+    // feet never approach — 69px sweep violations at 695s).
+    const feetHalf = r.walkPhase !== undefined ? 80 : (r.contact ? 70 : 48);
     registerRect(
       `stickman@${Math.round(cx)},${Math.round(groundY)}`,
-      cx - (r.contact ? 70 : 122) * scale, groundY - 12 * scale, (r.contact ? 140 : 244) * scale, 48 * scale,
+      cx - feetHalf * scale, groundY - 12 * scale, feetHalf * 2 * scale, 48 * scale,
       'host'
     );
   } else {
@@ -1130,6 +1160,11 @@ export function drawStickmanV2(
   // at each foot plant — the walk gains weight. The old 6% was below perception
   // at the phone gate; 18% reads as a heavy landing.
   if (squash > 0.001) ctx.scale(1 + 0.18 * squash, 1 - 0.22 * squash);
+  // PANEL ACCEPTANCE (audit FIX 6 — STRETCH ON LAUNCH): the missing half of
+  // the pair. Volume-preserving elongation about the same ground origin:
+  // height +6%, width −5% at full stretch — two frames of reach on every
+  // gesture launch and step push-off.
+  if (stretch > 0.001) ctx.scale(1 - 0.05 * stretch, 1 + 0.06 * stretch);
   ctx.scale(r.flip ? -scale : scale, scale);
   // v6 idle life: a 2.4s breath sway (±0.23°) around the ground contact —
   // the freeze between sentences read as a mannequin without it.
@@ -1154,6 +1189,10 @@ export function drawStickmanV2(
   ctx.rotate(Math.sin(t / 6200 + seed * 0.9) * 0.003);
   // the pose-level contrapposto offsets (applied on a COPY — callers'
   // pose objects are never mutated)
+  // PANEL ACCEPTANCE (audit FIX 5 — THE RE-GRIP): a slow 3.1s finger flex
+  // shared by both hands (phase-shifted per seed). Between sentence springs
+  // the hands never freeze as rigid glyphs — the fingers breathe.
+  const grip = 1 + 0.16 * Math.sin(t / 3100 + seed * 2.1);
   const pose: import('./stickman').Pose = {
     ...pose0,
     lAU: pose0.lAU - counter * AMP.shoulderCounterDeg,
@@ -1287,7 +1326,7 @@ export function drawStickmanV2(
         neckY + 3 + Math.sin(shT) * 9 - (pose.shoulderDrop ?? 0) * 0.6 + Math.cos(farAU * D2R) * U_ARM * 0.58,
         INK.armFar[0] + 5, INK.armFar[0] - 1, '#A8851B');
     }
-    handGlyph(ctx, farHand.ex, farHand.ey, farAL, 15, farInk, scale, pose.lHand); // iter-3: 12 -> 15 — the far hand renders the FULL fan palm, not the compact tier
+    handGlyph(ctx, farHand.ex, farHand.ey, farAL, 15, farInk, scale, pose.lHand, grip); // iter-3: 12 -> 15 — the far hand renders the FULL fan palm, not the compact tier
     // AUDIT-2 / 0.1: the far shoe steps with its limb (farInk) — depth,
     // not a second colour system.
     shoeWedge(farFoot, farInk, pose.lToe ?? 0);
@@ -1633,7 +1672,7 @@ export function drawStickmanV2(
   // scale, the mitten below rig scale 0.85 (BLUEPRINT: threshold 1.0 ->
   // 0.85 so the glyph never switches mid-scene on a scaled host),
   // selected right here.
-  handGlyph(ctx, hand.ex, hand.ey, pose.rAL, 16, ink, scale, pose.rHand); // P1-2 r3: rig scale picks the glyph tier; Phase 1: hands stay ink
+  handGlyph(ctx, hand.ex, hand.ey, pose.rAL, 16, ink, scale, pose.rHand, grip); // P1-2 r3: rig scale picks the glyph tier; Phase 1: hands stay ink
   // 100-JUDGE PANEL / Phase 1 item 4 — CAST BY SILHOUETTE (report §6
   // Phase 1): "the count host gets rolled sleeves." When the near hand
   // runs a count glyph, the sleeve's cuff ROLLS — a bright ivory band at
@@ -1984,9 +2023,8 @@ export function drawStickmanV2(
   // D-8 (100-judge dossier): the 9-unit bare-white ovals read googly —
   // sclera drops to 6.5 units and INK PUPILS restore a focus point (the
   // gaze now reads; the whites stop dominating the face). The ivory host
-  // head uses the ink-dot branch below; this floor now only serves the
-  // becker variants.
-  const eyeFloorR = scale > 1.5 ? 6.5 : 5.4;
+  // head uses the ink-dot branch below; the becker tier is now floored in
+  // SCREEN space (the beckerEyeR definition below — PANEL ACCEPTANCE fix 7).
   // 100-JUDGE AUDIT / fix 6.1 (THE SCREEN-PX FACE FLOOR): features sized in
   // rig units die at the feed — the harness measured 0px of face ink at 320
   // on the cold open. Every host feature now clamps to a SCREEN-space floor:
@@ -1994,7 +2032,12 @@ export function drawStickmanV2(
   // rig (7.0 local ≈ 2.3px of eye radius at the 320 twin at any scale).
   const headXform = scale * faceS * HEAD_SHRINK;
   const featureFloor = (screenPx: number): number => screenPx / headXform;
-  const eyeR = Math.max(5.2, featureFloor(7.0));
+  // PANEL ACCEPTANCE (audit FIX 4 — THUMBNAIL-FACE PARITY): at hero scales
+  // (rig ≥ 2.0 — the editorial and reaction stagings) the face runs the
+  // THUMBNAIL's values: eye radius 8.6 units, so the character who earns
+  // the click is the character who appears. Below hero the existing
+  // screen-space floor governs unchanged.
+  const eyeR = Math.max(5.2, featureFloor(7.0), scale >= 2 ? 8.6 : 0);
   // 100-JUDGE PANEL REPORT (defect D12 — THE SKULL READ): below rig scale
   // 1.0 the becker head's PURE-WHITE features (sclera, brows, mouth) on
   // the solid ink read as a grinning skull at feed scale (the coffee
@@ -2005,7 +2048,11 @@ export function drawStickmanV2(
   // on a dark head, not as bone glow.
   const smallHead = scale < 1.0;
   const faceInk = smallHead ? '#F7EFD8' : '#FFFFFF';
-  const beckerEyeR = smallHead ? 4.6 : eyeFloorR;
+  // PANEL ACCEPTANCE (audit FIX 7 — THE CAST FACE FLOOR): the becker cast
+  // heads (prof / worker) now take the same screen-space floor the ivory
+  // host has — below ~6px of sclera at 1080p the eyes grow instead of
+  // shrinking with the rig, so the cast reads as faces at side-host scale.
+  const beckerEyeR = Math.max(smallHead ? 4.6 : 5.4, featureFloor(6.0));
   if (becker) {
     ctx.fillStyle = faceInk;
     ctx.beginPath();
@@ -2070,7 +2117,7 @@ export function drawStickmanV2(
     const bRaise = pose.browRaise * AMP.browTravelPx;
     const bAng = pose.browAngle * D2R;
     ctx.strokeStyle = faceInk;
-    ctx.lineWidth = smallHead ? 5 : 6;
+    ctx.lineWidth = Math.max(smallHead ? 5 : 6, featureFloor(5));
     ctx.lineCap = 'round';
     const browArc = (dir: number): void => {
       const x0 = dir * (6 + eyeDX), x1 = dir * (19 + eyeDX);
@@ -2103,12 +2150,13 @@ export function drawStickmanV2(
   if (ivory) {
     ctx.strokeStyle = ink;
     // screen-space stroke: 6.6px at 1080p ≈ 2.2px at the 320px twin
-    ctx.lineWidth = Math.max(0.9, featureFloor(6.6));
+    // FIX 4 parity: hero rigs draw the thumbnail's bolder 7.6px rim
+    ctx.lineWidth = Math.max(0.9, featureFloor(6.6), scale >= 2 ? 7.6 : 0);
     ctx.lineCap = 'round';
     // SQUARE lenses (rounded rects) — deliberately NOT the prof variant's
     // round frames: cast stays silhouette-different at every scale
     // (audit §3.1: "differentiation by design language, not scale").
-    const gR = Math.max(13, featureFloor(13.5));
+    const gR = Math.max(13, featureFloor(13.5), scale >= 2 ? 14.6 : 0);
     const lensW = gR * 2;
     roundRect(ctx, -11 - gR + eyeDX, -6 - gR, lensW, lensW, gR * 0.55);
     ctx.stroke();
@@ -2140,7 +2188,8 @@ export function drawStickmanV2(
   const bAngle = pose.browAngle * D2R;
   ctx.strokeStyle = ink;
   // fix 6.1: screen-px floor — the brows never thin below ~6px at 1080p
-  ctx.lineWidth = Math.max(6, featureFloor(6));
+  // FIX 4 parity: hero rigs draw the thumbnail's bolder 7.6px brow
+  ctx.lineWidth = Math.max(6, featureFloor(6), scale >= 2 ? 7.6 : 0);
   ctx.lineCap = 'round';
   const browSide = (dir: number): void => {
     const x0 = dir * (6 + eyeDX), x1 = dir * (20 + eyeDX);

@@ -261,11 +261,6 @@ export function collectViolations(): CollisionViolation[] {
     // pill band, and the top band's only furniture is the watermark, which
     // is registered as fixed furniture above). QA-SWEEP: noEdge rects
     // (scrolling scenery) are exempt — they cross the edge by design.
-    // PANEL-10: frame-edge crossing under the exact camera (design grid is
-    // 1920×1080; x only — y-overflow at the bottom is already covered by the
-    // pill band, and the top band's only furniture is the watermark, which
-    // is registered as fixed furniture above). QA-SWEEP: noEdge rects
-    // (scrolling scenery) are exempt — they cross the edge by design.
     // PLAYBOOK D3: a stickman feet-band whose anchor sits OFF the design
     // grid entirely (x < 0 or x > 1920) is a figure MID-ENTRANCE — walking
     // in from off-frame is staging, not a crop (the sweep's @88s class:
@@ -275,13 +270,23 @@ export function collectViolations(): CollisionViolation[] {
     if (cam && !r0.noEdge && !(r0.id.startsWith('stickman@') && (r0.x < 0 || r0.x + r0.w > 1920))) {
       const overL = EDGE_PAD - r.x;
       const overR = r.x + r.w - (1920 - EDGE_PAD);
-      const depth = Math.max(overL, overR);
+      // 100-JUDGE AUDIT ROUND-2 (PANEL ACCEPTANCE — THE HEAD CROP): the
+      // x-only rule is why the editorial host shipped decapitated for nine
+      // audit rounds — the hostBody envelope crossed the TOP edge (head
+      // clipped at scarf level, probe: topmost ink at y=0 on 5/5 host
+      // beats) and every sweep stayed green. TOP is now part of the same
+      // rule for HOST bands (cls 'host') — the character must never crop.
+      // (Scene cards under a max hero punch graze the top by ≤14px across
+      // 8 of 965 frames — a certified camera language, not a framing
+      // defect; they stay governed by the x rules.)
+      const overT = r0.cls === 'host' ? EDGE_PAD - r.y : 0;
+      const depth = Math.max(overL, overR, overT);
       if (depth >= MIN_DEPTH) {
         out.push({
           frame: g.frame,
           id: r.id,
           rect: { x: r.x, y: r.y, w: r.w, h: r.h },
-          pill: { x: overL > overR ? 0 : 1920, y: 0, w: 0, h: 0 },
+          pill: { x: overL >= Math.max(overR, overT) ? 0 : 1920, y: overT > Math.max(overL, overR) ? 0 : r.y, w: 0, h: 0 },
           depth: Math.round(depth),
           kind: 'edge',
         });

@@ -2140,7 +2140,13 @@ export function ownerWorkerScene(g: SceneCtx): void {
       // longer balances on a 12px string — the rise gains an AREA fill (the
       // hillside he climbs), drawn under the crisp line. "Standing on data"
       // needs ground mass, not a tightrope.
-      ctx.fillStyle = rgba(PALETTE.upVivid, 0.16);
+      // PANEL ACCEPTANCE (audit FIX 3 — THE SKATEBOARD LINE, FINAL): the
+      // 0.16-alpha hillside read as empty air in the re-render — the owner
+      // still surfed a thin teal line. The rise is now a GOLD WEDGE PLATFORM
+      // (solid wash + a deep top edge: the film's stage language), with the
+      // teal vivid DATA line riding just above the edge he stands on.
+      // Contact from the feet down is mass; the line is data again.
+      ctx.fillStyle = rgba(PALETTE.goldWash, 0.92);
       ctx.beginPath();
       ctx.moveTo(hx - 170, hy + 26);
       ctx.lineTo(hx + 170, hy - 90);
@@ -2148,18 +2154,28 @@ export function ownerWorkerScene(g: SceneCtx): void {
       ctx.lineTo(hx - 170, hy + 64);
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = PALETTE.upVivid;
-      ctx.lineWidth = 12;
+      // the platform edge — goldDeep, the surface the soles land on
+      ctx.strokeStyle = PALETTE.goldDeep;
+      ctx.lineWidth = 5;
       ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(hx - 170, hy + 26);
       ctx.lineTo(hx + 170, hy - 90);
       ctx.stroke();
+      // the DATA: the teal vivid rise rides 7px above the platform edge
+      ctx.strokeStyle = PALETTE.upVivid;
+      ctx.lineWidth = 10;
+      ctx.beginPath();
+      ctx.moveTo(hx - 170, hy + 19);
+      ctx.lineTo(hx + 170, hy - 97);
+      ctx.stroke();
     } else {
       // fix 6.2: the worker's flat line becomes a GROUND SLAB — a soft
       // plateau with rounded ends under his feet (the floor he is stuck on),
       // line kept crisp on top.
-      ctx.fillStyle = rgba(PALETTE.inkSoft, 0.14);
+      // PANEL ACCEPTANCE: the slab deepens one register (0.14 → 0.30) so
+      // the worker's floor reads as mass too, matching the owner's wedge.
+      ctx.fillStyle = rgba(PALETTE.inkSoft, 0.3);
       roundRect(ctx, hx - 182, hy + 6, 364, 54, 26);
       ctx.fill();
       ctx.strokeStyle = rgba(PALETTE.inkSoft, 0.9);

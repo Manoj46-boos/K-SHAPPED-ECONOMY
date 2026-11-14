@@ -259,6 +259,12 @@ export class Stickman {
     prevSentenceId?: string;
     sentenceT?: number;
     wordTimes?: number[];
+    /** PANEL ACCEPTANCE (audit FIX 6 — TWO-TIER ACCENTS): the word TEXTS
+     *  aligned 1:1 with wordTimes (same clock, same order). Content words
+     *  (≥3 chars, hash-gated — the same rule accentPulse uses) keep the
+     *  full 44° strike; function words drop to a 12° whisper. Omitted =
+     *  every word accents full (the legacy behavior). */
+    words?: string[];
     /** AUDIT-3 / §1.5 (report Phase 1.5 — the host points at what he
      *  presents): directional bias for the sentence-gesture list. When the
      *  content sits to the host's right ('right'), pointR joins the list
@@ -338,11 +344,22 @@ export class Stickman {
         pose = { ...up, lAL: lo.lAL, rAL: lo.rAL };
         // beat-accent: a decaying forearm pulse on each word onset — the
         // hand strikes on the emphasized word, exactly as a narrator's does
+        // PANEL ACCEPTANCE (audit FIX 6 — TWO-TIER ACCENTS): the pulse is
+        // no longer uniform. Content words (the ≥3-char hash-gate rule the
+        // smear system already uses) keep the full-amplitude strike;
+        // function words carry a 12°-equivalent whisper (12/44 of the
+        // envelope, so every downstream term — lean, counter-arm, shoulder
+        // — scales with the tier). Key words hit, connective tissue glides.
         let accent = 0;
         if (opts.wordTimes) {
-          for (const wt of opts.wordTimes) {
+          for (let wi = 0; wi < opts.wordTimes.length; wi++) {
+            const wt = opts.wordTimes[wi];
             if (t >= wt && t < wt + 300) {
-              accent = Math.max(accent, Math.sin(((t - wt) / 300) * Math.PI));
+              const w = opts.words?.[wi];
+              const tier = w
+                ? (w.length >= 3 && hashStr(w.toLowerCase()) < 0.42 ? 1 : 12 / 44)
+                : 1;
+              accent = Math.max(accent, Math.sin(((t - wt) / 300) * Math.PI) * tier);
             }
           }
         }
@@ -371,6 +388,11 @@ export class Stickman {
           lean: pose.lean + (accent * 2 + arc * 1.2),
           headTilt: pose.headTilt - accent * 1.6,
           shoulderTilt: (pose.shoulderTilt ?? 0) + accent * 6,
+          // PANEL ACCEPTANCE (audit FIX 5 — THE HEAD LEAD): the head answers
+          // the voice INSIDE the sentence — a small yaw into the presenting
+          // side on every accent, on top of the content-bias yaw. The body
+          // follows the emphasis instead of waiting for the next sentence.
+          headYaw: (pose.headYaw ?? 0) + accent * 3.5,
         };
       } else {
         // legacy fallback (no sentence data — e.g. the shorts cutter):
@@ -1050,6 +1072,26 @@ export function nodPulse(t: number, wordTimes: number[]): number {
       p = Math.max(p, Math.sin(((t - wt) / 300) * Math.PI));
     }
     if (wt > t + 300) break;
+  }
+  return p;
+}
+
+/**
+ * PANEL ACCEPTANCE (audit FIX 6 — THE LAUNCH HALF): the stretch pulse — a
+ * quick 120ms elongation on each word onset, the ballistic START of the
+ * accent before the forearm pulse peaks. Callers sum it with the walk's
+ * push-off pulse (walkPush) and pass the total as r.stretch; the renderer
+ * applies a volume-preserving elongation (height +6%, width −5%) about the
+ * ground contact. Squash on impact, stretch on launch — both halves of the
+ * classical pair, on the same word clock. Scrub-safe: pure f(t, words).
+ */
+export function launchPulse(t: number, wordTimes: number[]): number {
+  let p = 0;
+  for (const wt of wordTimes) {
+    if (t >= wt && t < wt + 120) {
+      p = Math.max(p, Math.sin(((t - wt) / 120) * Math.PI));
+    }
+    if (wt > t + 200) break;
   }
   return p;
 }

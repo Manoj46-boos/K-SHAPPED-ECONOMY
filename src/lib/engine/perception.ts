@@ -35,8 +35,13 @@ export const AMP = {
   boilPx: 0.8,
   /** Contrapposto idle weight shift, px.
    *  AUDIT-ROUND-3: 15 -> 8 — the hip settle reads without the sway of a
-   *  boat. */
-  weightShift: 8,
+   *  boat.
+   *  PANEL ACCEPTANCE (audit FIX 5 — THE ALIVE-HOLD): 8 -> 14 — the
+   *  audit's 280ms speech strip measured the holds at motion 2.42 (mean
+   *  inter-frame diff), a breathing statue. 14px at rig 2.4 is ~12px of
+   *  visible hip travel per cycle: the hold breathes again while staying
+   *  far under the hero windows' ratio. */
+  weightShift: 14,
   /** Shoulder counter-rotation, deg.
    *  AUDIT-ROUND-3: 7.0 -> 4.5 — a counter-line, not a shrug. */
   shoulderCounterDeg: 4.5,
