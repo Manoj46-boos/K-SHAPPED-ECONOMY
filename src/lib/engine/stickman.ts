@@ -177,13 +177,18 @@ export const POSES: Record<string, Pose> = {
   // recoils LOW with the elbow bent, the head rocks back with the weight
   // settling onto the back foot (pelvisTilt flips), shoulders dropped.
   // Reads as recoil with zero motion — the test a hero shock must pass.
-  shock: { ...base(), lean: -4, headTilt: -6, rootY: 5, lAU: -95, lAL: -115, rAU: -30, rAL: -75, lLU: -11, lLL: 4, rLU: 12, rLL: -8, browRaise: 0.95, smile: 0.02, pelvisTilt: -6, shoulderTilt: -3.5, shoulderDrop: 6, eyeL: 1.3, eyeR: 1.3 },
+  shock: { ...base(), lean: -4, headTilt: -6, rootY: 5, lAU: -95, lAL: -115, rAU: -30, rAL: -75, lLU: -11, lLL: 4, rLU: 12, rLL: -8, browRaise: 0.95, smile: 0.02, pelvisTilt: -6, shoulderTilt: -3.5, shoulderDrop: 8, eyeL: 1.45, eyeR: 1.45 },
   // wry: the paradox resolve (c7-paradox) — the knowing half-smile: one brow
   // up, one down, head tilted, hand low like “well, actually”.
   // P1-4: + silhouette terms — the near eye squints to 0.55 while the far
   // opens 1.12 (the squint-smirk reads at 320px where brow values die)
   // and the near shoulder drops 4.5px (the slouch).
-  wry: { ...base(), lean: 5, headTilt: 7, lAU: -16, lAL: -12, rAU: 38, rAL: 96, lLU: -8, rLU: 9, rLL: 5, browRaise: 0.62, browAngle: -10, smile: 0.45, pelvisTilt: 3.2, shoulderTilt: -2.6, eyeL: 0.55, eyeR: 1.12, shoulderDrop: 4.5 },
+  // PHASE-5 (report §11 Phase 5 — LET THE BODY ACT): the amplitudes drive
+  // to their limits — the asymmetry eye squints to 0.3 (a near-wink) while
+  // the far dilates to 1.3, and the slouch drops the full 8px: the
+  // silhouette emotion must survive compression, and these are the terms
+  // that do.
+  wry: { ...base(), lean: 5, headTilt: 7, lAU: -16, lAL: -12, rAU: 38, rAL: 96, lLU: -8, rLU: 9, rLL: 5, browRaise: 0.62, browAngle: -10, smile: 0.45, pelvisTilt: 3.2, shoulderTilt: -2.6, eyeL: 0.3, eyeR: 1.3, shoulderDrop: 8 },
   // ── 100-JUDGE PANEL / Phase 2 item 3 — A SIT-AND-RISE FOR THE MOOD
   // CHAPTERS (report §6 Phase 2, p.14): "One new pose pair (sitBack on
   // the stat card edge) with the ground-contact math the walk already

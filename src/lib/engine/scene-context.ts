@@ -11,6 +11,13 @@ export interface SceneCtx {
   beatT: number;
   /** ms since the start of the scene group (beats sharing sceneKey) */
   t: number;
+  /** PHASE-4 (report §11 Phase 4): ms since the start of the sceneKey run
+   *  (every beat sharing this sceneKey, from its first beat). The 12s cap
+   *  re-splits long runs into new groups whose gt resets by design (camera,
+   *  exit, bokeh machinery) — entrance alphas keyed to the group clock
+   *  replayed the host's fade mid-scene at every such seam. The scene clock
+   *  never resets inside the run: a character arrives ONCE per scene. */
+  sceneT: number;
   /** scene group duration ms */
   d: number;
   /** scene group progress 0..1 */

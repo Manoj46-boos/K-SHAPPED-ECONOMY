@@ -345,7 +345,13 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   // AUDIT-3 / §1.5 round 2 (panel: "eye-line should follow the gesture"):
   // the side hosts now commit their full gaze toward their content.
   const lookRight = g.s.lookRight ? 1 : g.s.lookLeft ? -1 : side === 'left' ? 1 : side === 'right' ? -1 : 0;
-  const fade = entrance === 'walk' ? clamp01(t / 300) : clamp01(t / 420);
+  // PHASE-4 (report §11 Phase 4 — COMMIT THE ENTRANCES): the entrance alpha
+  // was a 300/420ms ramp from 0 keyed to GROUP time — a character condensed
+  // out of the air, and every 12s-cap re-split group replayed the fade
+  // mid-scene. The ramp drops to 180ms with a 0.85 floor ("a character
+  // should arrive, not condense") and keys to the SCENE clock, which never
+  // resets inside a sceneKey run.
+  const fade = 0.85 + 0.15 * (1 - Math.pow(1 - clamp01(g.sceneT / 180), 2));
   // PANEL-12: walkPhase feeds the scarf velocity-coupling (P1-4) and the
   // contact-dust motes (P2-5); parallax: true rides the foreground plane
   // at 1.25× camera motion (P2-1)
@@ -668,7 +674,7 @@ export function hostSceneV2(g: SceneCtx): void {
     // at the 0.585 ground the 2.4× host's head topped out at 56px headroom
     // (5%); the shared 0.62 ground restores the ~9% the probe gate wants.
     ctx, hx, HOST_GROUND(H), HOST_SCALE, t,
-    { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk, smear: smr, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true, parallaxAmt: 0.55, // P2-4: hero moment — clear space, deep differential
+    { pose, alpha: 0.85 + 0.15 * clamp01(g.sceneT / 180), look: 0.8, scarf: true, nod: nodP, talk, smear: smr, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true, parallaxAmt: 0.55, // P2-4: hero moment — clear space, deep differential
       // PANEL ACCEPTANCE (audit FIX 2): full-body envelope — see drawHost.
       hostBody: true,
       stretch: Math.min(1,
@@ -768,8 +774,12 @@ export function hostSceneV2(g: SceneCtx): void {
     ctx.fill();
     setFont(ctx, 34, 400);
     ctx.fillStyle = PALETTE.inkSoft;
-    // the sub yields to the K-fig panel's top (604): only lines that fit
-    const subLines = sub.split('\n');
+    // PHASE-6 (report Table 2 receipt 1): the derived sub-copy ran off the
+    // right frame edge, clipped mid-word, no wrap. Each explicit line now
+    // WRAPS to the text column (the same wrapText the cards use); the
+    // yield-to-K-fig-panel budget applies to the wrapped lines.
+    const colW = W - 96 - hx2;
+    const subLines = sub.split('\n').flatMap((ln) => wrapText(ctx, ln, colW, 34, 400));
     const maxSub = Math.max(1, Math.floor((596 - (hairY + 72)) / 44));
     subLines.slice(0, Math.max(1, maxSub)).forEach((ln, i) => ctx.fillText(ln, hx2, hairY + 72 + i * 44));
     ctx.restore();

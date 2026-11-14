@@ -786,8 +786,12 @@ export const SCRIPT: ChapterSpec[] = [
           stats: [
             // D-3 (100-judge dossier): glance strings sized to wrap cleanly
             // inside the compact chip (the drawer draws up to 2 lines).
-            { big: '42%', label: 'of the S&P 500\u2019s 2025 return · seven stocks', tone: 'gold' },
-            { big: '<1.5%', label: 'of the names in the index', tone: 'down' },
+            // PHASE-6 (report Table 2 receipt 3): the glances truncated
+            // mid-phrase on the audit frame ('of the S&P 500\u2019s 2025…',
+            // 'of the names in…') — they now wrap to two clean rows at the
+            // chip's measured label width; the full sentences ride the VO.
+            { big: '42%', label: 'of the 2025 return · seven stocks', tone: 'gold' },
+            { big: '<1.5%', label: 'of the names', tone: 'down' },
           ],
           callbackChip: 'sound familiar? the small-cap rotation from earlier',
         }),

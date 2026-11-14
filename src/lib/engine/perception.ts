@@ -115,8 +115,10 @@ export const AMP = {
   reactionAmp: { paradox: 0.34, fund: 0.4, three: 0.32 } as Record<string, number>,
   /** The head-yaw cap, deg. */
   headYawDeg: 14,
-  /** Brow-raise travel, px. */
-  browTravelPx: 14,
+  /** Brow-raise travel, px. PHASE-5 (report §11 Phase 5): 14 -> 21 (+50%)
+   *  — the brow's vertical travel is a silhouette emotion; at 14px it died
+   *  at the 320px feed. */
+  browTravelPx: 21,
   /** Reaction window, ms. */
   reactionWindowMs: 1600,
   /** The whip-truck on scene entry.

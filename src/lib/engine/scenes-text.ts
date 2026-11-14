@@ -225,7 +225,11 @@ export function bigTextScene(g: SceneCtx): void {
   // sparkle burst is GONE from the statement beat — celebration VFX
   // never sits on statement typography; the slam's own impact grammar
   // (micro-shake + ring) carries the emphasis.
-  const hp = clamp01((t - 2200) / 600);
+  // PHASE-4 (report §11 Phase 4) + Table 2 receipt 8: the count host's
+  // alpha keys to BEAT time (a 12s-cap re-split group no longer replays his
+  // entrance mid-count) and commits to the 0.85 floor / 180ms ramp — he
+  // arrives after the slam at full presence instead of condensing.
+  const hp = g.beatT < 2200 ? 0 : 0.85 + 0.15 * clamp01((g.beatT - 2200) / 180);
   if (hp > 0) {
     const pose = Stickman.poseAt(t, { gesture: 'count2', speaking: false });
     // v3 (panel P0-3): v2 renderer — one body style across the whole film

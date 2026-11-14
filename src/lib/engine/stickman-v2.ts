@@ -416,40 +416,62 @@ export function taper(
   drawnBone(ctx, x, y, ex, ey, w0, w1, col, 0);
 }
 
-/** A curved, pressure-tapered stroked bone. The optional `bow` (px,
- *  perpendicular to the chord) puts a living bend in the line; the
- *  quadratic through the bowed control is sampled as 4 stroked segments
- *  with stepped widths (de Casteljau) — a drawn line with a taper, not
- *  a filled trapezoid. */
+/** A curved, pressure-tapered bone — ONE continuous shape. PHASE-4
+ *  (report §11 Phase 4 — the single stroked path): the bone was sampled as
+ *  4 separately-stroked segments with round caps; at every alpha the cap
+ *  discs double-painted at the three joints and read as a bead chain, and
+ *  the taper stepped 4 times. The bone is now ONE ribbon: the same
+ *  quadratic the old code computed (de Casteljau, `bow` unchanged) sampled
+ *  at 14 points, offset along the normal by the pressure width —
+ *  smooth taper as width along the path — and closed with round brush
+ *  ends. One fill call (cheaper than four strokes), one paint everywhere
+ *  (uniform alpha — the beads die at every alpha), round-cap AA quality
+ *  identical to a stroke. */
 function drawnBone(
   ctx: CanvasRenderingContext2D,
   x: number, y: number, ex: number, ey: number,
   w0: number, w1: number, col: string,
   bow: number
 ): void {
-  ctx.strokeStyle = col;
-  ctx.lineCap = 'round';
-  const SEG = 4;
-  // the quadratic control: the chord's midpoint pushed perpendicular
+  const SEG = 14;
   const mx = (x + ex) / 2, my = (y + ey) / 2;
   const dx = ex - x, dy = ey - y;
   const L = Math.hypot(dx, dy) || 1;
   const cx = mx + (-dy / L) * bow, cy = my + (dx / L) * bow;
-  let px = x, py = y;
-  for (let i = 1; i <= SEG; i++) {
+  // sample the quadratic once: points, tangents, widths
+  const qx: number[] = [], qy: number[] = [], tx: number[] = [], ty: number[] = [], ww: number[] = [];
+  for (let i = 0; i <= SEG; i++) {
     const k = i / SEG;
-    // de Casteljau sample of the quadratic at k
     const ax = lerp2(x, cx, k), ay = lerp2(y, cy, k);
     const bx = lerp2(cx, ex, k), by = lerp2(cy, ey, k);
-    const qx = lerp2(ax, bx, k), qy = lerp2(ay, by, k);
-    // stepped width at the segment's midpoint — the pressure taper
-    ctx.lineWidth = lerp2(w0, w1, (k - 0.5 / SEG));
-    ctx.beginPath();
-    ctx.moveTo(px, py);
-    ctx.lineTo(qx, qy);
-    ctx.stroke();
-    px = qx; py = qy;
+    const px = lerp2(ax, bx, k), py = lerp2(ay, by, k);
+    // derivative of the quadratic — the tangent
+    const dax = 2 * (cx - x), day = 2 * (cy - y);
+    const dbx = 2 * (ex - cx), dby = 2 * (ey - cy);
+    const vx = lerp2(dax, dbx, k), vy = lerp2(day, dby, k);
+    const vl = Math.hypot(vx, vy) || 1;
+    qx.push(px); qy.push(py); tx.push(vx / vl); ty.push(vy / vl);
+    ww.push(Math.max(lerp2(w0, w1, k), 0.5));
   }
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  // left offset forward, around the wrist cap, right offset back, around
+  // the shoulder cap
+  for (let i = 0; i <= SEG; i++) {
+    const nx = -ty[i], ny = tx[i], hw = ww[i] / 2;
+    const lx = qx[i] + nx * hw, ly = qy[i] + ny * hw;
+    if (i === 0) ctx.moveTo(lx, ly); else ctx.lineTo(lx, ly);
+  }
+  const endA = Math.atan2(ty[SEG], tx[SEG]);
+  ctx.arc(qx[SEG], qy[SEG], ww[SEG] / 2, endA + Math.PI / 2, endA - Math.PI / 2, true);
+  for (let i = SEG; i >= 0; i--) {
+    const nx = -ty[i], ny = tx[i], hw = ww[i] / 2;
+    ctx.lineTo(qx[i] - nx * hw, qy[i] - ny * hw);
+  }
+  const startA = Math.atan2(ty[0], tx[0]);
+  ctx.arc(x, y, ww[0] / 2, startA - Math.PI / 2, startA + Math.PI / 2, true);
+  ctx.closePath();
+  ctx.fill();
 }
 
 /** Two-bone drawn limb ending in a hand disc. Returns the hand position.
@@ -906,6 +928,12 @@ export function drawStickmanV2(
      *  about the feet (see the transform note at the top of the body).
      *  Drive with a short decaying pulse at the impact time. */
     squash?: number;
+    /** PHASE-5 (report §11 Phase 5 — LET THE BODY ACT): the CHART-SATCHEL
+     *  — the data chapters' signature silhouette change. Strap over the
+     *  far shoulder, bag at the near hip, the K chart on the flap: the
+     *  presenter visibly CARRIES the data he narrates. The data-chapter
+     *  hosts pass it; the host scene stays clean. */
+    satchel?: boolean;
     /** PANEL ACCEPTANCE (audit FIX 6 — THE LAUNCH HALF): 0..1 body STRETCH
      *  about the ground contact — the volume-preserving inverse of squash
      *  (height +6%, width −5%). Driven by the walk's push-off window and
@@ -1360,8 +1388,12 @@ export function drawStickmanV2(
   // wave is damped 0.5x: a short tail flicks, it does not whip.
   if (r.scarf !== false && !prof) {
     const talkEnv0 = r.talk ?? 0;
+    // PHASE-5 (report §11 Phase 5 — LET THE BODY ACT): the standing wave
+    // 6 -> 14px — at 6px the tail's flick was 1.8px at the 320px gate and
+    // the scarf read as a static bolt of cloth. At 14px (4.1px at feed) the
+    // wave REGISTERs: the scarf is worn, alive, brand-motion.
     const wave0 =
-      Math.sin(t / 700 + seed) * 6 * (r.walkPhase !== undefined ? 3.2 : 1) * (1 + talkEnv0 * 1.4) +
+      Math.sin(t / 700 + seed) * 14 * (r.walkPhase !== undefined ? 3.2 : 1) * (1 + talkEnv0 * 1.4) +
       Math.sin(t / 240 + seed * 2) * 3.2 * talkEnv0;
     if (scale >= 1.2) {
       scarfTail(ctx, neckX - 3, neckY + 12, wave0 * 0.5, PALETTE.gold, '#A8851B');
@@ -1580,6 +1612,46 @@ export function drawStickmanV2(
   // stays — it fires only mid-stride at real velocity, the report's "keep
   // a velocity streak for the run". Velocity now reads through the keyed
   // poses and the walk strike, never through ghost ink.
+  // PHASE-5 (report §11 Phase 5 — LET THE BODY ACT): the CHART-SATCHEL —
+  // one signature silhouette change per act: in the data chapters the
+  // presenter CARRIES his material. Strap from the far shoulder to the
+  // near hip, bag on the hip line, the K chart on the flap — a silhouette
+  // read (bag + strap change the torso's outline) that survives the 320px
+  // gate. Drawn before the near arm so the arm drapes over the strap, the
+  // way a worn bag hangs. Rig-space, scrub-safe: a pure function of the
+  // pose's own anchors (hip, neck) and the breathing cycle.
+  if (r.satchel) {
+    const bagW = 46, bagH = 36;
+    const bagX = hipRX + 22, bagY = pelvisY + 30 + Math.sin(t / 2400 + seed * 3.1) * 1.2;
+    // the strap: far shoulder to the bag's top edge — ink over the vest,
+    // thick enough to read at the 320px gate
+    taper(ctx, neckX - 5, neckY + 8, bagX - bagW * 0.3, bagY - bagH * 0.42, 8, 4.5, PALETTE.ink);
+    // the bag body — rounded, slightly swung by the walk phase
+    ctx.save();
+    ctx.translate(bagX, bagY);
+    ctx.rotate(((r.walkPhase !== undefined ? Math.sin(t / 260 + seed) * 0.06 : 0)) + (pose.pelvisTilt ?? 0) * 0.004);
+    ctx.fillStyle = '#F6F1E3';
+    ctx.strokeStyle = PALETTE.ink;
+    ctx.lineWidth = 3;
+    roundRect(ctx, -bagW / 2, -bagH / 2, bagW, bagH, 7);
+    ctx.fill(); ctx.stroke();
+    // the flap seam + the gold clip
+    ctx.lineWidth = 2.6;
+    ctx.beginPath(); ctx.moveTo(-bagW / 2 + 3, -bagH / 2 + 11); ctx.lineTo(bagW / 2 - 3, -bagH / 2 + 11); ctx.stroke();
+    ctx.fillStyle = PALETTE.gold;
+    ctx.beginPath(); ctx.arc(0, -bagH / 2 + 11, 3.2, 0, Math.PI * 2); ctx.fill();
+    // the K chart on the flap — the brand's own motif, teal, rising
+    ctx.strokeStyle = PALETTE.up;
+    ctx.lineWidth = 3.4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-bagW / 2 + 8, bagH / 2 - 9);
+    ctx.lineTo(-bagW / 2 + 16, bagH / 2 - 18);
+    ctx.lineTo(-bagW / 2 + 23, bagH / 2 - 13);
+    ctx.lineTo(-bagW / 2 + 34, bagH / 2 - 22);
+    ctx.stroke();
+    ctx.restore();
+  }
   // BLUEPRINT Phase 2: near arm 13/11/9 -> 17/13/10 (INK.armNear); the
   // shoulder anchor rides the shoulder-line counter-tilt (Phase 2's
   // second rotation term — the near shoulder rises when shT is positive)

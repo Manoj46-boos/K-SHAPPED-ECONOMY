@@ -11,7 +11,13 @@
     "db:push": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "thumb": "node tools/frame-dump.mjs --thumb 0 --out public/thumbnail.png",
+    "thumb:variants": "for v in 0 1 2 3 4 5; do node tools/frame-dump.mjs --thumb $v --out public/thumbnail-v$v.png; done",
+    "gates": "node tools/render-check.mjs --guard && node tools/novelty-audit.mjs && node tools/gate-check.mjs",
+    "evidence": "node tools/frame-dump.mjs --sweep 4000 --out-dir evidence/ --guard",
+    "analytics:ingest": "node scripts/ingest-analytics.mjs",
+    "voice:ab": "node tools/voice-ab-prep.mjs"
   },
   "dependencies": {
     "@andresaya/edge-tts": "^1.9.1",

@@ -719,6 +719,11 @@ export function drawFrame(
     H,
     beatT: bt,
     t: gt,
+    // PHASE-4 (report §11 Phase 4): the scene-span clock. group.beatIdx is
+    // the run's FIRST beat index (both the noCap and the packed pushes set
+    // it to the run start), so sceneT = beat-local time + the offset of
+    // this beat within the run — it never resets across 12s-cap re-splits.
+    sceneT: bt + (beat.startMs - tl.beats[group.beatIdx].startMs),
     d: groupDur,
     p: clamp01(gt / groupDur),
     beatP: clamp01(bt / beatDur),
@@ -997,7 +1002,12 @@ export function drawFrame(
   // camera envelope (776) on wide-caption frames; a single 6-word row
   // (top 864) clears the chip by 60px.
   const isHostScene = beat.beat.scene.type === 'host';
-  const isOneRowScene = isHostScene || beat.beat.scene.type === 'splitNumbers';
+  // PHASE-6 (report Table 2 receipt 7): the end screen joins the 1-row
+  // caption class — its SUBSCRIBE strip owns the below-pill band, and a
+  // 2-row caption pill descended into it (the audit frame caught both
+  // texts fighting). One row keeps the pill high; the strip keeps its band.
+  const isOneRowScene =
+    isHostScene || beat.beat.scene.type === 'splitNumbers' || beat.beat.scene.type === 'endScreen';
   drawCaptions(ctx, W, H, t, tl.captionLines, {
     mode: opts.captions,
     maxRows: isOneRowScene ? 1 : 2,

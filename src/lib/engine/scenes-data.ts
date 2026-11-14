@@ -9,7 +9,7 @@ import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, lerp, springTo } fr
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
 import { bokehField, kMotifs, lightRays, drawK, drawK3D, floatCoins, sparkles, hazeBands, impactRing, microShake, depthShift } from './effects';
 import { SceneCtx } from './scene-context';
-import { reactionAt, reactionStart } from './scene-context';
+import { REACTIONS, reactionAt, reactionStart } from './scene-context';
 import { lineChart, pieChart, barRow, dotGrid, gauge, statCard, sourceTag, sceneTitle, wrapText } from './charts';
 import { Stickman, POSES, blendPose, accentPulse, take } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
@@ -236,8 +236,13 @@ function hostSmall(
       // parallax differential rides the film's biggest camera move
       // (~90px): the plane separation is VISIBLE at every scene entry,
       // not a single-digit-pixel threshold effect.
-      pose, alpha: clamp01((g.t - 20) / 160), look: dir === 'right' ? 0.5 : -0.5, talk, smear,
-      scarf: false, hostBody: true,
+      // PHASE-4 (report §11 Phase 4) + Table 2 receipt 8: the ramp keys to
+      // BEAT time (the count restarts per beat; the host arrives with it —
+      // a 12s-cap re-split group no longer replays the fade mid-count) and
+      // commits to the 0.85 floor / 180ms ramp: arrive, don't condense.
+      pose, alpha: 0.85 + 0.15 * clamp01((g.beatT - 20) / 180), look: dir === 'right' ? 0.5 : -0.5, talk, smear,
+      // PHASE-5: the chart-satchel — the data chapters' signature silhouette
+      scarf: false, hostBody: true, satchel: true,
       faceScale: 1 + 0.15 + (faceTarget - 1.15) * reaction,
       jaw2x: 1 + (jawX - 1) * reaction,
       parallax,
@@ -1297,7 +1302,12 @@ export function gasPumpScene(g: SceneCtx): void {
   ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(px + 104, py + 70);
-  ctx.quadraticCurveTo(px + 196, py + 150, px + 150, py + 232);
+  // PHASE-6 (receipt 5 round 2): the hose sweep 196 -> 140 — the old curve
+  // swung the nozzle 56px further right than the holster needs, and either
+  // it plated the household card or (with the card moved clear) the card
+  // plated the frame edge under the ch4 truck. The hose stays a full arc;
+  // it just ends where the hand would hold it.
+  ctx.quadraticCurveTo(px + 140, py + 150, px + 118, py + 232);
   ctx.quadraticCurveTo(px + 128, py + 266, px + 96, py + 258);
   ctx.stroke();
   // nozzle handle at the hose end
@@ -1341,7 +1351,13 @@ export function gasPumpScene(g: SceneCtx): void {
     // ran to the literal frame edge (measured x=1919, mid-word). The card
     // pulls left to W*0.555 (worst-camera right edge ~1733) and the label
     // now WRAPS at the measured interior width instead of overflowing.
-    const x = i === 0 ? W * 0.07 : W * 0.555;
+    // PHASE-6 (report Table 2 receipt 5): the right household card's left
+    // edge (1065) sat UNDER the pump's hose + nozzle sweep — the card
+    // plated the prop and the pump's screen text fought the card. The hose
+    // sweep pulls in (ends px+140 ≈ 1100) and the card moves to W×0.585
+    // (left edge 1123, 23px clear of the hose; right edge 1583 holds the
+    // D2 certified worst-camera bound with margin).
+    const x = i === 0 ? W * 0.07 : W * 0.585;
     const y = H * 0.26;
     ctx.save();
     ctx.globalAlpha = cap;
@@ -1886,7 +1902,10 @@ export function aiDatacenterScene(g: SceneCtx): void {
     // full hero-push camera — 205px inside the frame bound.
     drawStickmanV2(ctx, 1505, H * 0.665, 1.36, t,
       {
-        pose, alpha: clamp01((t - 900) / 600), look: -0.7, scarf: true, talk, hostBody: true,
+        // PHASE-4 (report §11 Phase 4): the walk-in alpha rides the SCENE
+        // clock at the committed 0.85 floor / 180ms ramp — the presenter
+        // walks in already arrived; a re-split group never replays the fade.
+        pose, alpha: 0.85 + 0.15 * clamp01((g.sceneT - 900) / 180), look: -0.7, scarf: true, talk, hostBody: true, satchel: true,
         // PANEL-12 / P3.2: the walk host's ground-shadow ellipse skews by
         // the floor's own (W/2 − x) × 0.06 term — he stands IN the room's
         // perspective, not on a decal. PANEL-12 / P2-1: foreground parallax.
@@ -2117,7 +2136,12 @@ export function ownerWorkerScene(g: SceneCtx): void {
     ctx.fillStyle = tone.vivid ?? tone.main;
     // 100-JUDGE REPORT fix E2: titles ride to H*0.17 — the figures scale
     // to 1.4x (below) and need the headroom.
-    ctx.fillText(pnl.title.toUpperCase(), x + 340, H * 0.17);
+    // PHASE-6 (report Table 2 receipt 6): the title centered on the FIGURE
+    // (x+340 = the figure's own hx) — the owner's climb-pose raised hand
+    // plated the title's last word (PROFITS). The titles shift one step
+    // left within each half (x+240): the reading line clears the hand's
+    // reach at every certified camera state, both halves stay symmetric.
+    ctx.fillText(pnl.title.toUpperCase(), x + 240, H * 0.17);
     // mini stickman: shareholder on a rising line / worker on flat ground
     // PANEL-9 R7d (panel text plated by the caption pill): the figure stood
     // at H*0.72 with its wrap lines at H*0.85+j*44 (918/962) — the second
@@ -2257,9 +2281,14 @@ export function ownerWorkerScene(g: SceneCtx): void {
     // in, and the facepalm/climb poses finally read at the 320px gate.
     drawStickmanV2(ctx, hx, hy - (side === 'left' ? 67 : 0), 1.55, t, {
       pose,
-      alpha: clamp01((t - i * 700 - 200) / 500),
+      // PHASE-4 (report §11 Phase 4): the staggered pair entrance commits to
+      // the 0.85 floor / 180ms ramp on the SCENE clock — the owner and the
+      // worker arrive, they don't condense, and re-split groups never replay
+      // the fade mid-scene.
+      alpha: 0.85 + 0.15 * clamp01((g.sceneT - i * 700 - 200) / 180),
       look: 0.3,
       scarf: side === 'left', // v10: the owner wears the brand; the worker doesn't
+      satchel: side === 'left', // PHASE-5: the owner carries the data chapter's chart-satchel
       shadowRot: side === 'left' ? Math.atan(riseSlope) : 0,
       // FIX 3: the rise slope's ground anchor follows the bigger figure
       // (44px lift keeps the owner's soles ON his rising line at 1.05x),
@@ -2328,8 +2357,19 @@ export function ownerWorkerScene(g: SceneCtx): void {
 export function fundSplitScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 201, 0.5);
+  // PHASE-6 (report Table 2 receipt 2): the twist reaction push pivots on
+  // the host (px 1420) — at the full 0.4 travel the title at a fixed x=180
+  // rode out of the left frame edge and clipped mid-word. The title's draw
+  // x now compensates the push differentially (the exact inverse of the
+  // camera transform), so the title HOLDS its screen margin through the
+  // full travel: the push keeps its designed beat, the reading column
+  // keeps its edge. Pure function of (t, d) — scrub-safe.
+  const rSpec = REACTIONS[s.sceneKey as string] ?? REACTIONS['c8-fund'];
+  const rP0 = reactionAt(s.sceneKey as string, t, g.d);
+  const rsR = 1 + rSpec.amp * rP0;
+  const titleX = rSpec.px + (180 - rSpec.px) / rsR;
   // (title row 150->190 as all sceneTitle sites — D-08; see charts.sceneTitle)
-  sceneTitle(ctx, 'What\u2019s inside “the S&P 500”?', 180, 220, clamp01(t / 600)); // AUDIT-2 §10.3: +24px left margin — clears the raised camera stack
+  sceneTitle(ctx, 'What\u2019s inside “the S&P 500”?', titleX, 220, clamp01(t / 600)); // AUDIT-2 §10.3: +24px left margin — clears the raised camera stack
   // the fund box
   const bx = W * 0.09;
   const by = H * 0.24;
