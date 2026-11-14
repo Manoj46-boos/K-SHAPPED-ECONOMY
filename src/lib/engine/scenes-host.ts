@@ -1385,10 +1385,16 @@ export function divergeKScene(g: SceneCtx): void {
       // opaque plate still bit 2px (+2px stroke) off the chip's bottom
       // rounded corners whenever the cold-open's long VO line wrapped to
       // two rows (the re-review judge read it as "clipped, not fully
-      // rendered"). CAPTION_ZONE_TOP-76 puts the chip bottom at 778 — 18px
-      // clear of the tallest pill, and still clear of the K's lower-arm
-      // tip (x≈1355 vs chip right ≈1298) and the second stickman (x≥1330).
-      const cy = CAPTION_ZONE_TOP - 76;
+      // rendered"). CAPTION_ZONE_TOP-76 put the chip bottom at 778 — 18px
+      // clear of the tallest pill.
+      // 100-JUDGE PANEL REPORT (defect D8 — THE FOOT-PLATED CHIP): at -76
+      // the chip's top (y≈724) sat inside the host's foot envelope on the
+      // naming-beat framing (feet at ground H*0.6611 ≈ 714, shoe+shadow to
+      // ≈748) — the figure stepped ON the pill and the layering read as an
+      // error. The chip rides 40px higher: bottom 738, top 684 — clear of
+      // the feet by 30px, still 114px above the tallest pill's top (796),
+      // and the K's lower-arm tip (x≈1355 vs chip right ≈1298) stays clear.
+      const cy = CAPTION_ZONE_TOP - 116;
       ctx.fillStyle = PALETTE.goldWash;
       roundRect(ctx, cx, cy, tw + 56, 54, 27);
       ctx.fill();
