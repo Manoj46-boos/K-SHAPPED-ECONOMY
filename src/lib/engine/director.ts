@@ -833,6 +833,7 @@ export function drawFrame(
   if (beat.beat.scene.type !== 'bigText' && beat.beat.scene.type !== 'stampCard') {
     fgBokeh(ctx, 1920, 1080, gt, { seed: beat.chapter * 7 + 5, count: 3 });
   }
+  ctx.restore();
   // BLUEPRINT Phase 5 (report §11 — the reaction close-up's CONTENT
   // RECEDE): during every reaction window the data content recedes in
   // VALUE around the host's zone (a soft radial white veil, brightest at
@@ -841,36 +842,48 @@ export function drawFrame(
   // close-up without moving a single content rect — the guard stays
   // exact. Pure function of the same reactionAt() clock the camera and
   // the scene drawer consume; drawn under the captions.
+  //
+  // 100-JUDGE PANEL REPORT (defect D1 — THE DOUBLE EXPOSURE): this block
+  // used to run INSIDE the camera transform, so dofPass's blurred buffer —
+  // which already contains the camera's pixels — was drawn back THROUGH
+  // the same transform and scaled a second time: every reaction frame
+  // shipped as a double-exposure (the twist, the paradox resolve, the
+  // final takeaway — the film's three most important beats). The DOF and
+  // veil now composite in SCREEN space after ctx.restore(), with the
+  // subject pivot mapped through the exact camera transform
+  // (translate(960+camX, 540+camY) · scale(sc) · translate(-960,-540),
+  // camX = camState.dx/sc because camState publishes dx = camX·sc), and
+  // the disc/veil radii tracking the push so the sharp zone stays ON the
+  // face at the new close-up register.
   {
     const rP = reactionAt(beat.beat.scene.sceneKey, gt, groupDur);
     if (rP > 0.04) {
       const spec = REACTIONS[beat.beat.scene.sceneKey];
-      const cx = (spec?.px ?? 960) * (W / 1920);
-      const cy = (spec?.py ?? 540) * (H / 1080) - 140 * (H / 1080);
+      const sc = camState.scale;
+      const camXs = camState.dx / sc;
+      const camYs = camState.dy / sc;
+      const px = (spec?.px ?? 960);
+      const py = (spec?.py ?? 540) - 140;
+      const cx = sx * (960 + camXs + sc * (px - 960));
+      const cy = sy * (540 + camYs + sc * (py - 540));
+      const k = sc * sx; // world→screen scale factor for the disc radii
       // 100-JUDGE PANEL / Phase 3 item 3 — DEPTH OF FIELD on the reaction
-      // windows (report §6 Phase 3, p.17: "Render the background layer to
-      // a 960x540 offscreen buffer, blur (stackblur-style, ~10px),
-      // composite under the sharp host during the three reaction
-      // windows"). The blurred world composites EXCEPT the host's disc —
-      // his head zone stays sharp (the close-up gains literal focus), the
-      // room behind him collapses. Strength rides the same reactionAt()
-      // clock as the camera push and the veil; drawn BEFORE the veil so
-      // the value recede stacks on top (both recede the room, neither
-      // touches the subject). +10-15% cost on ~90 frames (the report's
-      // own budget note).
+      // windows (report §6 Phase 3, p.17). The blurred world composites
+      // EXCEPT the host's disc — his head zone stays sharp (the close-up
+      // gains literal focus), the room behind him collapses. Strength
+      // rides the same reactionAt() clock as the camera push and the
+      // veil; drawn BEFORE the veil so the value recede stacks on top.
       // PLAYBOOK D2: full close-up register — strength to 1.0, the clear
-      // disc to 420px so the face zone stays sharp at the new 0.9-1.1
-      // push amplitudes (the old 300px disc clipped inside the enlarged
-      // face; the blur was eating the subject's own edges).
-      dofPass(ctx, W, H, rP * 1.0, { x: cx, y: cy, r: 420 * (W / 1920) });
-      const veil = ctx.createRadialGradient(cx, cy, 340 * (W / 1920), cx, cy, 1250 * (W / 1920));
+      // disc to 420px so the face zone stays sharp at the 0.9-1.1 push
+      // amplitudes.
+      dofPass(ctx, W, H, rP * 1.0, { x: cx, y: cy, r: 420 * (W / 1920) * k });
+      const veil = ctx.createRadialGradient(cx, cy, 340 * (W / 1920) * k, cx, cy, 1250 * (W / 1920) * k);
       veil.addColorStop(0, 'rgba(255,255,255,0)');
       veil.addColorStop(1, rgba('#FFFFFF', 0.34 * rP));
       ctx.fillStyle = veil;
       ctx.fillRect(0, 0, W, H);
     }
   }
-  ctx.restore();
 
   // P1-2 (report) + PANEL-12/P2-2: the exit/enter dissolves — grammar-aware.
   // BLUEPRINT Phase 5 (report §11): EXITS STOP LIFTING TO IVORY EVERY
