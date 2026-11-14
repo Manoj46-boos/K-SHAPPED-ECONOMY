@@ -63,15 +63,15 @@ export interface Pose {
   headYaw?: number;
   /** P1-2 (audit Table 3): explicit hand glyph override — 'fist' or the
    *  count glyphs 'count1'/'count2'/'count3' (a fist with N fingers
-   *  extended). Default = auto by rig scale (fan / mitten).
-   *  100-JUDGE PANEL / Phase 1 item 5 — HAND VOCABULARY (report §6
-   *  Phase 1): 'palm' joins the union — the presenting hand. "Point-
-   *  with-gaze, palm-open present, count with eye contact on numerals.
-   *  Hands stop being mitts in every non-hero frame." The palm renders
-   *  as an open hand addressing the audience; distinct from the count
-   *  glyphs and the pointing index. */
-  lHand?: 'fist' | 'count1' | 'count2' | 'count3' | 'palm';
-  rHand?: 'fist' | 'count1' | 'count2' | 'count3' | 'palm';
+   *  extended). Default = the MITTEN at every scale.
+   *  PHASE-1 (100-judge report §11 Phase 1 — ONE HAND LANGUAGE): the
+   *  vocabulary is three glyphs — the mitten (resting + presenting),
+   *  'point' (the mitten with one extended index finger: pointR/pointL
+   *  and every contact-verb scene), and the fist/count set. 'palm'
+   *  survives as a call-site alias that the renderer maps to 'point'.
+   *  The four-finger splay fan is retired. */
+  lHand?: 'fist' | 'count1' | 'count2' | 'count3' | 'palm' | 'point';
+  rHand?: 'fist' | 'count1' | 'count2' | 'count3' | 'palm' | 'point';
   /** 100-JUDGE PANEL / Phase 1 item 3 — TAKE GRAMMAR (report §6 Phase 1):
    * 0..1 blink closure the take() helper drives through its overshoot
    * (closed → opening across the settle). The v2 renderer multiplies it
@@ -108,9 +108,12 @@ export const POSES: Record<string, Pose> = {
   talkA: { ...base(), lAU: -14, lAL: -10, rAU: 26, rAL: 34, smile: 0.3, lean: 2, lLU: -7, rLU: 9, rLL: 5 },
   talkB: { ...base(), rAU: 30, rAL: 66, lAU: -10, lAL: -8, smile: 0.25, lean: -1.5, lLU: -8, lLL: 4, rLU: 6 },
   talkC: { ...base(), lAU: -20, lAL: -28, rAU: 54, rAL: 70, smile: 0.3, lean: 3, lLU: -8, rLU: 9, rLL: 6 },
-  pointR: { ...base(), rAU: 78, rAL: 96, lAU: -8, lAL: -6, headTilt: -3, lean: 3, lLU: -8, rLU: 9, rLL: 5 },
-  pointL: { ...base(), lAU: -78, lAL: -96, rAU: 8, rAL: 6, headTilt: 3, lean: -2, lLU: -7, rLU: 9, rLL: 5 },
-  present: { ...base(), lAU: -26, lAL: -32, rAU: 54, rAL: 76, smile: 0.5, lean: 2, lLU: -8, rLU: 9, rLL: 6, rHand: 'palm' }, // Phase 1 item 5: palm-open present
+  // PHASE-1 (100-judge report §11 Phase 1): pointR/pointL raise the dedicated
+  // POINT glyph — the mitten with one extended index finger; present presents
+  // with the plain mitten (the splay-fan palm is retired).
+  pointR: { ...base(), rAU: 78, rAL: 96, lAU: -8, lAL: -6, headTilt: -3, lean: 3, lLU: -8, rLU: 9, rLL: 5, rHand: 'point' },
+  pointL: { ...base(), lAU: -78, lAL: -96, rAU: 8, rAL: 6, headTilt: 3, lean: -2, lLU: -7, rLU: 9, rLL: 5, lHand: 'point' },
+  present: { ...base(), lAU: -26, lAL: -32, rAU: 54, rAL: 76, smile: 0.5, lean: 2, lLU: -8, rLU: 9, rLL: 6 }, // PHASE-1: the mitten presents
   think: { ...base(), rAU: 14, rAL: 150, lAU: -14, lAL: -10, headTilt: 5, browRaise: 0.35 },
   shrug: { ...base(), lAU: -66, lAL: -132, rAU: 68, rAL: 128, headTilt: 6, browRaise: 0.6, smile: 0.15 },
   wave: { ...base(), rAU: 104, rAL: 152, lAU: -8, lAL: -6, smile: 0.7, browRaise: 0.4 },

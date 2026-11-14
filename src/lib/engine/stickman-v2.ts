@@ -553,19 +553,23 @@ export function limb2(
 }
 
 /**
- * PANEL-12 / P0-2 (report §12.2) — REAL HANDS on both arms.
+ * PHASE-1 (100-judge report §11 Phase 1 — ONE HAND LANGUAGE).
  *
- * P1-7 (report §12.7): TAPERED 3-FINGER FAN + OPPOSED THUMB at hero scale.
- * AUDIT-2 / 1.3 (report §10.2, C5): TWO GLYPHS. The fan reads as a hand
- * from scale ~1.0 up; below it the judges read "three-finger twig
- * bursts" / "a withered claw" — one glyph cannot work across a 2× scale
- * range. Below rig scale 1.0 the hand renders as the MITTEN: a rounded
- * palm mass plus the opposed thumb — the silhouette of a hand at small
- * scale, where individual fingers are sub-feed-pixel anyway.
+ * The hand vocabulary is exactly three glyphs at EVERY scale:
+ *   MITTEN — rounded palm mass (+30% thickened) + thumb lobe; the film's
+ *            single resting and presenting hand;
+ *   POINT  — the mitten with one extended index finger; pointR/pointL
+ *            poses and every contact-verb scene (the 'palm' override
+ *            maps here — touch/bracket = point);
+ *   FIST/COUNT — the closed mass with N fingers rooted deep in the mass.
+ * The four-finger splay fan (the panel's "claw") and the fan/mitten tier
+ * split are retired — `rigScale` no longer picks a tier and is kept only
+ * for call-site compatibility.
  */
-// 100-JUDGE PANEL / Phase 1 item 5 — HAND VOCABULARY: 'palm' joins the
-// glyph set (the presenting hand — an open palm addressing the audience).
-type HandMode = 'fist' | 'count1' | 'count2' | 'count3' | 'palm' | undefined;
+// 100-JUDGE PANEL / Phase 1 — HAND VOCABULARY: 'point' joins the glyph
+// set (the contact/pointing hand); 'palm' survives as a call-site alias
+// that maps to it.
+type HandMode = 'fist' | 'count1' | 'count2' | 'count3' | 'palm' | 'point' | undefined;
 
 function handGlyph(
   ctx: CanvasRenderingContext2D,
@@ -583,10 +587,15 @@ function handGlyph(
   // count poses had nothing to count WITH. The fist: a rounded mass + a
   // thumb bar; countN: the same fist with N fingers extended — a hand
   // that literally counts, at any scale.
-  // PLAYBOOK P4: an unadorned (undefined) mode at presenting scale
-  // (rig ≥ 1.0) routes to the PALM below — the presenting vocabulary.
-  if (mode === undefined && rigScale >= 1.0 && s >= 14) {
-    mode = 'palm';
+  // PHASE-1 (100-judge report §11 Phase 1 — ONE HAND LANGUAGE): the
+  // presenting override is RETIRED with the splay fan — an unadorned hand
+  // at ANY scale is the MITTEN (resting and presenting alike), and the
+  // contact override ('palm' = touch/bracket) joins the POINT glyph: a
+  // mitten with one extended index finger lands the touch and names the
+  // direction. The vocabulary is exactly three glyphs: mitten, point,
+  // fist/count.
+  if (mode === 'palm') {
+    mode = 'point';
   }
   if (mode === 'fist' || mode === 'count1' || mode === 'count2' || mode === 'count3') {
     const n = mode === 'fist' ? 0 : Number(mode.slice(5));
@@ -601,15 +610,17 @@ function handGlyph(
     ctx.beginPath();
     roundRect(ctx, -s * 0.4, -s * 0.32, s * 0.8, s * 0.74, s * 0.28);
     ctx.restore();
-    // the N extended fingers — rooted inside the mass, splayed ±0.34 rad
-    // (the splay breathes with the re-grip clock)
+    // the N extended fingers — PHASE-1: roots buried DEEP in the fist mass
+    // (0.30s → 0.14s along the axis, base width 0.30s → 0.34s) so the
+    // fingers leave the mass as one webbed bundle — never as separate
+    // splinters; the ±0.34 rad splay still breathes with the re-grip clock
     for (let f = 0; f < n; f++) {
       const off = (f - (n - 1) / 2) * 0.34 * grip;
       const fa = a + off;
-      const bx = x + Math.sin(a) * s * 0.30, by = y + Math.cos(a) * s * 0.30;
+      const bx = x + Math.sin(a) * s * 0.14, by = y + Math.cos(a) * s * 0.14;
       const ex = x + Math.sin(fa) * s * 1.04, ey = y + Math.cos(fa) * s * 1.04;
       const px2 = Math.sin(fa + Math.PI / 2), py2 = Math.cos(fa + Math.PI / 2);
-      const w0 = s * 0.30, w1 = s * 0.14, dx = Math.sin(fa), dy = Math.cos(fa);
+      const w0 = s * 0.34, w1 = s * 0.15, dx = Math.sin(fa), dy = Math.cos(fa);
       ctx.moveTo(bx - px2 * w0 / 2, by - py2 * w0 / 2);
       ctx.lineTo(ex - px2 * w1 / 2, ey - py2 * w1 / 2);
       ctx.quadraticCurveTo(ex + dx * w1 * 0.7, ey + dy * w1 * 0.7, ex + px2 * w1 / 2, ey + py2 * w1 / 2);
@@ -623,111 +634,39 @@ function handGlyph(
       s * 0.28, s * 0.15, col);
     return;
   }
-  // ── 100-JUDGE PANEL / Phase 1 item 5 — THE PALM (report §6 Phase 1):
-  // "palm-open present" — the presenting hand.
-  // AUDIT-ROUND-3 iter-2 (THE COMMITTED HAND): the tight 4-finger fan
-  // (±0.09 rad) overlapped into one mass — the close-up panel still read
-  // "a rounded black lump with two tiny spike-nubs... no rooted fingers,
-  // no palm mass". The palm now gets the hero FAN construction at EVERY
-  // presenting scale: a wedge palm (wrist-narrow, knuckle-wide), each
-  // finger rooted at its OWN point on the knuckle arc and splayed wide
-  // enough to read as individual fingers, and an opposed thumb rooted
-  // at the wrist side. A hand, at any size.
-  if (mode === 'palm') {
-    // 100-JUDGE PANEL REPORT (fix A2 — THE HAND, REBUILT AS ONE PATH): the
-    // audit's close-up verdict — "a star-shaped splat with unequal finger
-    // lengths" — came from fingers drawn as SEPARATE tapered strokes
-    // rooted at the knuckle edge: gaps between the roots read as spider
-    // legs. The hand is now ONE beginPath/fill (nonzero winding): the
-    // wedge palm, four fingers (roots buried s*0.30 INSIDE the wedge,
-    // rounded tips, even widths) and the opposed thumb are subpaths of a
-    // single fill — one silhouette, webs negative, fingers separated only
-    // by their splay. The presenting hand finally reads as a drawn hand.
-    const nx = Math.sin(a + Math.PI / 2);
-    const ny = Math.cos(a + Math.PI / 2);
-    const wx = x + Math.sin(a) * s * 0.02;
-    const wy = y + Math.cos(a) * s * 0.02;
-    const kx = x + Math.sin(a) * s * 0.36;
-    const ky = y + Math.cos(a) * s * 0.36;
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    // palm wedge subpath — wrist-narrow, knuckle-wide, rounded knuckle arc
-    ctx.moveTo(wx - nx * s * 0.17, wy - ny * s * 0.17);
-    ctx.lineTo(kx - nx * s * 0.42, ky - ny * s * 0.42);
-    ctx.quadraticCurveTo(
-      kx + Math.sin(a) * s * 0.12, ky + Math.cos(a) * s * 0.12,
-      kx + nx * s * 0.42, ky + ny * s * 0.42
-    );
-    ctx.lineTo(wx + nx * s * 0.17, wy + ny * s * 0.17);
-    ctx.closePath();
-    // four finger subpaths — rooted inside the wedge, even widths, tips
-    // rounded by a quadratic cap; the outer pair shorter, middle pair longest
-    const fingers: Array<[number, number, number]> = [
-      [-0.42, 0.86, 1.0], [-0.14, 1.06, 1.05], [0.14, 1.0, 1.0], [0.42, 0.8, 0.95],
-    ];
-    for (const [off, len, wid] of fingers) {
-      const fa = a + off * 0.6 * grip; // the re-grip flex: splay breathes
-      const fl = len * (0.94 + 0.12 * (grip - 1) + 0.06); // and the reach flexes a step
-      const bx = x + Math.sin(a) * s * 0.30 + nx * off * s * 0.5;
-      const by = y + Math.cos(a) * s * 0.30 + ny * off * s * 0.5;
-      const ex = bx + Math.sin(fa) * s * fl;
-      const ey = by + Math.cos(fa) * s * fl;
-      const px2 = Math.sin(fa + Math.PI / 2), py2 = Math.cos(fa + Math.PI / 2);
-      const w0 = s * 0.30 * wid, w1 = s * 0.13 * wid;
-      const dx = Math.sin(fa), dy = Math.cos(fa);
-      ctx.moveTo(bx - px2 * w0 / 2, by - py2 * w0 / 2);
-      ctx.lineTo(ex - px2 * w1 / 2, ey - py2 * w1 / 2);
-      ctx.quadraticCurveTo(ex + dx * w1 * 0.75, ey + dy * w1 * 0.75, ex + px2 * w1 / 2, ey + py2 * w1 / 2);
-      ctx.lineTo(bx + px2 * w0 / 2, by + py2 * w0 / 2);
-      ctx.closePath();
-    }
-    // opposed thumb subpath — rooted at the wrist side, fat at the base
-    {
-      const fa = a - 1.25;
-      const bx = wx + nx * s * 0.14, by = wy + ny * s * 0.14;
-      const ex = bx + Math.sin(fa) * s * 0.72, ey = by + Math.cos(fa) * s * 0.72;
-      const px2 = Math.sin(fa + Math.PI / 2), py2 = Math.cos(fa + Math.PI / 2);
-      const w0 = s * 0.34, w1 = s * 0.16;
-      const dx = Math.sin(fa), dy = Math.cos(fa);
-      ctx.moveTo(bx - px2 * w0 / 2, by - py2 * w0 / 2);
-      ctx.lineTo(ex - px2 * w1 / 2, ey - py2 * w1 / 2);
-      ctx.quadraticCurveTo(ex + dx * w1 * 0.75, ey + dy * w1 * 0.75, ex + px2 * w1 / 2, ey + py2 * w1 / 2);
-      ctx.lineTo(bx + px2 * w0 / 2, by + py2 * w0 / 2);
-      ctx.closePath();
-    }
-    ctx.fill();
-    return;
-  }
-  // ── THE COMPACT PALM (small/background glyphs) ──
-  // AUDIT-ROUND-3 (Fix 1 — ONE COMMITTED HAND): the V-NOTCH mitt was the
-  // close-up panel's "a black mitten blob with two spike-thumbs... a
-  // cracked egg with splinters." Every hand in the film now commits to
-  // the SAME silhouette at every scale — a rounded palm mass with
-  // fingers drawn as rooted ink lines. At background scale the fan
-  // tightens to three close fingers, but the read stays "a hand", never
-  // "a torn glove".
-  if (rigScale < 1.0 || s < 15) {
-    // 100-JUDGE PANEL REPORT (fix A2, tier 2 — THE MITTEN): below detail
-    // scale the hand is the two-lobed mitten — a rounded palm mass plus
-    // ONE thumb lobe, one filled path, ZERO finger strokes (individual
-    // fingers are sub-feed-pixel here; strokes only read as splat legs).
+  // ── PHASE-1 — THE POINT GLYPH (100-judge report §11 Phase 1) ──
+  // A mitten with a single extended index finger: the film's ONE contact
+  // and pointing hand. pointR/pointL poses and every contact-verb scene
+  // (pie bracket, wall brace, pump point — they all pass the 'palm'
+  // override, mapped to 'point' above) land here. The finger continues
+  // the forearm's axis, rooted DEEP inside the mass, and the thickened
+  // mitten mass + thumb lobe carry the hand's volume behind it. The read
+  // is touch + direction; the splayed claw is retired.
+  if (mode === 'point') {
+    // the index finger — ONE tapered extension of the arm's axis, root
+    // buried at 0.06s (inside the mass), tip reaching 1.38s
+    taper(ctx, x + Math.sin(a) * s * 0.06, y + Math.cos(a) * s * 0.06,
+      x + Math.sin(a) * s * 1.38, y + Math.cos(a) * s * 1.38,
+      s * 0.34, s * 0.15, col);
+    // the thickened mitten mass — the palm wedge +30% across the axis
     ctx.save();
-    ctx.translate(x + Math.sin(a) * s * 0.4, y + Math.cos(a) * s * 0.4);
+    ctx.translate(x + Math.sin(a) * s * 0.36, y + Math.cos(a) * s * 0.36);
     ctx.rotate(a);
     ctx.fillStyle = col;
     ctx.beginPath();
-    roundRect(ctx, -s * 0.5, -s * 0.44, s * 1.0, s * 0.94, s * 0.34);
+    roundRect(ctx, -s * 0.65, -s * 0.46, s * 1.3, s * 0.98, s * 0.44);
     ctx.restore();
     // the thumb lobe — a rounded bump on the wrist side, one subpath
+    ctx.beginPath();
     {
       const fa = a + 1.05;
-      const bx = x + Math.sin(a) * s * 0.4, by = y + Math.cos(a) * s * 0.4;
-      const ex = x + Math.sin(fa) * s * 0.72, ey = y + Math.cos(fa) * s * 0.72;
+      const bx = x + Math.sin(a) * s * 0.36, by = y + Math.cos(a) * s * 0.36;
+      const ex = x + Math.sin(fa) * s * 0.78, ey = y + Math.cos(fa) * s * 0.78;
       ctx.moveTo(bx, by);
       ctx.quadraticCurveTo(ex + Math.sin(a) * s * 0.18, ey + Math.cos(a) * s * 0.18, ex, ey);
       ctx.quadraticCurveTo(
-        x + Math.sin(a) * s * 0.30 + Math.sin(a + Math.PI / 2) * s * 0.30,
-        y + Math.cos(a) * s * 0.30 + Math.cos(a + Math.PI / 2) * s * 0.30,
+        x + Math.sin(a) * s * 0.28 + Math.sin(a + Math.PI / 2) * s * 0.32,
+        y + Math.cos(a) * s * 0.28 + Math.cos(a + Math.PI / 2) * s * 0.32,
         bx, by
       );
       ctx.closePath();
@@ -735,49 +674,38 @@ function handGlyph(
     ctx.fill();
     return;
   }
-  // ── the FAN (true hero scale ≥ 2.0) ──
-  // P1-2 (100-judge audit, Table 3) panel round 2: the round-1 palm
-  // ELLIPSE hid under the finger roots — invisible at side-host scale
-  // ("the hand is essentially identical to before"). The palm is now a
-  // WEDGE — a filled trapezoid from the WRIST (±0.16s) to the KNUCKLE
-  // line (±0.40s, rounded), its flaring edges breaking OUT of the arm's
-  // silhouette so the mass reads at 320px — and the glyph itself grows
-  // (call sites pass s 13 → 16 near / 10 → 12 far). Each finger roots
-  // at its OWN point along the knuckle arc: a hand, not a claw.
-  const nx = Math.sin(a + Math.PI / 2);
-  const ny = Math.cos(a + Math.PI / 2);
-  const wx = x + Math.sin(a) * s * 0.02;
-  const wy = y + Math.cos(a) * s * 0.02;
-  const kx = x + Math.sin(a) * s * 0.36;
-  const ky = y + Math.cos(a) * s * 0.36;
-  // the palm wedge — wrist-narrow, knuckle-wide
+  // ── THE MITTEN — the film's single resting AND presenting hand ──
+  // PHASE-1 (100-judge report §11 Phase 1): ONE hand language at every
+  // scale. The tier split (splay fan above, compact mitt below) is
+  // RETIRED — the mitten IS the hand everywhere: a rounded palm mass
+  // plus ONE thumb lobe, one filled path, zero finger strokes (individual
+  // fingers are sub-feed-pixel below the close-ups anyway; the point and
+  // count glyphs carry the articulation). PHASE-1 also thickens the palm
+  // mass ~30% (1.0s → 1.3s across the axis) so a raised hand has real
+  // mass against the sky.
+  ctx.save();
+  ctx.translate(x + Math.sin(a) * s * 0.4, y + Math.cos(a) * s * 0.4);
+  ctx.rotate(a);
   ctx.fillStyle = col;
   ctx.beginPath();
-  ctx.moveTo(wx - nx * s * 0.16, wy - ny * s * 0.16);
-  ctx.lineTo(kx - nx * s * 0.4, ky - ny * s * 0.4);
-  ctx.quadraticCurveTo(
-    kx + Math.sin(a) * s * 0.12, ky + Math.cos(a) * s * 0.12,
-    kx + nx * s * 0.4, ky + ny * s * 0.4
-  );
-  ctx.lineTo(wx + nx * s * 0.16, wy + ny * s * 0.16);
-  ctx.closePath();
-  ctx.fill();
-  // the fingers — each rooted at its own point on the knuckle arc
-  const fingers: Array<[number, number, number]> = [
-    [-0.5, 0.92, 0.95], [-0.12, 1.14, 1.1], [0.28, 0.96, 1.0],
-  ];
-  for (const [off, len, wid] of fingers) {
-    const rx = kx + nx * off * s * 0.52;
-    const ry = ky + ny * off * s * 0.52;
-    taper(ctx, rx, ry, rx + Math.sin(a + off * 0.55) * s * len,
-      ry + Math.cos(a + off * 0.55) * s * len, s * 0.6 * wid, s * 0.2 * wid, col);
+  roundRect(ctx, -s * 0.65, -s * 0.46, s * 1.3, s * 0.98, s * 0.44);
+  ctx.restore();
+  // the thumb lobe — a rounded bump on the wrist side, one subpath
+  {
+    const fa = a + 1.05;
+    const bx = x + Math.sin(a) * s * 0.4, by = y + Math.cos(a) * s * 0.4;
+    const ex = x + Math.sin(fa) * s * 0.78, ey = y + Math.cos(fa) * s * 0.78;
+    ctx.moveTo(bx, by);
+    ctx.quadraticCurveTo(ex + Math.sin(a) * s * 0.18, ey + Math.cos(a) * s * 0.18, ex, ey);
+    ctx.quadraticCurveTo(
+      x + Math.sin(a) * s * 0.30 + Math.sin(a + Math.PI / 2) * s * 0.32,
+      y + Math.cos(a) * s * 0.30 + Math.cos(a + Math.PI / 2) * s * 0.32,
+      bx, by
+    );
+    ctx.closePath();
   }
-  // the OPPOSED thumb — rooted at the wrist-side of the palm, ~75°
-  // against the fan, thick at the base: the pincer that makes "holding"
-  // readable
-  taper(ctx, wx + nx * s * 0.12, wy + ny * s * 0.12,
-    wx + nx * s * 0.12 + Math.sin(a - 1.3) * s * 0.66,
-    wy + ny * s * 0.12 + Math.cos(a - 1.3) * s * 0.66, s * 0.52, s * 0.2, col);
+  ctx.fill();
+  return;
 }
 
 /**
@@ -1032,7 +960,7 @@ export function drawStickmanV2(
      *  true). The hand rect registers as guard cls 'contact' — scenes that
      *  let the body stand near registered content declare the touched
      *  object with collision.declareHostContact(). */
-    contact?: { x: number; y: number; hand?: 'palm' | 'fist' | 'count1' | 'count2' | 'count3'; bend?: 1 | -1; shadow?: boolean };
+    contact?: { x: number; y: number; hand?: 'palm' | 'point' | 'fist' | 'count1' | 'count2' | 'count3'; bend?: 1 | -1; shadow?: boolean };
   },
   seed = 0
 ): void {
@@ -1326,7 +1254,7 @@ export function drawStickmanV2(
         neckY + 3 + Math.sin(shT) * 9 - (pose.shoulderDrop ?? 0) * 0.6 + Math.cos(farAU * D2R) * U_ARM * 0.58,
         INK.armFar[0] + 5, INK.armFar[0] - 1, '#A8851B');
     }
-    handGlyph(ctx, farHand.ex, farHand.ey, farAL, 15, farInk, scale, pose.lHand, grip); // iter-3: 12 -> 15 — the far hand renders the FULL fan palm, not the compact tier
+    handGlyph(ctx, farHand.ex, farHand.ey, farAL, 15, farInk, scale, pose.lHand, grip); // PHASE-1: the far hand runs the same mitten glyph — one hand language at every scale
     // AUDIT-2 / 0.1: the far shoe steps with its limb (farInk) — depth,
     // not a second colour system.
     shoeWedge(farFoot, farInk, pose.lToe ?? 0);
