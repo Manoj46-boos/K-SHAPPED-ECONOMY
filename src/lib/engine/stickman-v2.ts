@@ -2053,6 +2053,16 @@ export function drawStickmanV2(
   // host has — below ~6px of sclera at 1080p the eyes grow instead of
   // shrinking with the rig, so the cast reads as faces at side-host scale.
   const beckerEyeR = Math.max(smallHead ? 4.6 : 5.4, featureFloor(6.0));
+  // PHASE-0 (100-judge report §11 Phase 0 — THE FACE REBUILD): wire-frame
+  // professor proportions. The lens radius carries the scale; sclera and
+  // pupil DERIVE from it (pupil ≈ one-third of the lens radius), and every
+  // term keeps a screen-space floor so the face never starves at the feed.
+  // The old construction — 6.6-7.6px rounded-rect rims with ink-dot eyes and
+  // the brows overlapping the rim line — fused into the solid goggle-mask the
+  // panel convicted ("robot / raccoon / panda", never "professor").
+  const lensR = Math.max(9.5, featureFloor(6));
+  const scleraR = Math.max(4.6, featureFloor(5.6), scale >= 2 ? 6.9 : 0);
+  const ivoryPupR = Math.max(1.7, featureFloor(2.6), lensR * 0.32);
   if (becker) {
     ctx.fillStyle = faceInk;
     ctx.beginPath();
@@ -2067,6 +2077,28 @@ export function drawStickmanV2(
     ctx.ellipse(-11 + eyeDX, -6, pupR * eyeSL, pupR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
     ctx.ellipse(11 + eyeDX, -6, pupR * eyeSR, pupR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
     ctx.fill();
+  } else if (ivory) {
+    // PHASE-0: the ivory host ALWAYS wears its eyes — white sclera ovals
+    // with ink pupils (the D-8 focus-point rule), drawn here BEFORE the wire
+    // rims so the frames stroke over the eyes like worn glasses. Surprise
+    // dilates the pupils on top; per-eye silhouette scales and the blink
+    // ride the same ellipse math as every other branch.
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.ellipse(-11 + eyeDX, -6, scleraR * eyeSL, scleraR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
+    ctx.ellipse(11 + eyeDX, -6, scleraR * eyeSR, scleraR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = ink;
+    const pup = ivoryPupR * (1 + surprise * 0.28); // AUDIT-2 dilation, kept
+    ctx.beginPath();
+    ctx.ellipse(-11 + eyeDX, -6, pup * eyeSL, pup * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
+    ctx.ellipse(11 + eyeDX, -6, pup * eyeSR, pup * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // pupil glints — the old face glints sat white-on-ink; on the sclera
+    // tier they belong ON the pupils (the alive eye), offset to the light side
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(-11 + eyeDX - pup * 0.38, -6 - pup * 0.42, Math.max(0.8, pup * 0.3), 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(11 + eyeDX + pup * 0.38, -6 - pup * 0.42, Math.max(0.8, pup * 0.3), 0, Math.PI * 2); ctx.fill();
   } else if (pose.browRaise > 0.55) {
     ctx.fillStyle = '#FFFFFF';
     ctx.beginPath();
@@ -2133,11 +2165,12 @@ export function drawStickmanV2(
     browArc(-1);
     browArc(1);
   }
-  if (!becker) {
+  if (!becker && !ivory) {
     ctx.fillStyle = '#FFFFFF';
     ctx.beginPath(); ctx.arc(-9.5 + eyeDX, -7.5, 1.9, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(12.5 + eyeDX, -7.5, 1.9, 0, Math.PI * 2); ctx.fill();
   } // P1-1 'becker': no glints — zero interior clutter
+    // PHASE-0 'ivory': glints moved ONTO the pupils inside the sclera branch
   // 100-JUDGE AUDIT / fix 6.1 — THE SIGNATURE FEATURE (round ink glasses).
   // The audit's prescription: "premium brands customize the stick man — a
   // signature character, outfit, or accessories". The host is the film's one
@@ -2149,23 +2182,25 @@ export function drawStickmanV2(
   // convicted — the host is now THE character with the glasses, everywhere.
   if (ivory) {
     ctx.strokeStyle = ink;
-    // screen-space stroke: 6.6px at 1080p ≈ 2.2px at the 320px twin
-    // FIX 4 parity: hero rigs draw the thumbnail's bolder 7.6px rim
-    ctx.lineWidth = Math.max(0.9, featureFloor(6.6), scale >= 2 ? 7.6 : 0);
+    // PHASE-0: THE WIRE FRAME — thin ROUND lenses, one uniform 3px screen
+    // stroke at every rig (the hero-bold 7.6px doubling is retired: boldness
+    // was exactly what fused rim + brows + eyes into the mask). No lens fill,
+    // ever — the sclera eyes drawn above show through the wire. The prof
+    // cast variant stays silhouette-different by weight and its milky fill;
+    // the host's thin temples + arc bridge are the Data Desk signature.
+    ctx.lineWidth = Math.max(0.9, featureFloor(3));
     ctx.lineCap = 'round';
-    // SQUARE lenses (rounded rects) — deliberately NOT the prof variant's
-    // round frames: cast stays silhouette-different at every scale
-    // (audit §3.1: "differentiation by design language, not scale").
-    const gR = Math.max(13, featureFloor(13.5), scale >= 2 ? 14.6 : 0);
-    const lensW = gR * 2;
-    roundRect(ctx, -11 - gR + eyeDX, -6 - gR, lensW, lensW, gR * 0.55);
-    ctx.stroke();
-    roundRect(ctx, 11 - gR + eyeDX, -6 - gR, lensW, lensW, gR * 0.55);
-    ctx.stroke();
-    // the bridge — a straight data-desk saddle between the lenses
+    const gR = lensR;
     ctx.beginPath();
-    ctx.moveTo(-11 + gR + eyeDX, -9);
-    ctx.quadraticCurveTo(eyeDX, -14, 11 - gR + eyeDX, -9);
+    ctx.arc(-11 + eyeDX, -6, gR, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(11 + eyeDX, -6, gR, 0, Math.PI * 2);
+    ctx.stroke();
+    // the bridge — a short saddle arc between the lenses
+    ctx.beginPath();
+    ctx.moveTo(-11 + gR + eyeDX, -8.5);
+    ctx.quadraticCurveTo(eyeDX, -12.5, 11 - gR + eyeDX, -8.5);
     ctx.stroke();
     // the temples — short ink stubs to the head's edge
     ctx.beginPath();
@@ -2186,6 +2221,11 @@ export function drawStickmanV2(
   if (!becker) {
   const bRaise = pose.browRaise * AMP.browTravelPx;
   const bAngle = pose.browAngle * D2R;
+  // PHASE-0: on the ivory host the brows ride CLEAR of the wire rims — the
+  // old brow line sat at y -17/-15, inside the rim's stroke, which is what
+  // fused brow + frame into one dark band. 8 units of lift restores the
+  // anatomy: brow above the frame, frame over the eye, eye inside the lens.
+  const browLift = ivory ? 8 : 0;
   ctx.strokeStyle = ink;
   // fix 6.1: screen-px floor — the brows never thin below ~6px at 1080p
   // FIX 4 parity: hero rigs draw the thumbnail's bolder 7.6px brow
@@ -2196,8 +2236,8 @@ export function drawStickmanV2(
     // BLUEPRINT Phase 1: the arch/kink amplitudes scale with the x2.8
     // brow travel so the SHAPES read at the new height (a 5.5px arch on
     // a 14px raise would flatten back into a line).
-    const y0 = -17 - bRaise - dir * Math.tan(bAngle) * 7;
-    const y1 = -15 - bRaise + dir * Math.tan(bAngle) * 7 * -1;
+    const y0 = -17 - browLift - bRaise - dir * Math.tan(bAngle) * 7;
+    const y1 = -15 - browLift - bRaise + dir * Math.tan(bAngle) * 7 * -1;
     ctx.beginPath();
     ctx.moveTo(x0, y0);
     if (surprise > 0.35) {
