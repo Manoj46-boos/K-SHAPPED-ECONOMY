@@ -1861,11 +1861,22 @@ export function drawStickmanV2(
   // head uses the ink-dot branch below; this floor now only serves the
   // becker variants.
   const eyeFloorR = scale > 1.5 ? 6.5 : 5.4;
+  // 100-JUDGE PANEL REPORT (defect D12 — THE SKULL READ): below rig scale
+  // 1.0 the becker head's PURE-WHITE features (sclera, brows, mouth) on
+  // the solid ink read as a grinning skull at feed scale (the coffee
+  // character drew as "a grinning raccoon standing on the letter"). The
+  // small-scale becker face switches its feature ink from pure white to
+  // the film's warm ivory (#F7EFD8 — the same tone as the rim light and
+  // the cap seam), sclera shrinks a step: the features read as drawn ink
+  // on a dark head, not as bone glow.
+  const smallHead = scale < 1.0;
+  const faceInk = smallHead ? '#F7EFD8' : '#FFFFFF';
+  const beckerEyeR = smallHead ? 4.6 : eyeFloorR;
   if (becker) {
-    ctx.fillStyle = '#FFFFFF';
+    ctx.fillStyle = faceInk;
     ctx.beginPath();
-    ctx.ellipse(-11 + eyeDX, -6, eyeFloorR * eyeSL, eyeFloorR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
-    ctx.ellipse(11 + eyeDX, -6, eyeFloorR * eyeSR, eyeFloorR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
+    ctx.ellipse(-11 + eyeDX, -6, beckerEyeR * eyeSL, beckerEyeR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
+    ctx.ellipse(11 + eyeDX, -6, beckerEyeR * eyeSR, beckerEyeR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
     ctx.fill();
     // D-8: ink pupils inside the sclera — the missing focus point was the
     // googly read's root cause
@@ -1924,8 +1935,8 @@ export function drawStickmanV2(
   if (becker) {
     const bRaise = pose.browRaise * AMP.browTravelPx;
     const bAng = pose.browAngle * D2R;
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 6;
+    ctx.strokeStyle = faceInk;
+    ctx.lineWidth = smallHead ? 5 : 6;
     ctx.lineCap = 'round';
     const browArc = (dir: number): void => {
       const x0 = dir * (6 + eyeDX), x1 = dir * (19 + eyeDX);
@@ -2030,7 +2041,7 @@ export function drawStickmanV2(
     if (r.talk && (r.talk > 0.15) && (r as any).wordTexts && (r as any).wordTimes) {
       vm = visemeAt((r as any).beatT ?? 0, (r as any).wordTimes ?? [], (r as any).wordTexts ?? []);
     }
-    drawMouthV2(ctx, eyeDX, pose.smile, r.talk ?? 0, jaw2x, becker ? '#FFFFFF' : PALETTE.ink, scale > 1.5, vm);
+    drawMouthV2(ctx, eyeDX, pose.smile, r.talk ?? 0, jaw2x, becker ? faceInk : PALETTE.ink, scale > 1.5, vm);
   }
   // cheek warmth — very subtle (P1-1 'becker': skipped — no interior clutter)
   if (!becker) {
