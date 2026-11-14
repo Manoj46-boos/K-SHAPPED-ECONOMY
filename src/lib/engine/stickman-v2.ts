@@ -500,7 +500,11 @@ export function limb2(
   // AUDIT-ROUND-3 iter-2: the bow floor rises 0.15 → 0.25 — a resting
   // limb still carries a whisper of curvature ("still no knee
   // articulation — two straight tapered columns").
-  const bend = Math.min(1, Math.max(0.25, Math.abs((v1x * v2y - v1y * v2x) / (L1 * L2))));
+  // 100-JUDGE PANEL REPORT (fix A4): the RAW bend (no floor) is kept for
+  // the joint-mass gate — a rest-pose limb's near-straight geometry must
+  // not carry a knuckle disc.
+  const rawBend = Math.min(1, Math.abs((v1x * v2y - v1y * v2x) / (L1 * L2)));
+  const bend = Math.min(1, Math.max(0.25, rawBend));
   const BOW = 2.8 * bend;
   const n1x = -v1y / L1, n1y = v1x / L1;
   const side1 = (n1x * v2x + n1y * v2y) < 0 ? 1 : -1;
@@ -529,12 +533,19 @@ export function limb2(
              ex + n2x * ls2 * w1 * t1 * 0.15, ey + n2y * ls2 * w1 * t1 * 0.15,
              wJ * t1 * 0.55, w1 * t1 * 0.25, inner, side2 * BOW * 0.85);
   // the knuckle — the joint mass (elbow/knee) that kills the miter read.
-  // AUDIT-ROUND-3 iter-2: 0.62 → 0.72 of the joint width — the knuckle
-  // must CLEAR the bone silhouette to read as a joint.
+  // 100-JUDGE PANEL REPORT (fix A4 — THE KNEE PADS): the disc drew at
+  // 0.72×wJ×1.14 on EVERY joint at EVERY pose — wider than the limb on
+  // rest-pose legs, reading as "black leggings with knee pads". The disc
+  // now draws ONLY on a real bend (raw cross-product bend > sin 35° —
+  // the angle where a knee visually articulates) and caps at 0.55×wJ so
+  // even a deep bend never outgrows the limb it belongs to.
+  if (rawBend > 0.574) {
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(jx, jy, wJ * 0.55 * jointK, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.fillStyle = col;
-  ctx.beginPath();
-  ctx.arc(jx, jy, wJ * 0.72 * jointK, 0, Math.PI * 2);
-  ctx.fill();
   ctx.beginPath();
   ctx.arc(ex, ey, w1 * 0.72 * t1, 0, Math.PI * 2);
   ctx.fill();
@@ -577,20 +588,32 @@ function handGlyph(
   }
   if (mode === 'fist' || mode === 'count1' || mode === 'count2' || mode === 'count3') {
     const n = mode === 'fist' ? 0 : Number(mode.slice(5));
+    // A2 (100-JUDGE PANEL REPORT): ONE filled path — the fist mass and the
+    // N extended fingers are subpaths of a single beginPath/fill (nonzero
+    // winding), rooted INSIDE the mass so the union silhouette is one hand
+    // (the old per-stroke tapers read as disconnected splat legs).
     ctx.save();
     ctx.translate(x + Math.sin(a) * s * 0.1, y + Math.cos(a) * s * 0.1);
     ctx.rotate(a);
     ctx.fillStyle = col;
+    ctx.beginPath();
     roundRect(ctx, -s * 0.4, -s * 0.32, s * 0.8, s * 0.74, s * 0.28);
-    ctx.fill();
     ctx.restore();
-    // the N extended fingers — splayed ±0.34 rad, rooting past the knuckles
+    // the N extended fingers — rooted inside the mass, splayed ±0.34 rad
     for (let f = 0; f < n; f++) {
       const off = (f - (n - 1) / 2) * 0.34;
-      taper(ctx, x + Math.sin(a) * s * 0.16, y + Math.cos(a) * s * 0.16,
-        x + Math.sin(a + off) * s * 1.04, y + Math.cos(a + off) * s * 1.04,
-        s * 0.3, s * 0.14, col);
+      const fa = a + off;
+      const bx = x + Math.sin(a) * s * 0.30, by = y + Math.cos(a) * s * 0.30;
+      const ex = x + Math.sin(fa) * s * 1.04, ey = y + Math.cos(fa) * s * 1.04;
+      const px2 = Math.sin(fa + Math.PI / 2), py2 = Math.cos(fa + Math.PI / 2);
+      const w0 = s * 0.30, w1 = s * 0.14, dx = Math.sin(fa), dy = Math.cos(fa);
+      ctx.moveTo(bx - px2 * w0 / 2, by - py2 * w0 / 2);
+      ctx.lineTo(ex - px2 * w1 / 2, ey - py2 * w1 / 2);
+      ctx.quadraticCurveTo(ex + dx * w1 * 0.7, ey + dy * w1 * 0.7, ex + px2 * w1 / 2, ey + py2 * w1 / 2);
+      ctx.lineTo(bx + px2 * w0 / 2, by + py2 * w0 / 2);
+      ctx.closePath();
     }
+    ctx.fill();
     // the thumb bar across the fist — the closed-hand read
     taper(ctx, x + Math.sin(a) * s * 0.06, y + Math.cos(a) * s * 0.06,
       x + Math.sin(a + 1.15) * s * 0.52, y + Math.cos(a + 1.15) * s * 0.52,
@@ -608,15 +631,24 @@ function handGlyph(
   // enough to read as individual fingers, and an opposed thumb rooted
   // at the wrist side. A hand, at any size.
   if (mode === 'palm') {
+    // 100-JUDGE PANEL REPORT (fix A2 — THE HAND, REBUILT AS ONE PATH): the
+    // audit's close-up verdict — "a star-shaped splat with unequal finger
+    // lengths" — came from fingers drawn as SEPARATE tapered strokes
+    // rooted at the knuckle edge: gaps between the roots read as spider
+    // legs. The hand is now ONE beginPath/fill (nonzero winding): the
+    // wedge palm, four fingers (roots buried s*0.30 INSIDE the wedge,
+    // rounded tips, even widths) and the opposed thumb are subpaths of a
+    // single fill — one silhouette, webs negative, fingers separated only
+    // by their splay. The presenting hand finally reads as a drawn hand.
     const nx = Math.sin(a + Math.PI / 2);
     const ny = Math.cos(a + Math.PI / 2);
     const wx = x + Math.sin(a) * s * 0.02;
     const wy = y + Math.cos(a) * s * 0.02;
     const kx = x + Math.sin(a) * s * 0.36;
     const ky = y + Math.cos(a) * s * 0.36;
-    // the palm wedge — wrist-narrow, knuckle-wide, rounded at the knuckles
     ctx.fillStyle = col;
     ctx.beginPath();
+    // palm wedge subpath — wrist-narrow, knuckle-wide, rounded knuckle arc
     ctx.moveTo(wx - nx * s * 0.17, wy - ny * s * 0.17);
     ctx.lineTo(kx - nx * s * 0.42, ky - ny * s * 0.42);
     ctx.quadraticCurveTo(
@@ -625,22 +657,41 @@ function handGlyph(
     );
     ctx.lineTo(wx + nx * s * 0.17, wy + ny * s * 0.17);
     ctx.closePath();
-    ctx.fill();
-    // four fingers — each rooted at its own knuckle point, splayed to READ
-    // as fingers (the outer pair shorter, the middle pair longest)
+    // four finger subpaths — rooted inside the wedge, even widths, tips
+    // rounded by a quadratic cap; the outer pair shorter, middle pair longest
     const fingers: Array<[number, number, number]> = [
-      [-0.42, 0.98, 0.92], [-0.14, 1.18, 1.05], [0.14, 1.12, 1.0], [0.42, 0.9, 0.88],
+      [-0.42, 0.86, 1.0], [-0.14, 1.06, 1.05], [0.14, 1.0, 1.0], [0.42, 0.8, 0.95],
     ];
     for (const [off, len, wid] of fingers) {
-      const rx = kx + nx * off * s * 0.5;
-      const ry = ky + ny * off * s * 0.5;
-      taper(ctx, rx, ry, rx + Math.sin(a + off * 0.6) * s * len,
-        ry + Math.cos(a + off * 0.6) * s * len, s * 0.26 * wid, s * 0.1 * wid, col);
+      const fa = a + off * 0.6;
+      const bx = x + Math.sin(a) * s * 0.30 + nx * off * s * 0.5;
+      const by = y + Math.cos(a) * s * 0.30 + ny * off * s * 0.5;
+      const ex = bx + Math.sin(fa) * s * len;
+      const ey = by + Math.cos(fa) * s * len;
+      const px2 = Math.sin(fa + Math.PI / 2), py2 = Math.cos(fa + Math.PI / 2);
+      const w0 = s * 0.30 * wid, w1 = s * 0.13 * wid;
+      const dx = Math.sin(fa), dy = Math.cos(fa);
+      ctx.moveTo(bx - px2 * w0 / 2, by - py2 * w0 / 2);
+      ctx.lineTo(ex - px2 * w1 / 2, ey - py2 * w1 / 2);
+      ctx.quadraticCurveTo(ex + dx * w1 * 0.75, ey + dy * w1 * 0.75, ex + px2 * w1 / 2, ey + py2 * w1 / 2);
+      ctx.lineTo(bx + px2 * w0 / 2, by + py2 * w0 / 2);
+      ctx.closePath();
     }
-    // the opposed thumb — rooted at the wrist side, past the palm's edge
-    taper(ctx, wx + nx * s * 0.14, wy + ny * s * 0.14,
-      wx + nx * s * 0.14 + Math.sin(a - 1.25) * s * 0.7,
-      wy + ny * s * 0.14 + Math.cos(a - 1.25) * s * 0.7, s * 0.5, s * 0.18, col);
+    // opposed thumb subpath — rooted at the wrist side, fat at the base
+    {
+      const fa = a - 1.25;
+      const bx = wx + nx * s * 0.14, by = wy + ny * s * 0.14;
+      const ex = bx + Math.sin(fa) * s * 0.72, ey = by + Math.cos(fa) * s * 0.72;
+      const px2 = Math.sin(fa + Math.PI / 2), py2 = Math.cos(fa + Math.PI / 2);
+      const w0 = s * 0.34, w1 = s * 0.16;
+      const dx = Math.sin(fa), dy = Math.cos(fa);
+      ctx.moveTo(bx - px2 * w0 / 2, by - py2 * w0 / 2);
+      ctx.lineTo(ex - px2 * w1 / 2, ey - py2 * w1 / 2);
+      ctx.quadraticCurveTo(ex + dx * w1 * 0.75, ey + dy * w1 * 0.75, ex + px2 * w1 / 2, ey + py2 * w1 / 2);
+      ctx.lineTo(bx + px2 * w0 / 2, by + py2 * w0 / 2);
+      ctx.closePath();
+    }
+    ctx.fill();
     return;
   }
   // ── THE COMPACT PALM (small/background glyphs) ──
@@ -652,28 +703,32 @@ function handGlyph(
   // tightens to three close fingers, but the read stays "a hand", never
   // "a torn glove".
   if (rigScale < 1.0 || s < 15) {
-    // the palm mass — rounded, wider than the wrist line it grows from
+    // 100-JUDGE PANEL REPORT (fix A2, tier 2 — THE MITTEN): below detail
+    // scale the hand is the two-lobed mitten — a rounded palm mass plus
+    // ONE thumb lobe, one filled path, ZERO finger strokes (individual
+    // fingers are sub-feed-pixel here; strokes only read as splat legs).
     ctx.save();
     ctx.translate(x + Math.sin(a) * s * 0.4, y + Math.cos(a) * s * 0.4);
     ctx.rotate(a);
     ctx.fillStyle = col;
+    ctx.beginPath();
     roundRect(ctx, -s * 0.5, -s * 0.44, s * 1.0, s * 0.94, s * 0.34);
-    ctx.fill();
     ctx.restore();
-    // AUDIT-ROUND-3 iter-2: the compact fingers splay WIDER (±0.26 rad)
-    // and reach FURTHER past the smaller palm so they read as fingers
-    // even at background scale — the same committed silhouette as the
-    // presenting palm, proportionally tightened.
-    for (let f = 0; f < 3; f++) {
-      const off = (f - 1) * 0.26;
-      taper(ctx, x + Math.sin(a) * s * 0.55, y + Math.cos(a) * s * 0.55,
-        x + Math.sin(a + off) * s * 1.32, y + Math.cos(a + off) * s * 1.32,
-        s * 0.22, s * 0.1, col);
+    // the thumb lobe — a rounded bump on the wrist side, one subpath
+    {
+      const fa = a + 1.05;
+      const bx = x + Math.sin(a) * s * 0.4, by = y + Math.cos(a) * s * 0.4;
+      const ex = x + Math.sin(fa) * s * 0.72, ey = y + Math.cos(fa) * s * 0.72;
+      ctx.moveTo(bx, by);
+      ctx.quadraticCurveTo(ex + Math.sin(a) * s * 0.18, ey + Math.cos(a) * s * 0.18, ex, ey);
+      ctx.quadraticCurveTo(
+        x + Math.sin(a) * s * 0.30 + Math.sin(a + Math.PI / 2) * s * 0.30,
+        y + Math.cos(a) * s * 0.30 + Math.cos(a + Math.PI / 2) * s * 0.30,
+        bx, by
+      );
+      ctx.closePath();
     }
-    // the opposed thumb — rooted inside the palm's edge, wide at the base
-    taper(ctx, x + Math.sin(a) * s * 0.4, y + Math.cos(a) * s * 0.4,
-      x + Math.sin(a + 1.05) * s * 0.95, y + Math.cos(a + 1.05) * s * 0.95,
-      s * 0.24, s * 0.12, col);
+    ctx.fill();
     return;
   }
   // ── the FAN (true hero scale ≥ 2.0) ──
@@ -1190,6 +1245,21 @@ export function drawStickmanV2(
     ctx.restore();
   };
   let farFoot: { ex: number; ey: number } | null = null;
+  // PREMIUM UPGRADE C2: TORSO AS SHAPED CAPSULE. The single taper (a spine
+  // line that widens) is replaced with a filled path: chest bulge, waist
+  // narrowing, hip block, shoulder caps. The figure gains silhouette mass
+  // the camera can frame and the light can hit. A taper reads as a line;
+  // a capsule reads as a body.
+  // (100-JUDGE REPORT fix A3 hoisted the variant flags above the limbs —
+  // the rolled sleeves reference `prof` at the far-arm draw, which
+  // precedes the torso block.)
+  const prof = r.variant === 'prof';
+  // 100-JUDGE PANEL / Phase 1 item 4 — CAST BY SILHOUETTE: the worker's
+  // flat cap (report: "the worker gets a cap"). Drawn on the becker
+  // head's crown: a brim bar + a soft dome, both in the head's own ink
+  // with an ivory brim-edge line so the cap reads as a DIFFERENT
+  // silhouette at 320px — the ownerWorker pair becomes cast, not copies.
+  const worker = r.variant === 'worker';
   if (drawFar) {
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -1208,6 +1278,18 @@ export function drawStickmanV2(
     const farAU = pose.lAU + counterSmear * 8;   // small upward counter
     const farAL = pose.lAL - counterSmear * 12;  // small outward counter
     const farHand = limb2(ctx, neckX - 4 + Math.sin(shT) * -4, neckY + 3 + Math.sin(shT) * 9 - (pose.shoulderDrop ?? 0) * 0.6, farAU, farAL, U_ARM, L_ARM, INK.armFar[0], INK.armFar[1], INK.armFar[2], farInk, 0, 0.92); // iter-3: elbow mass
+    // 100-JUDGE PANEL REPORT (fix A3 — THE ROLLED SLEEVE, far arm): the
+    // torso gold runs out mid-upper-arm in a slightly wider #A8851B band —
+    // the silhouette reads "gold workshirt with pushed-up sleeves" over an
+    // ink arm, not a bare mustard capsule. Drawn UNDER the torso (before
+    // it), so the sleeve root tucks into the shoulder like real clothing.
+    if (!prof) {
+      taper(ctx,
+        neckX - 4 + Math.sin(shT) * -4, neckY + 3 + Math.sin(shT) * 9 - (pose.shoulderDrop ?? 0) * 0.6,
+        neckX - 4 + Math.sin(shT) * -4 + Math.sin(farAU * D2R) * U_ARM * 0.58,
+        neckY + 3 + Math.sin(shT) * 9 - (pose.shoulderDrop ?? 0) * 0.6 + Math.cos(farAU * D2R) * U_ARM * 0.58,
+        INK.armFar[0] + 5, INK.armFar[0] - 1, '#A8851B');
+    }
     handGlyph(ctx, farHand.ex, farHand.ey, farAL, 15, farInk, scale, pose.lHand); // iter-3: 12 -> 15 — the far hand renders the FULL fan palm, not the compact tier
     // AUDIT-2 / 0.1: the far shoe steps with its limb (farInk) — depth,
     // not a second colour system.
@@ -1280,14 +1362,8 @@ export function drawStickmanV2(
   // line that widens) is replaced with a filled path: chest bulge, waist
   // narrowing, hip block, shoulder caps. The figure gains silhouette mass
   // the camera can frame and the light can hit. A taper reads as a line;
-  // a capsule reads as a body.
-  const prof = r.variant === 'prof';
-  // 100-JUDGE PANEL / Phase 1 item 4 — CAST BY SILHOUETTE: the worker's
-  // flat cap (report: "the worker gets a cap"). Drawn on the becker
-  // head's crown: a brim bar + a soft dome, both in the head's own ink
-  // with an ivory brim-edge line so the cap reads as a DIFFERENT
-  // silhouette at 320px — the ownerWorker pair becomes cast, not copies.
-  const worker = r.variant === 'worker';
+  // a capsule reads as a body. (prof/worker declared above the limbs —
+  // see the A3 note.)
   // P1 scarf v3 (100-judge dossier): the tail escapes BACKWARD past the
   // shoulder and draws BEFORE the torso — the body occludes the root, the
   // cloth reads as worn AROUND the neck, and the gold bib read dies. The
@@ -1299,6 +1375,16 @@ export function drawStickmanV2(
       Math.sin(t / 240 + seed * 2) * 3.2 * talkEnv0;
     if (scale >= 1.2) {
       scarfTail(ctx, neckX - 3, neckY + 12, wave0 * 0.5, PALETTE.gold, '#A8851B');
+    } else {
+      // 100-JUDGE PANEL REPORT (fix A5 — THE VANISHING BRAND CUE): the
+      // scarf tail drew only at rig ≥ 1.2 — exactly where most background
+      // figures appear, so the host's one signature accessory (P0-2's
+      // chosen-one brand) vanished at side-host scale. A simplified
+      // two-stroke scarf below the gate: a short tail flick + a knot
+      // nub, 0.6× scale — the brand stays ON the character at every
+      // distance (the knot itself is drawn later at all scales; this
+      // restores the trailing cloth).
+      taper(ctx, neckX - 3, neckY + 12, neckX - 12 - wave0 * 0.3, neckY + 17 + wave0 * 0.22, 6, 2.5, PALETTE.gold);
     }
   }
   {
@@ -1365,6 +1451,17 @@ export function drawStickmanV2(
     ctx.beginPath();
     ctx.ellipse(tx0 + tdx * 0.08, ty0 + tdy * 0.08, wH * 1.1, wH * 0.45, Math.atan2(tdx, -tdy), 0, Math.PI * 2);
     ctx.fill();
+    // 100-JUDGE PANEL REPORT (fix A3 — THE HEM): a 3px ink line across the
+    // capsule's bottom edge — the gold mass becomes a hemmed garment
+    // instead of a leotard. Skips the prof (ink torso: ink on ink).
+    if (!prof) {
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(lX(0.045, wH * 0.86), lY(0.045, wH * 0.86));
+      ctx.lineTo(rX(0.045, wH * 0.86), rY(0.045, wH * 0.86));
+      ctx.stroke();
+    }
   }
   // (AUDIT-ROUND-3, Fix 1: the torso rim light is RETIRED — the close-up
   // panel read it as "the white neck/chest stripe is unexplained - the
@@ -1504,6 +1601,15 @@ export function drawStickmanV2(
   // is retired (see the note at ARM_MASS's grave above).
   const nearArmCol = ink;
   const hand = limb2(ctx, neckX + 4 + Math.sin(shT) * 4, neckY + 3 - Math.sin(shT) * 9 + shDrop, pose.rAU, pose.rAL, U_ARM, L_ARM, INK.armNear[0], INK.armNear[1], INK.armNear[2], nearArmCol, 0, 0.92); // iter-3: elbow mass
+  // 100-JUDGE PANEL REPORT (fix A3 — THE ROLLED SLEEVE, near arm): same
+  // band as the far arm — the near limb is the one the camera reads.
+  if (!prof) {
+    taper(ctx,
+      neckX + 4 + Math.sin(shT) * 4, neckY + 3 - Math.sin(shT) * 9 + shDrop,
+      neckX + 4 + Math.sin(shT) * 4 + Math.sin(pose.rAU * D2R) * U_ARM * 0.58,
+      neckY + 3 - Math.sin(shT) * 9 + shDrop + Math.cos(pose.rAU * D2R) * U_ARM * 0.58,
+      INK.armNear[0] + 5, INK.armNear[0] - 1, '#A8851B');
+  }
   // AUDIT-ROUND-3 (Fix 1): the torso rim light block that drew here is
   // RETIRED — see the note above the near arm. One light edge (the
   // head's rim) per figure; the torso is mass, not chrome.
@@ -1703,7 +1809,14 @@ export function drawStickmanV2(
   // the head first. The chin gives a jawline; the nose gives facial depth.
   ctx.fillStyle = becker ? ink : ivory ? '#F6F1E3' : '#E8D5B7';
   ctx.strokeStyle = ink;
-  ctx.lineWidth = headStroke;
+  // 100-JUDGE PANEL REPORT (fix A1 — THE HELMET RING): the contour width
+  // was in LOCAL units (9.5) multiplied by the whole head transform — at
+  // the host's rig 2.6 × faceS 1.1 × HEAD_SHRINK 0.87 it rendered as a
+  // ~24px ink ring on an 83px-wide head: 30% of the head's width, the
+  // "motorcycle helmet" read. The contour is now a SCREEN-SPACE constant:
+  // 4.5px at every rig, the drawn-line weight a premium character carries
+  // (divide the target by the accumulated scale inside the transform).
+  ctx.lineWidth = headStroke === 0 ? 0 : 4.5 / (scale * faceS * HEAD_SHRINK);
   // the egg — taller than wide, slightly offset up for chin room
   ctx.beginPath();
   ctx.ellipse(0, -1, 32, 38, 0, 0, Math.PI * 2);
@@ -1760,12 +1873,15 @@ export function drawStickmanV2(
   // clutter; the nose broke it at both scales. The legacy cream heads
   // keep their ink hint (they are not the shipped style).
   if (!becker) {
-    const noseCol = rgba(ink, 0.4);
+    // 100-JUDGE PANEL REPORT (fix A4 — THE FLOATING NOSE): the 40%-alpha
+    // wedge at (2,-2) sat BETWEEN the eyes like a stray beak. Anchored to
+    // the eye line and dropped to 0.22 alpha: a whisper of facial depth.
+    const noseCol = rgba(ink, 0.22);
     ctx.fillStyle = noseCol;
     ctx.beginPath();
-    ctx.moveTo(2, -2);
-    ctx.lineTo(7, 2);
-    ctx.lineTo(2, 4);
+    ctx.moveTo(3, -4);
+    ctx.lineTo(8, 0);
+    ctx.lineTo(3, 2);
     ctx.closePath();
     ctx.fill();
   }
@@ -1976,8 +2092,8 @@ export function drawStickmanV2(
     // BLUEPRINT Phase 1: the arch/kink amplitudes scale with the x2.8
     // brow travel so the SHAPES read at the new height (a 5.5px arch on
     // a 14px raise would flatten back into a line).
-    const y0 = -20 - bRaise - dir * Math.tan(bAngle) * 7;
-    const y1 = -18 - bRaise + dir * Math.tan(bAngle) * 7 * -1;
+    const y0 = -17 - bRaise - dir * Math.tan(bAngle) * 7;
+    const y1 = -15 - bRaise + dir * Math.tan(bAngle) * 7 * -1;
     ctx.beginPath();
     ctx.moveTo(x0, y0);
     if (surprise > 0.35) {
@@ -2044,8 +2160,10 @@ export function drawStickmanV2(
     drawMouthV2(ctx, eyeDX, pose.smile, r.talk ?? 0, jaw2x, becker ? faceInk : PALETTE.ink, scale > 1.5, vm);
   }
   // cheek warmth — very subtle (P1-1 'becker': skipped — no interior clutter)
+  // 100-JUDGE PANEL REPORT (fix A4): cheek warmth 0.16 → 0.09 — the plush
+  // circles read as doll blush on a presenter; a whisper keeps the warmth.
   if (!becker) {
-    ctx.fillStyle = rgba(PALETTE.down, 0.16);
+    ctx.fillStyle = rgba(PALETTE.down, 0.09);
     ctx.beginPath(); ctx.ellipse(-21, 7, 5, 3.5, 0, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(21, 7, 5, 3.5, 0, 0, Math.PI * 2); ctx.fill();
   }
