@@ -77,7 +77,10 @@ export const REACTIONS: Record<string, ReactionSpec> = {
   // P0-3 (audit Table 2): the twist reaction pivots ON the re-staged host
   // (x=1650, head breaking the 493 wall) — px 1700 keeps his whole envelope
   // inside the frame through the full 0.55 push (right edge 1842 → 1909).
-  'c8-fund': { atFrac: 0.42, durMs: AMP.reactionWindowMs, amp: AMP.reactionAmp.fund, px: 1700, py: 560 },
+  // CONTACT VERB edition: the host re-staged to x=1395 (hand braced ON the
+  // 493 wall at 1350) — the pivot follows him (px 1420) so the twist
+  // close-up frames host-braced-against-the-wall, hand planted.
+  'c8-fund': { atFrac: 0.42, durMs: AMP.reactionWindowMs, amp: AMP.reactionAmp.fund, px: 1420, py: 560 },
   'c9-three': { atFrac: 0.4, durMs: AMP.reactionWindowMs, amp: AMP.reactionAmp.three, px: 500, py: 560 },
 };
 

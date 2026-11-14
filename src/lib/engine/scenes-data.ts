@@ -100,12 +100,20 @@ function hostSmall(
   // uses. Staging variety; the 12-second-hold risk dies with it."
   // sitAt: the beat-local ms when the host SITS (the card's settle
   // beat); undefined = the standing cycle (every existing call site).
-  // The sit: sitRise (the push-off) for 480ms, then sitBack (the
-  // perch) held; groundY0 shifts up to the seat line so the hips land
-  // ON the card's edge — the same pelvis-anchored contact math, the
-  // seat standing in for the ground line.
+  // The sit: sitRise (the push-off) for 480ms, then sitBack (the perch) held;
+  // groundY0 shifts up to the seat line so the hips land
+  // ON the card's edge — the same pelvis-anchored contact math, the seat
+  // standing in for the ground line.
   sitAt?: number,
-  seatY?: number
+  seatY?: number,
+  // CONTACT VERBS (P2 grammar, dossier follow-up): the scene-space point
+  // the near hand must LAND ON every frame (solved by stickman-v2's armIk).
+  // Scenes must place the host inside arm's reach of the point.
+  contact?: { x: number; y: number; hand?: 'palm' | 'fist'; bend?: 1 | -1 },
+  // faceDir: explicit gesture/eyeline direction when the host stands in a
+  // spot the x<W/2 heuristic misreads (e.g. beside the pie, left of centre,
+  // presenting content that sits further LEFT).
+  faceDir?: 'left' | 'right'
 ): void {
   // v10 (panel CHAR-1/CHAR-3): the side host CYCLES through a gesture set
   // instead of holding one pose for the whole scene — "two poses: shrug,
@@ -114,12 +122,13 @@ function hostSmall(
   // smooth crossfade gives the side host the same articulated life the
   // main host got in P0-4. scarf OFF at side scale — the knot read as "a
   // stain" at 1.09×; the scarf is a HERO-scale brand cue (1.3× and up).
-  const pointIn = x < g.W / 2 ? 'pointR' : 'pointL';
+  const dir: 'left' | 'right' = faceDir ?? (x < g.W / 2 ? 'right' : 'left');
+  const pointIn = dir === 'right' ? 'pointR' : 'pointL';
   const cycle: string[] = [gesture, 'talkB', gesture, pointIn];
   // AUDIT-ROUND-2 (fix 11 — HEAD YAW AT CONTENT): the side host's head
   // turns toward his content on the same term the arms use — the
   // eyeline connects (C5) at every side-host scale in the film.
-  const bias = x < g.W / 2 ? ('right' as const) : ('left' as const);
+  const bias = (dir === 'right' ? 'right' : 'left') as 'right' | 'left';
   const ph = (g.t / 3000 + seed) % 4;
   const idx = Math.floor(ph);
   // PANEL-12 / P1-2: the side-host gesture crossfade re-blends through the
@@ -205,7 +214,7 @@ function hostSmall(
       // parallax differential rides the film's biggest camera move
       // (~90px): the plane separation is VISIBLE at every scene entry,
       // not a single-digit-pixel threshold effect.
-      pose, alpha: clamp01((g.t - 20) / 160), look: g.W / 2 > x ? 0.5 : -0.5, talk, smear,
+      pose, alpha: clamp01((g.t - 20) / 160), look: dir === 'right' ? 0.5 : -0.5, talk, smear,
       scarf: false, hostBody: true,
       faceScale: 1 + 0.15 + (faceTarget - 1.15) * reaction,
       jaw2x: 1 + (jawX - 1) * reaction,
@@ -221,6 +230,8 @@ function hostSmall(
       // differential lives on hosts with clear space: the cold-open
       // shock and the editorial host.
       parallaxAmt: parallax ? parallaxD * (1 - clamp01(reaction)) : undefined,
+      // CONTACT VERBS: the solved hand — the scene declared the touch.
+      contact,
     },
     seed
   );
@@ -528,12 +539,29 @@ export function pieChartScene(g: SceneCtx): void {
   // INTO the legend (envelope left ≈1356, clear of the legend's last row),
   // the headYaw (fix 11) turning his face to it. Host beside content,
   // gesture in the content's direction — the fix's converse.
+  // CONTACT VERB (P2 grammar, dossier follow-up — "bracket the pie wedge"):
+  // the legend yields the center-right column (W*0.62) and the host stands
+  // BETWEEN the pie and its legend, close enough to TOUCH — the near hand
+  // solves onto the pie's rim every frame (armIk), palm on the gold wedge's
+  // edge with a contact shadow. The presenter operates the graphic instead
+  // of hovering beside it; the legend reads as the annotation of the thing
+  // he is touching. Guard: the pie is background-grade (unregistered); the
+  // narrowed contact envelope (70·scale) clears the legend rows by >200px;
+  // the hand itself registers cls 'contact'.
   const legend = (s.slices as any[]) || [];
+  const hxPie = 890;
+  const hyPie = H * 0.66;
+  // the rim point nearest the (estimated) shoulder — always on the gold
+  // wedge for both beats' slice layouts (gold spans the upper-right arc)
+  const dxs = hxPie + 5 - cx;
+  const dys = hyPie - 200 * 1.09 - cy;
+  const dl = Math.hypot(dxs, dys) || 1;
+  const pieTouch = { x: cx + (dxs / dl) * r, y: cy + (dys / dl) * r };
   legend.forEach((sl, i) => {
     const ap = clamp01((t - 700 - i * 300) / 600);
     if (ap <= 0) return;
     const ly = H * 0.4 + i * 90;
-    const lx = W * 0.48;
+    const lx = W * 0.62;
     registerRect(`pieLegend:${sl.label.slice(0, 12)}`, lx, ly, 450, 70);
     ctx.save();
     ctx.globalAlpha = ap;
@@ -555,7 +583,10 @@ export function pieChartScene(g: SceneCtx): void {
   });
   // AUDIT-ROUND-2 (fix 4 + fix 11): the host beside the legend, pointing
   // into it — and hostSmall's own pointBias wiring turns his head with it.
-  hostSmall(g, W * 0.8, 'pointL', 6);
+  // CONTACT VERB edition: hand ON the pie rim, facing the pie (faceDir
+  // 'left' — he stands left of centre but his content is further left).
+  hostSmall(g, hxPie, 'pointL', 6, hyPie, 1.09, 0, 'aha', 1.4, 1, true, 0.4,
+    undefined, undefined, { x: pieTouch.x, y: pieTouch.y, hand: 'palm' }, 'left');
   sourceTag(ctx, W, s.source as string, H - 60);
 }
 
@@ -1137,6 +1168,45 @@ export function gasPumpScene(g: SceneCtx): void {
   setFont(ctx, 44, 700);
   ctx.fillStyle = PALETTE.ink;
   ctx.fillText(`$${(3.2 + Math.abs(Math.sin(roll)) * 0.9).toFixed(2)}`, px, py + 168);
+  // FIX 3 (density payload — the frame measured 3.0% info): the screen
+  // carries the SCENE'S OWN DATA — the Iran-spike price path the VO names,
+  // drawn as a tiny sparkline on the pump's display (flat → spike → easing),
+  // plus the two receipt lines a pump actually prints. The prop becomes an
+  // instrument: the panel reads WHERE the shock came from without the VO.
+  {
+    const sx0 = px - 62;
+    const sy0 = py + 190;
+    const sw2 = 124;
+    const sh2 = 34;
+    ctx.strokeStyle = rgba(PALETTE.up, 0.85);
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    const spike = [[0, 0.62], [0.18, 0.58], [0.36, 0.6], [0.52, 0.22], [0.66, 0.3], [0.84, 0.5], [1, 0.55]];
+    spike.forEach(([fx2, fy2], i) => {
+      const sxp = sx0 + fx2 * sw2;
+      const syp = sy0 + fy2 * sh2;
+      if (i === 0) ctx.moveTo(sxp, syp);
+      else ctx.lineTo(sxp, syp);
+    });
+    ctx.stroke();
+    ctx.fillStyle = PALETTE.down;
+    ctx.beginPath();
+    ctx.arc(sx0 + 0.52 * sw2, sy0 + 0.22 * sh2, 5, 0, Math.PI * 2);
+    ctx.fill();
+    // the receipt perforation — non-reading furniture (the pump's printer
+    // line). Text here would break the 34px LABEL_FLOOR inside a 156px
+    // screen; the spike marker carries the story instead.
+    ctx.strokeStyle = rgba(PALETTE.inkFaint, 0.5);
+    ctx.lineWidth = 2.4;
+    ctx.setLineDash([3, 5]);
+    ctx.beginPath();
+    ctx.moveTo(sx0, sy0 + sh2 + 12);
+    ctx.lineTo(sx0 + sw2, sy0 + sh2 + 12);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
   // brand dot row (the pump's little identity)
   for (let d = 0; d < 3; d++) {
     ctx.fillStyle = d === 1 ? PALETTE.gold : rgba(PALETTE.up, 0.55);
@@ -1691,6 +1761,13 @@ export function aiDatacenterScene(g: SceneCtx): void {
   // motion cue, lowest energy on the sheet". The presenter now walks the
   // datacenter floor (bottom-right, presenting the racks) with the talk
   // envelope. One drawStickmanV2 call; the scene keeps its full layout.
+  // CONTACT VERB (P2 grammar, dossier follow-up — "palm the rack face"):
+  // the host steps INTO arm's reach of the hero rack (x 1574 → 1480) and
+  // the near hand solves onto the rack's right face at chest height every
+  // frame — a palm on the machine he is narrating, contact shadow where
+  // they meet. The narrowed contact envelope (70·1.28 = 90) clears the
+  // registered rack rect (1105–1375) by ~15px; the hand registers as
+  // cls 'contact'; the pointBias turns the gesture cycle toward the rack.
   {
     const pose = Stickman.poseAt(t, {
       gesture: 'present',
@@ -1699,6 +1776,7 @@ export function aiDatacenterScene(g: SceneCtx): void {
       prevSentenceId: g.prevSentenceId,
       sentenceT: g.sentenceT,
       wordTimes: g.gWordTimes,
+      pointBias: 'left',
     });
     const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
     // v9 (report D-02): H*0.88 → H*0.68 — above the caption zone with
@@ -1715,14 +1793,23 @@ export function aiDatacenterScene(g: SceneCtx): void {
     // stat-card row's bottom under the ch5 hero push's exact camera — 1.28
     // restores a certified ~28px static clearance (envelope top 326, card
     // bottom 302) and keeps the feet clear of the pill band (775 < 796).
-    drawStickmanV2(ctx, W * 0.82, H * 0.66, 1.28, t,
+    // CONTACT edition: x → 1480 (inside reach of the rack's right face at
+    // 1375); worst-case right edge ≈ 1480+90 = 1570 static, ≈1715 under the
+    // full hero-push camera — 205px inside the frame bound.
+    drawStickmanV2(ctx, 1480, H * 0.66, 1.28, t,
       {
         pose, alpha: clamp01((t - 900) / 600), look: -0.7, scarf: true, talk, hostBody: true,
         // PANEL-12 / P3.2: the walk host's ground-shadow ellipse skews by
         // the floor's own (W/2 − x) × 0.06 term — he stands IN the room's
         // perspective, not on a decal. PANEL-12 / P2-1: foreground parallax.
-        shadowSkew: (W / 2 - W * 0.82) * 0.06,
+        shadowSkew: (W / 2 - 1480) * 0.06,
         parallax: true,
+        // CONTACT VERB: palm ON the hero rack's TOP face (x 1375, y 408).
+        // The right face is 0.94-ink — an ink hand on it merges (ink-on-ink);
+        // the top face is the lit 0.16-white plane, so the palm and its
+        // contact shadow read against it, and the gesture is the classic
+        // rack-touch.
+        contact: { x: 1375, y: 408, hand: 'palm' },
       }, 27);
   }
 }
@@ -1836,12 +1923,24 @@ export function statCardsScene(g: SceneCtx): void {
     ctx.fillStyle = ct.main;
     const bw = ctx.measureText(c.big).width;
     ctx.fillText(c.big, cx2 + 34, cy2 + 58);
-    // the chip's label — SHORTENED to one glance line (the VO carries the
-    // full text; the audit's 12-word frame cap)
+    // the chip's label — measured, wrapped to 2 rows inside the 84px pill
+    // (the v10.1 single-line draw ran long labels past the chip's right
+    // edge INTO the next chip: "S&P 500 net profit m…" plated "12.4%",
+    // vision-verified on the statCards sit-back frame). Same measured
+    // grammar as the fundSplit chips: wrap at LABEL_FLOOR, max 2 rows,
+    // baselines y+40/y+70; a label that cannot fit two rows inside the
+    // column yields (the VO carries the full text).
     setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.inkSoft;
     const short = String(c.label ?? '').split(' · ')[0];
-    ctx.fillText(short, cx2 + 34 + bw + 26, cy2 + 54);
+    const maxLW = cx2 + (hw / 2 - 40) - 24 - (cx2 + 34 + bw + 22);
+    if (maxLW > 140) {
+      const gl = wrapText(ctx, short, maxLW, 34, 600).slice(0, 2);
+      const baseY = gl.length > 1 ? cy2 + 40 : cy2 + 54;
+      gl.forEach((ln, li) => {
+        ctx.fillText(ln, cx2 + 34 + bw + 22, baseY + li * 30);
+      });
+    }
     ctx.restore();
   });
   ctx.restore();
@@ -1858,7 +1957,15 @@ export function statCardsScene(g: SceneCtx): void {
   // report flagged dies here: the mood chapter's host stages ON its
   // data, the seat line = the card's bottom edge (hy0 + hh), the
   // ground-contact math unchanged.
-  hostSmall(g, W * 0.82, 'pointL', 19, g.H * 0.615, 1.09, 0, 'aha', 1.4, 1, true, 0.4, 2400, hy0 + hh - 6); // PLAYBOOK D3+D4: 0.845 -> 0.82 (edge class); seat hy0+hh+26 -> hy0+hh-6 (the hips land ON the edge)
+  // CONTACT-PASS RETRACTION (dossier follow-up, vision-verified): the sit
+  // shipped the host at x=W*0.82 — 244px RIGHT of the card's edge — so he
+  // perched on AIR at the frame's margin (the seat line moved; the X never
+  // did), and every x that puts him over the card drops his dangling feet
+  // onto the chip row below (chips y 652-736, guard-caught in rehearsal).
+  // The honest staging: standing, feet on the ground, pointL cone into
+  // the hero card — the sit grammar stays in the film where it lands ON
+  // its seat (the mood chapter's perch is re-staged separately).
+  hostSmall(g, W * 0.82, 'pointL', 19, g.H * 0.615, 1.09, 0, 'aha', 1.4, 1, true, 0.4); // PLAYBOOK D3+D4: 0.845 -> 0.82 (edge class)
 }
 
 // ── ownerWorker scene ────────────────────────────────────────────────────────
@@ -1879,6 +1986,26 @@ export function ownerWorkerScene(g: SceneCtx): void {
   ctx.setLineDash([]);
   ctx.restore();
 
+  // FIX 3 (density payload — the frame measured 2.3% info, RMS 25.4: the
+  // film's flattest read): each half gains its own ROOM (the film's plate
+  // language at whisper register — tonal, never counted as content) and the
+  // trend each line SPEAKS gets drawn along it: the owner's rise carries
+  // three vivid up-marks, the worker's flat line carries the paycheck
+  // dashes with the last one short (the squeeze the VO names).
+  {
+    const washTop = H * 0.14;
+    const washBot = H * 0.86;
+    const lw = ctx.createLinearGradient(W * 0.5, 0, 0, 0);
+    lw.addColorStop(0, rgba(PALETTE.up, 0.0));
+    lw.addColorStop(0.35, rgba(PALETTE.up, 0.08));
+    ctx.fillStyle = lw;
+    ctx.fillRect(0, washTop, W * 0.5, washBot - washTop);
+    const rw2 = ctx.createLinearGradient(W * 0.5, 0, W, 0);
+    rw2.addColorStop(0, rgba(PALETTE.down, 0.0));
+    rw2.addColorStop(0.35, rgba(PALETTE.down, 0.08));
+    ctx.fillStyle = rw2;
+    ctx.fillRect(W * 0.5, washTop, W * 0.5, washBot - washTop);
+  }
   const panels: [any, number, string][] = [[L, W * 0.08, 'left'], [R, W * 0.55, 'right']];
   panels.forEach(([pnl, x, side], i) => {
     const ap = clamp01((t - i * 700) / 800);
@@ -1944,16 +2071,62 @@ export function ownerWorkerScene(g: SceneCtx): void {
     // ONLY by accessory (scarf vs none) and pose. One template, variations
     // by proportion and accessory — never by line style.
     const pose = side === 'left' ? POSES.climb : POSES.facepalm;
+    // FIX 3 payload: the trend marks — drawn BEFORE the figures so they
+    // read as the line's own annotation.
+    if (side === 'left') {
+      const mp = clamp01((t - 1600) / 800);
+      if (mp > 0) {
+        ctx.save();
+        ctx.globalAlpha = mp;
+        ctx.strokeStyle = PALETTE.upVivid;
+        ctx.lineWidth = 9;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        for (let k2 = 0; k2 < 3; k2++) {
+          const ax2 = hx - 120 + k2 * 118;
+          const ay2 = hy + 6 - (k2 + 0.5) * 38;
+          ctx.beginPath();
+          ctx.moveTo(ax2 - 14, ay2 + 10);
+          ctx.lineTo(ax2, ay2 - 12);
+          ctx.lineTo(ax2 + 14, ay2 + 10);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    } else {
+      const mp = clamp01((t - 1600) / 800);
+      if (mp > 0) {
+        ctx.save();
+        ctx.globalAlpha = mp;
+        ctx.strokeStyle = rgba(PALETTE.inkSoft, 0.85);
+        ctx.lineWidth = 8;
+        ctx.lineCap = 'round';
+        // the paycheck dashes — same length, same rhythm, until the last
+        for (let k2 = 0; k2 < 4; k2++) {
+          const dashW = k2 === 3 ? 34 : 58;
+          const ax2 = hx - 130 + k2 * 66;
+          ctx.beginPath();
+          ctx.moveTo(ax2, hy + 34);
+          ctx.lineTo(ax2 + dashW, hy + 34);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
     // v3 (panel P0-3): v2 renderer — the shareholder/worker figures match the
     // presenter's body style (they read as the same world)
     // AUDIT-2 / §10.2: ground planes agree (owner ON his line with a
     // slope-rotated shadow; worker on the flat line at the shadow plane).
-    drawStickmanV2(ctx, hx, hy - (side === 'left' ? 38 : 0), 0.86, t, {
+    // FIX 3: 0.86 -> 1.05 — the figures are the frame's subjects; at 0.86
+    // they read as thumbnails in a two-thirds-empty room.
+    drawStickmanV2(ctx, hx, hy - (side === 'left' ? 44 : 0), 1.05, t, {
       pose,
       alpha: clamp01((t - i * 700 - 200) / 500),
       look: 0.3,
       scarf: side === 'left', // v10: the owner wears the brand; the worker doesn't
       shadowRot: side === 'left' ? Math.atan(riseSlope) : 0,
+      // FIX 3: the rise slope's ground anchor follows the bigger figure
+      // (44px lift keeps the owner's soles ON his rising line at 1.05x),
       // 100-JUDGE PANEL / Phase 1 item 4 — CAST BY SILHOUETTE (report §6
       // Phase 1): the worker gets a CAP. Owner = scarf + climb, worker =
       // cap + facepalm — accessory per role, never scale: the pair reads
@@ -2093,10 +2266,12 @@ export function fundSplitScene(g: SceneCtx): void {
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.textAlign = 'left';
     ctx.fillText('7 stocks', gx, gy + 356);
-    // gray mass — the 493 wall: 4 rows × 20 cols of 20px pillars, 27px
+    // gray mass — the 493 wall: 6 rows × 20 cols of 20px pillars, 27px
     // pitch — a real mass the eye can weigh against the seven
+    // FIX 3 (empty-band payload): 4 -> 6 rows — the wall's mass now runs to
+    // y≈700, filling the right half of the band the phone gate measured.
     const grayX = gx + 7 * 78 + 86;
-    for (let i = 0; i < 80; i++) {
+    for (let i = 0; i < 120; i++) {
       const p2 = clamp01((t - 1900 - i * 12) / 520);
       // PHASE-0 (Fix 3): 0.62 -> 0.72 (see note above — the wall reads as mass).
       ctx.fillStyle = rgba(PALETTE.grid, 0.72);
@@ -2131,7 +2306,13 @@ export function fundSplitScene(g: SceneCtx): void {
     // The chips move UP beside the graphic's lower half (0.44H, pitch
     // 96): stat2's bottom lands at 740, clear of the pill envelope by
     // 36px at every certified camera state.
-    const y = H * 0.44 + i * 96;
+    // FIX 3 (empty-band payload — the phone gate measured a 24% empty band
+    // at rows 666-888: the graphic is top-heavy and the chips ended at
+    // 675). The chips cascade 0.44H+96 -> 0.50H+120: chip 1 bottoms at 764,
+    // clear of the worst-case 2-row pill envelope (776) by 12px (the chips
+    // are registered — the guard asserts it), and the band's left half
+    // carries content down to 764.
+    const y = H * 0.5 + i * 120;
     const c = TONE(st.tone || 'default');
     registerRect(`fundSplit:stat${i}`, W * 0.09, y, 420, 104);
     card(ctx, W * 0.09, y, 420, 104, { r: 24 });
@@ -2227,7 +2408,18 @@ export function fundSplitScene(g: SceneCtx): void {
   // scale <= 1.20. Final: x=1600 @ 1.15, ground 585 — head top ~298
   // still grazes the 493 band (208-302), envelope 1453-1747 clears the
   // cards by 7px and the worst exit camera by 10px.
-  hostSmall(g, 1600, 'pointL', 24, 585, 1.15, reactionAt(g.s.sceneKey, g.t, g.d), 'shock', 1.8, 2, false); // P2-4: parallax=false — he stands INSIDE the data (the wall's plane)
+  // CONTACT VERB (P2 grammar, dossier follow-up — "tap the 493-companies
+  // wall"): the host steps left to x=1395 — INSIDE the divergence, his
+  // body breaking the gray mass — and the near hand BRACES on the wall's
+  // top-left edge (x 1350, y 438) every frame, contact shadow where palm
+  // meets wall. Through the twist reaction the arm stays planted while
+  // the body recoils: he holds himself against the 493 as the number
+  // lands. The narrowed contact envelope (70·1.15 = 81 → 1314-1476)
+  // clears the stat chips (x ≤ 593) and the callback chip (y 996); the
+  // wall is background-grade (unregistered); the reaction pivot follows
+  // him (REACTIONS['c8-fund'] px 1700 → 1420, scene-context.ts).
+  hostSmall(g, 1395, 'pointL', 24, 585, 1.15, reactionAt(g.s.sceneKey, g.t, g.d), 'shock', 1.8, 2, false,
+    undefined, undefined, undefined, { x: 1350, y: 438, hand: 'palm', bend: 1 }, 'left'); // P2-4: parallax=false — he stands INSIDE the data (the wall's plane)
 }
 
 // ── oddsSpread scene ─────────────────────────────────────────────────────────

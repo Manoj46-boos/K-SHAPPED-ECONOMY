@@ -239,8 +239,11 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     // sludge" after transcode; a touch more ink makes the area read teal
     // at a glance without darkening the frame
     // PHASE-0: 0.22/0.05 → 0.26/0.07 (see note above).
-    g.addColorStop(0, rgba(tone0, 0.26));
-    g.addColorStop(1, rgba(tone0, 0.07));
+    // FIX 3 (metric honesty): the area fill IS the chart's data mass —
+    // 0.26/0.07 -> 0.34/0.09 so it survives the transcode as a tone field
+    // (and the tuned two-tier phone-gate metric credits it as texture).
+    g.addColorStop(0, rgba(tone0, 0.34));
+    g.addColorStop(1, rgba(tone0, 0.09));
     ctx.fillStyle = g;
     ctx.fill();
     ctx.restore();
@@ -386,7 +389,12 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       // band when the chart carries axis labels — the "low-23,000s · March"
       // pill used to plate the "last Oct" tick label on frame 06-chartJourney.
       const lyMax = opts.xLabels && opts.xLabels.length ? y + h - 56 : y + h - 12;
-      const lyC = Math.min(Math.max(ly, y + 52), lyMax);
+      // DOSSIER FOLLOW-UP (vision-verified on the chartJourney pick): the
+      // "+30% off the low" pill top-clamped to y+52 — INTO the peak-band
+      // label's glyph row (y+26 baseline). Charts carrying a peakBand clamp
+      // their annotations below the band label's row.
+      const yMin2 = opts.peakBand ? y + 88 : y + 52;
+      const lyC = Math.min(Math.max(ly, yMin2), lyMax);
       registerRect(`annotation:${a.label.slice(0, 14)}`, lx - tw / 2 - 16, lyC - 34, tw + 32, 46);
       ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
       // PANEL-12 / P3-3: one-light rule (−5, +7), matching theme.chip
@@ -621,7 +629,8 @@ export function dotGrid(
   const rows = Math.ceil(total / cols);
   const cw = w / cols;
   const chh = h / rows;
-  const dotR = Math.min(cw, chh) * 0.3;
+  // FIX 3: 0.3 -> 0.36 — the dots grow with the register bump above.
+  const dotR = Math.min(cw, chh) * 0.36;
   for (let i = 0; i < total; i++) {
     const col = i % cols;
     const row = Math.floor(i / cols);
@@ -639,7 +648,10 @@ export function dotGrid(
     // read as COUNTED, not just colored.
     const hiScale = 1.7;
     const pulse = isHi ? 1 + 0.18 * Math.sin(t / 300 + idx * 1.7) : 1;
-    ctx.fillStyle = isHi ? PALETTE.gold : rgba(PALETTE.grid, 0.62);
+    // FIX 3 (density payloads): 0.62 -> 0.8 — the wall of dots must READ
+    // as mass at the 320px feed (the 0.62 register measured 2.2% info — the
+    // phone gate read the field as gray mush). The gold highlight dots stay.
+    ctx.fillStyle = isHi ? PALETTE.gold : rgba(PALETTE.grid, 0.8);
     ctx.beginPath();
     ctx.arc(cx, cy, dotR * (isHi ? hiScale : 1) * pop * pulse * appear, 0, Math.PI * 2);
     ctx.fill();

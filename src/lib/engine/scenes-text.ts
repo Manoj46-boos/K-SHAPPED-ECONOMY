@@ -9,6 +9,7 @@ import { bokehField, lightRays, softBloom, sparkles, drawK3D, kMotifs, floatCoin
 import { SceneCtx } from './scene-context';
 import { reactionAt } from './scene-context';
 import { Stickman, POSES, blendPose } from './stickman';
+import { HERO } from './perception';
 import { drawStickmanV2 } from './stickman-v2';
 import { wrapText } from './charts';
 
@@ -53,8 +54,11 @@ export function bigTextScene(g: SceneCtx): void {
   // double-radius warm glow frame at the strike. All deterministic, all
   // from machinery that already existed in effects.ts. The scale punch +
   // sparkles stay (the emphasis stack, not the whole budget).
+  // 100-JUDGE DOSSIER (P3 — hero register): the statement slam shakes at
+  // HERO.shakePx — 2.3x the ambient 6px reveal tick. Quiet scenes boil at
+  // 0.8px; the slam flinches at 14px. Contrast, by measurement.
   {
-    const shake = microShake(t, 340);
+    const shake = microShake(t, 340, HERO.shakePx);
     if (shake.dx !== 0 || shake.dy !== 0) ctx.translate(shake.dx, shake.dy);
   }
   const lines = (s.lines as string[]) || [];
@@ -86,9 +90,13 @@ export function bigTextScene(g: SceneCtx): void {
       const cx = fx + col * pitchX + 8;
       const cy = fy + row * pitchY + 8;
       const isGold = i < goldN;
-      ctx.fillStyle = isGold ? PALETTE.gold : rgba(PALETTE.grid, 0.5);
+      // FIX 3 (density payloads): 0.5 -> 0.72, r 6 -> 7 — the field must
+      // READ at the 320px feed (the whisper register measured +0.1% info —
+      // invisible by the metric AND by the eye; texture that cannot survive
+      // the transcode is decoration, not density).
+      ctx.fillStyle = isGold ? PALETTE.gold : rgba(PALETTE.grid, 0.78);
       ctx.beginPath();
-      ctx.arc(cx, cy, isGold ? 10 : 6, 0, Math.PI * 2);
+      ctx.arc(cx, cy, isGold ? 10 : 7, 0, Math.PI * 2);
       ctx.fill();
     }
     // the bracket cradles the gold members
@@ -128,7 +136,9 @@ export function bigTextScene(g: SceneCtx): void {
       ctx.save();
       ctx.globalAlpha = ap * alphaMul;
       ctx.textAlign = 'center';
-      const scale = 0.94 + 0.06 * easeOutBack(ap);
+      // P3 hero register: the slam travels 0.90 → 1.0 with a 10% overshoot
+      // (double the ambient arrival) — the words LAND.
+      const scale = 0.9 + HERO.blockTravel * easeOutBack(ap);
       // v10 (panel TYPE-2): EDITORIAL SIZE HIERARCHY — line 1 is the statement
       // in inkDeep (the display ink, 11.9:1), line 2 the punchline in goldDeep.
       // v10.1 (panel 11 re-review): the v10 step (108 → 88, a 19% ratio) still
@@ -174,7 +184,7 @@ export function bigTextScene(g: SceneCtx): void {
   // AUDIT-2 / §10.4: the impact triple's visible members — ring + glow
   // (the micro-shake was applied at the top of the scene).
   // PHASE-0 (Fix 2): ring + glow pivot to the new statement center (0.40H).
-  impactRing(ctx, W / 2, H * 0.36, t, 340, 210);
+  impactRing(ctx, W / 2, H * 0.36, t, 340, 210, HERO.ringScale);
   if (t >= 340 && t < 340 + 66) {
     // the double-radius glow frame — one beat of the number's own light
     glowBlob(ctx, W / 2, H * 0.32, 640, '#F7F0DC', 0.30);
@@ -194,8 +204,8 @@ export function bigTextScene(g: SceneCtx): void {
     // (a loading bar). Reading direction = wipe direction.
     const w = 560 * easeOutCubic(up2);
     ctx.beginPath();
-    ctx.moveTo(W / 2 - 280, H * 0.62);
-    ctx.lineTo(W / 2 - 280 + w, H * 0.62);
+    ctx.moveTo(W / 2 - 280, H * 0.585);
+    ctx.lineTo(W / 2 - 280 + w, H * 0.585);
     ctx.stroke();
     ctx.restore();
   }
@@ -206,7 +216,7 @@ export function bigTextScene(g: SceneCtx): void {
   // the 3-per-second flash threshold by construction.
   if (t >= 340 && t < 340 + 66) {
     ctx.save();
-    ctx.globalAlpha = 0.08;
+    ctx.globalAlpha = 0.12; // P3 hero register: 0.08 -> 0.12 — the impact frame is FELT
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, W, H);
     ctx.restore();
@@ -245,6 +255,13 @@ export function stampCardScene(g: SceneCtx): void {
   // P2-3: and NO bokeh — the stamp is a statement beat, typography owns
   // the frame alone.
   bg(g, 221, 0.55, 0.88, 0);
+  // P3 hero register: the stamp SLAM shakes at HERO.shakePx (ambient
+  // scenes had no shake at all here — the stamp now flinches like the
+  // bigText block does).
+  {
+    const shake = microShake(t, 500, HERO.shakePx);
+    if (shake.dx !== 0 || shake.dy !== 0) ctx.translate(shake.dx, shake.dy);
+  }
   const cx = W / 2;
   // PHASE-0 round 2 (stampCard band went 23% -> 25%: the sub move alone
   // left the 0.10-0.30H zone dead above the stamp). A kicker chip at
@@ -284,7 +301,9 @@ export function stampCardScene(g: SceneCtx): void {
     ctx.translate(cx + dx, cy);
     ctx.rotate(-0.06);
     ctx.globalAlpha = ap * alphaMul;
-    const scale = 1 + (1 - easeOutBack(ap)) * 0.4;
+    // P3 hero register: the stamp drops from 1.55 (was 1.4) — a bigger
+    // arrival travel, the slam read.
+    const scale = 1 + (1 - easeOutBack(ap)) * 0.55;
     ctx.scale(scale, scale);
     const txt = (s.stamp as string) || 'RECORD HIGHS';
     setFont(ctx, 110, 700, FONT_DISPLAY);
@@ -323,6 +342,10 @@ export function stampCardScene(g: SceneCtx): void {
   const SMEAR = t >= 500 && t < 540; // the frame the stamp lands (ap completes at 500)
   if (SMEAR) drawStamp(W * 0.015, 0.35, true); // the ink-only motion-blur ghost, UNDER
   const tw = drawStamp(0, 1); // the solid stamp (also returns the word width)
+  // P3 hero register: the stamp gets the impact ring it never had —
+  // HERO.ringScale from the stamp's centre, the same slam grammar the
+  // bigText block carries.
+  impactRing(ctx, cx, cy, t, 500, 240, HERO.ringScale);
   // checkmark + sub
   const cp = clamp01((t - 700) / 700);
   if (cp > 0) {
@@ -360,7 +383,7 @@ export function stampCardScene(g: SceneCtx): void {
   // t=500 (ap completes); a 2-frame white accent at 8% lands the hit.
   if (t >= 500 && t < 500 + 66) {
     ctx.save();
-    ctx.globalAlpha = 0.08;
+    ctx.globalAlpha = 0.12; // P3 hero register
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, W, H);
     ctx.restore();
@@ -385,7 +408,26 @@ export function quoteCardScene(g: SceneCtx): void {
   const ap = clamp01(t / 700);
   const cw = 980;
   const x = W / 2 - cw / 2;
-  const y = H * 0.24;
+  // FIX 3 (empty-band payload): the card rose 0.24H -> 0.16H — the top
+  // quarter of the frame was bare plate (the phone gate measured a 22%
+  // empty band above the card); the ghost glyph + card furniture now own it.
+  const y = H * 0.16;
+  // FIX 3 (density payload — the frame measured 2.3% info): the quote room
+  // gains its own furniture — a 400px ghost serif quotation mark behind the
+  // card's top-left (the beat IS a quotation/caveat; the glyph is content-
+  // true furniture) at readable register, and the card's accent rail doubles.
+  {
+    const gp = clamp01((t - 200) / 700);
+    if (gp > 0) {
+      ctx.save();
+      ctx.globalAlpha = gp * (soft ? 0.34 : 0.42);
+      setFont(ctx, 400, 700, FONT_DISPLAY);
+      ctx.textAlign = 'left';
+      ctx.fillStyle = PALETTE.gold;
+      ctx.fillText('\u201C', x - 60, y + 330);
+      ctx.restore();
+    }
+  }
   // PANEL-9 R7h (caveat lines colliding inside the card): ch was a flat
   // 200 + lines.length*60 — one 60px slot per line — but lines WRAP at
   // cw-160 = 820px, and a wrapped second row (46px below the first) crashed
@@ -393,18 +435,18 @@ export function quoteCardScene(g: SceneCtx): void {
   // "most interviews wrapped…", on top of "the mood by the time you
   // watch…"). The card is now sized from MEASURED wrapped rows: 46px
   // leading inside a wrap, 68px between logical lines, real bottom padding.
-  const wrapped = lines.map((ln) => wrapText(ctx, ln, cw - 160, 36, 600));
+  const wrapped = lines.map((ln) => wrapText(ctx, ln, cw - 160, 40, 700));
   const ch =
     168 +
-    wrapped.reduce((a, ls) => a + ls.length * 46, 0) +
+    wrapped.reduce((a, ls) => a + ls.length * 50, 0) +
     Math.max(0, lines.length - 1) * 22;
   ctx.save();
   ctx.globalAlpha = ap;
   ctx.translate(0, (1 - easeOutCubic(ap)) * 36);
   card(ctx, x, y, cw, ch, { r: 34 });
-  // accent
+  // accent — FIX 3: 8 -> 14px rail (the card's one accent carries more mass)
   ctx.fillStyle = soft ? rgba(PALETTE.grid, 0.9) : PALETTE.gold;
-  roundRect(ctx, x + 44, y + 40, 8, ch - 80, 4);
+  roundRect(ctx, x + 44, y + 40, 14, ch - 80, 7);
   ctx.fill();
   // kicker
   setFont(ctx, 34, 700); // v9 (D-07): floor
@@ -413,7 +455,9 @@ export function quoteCardScene(g: SceneCtx): void {
   ctx.fillText((s.kicker as string).toUpperCase(), x + 84, y + 78);
   // lines — R7h: running cursor; each logical line advances by its own
   // wrapped row count (was a flat i*68 slot that wrapped rows overprinted)
-  setFont(ctx, 36, 600);
+  // FIX 3: 36 -> 40px at weight 700 — the READ floor; the quote's lines are
+  // the frame's only body copy and now carry commensurate ink.
+  setFont(ctx, 40, 700);
   ctx.fillStyle = PALETTE.ink;
   let lnY = y + 148;
   lines.forEach((ln, i) => {
@@ -422,7 +466,7 @@ export function quoteCardScene(g: SceneCtx): void {
     ctx.globalAlpha = ap * lp;
     wrapped[i].forEach((wl) => {
       ctx.fillText(wl, x + 84, lnY);
-      lnY += 46;
+      lnY += 50;
     });
     lnY += 22;
   });
@@ -528,6 +572,32 @@ export function takeawaysScene(g: SceneCtx): void {
     const ap = clamp01(t / 700);
     const cw = W * 0.62;
     const x = W * 0.28;
+    // FIX 3 (density payload): the "n of 3" kicker chip above the card —
+    // the takeaway series' own navigation, content-true furniture at
+    // readable register.
+    {
+      const kp = clamp01((t - 120) / 500);
+      if (kp > 0) {
+        ctx.save();
+        ctx.globalAlpha = kp;
+        const kt = `TAKEAWAY ${focus} OF 3`;
+        setFont(ctx, 34, 700);
+        const kw = ctx.measureText(kt).width;
+        const kx3 = x + 210;
+        const ky3 = H * 0.16 - 66;
+        ctx.fillStyle = PALETTE.goldWash;
+        roundRect(ctx, kx3, ky3, kw + 56, 54, 27);
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = rgba(PALETTE.gold, 0.7);
+        roundRect(ctx, kx3, ky3, kw + 56, 54, 27);
+        ctx.stroke();
+        ctx.fillStyle = PALETTE.goldDeep;
+        ctx.textAlign = 'left';
+        ctx.fillText(kt, kx3 + 28, ky3 + 36);
+        ctx.restore();
+      }
+    }
     // PANEL-9 R7g (takeaway text overflowing the card): the card height was
     // a flat 170 + pts.length*76 — one 76px slot per point — but points WRAP
     // (cw-260 ≈ 930px at 30px type), and the last point's baseline landed
@@ -631,7 +701,10 @@ export function takeawaysScene(g: SceneCtx): void {
       // focused card column (x = W*0.28) stays clear of the body envelope.
       // PLAYBOOK D3: ground 0.667 → 0.635 — the feet band cleared the
       // 2-row pill by zero at max camera (stickman@383,730, 22px).
-      drawStickmanV2(ctx, W * 0.19, H * 0.635, 1.3, t,
+      // DOSSIER FOLLOW-UP: ground 0.635 -> 0.615 — the 0.635 ground was
+      // sweep-certified at ZERO margin and the sweep caught a 12px graze
+      // into the 2-row pill at the max camera + mid-group reframe stack.
+      drawStickmanV2(ctx, W * 0.19, H * 0.615, 1.3, t,
         {
           pose, alpha: hp, look: 0.6,
           prop: focus === 3 && rP <= 0.5 ? 'thumb' : undefined,
@@ -868,16 +941,20 @@ export function endScreenScene(g: SceneCtx): void {
   // still inside the left-55% YouTube-safe zone, waving toward the card.
   // v8: he PRESENTS — points at the WATCH NEXT arrow below (the scene's
   // click mechanism) instead of waving at nothing.
+  // dossier follow-up (vision-verified): the host pointed screen-RIGHT —
+  // into YouTube's reserved (rendered-empty) end-screen zone — while the
+  // WATCH NEXT chip sits BELOW-LEFT of him under the card. The pose flips
+  // to pointL so the gesture sells the actual click target.
   const pose = {
-    ...POSES.pointR,
-    rAL: POSES.pointR.rAL + Math.sin(t / 900) * 4,
+    ...POSES.pointL,
+    lAU: POSES.pointL.lAU + Math.sin(t / 900) * 4,
   };
   // v9 (report D-02): H*0.70 → H*0.675 — the guard caught this centered
   // figure's shadow grazing the 2-row pill envelope by 16px at the widest
   // captions; a touch more headroom settles it.
   // P1-1 (report): +30% (1.0 → 1.3); ground → H*0.645 (envelope bottom
   // 697+47 = 744 — the widest-caption worst case clears by 32px).
-  drawStickmanV2(ctx, W * 0.44, H * 0.645, 1.3, t, { pose, alpha: clamp01((t - 800) / 600), look: 0.6 }, 37);
+  drawStickmanV2(ctx, W * 0.44, H * 0.645, 1.3, t, { pose, alpha: clamp01((t - 800) / 600), look: -0.5 }, 37);
 
   // ── v8: the WATCH NEXT arrow — the end screen's click mechanism ────────
   // The panel's verdict: "no thumbnail target = the most commercially

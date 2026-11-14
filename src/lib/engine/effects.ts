@@ -1184,21 +1184,24 @@ export function floatCoins(
 }
 
 // ── AUDIT-2 / §10.4 (report Phase 3): THE IMPACT GRAMMAR ────────────────────
-/** Micro-shake — a 2px, 80ms camera jitter on data reveals. Deterministic
- *  per quantized frame (pure function of t). Apply to ctx.translate BEFORE
- *  the scene draws.
- *  AUDIT-PHASE-4: duration 80 -> 60ms, amplitude via AMP.microShakePx 9 -> 18.
- *  Faster + harder = impact; slower + smaller = camera drift. */
-export function microShake(t: number, t0: number): { dx: number; dy: number } {
+/**
+ * Micro-shake — a 2px, 80ms camera jitter on data reveals. Deterministic
+ * per quantized frame (pure function of t). Apply to ctx.translate BEFORE
+ * the scene draws.
+ * AUDIT-PHASE-4: duration 80 -> 60ms, amplitude via AMP.microShakePx 9 -> 18.
+ * Faster + harder = impact; slower + smaller = camera drift.
+ * 100-JUDGE DOSSIER (P3 — hero register): optional `amp` override — the
+ * hero slams pass HERO.shakePx (2.3× ambient). Default stays ambient.
+ */
+export function microShake(t: number, t0: number, amp?: number): { dx: number; dy: number } {
   const age = t - t0;
   if (age < 0 || age > 60) return { dx: 0, dy: 0 };
   const decay = Math.sin((age / 80) * Math.PI);
   const f = Math.floor(t / 33.33);
-  // BLUEPRINT Phase 1 (Table 7): 4.4 -> 9 px (AMP.microShakePx) — the
-  // reveal impact must register as a hit, not a tick.
+  const a = amp ?? AMP.microShakePx;
   return {
-    dx: (hash01(f * 13.7 + 0.5) - 0.5) * AMP.microShakePx * 2 * decay,
-    dy: (hash01(f * 29.3 + 5.5) - 0.5) * AMP.microShakePx * 2 * decay,
+    dx: (hash01(f * 13.7 + 0.5) - 0.5) * a * 2 * decay,
+    dy: (hash01(f * 29.3 + 5.5) - 0.5) * a * 2 * decay,
   };
 }
 
@@ -1206,14 +1209,18 @@ export function microShake(t: number, t0: number): { dx: number; dy: number } {
  *  stroke. The second member of the impact grammar (shake + ring + one
  *  double-radius glow frame at the strike).
  *  AUDIT-PHASE-4: 520ms -> 380ms, stroke 14px -> 22px. A faster, thicker
- *  ring reads as a slam; a slower, thinner ring reads as a ripple. */
+ *  ring reads as a slam; a slower, thinner ring reads as a ripple.
+ *  100-JUDGE DOSSIER (P3 — hero register): optional `scale` multiplier —
+ *  hero slams pass HERO.ringScale (radius ×1.7, stroke ×1.4, echo ring). */
 export function impactRing(
   ctx: CanvasRenderingContext2D,
   cx: number,
   cy: number,
   t: number,
   t0: number,
-  r = 150
+  r = 150,
+  scale = 1,
+  col: string = PALETTE.gold
 ): void {
   const age = t - t0;
   if (age < 0 || age > 380) return;
@@ -1223,11 +1230,22 @@ export function impactRing(
   // with a thicker decaying stroke so the slam COMMUNICATES.
   ctx.save();
   ctx.globalAlpha = (1 - p) * 0.85;
-  ctx.strokeStyle = PALETTE.gold;
-  ctx.lineWidth = Math.max(2.5, 22 * (1 - p));
+  ctx.strokeStyle = col;
+  ctx.lineWidth = Math.max(2.5, 22 * (1 - p)) * (scale > 1 ? 1.4 : 1);
   ctx.beginPath();
-  ctx.arc(cx, cy, r * (0.22 + 0.78 * easeOutCubic(p)), 0, Math.PI * 2);
+  ctx.arc(cx, cy, r * scale * (0.22 + 0.78 * easeOutCubic(p)), 0, Math.PI * 2);
   ctx.stroke();
+  // the hero echo — a second ring one beat behind, half weight: the slam
+  // propagates instead of popping once (dossier P3: the hero moment must
+  // move 2-3× the ambient, and one ring is the ambient's own grammar)
+  if (scale > 1 && age > 130) {
+    const p2 = (age - 130) / 380;
+    ctx.globalAlpha = (1 - p2) * 0.45;
+    ctx.lineWidth = Math.max(2, 14 * (1 - p2));
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * scale * (0.22 + 0.78 * easeOutCubic(p2)) * 1.25, 0, Math.PI * 2);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 

@@ -57,7 +57,7 @@ interface State {
    *  compares the two classes — a side host must never plate a card, chart
    *  or dot field. QA-SWEEP (guard v2.2): noEdge marks intentionally
    *  off-frame scenery (scrolling racks) — exempt from the edge rule only. */
-  content: Array<GuardRect & { id: string; cls?: 'content' | 'host'; noEdge?: boolean }>;
+  content: Array<GuardRect & { id: string; cls?: 'content' | 'host' | 'contact'; noEdge?: boolean }>;
   /** v10 (PANEL-11 D-01/D-02): READING-text rects — the subset of content
    *  that carries words the viewer must read (scene titles, source tags,
    *  big captions, count badges). Checked against EACH OTHER, because the
@@ -72,6 +72,14 @@ interface State {
   /** chapter cards / overlays intentionally cover the frame — suppress */
   overlay: boolean;
   violations: CollisionViolation[];
+  /** CONTACT VERBS (P2 grammar, dossier follow-up): the content-rect ids the
+   *  host is ALLOWED to touch this frame. A scene that stages a contact verb
+   *  (hand on the pie's rim, palm on the rack face, tap on the 493 wall)
+   *  declares the touched object here every frame; the host-vs-content pass
+   *  exempts exactly those rects — nothing else. Every other check (pill,
+   *  fixed furniture, frame edge, text-vs-text) still applies to the host,
+   *  the hand rect and the object. Cleared by resetGuard each frame. */
+  contactIds: Set<string>;
   /** P1-2 (report): the director's camera for THIS frame, design-grid space.
    *  When present (16:9 path), content rects are transformed by the exact
    *  camera before comparison — hero camera moves (truck/push/pull) no
@@ -91,6 +99,7 @@ export const collisionGuard: State = {
   overlay: false,
   violations: [],
   camera: null,
+  contactIds: new Set<string>(),
 };
 
 /** Reset per-frame state. Call at the top of drawFrame when enabled. */
@@ -104,6 +113,20 @@ export function resetGuard(frame: string): void {
   collisionGuard.overlay = false;
   collisionGuard.violations = [];
   collisionGuard.camera = null;
+  collisionGuard.contactIds = new Set<string>();
+}
+
+/**
+ * CONTACT VERBS: declare the content rects this frame's host may touch.
+ * Call INSIDE the scene drawer, every frame, BEFORE collectViolations.
+ * Only these ids are exempt from the host-vs-content pass; the hand itself
+ * still registers as a 'contact' rect so it can never plate the caption
+ * pill or the watermark, and the sweep + frame review remain the referees
+ * of whether the touch actually lands on the object.
+ */
+export function declareHostContact(...ids: string[]): void {
+  if (!collisionGuard.enabled) return;
+  for (const id of ids) collisionGuard.contactIds.add(id);
 }
 
 /** P1-2: publish this frame's camera (design-grid space) so violations are
@@ -130,7 +153,7 @@ export function setGuardOverlay(on: boolean): void {
  *  catch UNINTENDED crops of reading content, not corridor staging. */
 export function registerRect(
   id: string, x: number, y: number, w: number, h: number,
-  cls: 'content' | 'host' = 'content',
+  cls: 'content' | 'host' | 'contact' = 'content',
   opts: { edge?: boolean } = {}
 ): void {
   const g = collisionGuard;
@@ -282,6 +305,12 @@ export function collectViolations(): CollisionViolation[] {
   for (const hst of hosts) {
     for (const c of g.content) {
       if (c.cls === 'host') continue;
+      // CONTACT VERBS: the hand rect ('contact') and any object the scene
+      // declared via declareHostContact() are the DESIGNED touch — skipped
+      // here only. (The hand rect still asserts against pill/fixed/edge
+      // through the obstacle loop above; the object keeps every other
+      // content check.)
+      if (c.cls === 'contact' || g.contactIds.has(c.id)) continue;
       // v10.1: the SAME figure's feet+shadow band (registered by
       // drawStickmanV2) sits inside its full-body envelope by construction —
       // same stickman, not a defect. Skip fully-contained stickman bands.

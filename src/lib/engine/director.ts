@@ -13,7 +13,7 @@ import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawW
 import { Timeline, beatAt } from './timeline';
 import { SceneCtx, SceneDrawer, REACTIONS, reactionAt } from './scene-context';
 import { collisionGuard, collisionGuard as guardRef, resetGuard, setGuardOverlay, setGuardCamera, collectViolations } from './collision';
-import { AMP } from './perception';
+import { AMP, HERO } from './perception';
 import { hostScene, splitNumbersScene, divergeKScene, channelIntroScene, recapSplitScene, paradoxResolveScene } from './scenes-host';
 import {
   chartTwinScene, chartJourneyScene, pieChartScene, dotGridScene, magChipsScene,
@@ -118,6 +118,17 @@ function computeGroups(tl: Timeline): Group[] {
     const key = tl.beats[i].beat.scene.sceneKey;
     let end = i;
     while (end + 1 < tl.beats.length && tl.beats[end + 1].beat.scene.sceneKey === key) end++;
+    // DOSSIER FOLLOW-UP (vision-verified defect): the cold-open re-cut's
+    // choreography (conflict 0-1.7s → shock close-up 2.4-4.8s → tear
+    // 4.8-7.1s → presentation) is keyed to GROUP-LOCAL time. The 12s cap
+    // re-split the ~19s opening beat at its sentence seam, the group clock
+    // RESET, and the entire opening REPLAYED on the second group — numbers
+    // re-slamming, the shock re-entering, the K re-tearing mid-beat (the
+    // harness pick frame caught the replay's dead gap: a lone host, no K).
+    // Beats flagged `opening: true` are EXEMPT from the cap: their internal
+    // rhythm IS the anti-swipe rhythm (a visible event every ~2s), and the
+    // absolute choreography must never reset. Pure function of the script.
+    const noCap = tl.beats.slice(i, end + 1).some((b) => (b.beat.scene as any).opening === true);
     // the seam candidates for this run (absolute ms, ascending)
     const seams: number[] = [];
     for (let b = i; b <= end; b++) {
@@ -136,8 +147,14 @@ function computeGroups(tl: Timeline): Group[] {
     // because a sentence is the atomic rhythm unit — a >12s sentence
     // stays whole; the report caps groups, not sentences). Close there
     // and restart. The tail closes at the run's end.
+    // noCap runs push ONE group spanning the whole beat (choreography-safe).
     const runStart = seams[0];
     const runEnd = tl.beats[end].endMs;
+    if (noCap) {
+      groups.push({ startMs: runStart, endMs: runEnd, beatIdx: i });
+      i = end + 1;
+      continue;
+    }
     let gFrom = runStart;
     while (gFrom < runEnd) {
       // candidates: every seam after gFrom (plus the run end)
@@ -717,9 +734,11 @@ export function drawFrame(
   // 5% punch on the new staging — the punch rises to 0.05 for EVERY scene
   // (AMP.cutPunch), because the ivory dissolve that used to carry scene
   // changes is now reserved for chapter boundaries.
+  // P3 hero register: the statement slams punch at HERO.punch (0.075 —
+  // 2.5x the ambient cut) — the cut itself carries the slam.
   const punchAmp =
     beat.beat.scene.type === 'bigText' || beat.beat.scene.type === 'stampCard'
-      ? 0.05
+      ? HERO.punch
       : AMP.cutPunch;
   const punch = scalePunch(gt, 200, punchAmp);
   if (punch !== 1) {

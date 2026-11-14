@@ -52,6 +52,40 @@ const BODY_MASS = '#8F6E12';
 const lerp2 = (a: number, b: number, t: number): number => a + (b - a) * t;
 
 /**
+ * CONTACT VERBS (P2 grammar, dossier follow-up) — closed-form 2-bone IK.
+ *
+ * The P2 rule: every scene declares what the hand DOES to the object —
+ * bracket the pie wedge, palm the rack face, tap the 493 wall. Poses are
+ * angle-based, so "the hand lands ON the object" needs the two arm angles
+ * SOLVED from a scene-space target. This solver is a pure function of
+ * (shoulder, target, lengths) — no state, no integration, scrub-safe like
+ * everything else in the engine.
+ *
+ * Angle convention matches limb2(): degrees from the DOWN axis, positive
+ * toward screen-right (x = sin(a)·len, y = cos(a)·len). `bend` picks the
+ * elbow side (+1 = elbow offset toward positive base rotation). When the
+ * target is out of reach the arm straightens toward it (clamped inside
+ * [12, lenU+lenL−2] so the elbow never inverts) — the hand always points
+ * AT the object, and scenes place the host inside reach so it lands on it.
+ */
+function armIk(
+  sx: number, sy: number, tx: number, ty: number,
+  lenU: number, lenL: number, bend: number
+): { aU: number; aL: number } {
+  const dx = tx - sx;
+  const dy = ty - sy;
+  const d = Math.max(12, Math.min(lenU + lenL - 2, Math.hypot(dx, dy)));
+  const base = Math.atan2(dx, dy);
+  const cosA = Math.max(-1, Math.min(1, (lenU * lenU + d * d - lenL * lenL) / (2 * lenU * d)));
+  const A = Math.acos(cosA);
+  const aU = base + bend * A;
+  const ex = sx + Math.sin(aU) * lenU;
+  const ey = sy + Math.cos(aU) * lenU;
+  const aL = Math.atan2(tx - ex, ty - ey);
+  return { aU: (aU * 180) / Math.PI, aL: (aL * 180) / Math.PI };
+}
+
+/**
  * v3 (panel P0-4) — deterministic talk envelope: max mouth openness across
  * words near local time t. `wordTimes` are ms-local to the beat — the same
  * array SceneCtx already carries for caption sync and head nods, so routing
@@ -926,6 +960,18 @@ export function drawStickmanV2(
      *  shadow: the fist lands ON the gold instead of floating over it.
      *  Rendered in the 'rest' pass, just under the near hand glyph. */
     kContact?: boolean;
+    /** CONTACT VERBS (P2 grammar, dossier follow-up): a SCENE-SPACE point
+     *  the near hand must land ON (the pie's rim, the rack face, the 493
+     *  wall). The near arm's angles are solved by armIk() every frame from
+     *  the target — the pose's other keys still drive the body, legs, head
+     *  and far arm, so the figure keeps talking while the hand stays
+     *  planted on what it presents. `hand` overrides the glyph ('palm' =
+     *  touch/bracket, 'fist' = grip); `bend` picks the elbow side;
+     *  `shadow` draws the small contact ellipse under the hand (default
+     *  true). The hand rect registers as guard cls 'contact' — scenes that
+     *  let the body stand near registered content declare the touched
+     *  object with collision.declareHostContact(). */
+    contact?: { x: number; y: number; hand?: 'palm' | 'fist' | 'count1' | 'count2' | 'count3'; bend?: 1 | -1; shadow?: boolean };
   },
   seed = 0
 ): void {
@@ -979,9 +1025,14 @@ export function drawStickmanV2(
   // The visual shadow + contact line still draw to their full extent below
   // the feet; only the guard's certified envelope stops at the soles.
   if (r.hostBody) {
+    // CONTACT VERBS: while a hand is planted on a scene object the certified
+    // body envelope narrows to the body core (the reaching arm is accounted
+    // for by the scene's declared contact + the hand's own rect). The sweep
+    // and the frame review are the referees of the full staging.
+    const envHalf = r.contact ? 70 : 128;
     registerRect(
       `hostBody@${Math.round(cx)},${Math.round(groundY)}`,
-      cx - 128 * scale, groundY - 296 * scale, 256 * scale, 296 * scale,
+      cx - envHalf * scale, groundY - 296 * scale, envHalf * 2 * scale, 296 * scale,
       'host'
     );
     // PLAYBOOK D3 (report §8.3): the same figure's own feet band must be
@@ -993,9 +1044,14 @@ export function drawStickmanV2(
     // registers with the noEdge-style exemption: same cls, never
     // compared. (The band still asserts against the pill + fixed
     // furniture checks above — only the host-vs-content self-check dies.)
+    // CONTACT VERBS: the feet band narrows with the body envelope (70·scale
+    // half-width) — a host planted on a scene object stands close enough
+    // that the full 122·scale band sweeps a registered object the body
+    // itself never touches (the guard caught exactly that on the
+    // datacenter's rack: 61px of phantom feet-band overlap).
     registerRect(
       `stickman@${Math.round(cx)},${Math.round(groundY)}`,
-      cx - 122 * scale, groundY - 12 * scale, 244 * scale, 48 * scale,
+      cx - (r.contact ? 70 : 122) * scale, groundY - 12 * scale, (r.contact ? 140 : 244) * scale, 48 * scale,
       'host'
     );
   } else {
@@ -1391,6 +1447,34 @@ export function drawStickmanV2(
   // −3px). A silhouette-level emotion term: the shoulder LINE tilts, the
   // whole read changes shape, not just a brow angle.
   const shDrop = pose.shoulderDrop ?? 0;
+  // ── CONTACT VERBS: solve the near arm onto the scene's touch point ──
+  // The shoulder anchor here replicates limb2's own start point 1:1 (the
+  // same neck + shoulder-tilt + drop terms), so the SOLVED angles land the
+  // rendered hand on the target. Everything the pose still owns (body,
+  // legs, head, far arm, mouth) keeps animating — the hand stays planted
+  // while the figure talks, which is the whole grammar.
+  if (r.contact) {
+    const shX2 = neckX + 4 + Math.sin(shT) * 4;
+    const shY2 = neckY + 3 - Math.sin(shT) * 9 + shDrop;
+    const flipS = r.flip ? -1 : 1;
+    const tLx = ((r.contact.x - cx) / scale) * flipS;
+    const tLy = (r.contact.y - groundY) / scale;
+    const ik = armIk(shX2, shY2, tLx, tLy, U_ARM, L_ARM, r.contact.bend ?? 1);
+    pose.rAU = ik.aU;
+    pose.rAL = ik.aL;
+    if (r.contact.hand) pose.rHand = r.contact.hand;
+    // the hand's scene-space rect — guard-visible ('contact'), so it can
+    // never plate the caption pill or the watermark even mid-gesture
+    const hLx = shX2 + Math.sin(pose.rAU * D2R) * U_ARM + Math.sin(pose.rAL * D2R) * L_ARM;
+    const hLy = shY2 + Math.cos(pose.rAU * D2R) * U_ARM + Math.cos(pose.rAL * D2R) * L_ARM;
+    const hsx = cx + flipS * hLx * scale;
+    const hsy = groundY + hLy * scale;
+    registerRect(
+      `contact@${Math.round(hsx)},${Math.round(hsy)}`,
+      hsx - 30 * scale, hsy - 30 * scale, 60 * scale, 60 * scale,
+      'contact'
+    );
+  }
   // 100-JUDGE AUDIT (Part 9.1 — REAL SMEAR FRAMES). The old 2-ghost trail
   // read as "three arms" / "rubbery" on stills and vanished at the phone
   // gate. A real smear frame is ONE elongated drawing spanning the arc the
@@ -1424,10 +1508,10 @@ export function drawStickmanV2(
   // RETIRED — see the note above the near arm. One light edge (the
   // head's rim) per figure; the torso is mass, not chrome.
   // AUDIT-ROUND-2 (fix 19 — CONTACT): the small soft shadow where the near
-  // fist meets the presented object (the K's stem on leanOnK). Drawn just
-  // UNDER the hand glyph so the fist lands ON it — the touch the audit
-  // demanded: "a small contact shadow where the hand meets the stem".
-  if (r.kContact) {
+  // hand meets the presented object — the K's stem (leanOnK / kContact) and
+  // every CONTACT-VERB staging (pie rim, rack face, 493 wall). Drawn just
+  // UNDER the hand glyph so the hand lands ON the object.
+  if (r.kContact || r.contact) {
     ctx.fillStyle = rgba(PALETTE.shadow, 0.38);
     ctx.beginPath();
     ctx.ellipse(hand.ex + 2, hand.ey + 7, 26, 11, pose.rAL * D2R * 0.4, 0, Math.PI * 2);

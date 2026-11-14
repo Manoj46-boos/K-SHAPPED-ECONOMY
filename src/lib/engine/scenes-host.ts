@@ -8,6 +8,7 @@ import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlo
 import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp, subjectHalo, microShake, impactRing, depthShift } from './effects';
 import { Stickman, POSES, blendPose, walkIn, nodPulse, accentPulse, walkSmear, take } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
+import { HERO } from './perception';
 import { SceneCtx } from './scene-context';
 import { reactionAt, reactionStart } from './scene-context';
 import { sourceTag, wrapText } from './charts';
@@ -700,7 +701,9 @@ export function splitNumbersScene(g: SceneCtx): void {
   // v2 (PATCH 4 follow-up): panels slightly shorter + higher, freeing a
   // clean anchored statement slot below them and clear of the caption pill
   // (2-row pill top sits at y≈808; the statement slot centers at y≈752).
-  const panelH = H * 0.48;
+  // FIX 3 (density payload): the panels yield a further 4% height — the
+  // population band below needs the 700-830 zone unobstructed.
+  const panelH = H * 0.44;
   const lx = W * 0.07;
   const rx = W * 0.55;
   const py = H * 0.17;
@@ -753,6 +756,41 @@ export function splitNumbersScene(g: SceneCtx): void {
     drawNumberPanel(g, rx, py + 22, panelW, panelH, 'THE MOOD', moodStats, t, delay);
   }
   if (mode === 'vs' || mode === 'vs-punch') {
+    // DENSITY PAYLOAD (100-judge dossier, FIX 3 — the 03 frame measured the
+    // film's sparsest read at 2.1% info): the same 500-household population
+    // band bigText's payoff carries, drawn in the open band under the panels
+    // — teal dots LEFT of the divider (the market half), coral RIGHT (the
+    // mood half). The frame stops being two floating cards in breathing
+    // room: the economy the two panels DESCRIBE is drawn between them, in
+    // the film's own dot language. Tone ink at readable alpha — credited by
+    // the tuned two-tier phone-gate metric, visible at the 320px feed.
+    {
+      const bp = clamp01((t - 600) / 700);
+      if (bp > 0) {
+        ctx.save();
+        ctx.globalAlpha = bp;
+        const cols = 62;
+        const rows2 = Math.ceil(500 / cols);
+        const fx = W * 0.08;
+        const fy = H * 0.655;
+        const fw = W * 0.84;
+        const fh = H * 0.12;
+        const pitX = fw / cols;
+        const pitY = fh / rows2;
+        for (let i = 0; i < 500; i++) {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const dcx = fx + col * pitX + 6;
+          const dcy = fy + row * pitY + 6;
+          const isMarket = dcx < W / 2;
+          ctx.fillStyle = isMarket ? rgba(PALETTE.up, 0.6) : rgba(PALETTE.down, 0.6);
+          ctx.beginPath();
+          ctx.arc(dcx, dcy, 6.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
     // divider + anchored statement slot (PATCH 4 follow-up).
     // v1 drew 'SAME COUNTRY. / SAME YEAR.' at y≈860-910 — inside the caption
     // pill zone, where it ghosted through the subtitle plate. v2 anchors ONE
@@ -1067,7 +1105,9 @@ export function divergeKScene(g: SceneCtx): void {
   const tearMix = opening ? clamp01((growTear - 0.5) / 0.25) : 1;
   const tearOver = Math.sin(Math.min(1, tearMix) * Math.PI) * 0.14;
   const tearDir = -1 + 2 * Math.min(1.14, tearMix + tearOver);
-  const tearShake = opening ? microShake(t, 5950) : { dx: 0, dy: 0 };
+  // P3 hero register: the tear is the film's biggest event — it flinches
+  // at HERO.shakePx (2.3x the ambient reveal tick).
+  const tearShake = opening ? microShake(t, 5950, HERO.shakePx) : { dx: 0, dy: 0 };
   ctx.save();
   if (tearShake.dx !== 0 || tearShake.dy !== 0) ctx.translate(tearShake.dx, tearShake.dy);
   ctx.lineCap = 'round';
@@ -1124,8 +1164,8 @@ export function divergeKScene(g: SceneCtx): void {
       const tS = 5950;
       const dt = t - tS;
       if (dt >= 0 && dt < 620) {
-        impactRing(ctx, kx, ky + S * 0.1, t, tS, S * 1.35);
-        for (let i = 0; i < 26; i++) { // panel r4: density up — the strike frame must read 'reality split'
+        impactRing(ctx, kx, ky + S * 0.1, t, tS, S * 1.35, HERO.ringScale);
+        for (let i = 0; i < 34; i++) { // P3 hero register: 26 -> 34 shards, 1.3x velocity — the aftermath must MATCH the flinch
           const h1 = Math.abs(Math.sin(i * 12.9898 + 4.1414)) % 1;
           const h2 = Math.abs(Math.sin(i * 78.233 + 2.7183)) % 1;
           const h3 = Math.abs(Math.sin(i * 39.425 + 1.6180)) % 1;
@@ -1137,7 +1177,7 @@ export function divergeKScene(g: SceneCtx): void {
           // equal travel.
           const up = i % 2 === 0;
           const ang = (up ? -0.74 : 0.74) + (h1 - 0.5) * 0.7;
-          const spd = (0.8 + h2 * 1.0) * S * 2.7;
+          const spd = (0.8 + h2 * 1.0) * S * 3.5; // P3: 2.7 -> 3.5 (hero register)
           const dist = spd * (dt / 1000) * (1 - dt / 700);
           const px2 = kx + Math.cos(ang) * dist;
           const py2 = ky + S * 0.1 + Math.sin(ang) * dist + (up ? 140 : 260) * (dt / 1000) * (dt / 1000);
@@ -1574,11 +1614,28 @@ export function paradoxResolveScene(g: SceneCtx): void {
   bokehField(ctx, W, H, t, { intensity: 0.9, seed: 55, gold: 0.55 });
   const cx = W / 2;
   // the word "PARADOX" appears, then strikes through
+  // P3 hero register: the strike flinches the frame at HERO.shakePx — the
+  // paradox beat is one of the film's three loudest moments.
+  {
+    const shake = microShake(t, 1400, HERO.shakePx);
+    if (shake.dx !== 0 || shake.dy !== 0) ctx.translate(shake.dx, shake.dy);
+  }
   const wp = clamp01(t / 700);
   const sp = clamp01((t - 1400) / 600);
   ctx.save();
   ctx.globalAlpha = wp;
   ctx.textAlign = 'center';
+  // P3 hero register (the motion-contrast gate's own finding): the strike
+  // carried only a 2-frame tick — 1.43x the quiet register, under the 2x
+  // floor. The full slam grammar lands WITH the strike: the word PUNCHES
+  // (a 200ms scale pulse about the word) and a CORAL impact ring
+  // propagates from the stroke — the paradox beat moves at the hero
+  // register, measured. The pulse is exactly 1.0 outside its 200ms window.
+  const punchP = clamp01((t - 1400) / 200);
+  const punch = 1 + 0.055 * Math.sin(punchP * Math.PI) * (1 - punchP);
+  ctx.translate(cx, H * 0.34 - 28);
+  ctx.scale(punch, punch);
+  ctx.translate(-cx, -(H * 0.34 - 28));
   setFont(ctx, 96, 700);
   ctx.fillStyle = PALETTE.ink;
   ctx.fillText('PARADOX', cx, H * 0.34);
@@ -1593,6 +1650,7 @@ export function paradoxResolveScene(g: SceneCtx): void {
     ctx.stroke();
   }
   ctx.restore();
+  if (sp > 0) impactRing(ctx, cx, H * 0.34 - 28, t, 1400, 200, HERO.ringScale, PALETTE.down);
   // resolves into K + takeaway lines
   // P1-1/P1-6 pass: the K moves to the left third and the takeaway lines
   // annotate BESIDE it (right column, y 470-604). The v8 stack put the

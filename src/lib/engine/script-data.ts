@@ -192,8 +192,12 @@ export const SCRIPT: ChapterSpec[] = [
             [32, 33200], [34, 32900], [36, 32650], [38, 32300], [40, 32420],
           ],
           annotations: [
+            // DOSSIER FOLLOW-UP: the 20/30 pills stacked at the same clamped
+            // row and overprinted each other AND the peak-band label. Rows
+            // separated: the 30k crossing annotates BELOW its point, the
+            // +30% payoff keeps the top row (below the band label).
             { at: 11, label: 'low-23,000s · March', tone: 'down', dy: 40 },
-            { at: 20, label: 'crosses 30,000 · June — first time ever', tone: 'gold', dy: -46 },
+            { at: 20, label: 'crosses 30,000 · June — first time ever', tone: 'gold', dy: 46 },
             { at: 30, label: '+30% off the low in ~10 weeks', tone: 'up', dy: -70 },
           ],
           peakBand: { from: 26, to: 40, label: 'all-time-high zone' },

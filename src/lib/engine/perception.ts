@@ -88,11 +88,26 @@ export const AMP = {
    *  AUDIT-ROUND-3: 0.34 -> 0.24 — slams keep scale; statements stop
    *  hyperventilating. */
   bigTextDolly: 0.24,
-  /** Anticipation recoil before bigText — kept (the wind-up must be felt). */
-  anticipation: 0.06,
+  /** Anticipation recoil before bigText — kept (the wind-up must be felt).
+   *  100-JUDGE DOSSIER (P3 — motion contrast, the deferred half): 0.06 →
+   *  0.12 — the recoil is the HERO gesture's wind-up and must travel 2×
+   *  the ambient register: quiet scenes sit at boil 0.8 and tripod drift
+   *  0.25; the statement slam's wind-up now pulls 12% against that floor.
+   *  Guard: the recoil is a 700ms transient inside the dead-still window
+   *  (gt 500-1200) — punch-class, and the statement dolly that releases
+   *  from it is cap-clamped in cameraV2. */
+  anticipation: 0.12,
   /** Reaction-shot camera push per beat — kept (the close-ups are the
    *  film's best frames; the external audit endorsed them). */
-  reactionAmp: { paradox: 0.95, fund: 1.1, three: 0.9 } as Record<string, number>,
+  /** Reaction-shot camera push per beat — the DOSSIER FOLLOW-UP calibration:
+   *  the shipped 0.95/1.1/0.9 amplitudes are 2.0-2.1x ZOOMS at peak — the
+   *  phone-gate measured the twist close-up emptying 24% of the frame (the
+   *  whole composition pushed off-frame). The panel's own numbers were
+   *  0.22-0.28 ("a beat, not a hold"); these land between that and the old
+   *  register: a 1.3-1.4x push that reads as a close-up while the scene's
+   *  content stays IN frame. The faceScale 1.4-1.8x + DOF + veil carry the
+   *  close-up read — the camera supports them, it does not replace them. */
+  reactionAmp: { paradox: 0.34, fund: 0.4, three: 0.32 } as Record<string, number>,
   /** The head-yaw cap, deg. */
   headYawDeg: 14,
   /** Brow-raise travel, px. */
@@ -107,6 +122,27 @@ export const AMP = {
    *  AUDIT-ROUND-3: 0.08 -> 0.03 — cuts land with weight at 3%; at 8%
    *  every cut popped. */
   cutPunch: 0.03,
+};
+
+/**
+ * 100-JUDGE DOSSIER (P3 — THE MOTION-CONTRAST REGISTER): the principle is
+ * contrast — quiet moments nearly still (boil 0.8, tripod drift 0.25,
+ * dead-still statement entries), hero moments moving 2-3× MORE. The quiet
+ * half shipped with the boil register; this is the hero half: the amplitudes
+ * the film's loudest beats (the bigText/stampCard slams, the cold-open tear,
+ * the paradox strike) drive INSTEAD of the ambient values. Nothing else in
+ * the engine may hand-tune these.
+ */
+export const HERO = {
+  /** Micro-shake amplitude on hero slams (ambient AMP.microShakePx = 6). */
+  shakePx: 14,
+  /** Impact-ring scale multiplier on hero slams (radius + stroke). */
+  ringScale: 1.7,
+  /** Statement cut-punch (ambient AMP.cutPunch = 0.03, statements 0.05). */
+  punch: 0.075,
+  /** Statement block overshoot: the slam text travels from 0.90 (not 0.94)
+   *  to 1.10 (not 1.06) — double the arrival travel. */
+  blockTravel: 0.1,
 };
 
 /** Phase 2 ink register (report §11 Phase 2): the phone feed rewards dark
