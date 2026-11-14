@@ -37,6 +37,15 @@ export function bigTextScene(g: SceneCtx): void {
   // (the 0.72 default read as "a whisper of a wash" under a 118px slam).
   scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.88);
   softBloom(ctx, W, H, t, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)
+  // AUDIT-ROUND-3 iter-2 (Fix 4 — STATEMENT ATMOSPHERE): the re-review
+  // read the statement room as "a flat gradient void with no atmosphere,
+  // no vignette weight, no mid-ground element — depth by shadow alone is
+  // one trick, not a spatial design". The statement room now carries the
+  // film's atmosphere: a soft one-light shaft from the upper right (the
+  // same light the shadows obey) and the K-motif field at furniture
+  // alpha — the words sit IN the brand's room, not on a slide.
+  lightRays(ctx, W, H, t, { alpha: 0.22 });
+  kMotifs(ctx, W, H, t, 0.1);
   // AUDIT-2 / §10.4 (report Phase 3): THE IMPACT GRAMMAR — the slam fires
   // the full triple: a 2px/80ms MICRO-SHAKE (applied here at the TOP of the
   // scene draw so every element — block, underline, host — rides the
@@ -95,6 +104,16 @@ export function bigTextScene(g: SceneCtx): void {
       } else {
         setFont(ctx, size, 600, FONT_DISPLAY);
       }
+      // AUDIT-ROUND-3 (Fix 4 — STATEMENT MATERIALITY): the bigText frames
+      // scored VFX 3/10 on the external audit ("literally nothing
+      // happening... reads as a slide"). The type now SITS in the room: a
+      // soft one-light drop shadow under the block. The cheapest material
+      // cue in 2D typography: the words gain height without gaining noise.
+      // iter-3 (panel: "the shadow doesn't know the light is upper-right"):
+      // the offset now falls LOWER-LEFT (-2,+4) — the direction every
+      // shadow in the film obeys.
+      ctx.fillStyle = rgba(PALETTE.shadow, 0.18);
+      ctx.fillText(ln, dx - 2, 4);
       ctx.fillStyle = i === 1 ? PALETTE.goldDeep : PALETTE.inkDeep;
       ctx.fillText(ln, dx, 0);
       ctx.restore();
@@ -121,10 +140,13 @@ export function bigTextScene(g: SceneCtx): void {
     ctx.strokeStyle = PALETTE.gold;
     ctx.lineWidth = 9;
     ctx.lineCap = 'round';
+    // AUDIT-ROUND-3 (Fix 4): the underline WIPES left→right (a drawn
+    // gesture under the words) instead of expanding from the center
+    // (a loading bar). Reading direction = wipe direction.
     const w = 560 * easeOutCubic(up2);
     ctx.beginPath();
-    ctx.moveTo(W / 2 - w / 2, H * 0.62);
-    ctx.lineTo(W / 2 + w / 2, H * 0.62);
+    ctx.moveTo(W / 2 - 280, H * 0.62);
+    ctx.lineTo(W / 2 - 280 + w, H * 0.62);
     ctx.stroke();
     ctx.restore();
   }

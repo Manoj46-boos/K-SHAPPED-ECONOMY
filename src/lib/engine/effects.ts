@@ -652,7 +652,7 @@ export function drawK(
   ctx.lineJoin = 'round';
   const stem = Math.min(1, grow * 2);
   const upArm = clamp01(grow * 2 - 0.6);
-  const dnArm = clamp01(grow * 2 - 1.1);
+  const dnArm = clamp01(grow * 2.2 - 1.1); // AUDIT-ROUND-3 iter-4: 2.0 -> 2.2 — the ramp now reaches FULL length at grow=1 (the old 2.0 ramp capped the lower arm at 90% forever: a truncated letterform the dark shadow walls finally exposed)
   // stem
   ctx.beginPath();
   ctx.moveTo(x, y - s * stem);
@@ -724,11 +724,21 @@ function extrudeStroke(
     ctx.closePath();
     ctx.fill();
   };
+  // AUDIT-ROUND-3 (Fix 5 — THE K FINALLY SITS IN ONE LIGHT): the external
+  // panel read the shipped K as "a flat gold decal with an offset darker
+  // copy... no core shadow on the side faces". Two causes: the shadow
+  // wall's gradient ENDED in #A8851B (the face's own gold — the wall
+  // vanished into the face), and the floor shadow floated at 0.30 alpha.
+  // The shadow wall now runs DARK end to end (#3F3208 ambient floor →
+  // #5F4A0E deep → #8F6E12 lit-edge catch) and the floor shadow commits
+  // (below). Oblique projection is forgiven; a shadow that contradicts
+  // the object never is.
+  const SHADOW_WALL: Array<[number, string]> = [[0, '#3F3208'], [0.6, '#5F4A0E'], [1, colShadow]];
   wall(ux, uy, litP
     ? [[0, '#A8851B'], [0.5, colLit], [1, '#E9C94A']]
-    : [[0, '#5F4A0E'], [0.55, colShadow], [1, '#A8851B']]);
+    : SHADOW_WALL);
   wall(-ux, -uy, litP
-    ? [[0, '#5F4A0E'], [0.55, colShadow], [1, '#A8851B']]
+    ? SHADOW_WALL
     : [[0, '#A8851B'], [0.5, colLit], [1, '#E9C94A']]);
 }
 
@@ -773,25 +783,42 @@ export function drawK3D(
     // language (groundShadowV2): a tighter 2-stop contact core (harder
     // falloff — contact, not blur) plus a CRISP contact line under the
     // stem's base — same (−4, +8) one-light offset, same alpha register.
-    const shX = x - 4 + wPh * s * 0.05;
+    // AUDIT-ROUND-3 (Fix 5): the floor shadow COMMITS — alpha 0.30 → 0.48,
+    // and it ELONGATES along the one-light vector (lower-left) so the
+    // letter visibly rests on the plane instead of floating above a
+    // decal. "Kurzgesagt fakes 3D but with rigorous light logic."
+    const shX = x - 4 + wPh * s * 0.05 - s * 0.12;
     const shY = y + 8 + s * 1.22;
-    const a = 0.30 * clamp01(grow * 1.35);
+    const a = 0.48 * clamp01(grow * 1.35);
     const g = ctx.createRadialGradient(shX, shY, 2, shX, shY, s * 0.85);
     g.addColorStop(0, rgba(PALETTE.shadow, a));
     g.addColorStop(0.45, rgba(PALETTE.shadow, a * 0.55));
     g.addColorStop(1, rgba(PALETTE.shadow, 0));
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.ellipse(shX, shY, s * 0.9 * (0.88 + 0.12 * grow), s * 0.2 * (0.88 + 0.12 * grow), 0, 0, Math.PI * 2);
+    ctx.ellipse(shX, shY, s * 1.04 * (0.88 + 0.12 * grow), s * 0.2 * (0.88 + 0.12 * grow), 0, 0, Math.PI * 2);
     ctx.fill();
     // the contact line — the character-shadow register
-    ctx.strokeStyle = rgba(PALETTE.shadow, 0.35);
+    ctx.strokeStyle = rgba(PALETTE.shadow, 0.45);
     ctx.lineWidth = 4;
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(shX - s * 0.5, shY);
     ctx.lineTo(shX + s * 0.5, shY);
     ctx.stroke();
+    // AUDIT-ROUND-3 iter-3 (panel: "no ambient occlusion where the K
+    // meets the floor — the darkest point of the floor shadow should be
+    // at the K's foot; it's currently mid-blur"): a tight contact-AO
+    // core at the stem's base — the shadow DARKENS where the object
+    // touches its plane.
+    const ao = ctx.createRadialGradient(shX, shY, 1, shX, shY, s * 0.38);
+    ao.addColorStop(0, rgba(PALETTE.shadow, Math.min(0.62, a * 1.3)));
+    ao.addColorStop(0.6, rgba(PALETTE.shadow, a * 0.7));
+    ao.addColorStop(1, rgba(PALETTE.shadow, 0));
+    ctx.fillStyle = ao;
+    ctx.beginPath();
+    ctx.ellipse(shX, shY, s * 0.42, s * 0.13, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
   // the wobble — BLUEPRINT Phase 1 (Table 7): ±2°/4s -> ±5°/2.6s
   // (AMP.kWobbleDeg / kWobblePeriodMs). The audit read the old register as
@@ -807,7 +834,7 @@ export function drawK3D(
   // foreshortened 12% (it sits "higher" in the oblique projection).
   const stemF = Math.min(1, grow * 2);
   const upArm = clamp01(grow * 2 - 0.6);
-  const dnArm = clamp01(grow * 2 - 1.1);
+  const dnArm = clamp01(grow * 2.2 - 1.1); // AUDIT-ROUND-3 iter-4: 2.0 -> 2.2 — the ramp now reaches FULL length at grow=1 (the old 2.0 ramp capped the lower arm at 90% forever: a truncated letterform the dark shadow walls finally exposed)
   // AUDIT-2 / D3: the extrusion deepens as the camera pushes (camState
   // .scale-1 rides the depth) — the letter's volume answers the lens.
   const depth = s * K3D.depthFrac * (0.9 + 0.1 * clamp01(grow)) * (0.85 + 0.15 * camState.scale);

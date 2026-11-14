@@ -93,7 +93,13 @@ function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   // P1-6 (report): the subject halo — a soft radial lift behind the host so
   // he reads as lit in a room, not drawn on paper. Before the spotlight so
   // the two lights compound.
-  subjectHalo(ctx, hx, hy - 280, 470, 0.55);
+  // AUDIT-ROUND-3 (Fix 3 — THE THREE-VALUE PLAN): 0.55 → 0.9. The 320px
+  // gate verdict was "mid-tone mush — the figure, the stage and the card
+  // all sit in the same band; nothing separates at feed scale". The frame
+  // now owns three value planes: the DARK figure (one ink), the MID stage,
+  // and ONE bright field — this halo — carrying the eye. The halo is the
+  // bright plane; it must actually be bright.
+  subjectHalo(ctx, hx, hy - 280, 470, 0.9);
 
   if (stage === 'spot' || !stage) {
     // soft spotlight pool
@@ -106,10 +112,10 @@ function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
     ctx.beginPath();
     ctx.ellipse(hx, hy + 34, 300, 74, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = rgba(PALETTE.grid, 0.35);
-    ctx.beginPath();
-    ctx.ellipse(hx, hy + 30, 250, 52, 0, 0, Math.PI * 2);
-    ctx.stroke();
+    // AUDIT-ROUND-3 (Fix 3): the stroked grid-ring ellipse RETIRES — the
+    // panel read the spotlight pool's ring as "a target under his feet".
+    // The pool glow alone grounds him; the ring was a second, competing
+    // circle the eye wanted to parse.
   } else if (stage === 'chartstand') {
     // easel on the right the host points at
     const ex = W * 0.68;
@@ -258,7 +264,7 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   const reactionEntry = clamp01((t - reactionStart(g.s.sceneKey, t, g.d)) / 240) > 0
     && t - reactionStart(g.s.sceneKey, t, g.d) < 240 ? 1 - (t - reactionStart(g.s.sceneKey, t, g.d)) / 240 : 0;
   const smr = Math.max(
-    g.speaking ? accentPulse(g.beatT, g.wordTimes) : 0,
+    g.speaking ? accentPulse(g.beatT, g.wordTimes, g.wordTexts) : 0,
     walkSmear(walkPhase),
     0.8 * reactionEntry
   );
@@ -398,7 +404,7 @@ export function hostSceneV2(g: SceneCtx): void {
   kMotifs(ctx, W, H, t, 0.18);
   // P1-6 (report): the editorial host's halo — the close-up composition
   // gets the strongest lift (his face is the film's recurring close shot)
-  subjectHalo(ctx, W * 0.28, H * 0.46, 520, 0.7);
+  subjectHalo(ctx, W * 0.28, H * 0.46, 520, 0.85) // AUDIT-ROUND-3 (Fix 3): the bright value plane behind the host;
   ctx.strokeStyle = rgba(PALETTE.shadow, 0.07);
   ctx.lineWidth = 1.5;
   [W * 0.36, W * 0.62].forEach((x) => {
@@ -515,7 +521,7 @@ export function hostSceneV2(g: SceneCtx): void {
   }
   // P1-6 (audit Table 3): the word-accent SMEAR — in the word's strike
   // window only (fix 13) — paused during the walk settle.
-  const smr = g.speaking ? accentPulse(g.beatT, g.wordTimes) * (walkPhase !== undefined ? 0 : 1) : 0;
+  const smr = g.speaking ? accentPulse(g.beatT, g.wordTimes, g.wordTexts) * (walkPhase !== undefined ? 0 : 1) : 0;
   // AUDIT-ROUND-2 (fix 10 — ONE SCALE REGISTRY): the editorial host joins
   // the canonical presenting scale — 2.10 → 2.05, faceScale REMOVED (the
   // audit: "faceScale reserved for reaction windows only"; A4 convicted
@@ -893,7 +899,7 @@ export function divergeKScene(g: SceneCtx): void {
   // BLUEPRINT Phase 5: suppressed during the re-cut's first 4.8s (there is
   // no K yet — the halo would read as an unexplained glow behind the
   // colliding numbers).
-  if (!(opening && t < 4800)) subjectHalo(ctx, kx, ky, 620, 0.6);
+  if (!(opening && t < 4800)) subjectHalo(ctx, kx, ky, 620, 0.85) // AUDIT-ROUND-3 (Fix 3): the bright value plane behind the K;
 
   // two diverging lines grow out of one point
   // P1-8 (report §12.8): K growth starts 400ms -> 120ms in. The cold open

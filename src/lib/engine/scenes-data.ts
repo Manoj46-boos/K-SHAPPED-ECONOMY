@@ -179,7 +179,7 @@ function hostSmall(
   // audit's "arms are passive stumps" — the smear opt existed but was
   // never driven). Paused during reaction windows (the reaction pose is
   // a hold, not a spring).
-  const smear = g.speaking ? accentPulse(g.beatT, g.wordTimes) * (1 - reaction) : 0;
+  const smear = g.speaking ? accentPulse(g.beatT, g.wordTimes, g.wordTexts) * (1 - reaction) : 0;
   // 100-JUDGE PANEL / Phase 2 item 3 — the SIT-AND-RISE. When sitAt is
   // set, the standing cycle blends into sitRise (the 480ms push-off)
   // then settles into sitBack (the perch on the card edge). The ground
