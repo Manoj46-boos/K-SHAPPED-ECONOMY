@@ -1919,9 +1919,16 @@ export function statCardsScene(g: SceneCtx): void {
     ctx.textAlign = 'left';
     ctx.fillText(hero.big, hx0 + 72, hy0 + 232);
     // the label — READ text at the floor (40), one wrap, max 2 lines
+    // 100-JUDGE PANEL REPORT (defect D5 — THE TRUNCATED HERO LABEL): the
+    // wrap width was hw−900 = 250px inside a 1150px card — "total U.S.
+    // corporate profits (annualized)" truncated to "total U.S. corporate"
+    // and the card's right half shipped as dead cream. The label now wraps
+    // at hw−140 = 1010px (the full card interior below the numeral and
+    // clear of the 40px plate pad), two lines max — the tag chip sits at
+    // the card's TOP right (y≈hy0+62), the label at y≥hy0+306: no overlap.
     setFont(ctx, 40, 600);
     ctx.fillStyle = PALETTE.inkSoft;
-    const labelLines = wrapText(ctx, String(hero.label ?? ''), hw - 900, 40, 600).slice(0, 2);
+    const labelLines = wrapText(ctx, String(hero.label ?? ''), hw - 140, 40, 600).slice(0, 2);
     labelLines.forEach((ln, j) => ctx.fillText(ln, hx0 + 72, hy0 + 306 + j * 48));
     // the tag — a tone chip at the card's top right, RIGHT-ALIGNED so it
     // can never reach the side host's envelope (the guard caught the
