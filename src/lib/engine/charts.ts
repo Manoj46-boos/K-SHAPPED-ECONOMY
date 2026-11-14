@@ -346,6 +346,12 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
 
   // annotations
   if (opts.annotations) {
+    // 100-JUDGE AUDIT (fix 6.6 — THE PILL STACK): annotations rendered in one
+    // band overprint into mush at the 320px gate (three 46px plates merged on
+    // the journey chart's mid-section). Consecutive pills now flip to the
+    // opposite side of their data point whenever their bands would overlap —
+    // deterministic per-index, no timing change, readable at every scale.
+    let prevLy = -Infinity;
     opts.annotations.forEach((a, i) => {
       const s = opts.series[a.series ?? 0];
       const app = clamp01((p - 0.55 - i * 0.08) / 0.3);
@@ -355,6 +361,8 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       const py = y + h - ((av - yMin) / (yMax - yMin)) * h;
       const tone = TONE(a.tone).main;
       const rise = (1 - easeOutCubic(app)) * 18;
+      let dyA = a.dy ?? 40;
+      if (i > 0 && Math.abs(py + dyA - prevLy) < 58) dyA = -dyA; // fix 6.6: flip the stack
       ctx.save();
       ctx.globalAlpha = app;
       // connector
@@ -363,7 +371,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       ctx.setLineDash([4, 5]);
       ctx.beginPath();
       ctx.moveTo(px, py);
-      ctx.lineTo(px, py + (a.dy ?? 40) * 0.6);
+      ctx.lineTo(px, py + dyA * 0.6);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = tone;
@@ -382,7 +390,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       setFont(ctx, 46, 600);
       ctx.textAlign = 'center';
       const tw = ctx.measureText(a.label).width;
-      const ly = py + (a.dy ?? 40) - rise;
+      const ly = py + dyA - rise;
       // PLAYBOOK D3 follow-up: the x-clamp margin 18 → 34 — a wide pill
       // ("−33 · still worth…) still crossed the chart's left bound under
       // the exit camera (edge @292-312s, up to 64px). The clamp now
@@ -407,6 +415,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       const yMin2 = opts.peakBand ? y + 88 : y + 52;
       const lyC = Math.min(Math.max(ly, yMin2), lyMax);
       registerRect(`annotation:${a.label.slice(0, 14)}`, lx - tw / 2 - 16, lyC - 34, tw + 32, 46);
+      prevLy = lyC; // fix 6.6: the next pill flips if this band is taken
       ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
       // PANEL-12 / P3-3: one-light rule (−5, +7), matching theme.chip
       roundRect(ctx, lx - tw / 2 - 16 - 5, lyC - 34 + 7, tw + 32, 46, 23);

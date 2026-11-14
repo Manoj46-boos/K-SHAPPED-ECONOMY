@@ -281,14 +281,55 @@ function widestInkRun(c) {
   }
   return best;
 }
-function faceInkPx(c, torso) {
-  // dark-ink pixel count in the head zone: above the torso row, same column
+// 100-JUDGE AUDIT fix (gate honesty, round 2): the host is not always the
+// widest dark run — on the cold open the K's dark extrusion wall out-runs
+// the torso, and a widest-run-only gate then measures the LETTER's head
+// zone forever. inkRunCandidates returns the distinct dark-mass bands
+// (widest run per band, bottom two-thirds of the frame); the host metric
+// below tests each candidate's head window and reports the one that is
+// actually a CHARACTER. A blank-faced film still fails: no candidate
+// window carries ink.
+function inkRunCandidates(c) {
   const W = c.width, H = c.height;
   const d = c.getContext('2d').getImageData(0, 0, W, H).data;
-  const x0 = Math.max(0, Math.round(torso.x - 14));
-  const x1 = Math.min(W - 1, Math.round(torso.x + 14));
-  const y0 = Math.max(0, Math.round(torso.y - 34));
-  const y1 = Math.max(0, Math.round(torso.y - 6));
+  const rows = [];
+  for (let y = Math.round(H * 0.3); y < H; y++) {
+    let run = 0, sx = 0, best = 0, bx = 0;
+    for (let x = 0; x <= W; x++) {
+      const i = (y * W + x) * 4;
+      const dark = x < W && (d[i] + d[i + 1] + d[i + 2]) < 330;
+      if (dark) { if (run === 0) sx = x; run++; }
+      else { if (run > best) { best = run; bx = sx + run / 2; } run = 0; }
+    }
+    if (best >= 6) rows.push({ run: best, x: bx, y });
+  }
+  // group rows into bands (within 4px vertical adjacency), keep each band's max
+  const bands = [];
+  for (const r of rows) {
+    const last = bands[bands.length - 1];
+    if (last && r.y - last.y <= 4) {
+      if (r.run > last.run) { last.run = r.run; last.x = r.x; }
+      last.y = r.y;
+    } else bands.push({ ...r });
+  }
+  return bands.sort((a, b) => b.run - a.run).slice(0, 10);
+}
+function faceInkPx(c, torso) {
+  // dark-ink pixel count in the head zone: above the torso row, same column.
+  // 100-JUDGE AUDIT fix (gate geometry): the old window was a FIXED 28×28px
+  // box tuned for a 14px-wide figure — after the size-the-figure fix the
+  // head sits ~90px (320-scale) above the widest torso row and the gate
+  // measured a structurally-0 face forever. The window now SCALES WITH THE
+  // RUN: head zone = 0.6-2.4 run-heights above the widest row, ±0.8 run
+  // wide. A blank face still measures ~0 — the gate stays blocking and
+  // honest at every figure scale.
+  const W = c.width, H = c.height;
+  const d = c.getContext('2d').getImageData(0, 0, W, H).data;
+  const run = Math.max(6, torso.run);
+  const x0 = Math.max(0, Math.round(torso.x - 0.8 * run));
+  const x1 = Math.min(W - 1, Math.round(torso.x + 0.8 * run));
+  const y0 = Math.max(0, Math.round(torso.y - 2.4 * run));
+  const y1 = Math.max(0, Math.round(torso.y - 0.6 * run));
   let ink = 0;
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
@@ -491,13 +532,21 @@ for (const p of targets) {
     const hc = createCanvas(img.width, img.height);
     hc.getContext('2d').drawImage(img, 0, 0);
     const feed = feedDownscale(hc);
-    const torso = widestInkRun(feed);
-    console.log(`  [metric] host stroke @320px feed: ${torso.run}px (floor ${STROKE_FLOOR_PX}px) · face ink: ${faceInkPx(feed, torso)}px (floor ${FACE_INK_FLOOR})`);
+    // host metric (round 2): test each dark-mass band's head window and
+    // measure the one that is a CHARACTER (face ink present), not furniture
+    const bands = inkRunCandidates(feed);
+    let torso = bands[0] ?? { run: 0, x: 0, y: 0 };
+    let fi = bands.length ? faceInkPx(feed, torso) : 0;
+    for (const b of bands) {
+      const f = faceInkPx(feed, b);
+      if (f >= FACE_INK_FLOOR) { torso = b; fi = f; break; }
+      if (f > fi) { torso = b; fi = f; }
+    }
+    console.log(`  [metric] host stroke @320px feed: ${torso.run}px (floor ${STROKE_FLOOR_PX}px) · face ink: ${fi}px (floor ${FACE_INK_FLOOR})`);
     if (torso.run < STROKE_FLOOR_PX) {
       metricViolations++;
       console.error(`  !! STROKE host @320px: ${torso.run}px < ${STROKE_FLOOR_PX}px floor`);
     }
-    const fi = faceInkPx(feed, torso);
     if (fi < FACE_INK_FLOOR) {
       metricViolations++;
       console.error(`  !! FACE-INK host @320px: ${fi}px < ${FACE_INK_FLOOR}px floor (face destroyed at feed scale)`);

@@ -72,7 +72,12 @@ function hostSmall(
   // P1-1 (report): +30% (0.84 → 1.09); ground H*0.68 → H*0.66 — envelope
   // bottom 713+39 = 752, clear of the worst-case 2-row pill envelope (776)
   // by 24px. All hostSmall call sites inherit the bump.
-  groundY = g.H * 0.66, scale = 1.09,
+  groundY = g.H * 0.66,
+  // 100-JUDGE AUDIT (fix 6.1, round 2): the side-host default 1.09 -> 1.45 —
+  // the panel's premium band is 8-15% frame area and the side hosts sat at
+  // ~1.5%. Every call site that passes an explicit scale is re-tuned
+  // individually (the guard sweep arbitrates each one).
+  scale = 1.45,
   // PANEL-12 / P2-6: reaction opts — during the reaction window the side
   // host swaps to a reaction gesture, the face enlarges and the talk
   // envelope pauses (the camera push lives in director.cameraV2, driven
@@ -113,7 +118,13 @@ function hostSmall(
   // faceDir: explicit gesture/eyeline direction when the host stands in a
   // spot the x<W/2 heuristic misreads (e.g. beside the pie, left of centre,
   // presenting content that sits further LEFT).
-  faceDir?: 'left' | 'right'
+  faceDir?: 'left' | 'right',
+  // 100-JUDGE AUDIT (fix 6.2 — THE PEDESTAL): side hosts on grounds with no
+  // floor furniture (statCards, kDef at H*0.63) floated between the scene
+  // plate's floor band (top H*0.66) and their feet. Opt-in plinth: a soft
+  // slab under the feet — "standing beside the data" becomes deliberate
+  // staging instead of a hover.
+  shelf?: boolean
 ): void {
   // v10 (panel CHAR-1/CHAR-3): the side host CYCLES through a gesture set
   // instead of holding one pose for the whole scene — "two poses: shrug,
@@ -204,6 +215,17 @@ function hostSmall(
       pose = blendPose(pose, sitPose, easeOutCubic(sitP));
       groundY2 = seatY !== undefined ? lerp(groundY, seatY, easeOutCubic(sitP)) : groundY;
     }
+  }
+  if (shelf) {
+    const sw = 210 * Math.min(1, scale / 1.45);
+    g.ctx.save();
+    g.ctx.fillStyle = rgba(PALETTE.ink, 0.10);
+    roundRect(g.ctx, x - sw / 2, groundY2 + 4, sw, 38, 19);
+    g.ctx.fill();
+    g.ctx.fillStyle = rgba(PALETTE.ink, 0.16);
+    roundRect(g.ctx, x - sw / 2 + 10, groundY2 + 30, sw - 20, 14, 7);
+    g.ctx.fill();
+    g.ctx.restore();
   }
   drawStickmanV2(
     g.ctx, x, groundY2, scale, g.t,
@@ -343,7 +365,7 @@ export function chartTwinScene(g: SceneCtx): void {
   // directly on the right chart's "today" x-label. Relocated to the empty
   // top-right quadrant above the chart cards, smaller, looking down at
   // the data; the full label strip along the card bottoms stays clear.
-  hostSmall(g, W * 0.82, 'present', 3, H * 0.225, 0.66, 0, 'aha', 1.4, 1, false); // PLAYBOOK D3: 0.845 -> 0.82 (edge class)
+  hostSmall(g, W * 0.8, 'present', 3, H * 0.225, 0.85, 0, 'aha', 1.4, 1, false); // fix 6.2: card-top host 0.66 -> 0.85 — face floor + glasses carry it; pulled inward off the frame edge
 }
 
 // ── chartJourney: the generic annotated line chart scene ────────────────────
@@ -580,8 +602,10 @@ export function pieChartScene(g: SceneCtx): void {
   const hyPie = H * 0.66;
   // the rim point nearest the (estimated) shoulder — always on the gold
   // wedge for both beats' slice layouts (gold spans the upper-right arc)
+  // fix 6.1: the shoulder estimate rides the host's own scale (1.35), not a
+  // hardcoded 1.09 — the palm must stay ON the rim at the new staging.
   const dxs = hxPie + 5 - cx;
-  const dys = hyPie - 200 * 1.09 - cy;
+  const dys = hyPie - 200 * 1.35 - cy;
   const dl = Math.hypot(dxs, dys) || 1;
   const pieTouch = { x: cx + (dxs / dl) * r, y: cy + (dys / dl) * r };
   legend.forEach((sl, i) => {
@@ -612,7 +636,7 @@ export function pieChartScene(g: SceneCtx): void {
   // into it — and hostSmall's own pointBias wiring turns his head with it.
   // CONTACT VERB edition: hand ON the pie rim, facing the pie (faceDir
   // 'left' — he stands left of centre but his content is further left).
-  hostSmall(g, hxPie, 'pointL', 6, hyPie, 1.09, 0, 'aha', 1.4, 1, true, 0.4,
+  hostSmall(g, hxPie, 'pointL', 6, hyPie, 1.35, 0, 'aha', 1.4, 1, true, 0.4,
     undefined, undefined, { x: pieTouch.x, y: pieTouch.y, hand: 'palm' }, 'left');
   sourceTag(ctx, W, s.source as string, H - 60);
 }
@@ -639,7 +663,7 @@ export function dotGridScene(g: SceneCtx): void {
   // the two columns together; the field now ends at x=1200, the host's
   // envelope starts ~1500 — no shared band at any certified camera).
   dotGrid(ctx, {
-    x: 190, y: gridY, w: W - 720, h: gridH,
+    x: 190, y: gridY, w: W - 800, h: gridH, // fix 6.1: field narrows (W-720 -> W-800) — the 1.45 side host's body envelope overlapped it (guard 'host' class)
     total: (s.total as number) || 500,
     highlight: (s.highlight as number) || 10,
     p: clamp01(t / 3400),
@@ -652,7 +676,7 @@ export function dotGridScene(g: SceneCtx): void {
     if (bandP > 0) {
       ctx.save();
       ctx.globalAlpha = bandP;
-      const cw = (W - 720) / 25; // PLAYBOOK D3: matches the narrowed field
+      const cw = (W - 800) / 25; // fix 6.1: matches the narrowed field
       const rowH = gridH / Math.ceil(((s.total as number) || 500) / 25);
       const bx = 190 - 14;
       const by = gridY - 12;
@@ -707,7 +731,7 @@ export function dotGridScene(g: SceneCtx): void {
   // body envelope (cls 'host') must clear the dot grid's registered field;
   // the grid also narrows (W-400 → W-460) so data and presenter each own
   // their column. Edge worst case at 0.86: (1651+133-960)*1.092+960 ≈ 1860.
-  hostSmall(g, W * 0.82, 'present', 8); // PLAYBOOK D3: 0.845 -> 0.82 (edge class)
+  hostSmall(g, W * 0.8, 'present', 8); // fix 6.1: side-host default 1.09 -> 1.45; x pulled inward W*0.82 -> 0.80 (edge-class margin at the new scale)
 }
 
 // ── magChips scene ───────────────────────────────────────────────────────────
@@ -860,7 +884,7 @@ export function barsCompareScene(g: SceneCtx): void {
   // the host takes the empty top-right corner ABOVE the bars (envelope
   // y≈48-263, x≈1590-1751 — clear of the title and every bar row), looking
   // down at the data; the right column belongs to the tag chips.
-  hostSmall(g, W * 0.82, 'present', 13, H * 0.225, 0.66, 0, 'aha', 1.4, 1, false); // PLAYBOOK D3: 0.845 -> 0.82 (edge class)
+  hostSmall(g, W * 0.8, 'present', 13, H * 0.225, 0.85, 0, 'aha', 1.4, 1, false); // fix 6.2: card-top host 0.66 -> 0.85 (as chartTwin)
 }
 
 // ── trioConverge scene ───────────────────────────────────────────────────────
@@ -1092,7 +1116,7 @@ export function kDefScene(g: SceneCtx): void {
   // owns the left column, the K owns the right (stem at x=1344); the host
   // now presents from the gap between them (envelope 911-1189), pointing at
   // the formation — 137px clear of the card, 155px clear of the K.
-  hostSmall(g, 1050, 'pointR', 15, g.H * 0.66, 1.09, 0, 'aha', 1.4, 1, true, 0.55); // P2-4: hero moment — the naming beat rides the deep differential
+  hostSmall(g, 1050, 'pointR', 15, g.H * 0.66, 1.35, 0, 'aha', 1.4, 1, true, 0.55); // fix 6.1: 1.09 -> 1.35; P2-4: hero moment — the naming beat rides the deep differential
   sourceTag(ctx, W, s.source as string, H - 60);
 }
 
@@ -1133,7 +1157,8 @@ export function credibilityChipsScene(g: SceneCtx): void {
     ctx.fillText(s.year as string, W / 2, H * 0.225 + chipsList.length * 96 + 60);
     ctx.restore();
   }
-  hostSmall(g, W * 0.82, 'present', 16, g.H * 0.63); // PLAYBOOK D3: 0.845 -> 0.82; ground 0.66 -> 0.63 (pill clear at max camera)
+  hostSmall(g, W * 0.78, 'present', 16, g.H * 0.63, 1.35, 0, 'aha', 1.4, 1, true, 0.4,
+    undefined, undefined, undefined, undefined, true); // fix 6.1: default 1.45 -> 1.35 explicit; x pulled inward (W*0.82 -> 0.78) — the ch5 hero push ran the 1.45 envelope past the frame edge; fix 6.2: pedestal
 }
 
 // ── gasPump scene ────────────────────────────────────────────────────────────
@@ -1173,6 +1198,23 @@ export function gasPumpScene(g: SceneCtx): void {
   ctx.stroke();
   // pump body
   card(ctx, px - 104, py, 208, 306, { r: 22 });
+  // 100-JUDGE AUDIT (fix 6.5 — PROP BELIEVABILITY): the white kiosk gains
+  // the K's extrusion language — a canopy bar that reads "pump" in
+  // silhouette at 320px, a real right wall + top sliver (not a 10% stripe),
+  // and a gold price plate behind the digits.
+  ctx.fillStyle = PALETTE.ink;
+  roundRect(ctx, px - 118, py - 36, 236, 28, 10);
+  ctx.fill();
+  ctx.fillStyle = PALETTE.gold;
+  ctx.beginPath();
+  ctx.arc(px, py - 22, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
+  roundRect(ctx, px - 92, py - 12, 196, 20, 8);
+  ctx.fill();
+  ctx.fillStyle = rgba(PALETTE.shadow, 0.17);
+  roundRect(ctx, px + 104, py + 14, 34, 284, 8);
+  ctx.fill();
   // side face (right) — one flat tone darker: instant 3D on white
   ctx.save();
   ctx.beginPath();
@@ -1195,11 +1237,14 @@ export function gasPumpScene(g: SceneCtx): void {
   setFont(ctx, 34, 600);
   ctx.fillStyle = rgba(PALETTE.up, 0.75);
   ctx.fillText('PRICE / GALLON', px, py + 112);
-  // price digits roll — on the screen, tabular feel
+  // price digits roll — on the screen, tabular feel; fix 6.5: gold plate
+  ctx.fillStyle = PALETTE.goldWash;
+  roundRect(ctx, px - 64, py + 142, 128, 42, 10);
+  ctx.fill();
   const roll = (t / 300) % 10;
   setFont(ctx, 44, 700);
-  ctx.fillStyle = PALETTE.ink;
-  ctx.fillText(`$${(3.2 + Math.abs(Math.sin(roll)) * 0.9).toFixed(2)}`, px, py + 168);
+  ctx.fillStyle = PALETTE.goldDeep;
+  ctx.fillText(`$${(3.2 + Math.abs(Math.sin(roll)) * 0.9).toFixed(2)}`, px, py + 174);
   // FIX 3 (density payload — the frame measured 3.0% info): the screen
   // carries the SCENE'S OWN DATA — the Iran-spike price path the VO names,
   // drawn as a tiny sparkline on the pump's display (flat → spike → easing),
@@ -1839,7 +1884,7 @@ export function aiDatacenterScene(g: SceneCtx): void {
     // CONTACT edition: x → 1480 (inside reach of the rack's right face at
     // 1375); worst-case right edge ≈ 1480+90 = 1570 static, ≈1715 under the
     // full hero-push camera — 205px inside the frame bound.
-    drawStickmanV2(ctx, 1480, H * 0.66, 1.28, t,
+    drawStickmanV2(ctx, 1505, H * 0.665, 1.36, t,
       {
         pose, alpha: clamp01((t - 900) / 600), look: -0.7, scarf: true, talk, hostBody: true,
         // PANEL-12 / P3.2: the walk host's ground-shadow ellipse skews by
@@ -2015,7 +2060,8 @@ export function statCardsScene(g: SceneCtx): void {
   // The honest staging: standing, feet on the ground, pointL cone into
   // the hero card — the sit grammar stays in the film where it lands ON
   // its seat (the mood chapter's perch is re-staged separately).
-  hostSmall(g, W * 0.82, 'pointL', 19, g.H * 0.615, 1.09, 0, 'aha', 1.4, 1, true, 0.4); // PLAYBOOK D3+D4: 0.845 -> 0.82 (edge class)
+  hostSmall(g, W * 0.82, 'pointL', 19, g.H * 0.615, 1.35, 0, 'aha', 1.4, 1, true, 0.4,
+    undefined, undefined, undefined, undefined, true); // fix 6.1: 1.09 -> 1.35; fix 6.2: pedestal under his feet
 }
 
 // ── ownerWorker scene ────────────────────────────────────────────────────────
@@ -2090,10 +2136,18 @@ export function ownerWorkerScene(g: SceneCtx): void {
     const hy = H * 0.6;
     const riseSlope = -116 / 340; // the owner's line: (hy+26)→(hy−90) over ±170
     if (side === 'left') {
-      // PHASE-0 (report §6, Fix 3 — ownerWorker RMS 24.8, the flat-frame
-      // flag): the ground lines deepen to full-opacity vivid ink (the
-      // panel text steps inkSoft -> ink) — the class-diagram's ink mass
-      // carries the frame's contrast.
+      // 100-JUDGE AUDIT (fix 6.2 — KILL THE SKATEBOARD LINE): the figure no
+      // longer balances on a 12px string — the rise gains an AREA fill (the
+      // hillside he climbs), drawn under the crisp line. "Standing on data"
+      // needs ground mass, not a tightrope.
+      ctx.fillStyle = rgba(PALETTE.upVivid, 0.16);
+      ctx.beginPath();
+      ctx.moveTo(hx - 170, hy + 26);
+      ctx.lineTo(hx + 170, hy - 90);
+      ctx.lineTo(hx + 170, hy + 64);
+      ctx.lineTo(hx - 170, hy + 64);
+      ctx.closePath();
+      ctx.fill();
       ctx.strokeStyle = PALETTE.upVivid;
       ctx.lineWidth = 12;
       ctx.lineCap = 'round';
@@ -2102,6 +2156,12 @@ export function ownerWorkerScene(g: SceneCtx): void {
       ctx.lineTo(hx + 170, hy - 90);
       ctx.stroke();
     } else {
+      // fix 6.2: the worker's flat line becomes a GROUND SLAB — a soft
+      // plateau with rounded ends under his feet (the floor he is stuck on),
+      // line kept crisp on top.
+      ctx.fillStyle = rgba(PALETTE.inkSoft, 0.14);
+      roundRect(ctx, hx - 182, hy + 6, 364, 54, 26);
+      ctx.fill();
       ctx.strokeStyle = rgba(PALETTE.inkSoft, 0.9);
       ctx.lineWidth = 12;
       ctx.lineCap = 'round';
@@ -2179,7 +2239,7 @@ export function ownerWorkerScene(g: SceneCtx): void {
     // emotional core drew two 8%-area figures in a void; at 1.4 the pair
     // approaches the 8-15% subject-area band the premium explainers live
     // in, and the facepalm/climb poses finally read at the 320px gate.
-    drawStickmanV2(ctx, hx, hy - (side === 'left' ? 61 : 0), 1.4, t, {
+    drawStickmanV2(ctx, hx, hy - (side === 'left' ? 67 : 0), 1.55, t, {
       pose,
       alpha: clamp01((t - i * 700 - 200) / 500),
       look: 0.3,
@@ -2478,7 +2538,7 @@ export function fundSplitScene(g: SceneCtx): void {
   // clears the stat chips (x ≤ 593) and the callback chip (y 996); the
   // wall is background-grade (unregistered); the reaction pivot follows
   // him (REACTIONS['c8-fund'] px 1700 → 1420, scene-context.ts).
-  hostSmall(g, 1395, 'pointL', 24, 585, 1.15, reactionAt(g.s.sceneKey, g.t, g.d), 'shock', 1.8, 2, false,
+  hostSmall(g, 1395, 'pointL', 24, 585, 1.35, reactionAt(g.s.sceneKey, g.t, g.d), 'shock', 1.8, 2, false,
     undefined, undefined, undefined, { x: 1350, y: 438, hand: 'palm', bend: 1 }, 'left'); // P2-4: parallax=false — he stands INSIDE the data (the wall's plane)
 }
 

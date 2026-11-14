@@ -42,7 +42,7 @@ const D2R = Math.PI / 180;
  * prof/walker background variants keep ink (different PEOPLE, not the
  * brand). Referenced by the torso mass and the rolled-sleeve cuffs.
  */
-const BODY_MASS = '#8F6E12';
+const BODY_MASS = '#7A5D10';
 /** AUDIT-ROUND-3 iter-2 (ONE INK, ALL FOUR LIMBS): the gold near-arm
  *  sleeve (ARM_MASS) read to the re-review panel as "the near limb
  *  darker/warmer in tone than the far — the mismatched limb shading
@@ -1793,10 +1793,14 @@ export function drawStickmanV2(
   // the jaw channel rides the head scale — squash on the vertical axis
   // (jaw open = the skull shortens) and a matching widening on X (volume
   // preservation, the classic squash-and-stretch pair).
-  // P1 head v3 (100-judge dossier): the whole head space shrinks 13% —
-  // head-to-body proportion moves from bobblehead (≈1:3.4) toward the
-  // premium 1:4.5 band; every interior feature scales with it.
-  const HEAD_SHRINK = 0.87;
+  // P1 head v3 (100-judge dossier): the head space shrank 13% — head-to-body
+  // proportion moved from bobblehead (≈1:3.4) toward the premium 1:4.5 band.
+  // 100-JUDGE AUDIT / fix 6.1 (THE SIGNATURE SILHOUETTE): 0.87 -> 0.93 AND
+  // the egg itself grows 32×38 -> 35×42 — the audit's prescription is a head
+  // at 1.25x body-proportional size with ONE permanent signature feature
+  // (the host's round ink glasses, drawn below). The caricature must own the
+  // feed: a bigger head + glasses ink reads as "this channel" at 320px.
+  const HEAD_SHRINK = 0.93;
   ctx.scale(faceS * HEAD_SHRINK * (1 - 0.12 * yawMag) * (1 + jawOpen * 0.04), faceS * HEAD_SHRINK * (1 - jawOpen * 0.04));
   // Panel round 2: the head outline yaws ±14° about the neck; the FACE
   // rotates an additional fraction of the same term about the head's own
@@ -1806,7 +1810,7 @@ export function drawStickmanV2(
   // soft head shadow for depth
   ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
   ctx.beginPath();
-  ctx.ellipse(3, 5, 32, 38, 0, 0, Math.PI * 2);
+  ctx.ellipse(3, 5, 35, 42, 0, 0, Math.PI * 2);
   ctx.fill();
   // PREMIUM UPGRADE C1: EGG HEAD. The circle (34x34) is replaced with an
   // egg ellipse (32 wide × 39 tall) + a chin extension + a nose wedge.
@@ -1825,16 +1829,16 @@ export function drawStickmanV2(
   ctx.lineWidth = headStroke === 0 ? 0 : 4.5 / (scale * faceS * HEAD_SHRINK);
   // the egg — taller than wide, slightly offset up for chin room
   ctx.beginPath();
-  ctx.ellipse(0, -1, 32, 38, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, -1, 35, 42, 0, 0, Math.PI * 2);
   ctx.fill();
   // the chin — a subtle jaw extension below the ellipse
   ctx.beginPath();
-  ctx.moveTo(-8, 33);
-  ctx.quadraticCurveTo(0, 41, 8, 33);
+  ctx.moveTo(-9, 37);
+  ctx.quadraticCurveTo(0, 46, 9, 37);
   ctx.fill();
   if (headStroke > 0) {
     ctx.beginPath();
-    ctx.ellipse(0, -1, 32, 38, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -1, 35, 42, 0, 0, Math.PI * 2);
     ctx.stroke();
   }
   // 100-JUDGE PANEL / Phase 1 item 4 — CAST BY SILHOUETTE (report §6
@@ -1848,18 +1852,18 @@ export function drawStickmanV2(
     // the dome — a clipped arc over the crown, following the egg
     ctx.save();
     ctx.beginPath();
-    ctx.ellipse(0, -1, 32, 38, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -1, 35, 42, 0, 0, Math.PI * 2);
     ctx.clip();
     ctx.fillStyle = ink;
     ctx.beginPath();
-    ctx.ellipse(0, -20, 33, 24, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -22, 36, 27, 0, 0, Math.PI * 2);
     ctx.fill();
     // the crown seam — an ivory arc at the dome's lower edge so the cap
     // reads as a cap ON the head, not a darker skullcap region
     ctx.strokeStyle = rgba('#F7EFD8', 0.9);
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.ellipse(0, -20, 33, 24, 0, Math.PI * 0.08, Math.PI * 0.92);
+    ctx.ellipse(0, -22, 36, 27, 0, Math.PI * 0.08, Math.PI * 0.92);
     ctx.stroke();
     ctx.restore();
     // the brim — a flat bar jutting toward the look direction
@@ -1904,14 +1908,14 @@ export function drawStickmanV2(
     if (!ivory) {
       ctx.save();
       ctx.beginPath();
-      ctx.ellipse(0, -1, 32, 38, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, -1, 35, 42, 0, 0, Math.PI * 2);
       ctx.clip();
       ctx.strokeStyle = '#F7EFD8';
       ctx.lineWidth = 3.2;
       ctx.lineCap = 'round';
       ctx.beginPath();
       // C1: rim light follows the egg ellipse, not the old circle
-      ctx.ellipse(0, -1, 32 - 1.8, 38 - 1.8, 0, -Math.PI * 0.52, -Math.PI * 0.02);
+      ctx.ellipse(0, -1, 35 - 1.8, 42 - 1.8, 0, -Math.PI * 0.52, -Math.PI * 0.02);
       ctx.stroke();
       ctx.restore();
     }
@@ -1983,6 +1987,14 @@ export function drawStickmanV2(
   // head uses the ink-dot branch below; this floor now only serves the
   // becker variants.
   const eyeFloorR = scale > 1.5 ? 6.5 : 5.4;
+  // 100-JUDGE AUDIT / fix 6.1 (THE SCREEN-PX FACE FLOOR): features sized in
+  // rig units die at the feed — the harness measured 0px of face ink at 320
+  // on the cold open. Every host feature now clamps to a SCREEN-space floor:
+  // below this local value the feature grows instead of shrinking with the
+  // rig (7.0 local ≈ 2.3px of eye radius at the 320 twin at any scale).
+  const headXform = scale * faceS * HEAD_SHRINK;
+  const featureFloor = (screenPx: number): number => screenPx / headXform;
+  const eyeR = Math.max(5.2, featureFloor(7.0));
   // 100-JUDGE PANEL REPORT (defect D12 — THE SKULL READ): below rig scale
   // 1.0 the becker head's PURE-WHITE features (sclera, brows, mouth) on
   // the solid ink read as a grinning skull at feed scale (the coffee
@@ -2011,8 +2023,8 @@ export function drawStickmanV2(
   } else if (pose.browRaise > 0.55) {
     ctx.fillStyle = '#FFFFFF';
     ctx.beginPath();
-    ctx.ellipse(-11 + eyeDX, -6, 6.2 * eyeSL, 6.2 * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
-    ctx.ellipse(11 + eyeDX, -6, 6.2 * eyeSR, 6.2 * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
+    ctx.ellipse(-11 + eyeDX, -6, eyeR * 1.19 * eyeSL, eyeR * 1.19 * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
+    ctx.ellipse(11 + eyeDX, -6, eyeR * 1.19 * eyeSR, eyeR * 1.19 * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = ink;
     const pupR = 3.4 * (1 + surprise * 0.28); // AUDIT-2: pupil dilation
@@ -2023,8 +2035,8 @@ export function drawStickmanV2(
   } else {
     ctx.fillStyle = ink;
     ctx.beginPath();
-    ctx.ellipse(-11 + eyeDX, -6, 5.2 * eyeSL, 5.2 * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
-    ctx.ellipse(11 + eyeDX, -6, 5.2 * eyeSR, 5.2 * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
+    ctx.ellipse(-11 + eyeDX, -6, eyeR * eyeSL, eyeR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
+    ctx.ellipse(11 + eyeDX, -6, eyeR * eyeSR, eyeR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
     ctx.fill();
   }
   // AUDIT-2 / 1.2: the eyelid line — when a lid is active, an ink stroke
@@ -2079,6 +2091,42 @@ export function drawStickmanV2(
     ctx.beginPath(); ctx.arc(-9.5 + eyeDX, -7.5, 1.9, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(12.5 + eyeDX, -7.5, 1.9, 0, Math.PI * 2); ctx.fill();
   } // P1-1 'becker': no glints — zero interior clutter
+  // 100-JUDGE AUDIT / fix 6.1 — THE SIGNATURE FEATURE (round ink glasses).
+  // The audit's prescription: "premium brands customize the stick man — a
+  // signature character, outfit, or accessories". The host is the film's one
+  // unvariant character, so the glasses go on the IVORY host head only (the
+  // becker cast variants stay silhouette-different: cap, mug, bare head).
+  // They are chosen because they are the Data Desk brand made flesh, they
+  // carry ~20px of solid ink into the 320px head window (the face-ink gate
+  // measured 0px BEFORE), and they END the head-style drift the audit
+  // convicted — the host is now THE character with the glasses, everywhere.
+  if (ivory) {
+    ctx.strokeStyle = ink;
+    // screen-space stroke: 6.6px at 1080p ≈ 2.2px at the 320px twin
+    ctx.lineWidth = Math.max(0.9, featureFloor(6.6));
+    ctx.lineCap = 'round';
+    // SQUARE lenses (rounded rects) — deliberately NOT the prof variant's
+    // round frames: cast stays silhouette-different at every scale
+    // (audit §3.1: "differentiation by design language, not scale").
+    const gR = Math.max(13, featureFloor(13.5));
+    const lensW = gR * 2;
+    roundRect(ctx, -11 - gR + eyeDX, -6 - gR, lensW, lensW, gR * 0.55);
+    ctx.stroke();
+    roundRect(ctx, 11 - gR + eyeDX, -6 - gR, lensW, lensW, gR * 0.55);
+    ctx.stroke();
+    // the bridge — a straight data-desk saddle between the lenses
+    ctx.beginPath();
+    ctx.moveTo(-11 + gR + eyeDX, -9);
+    ctx.quadraticCurveTo(eyeDX, -14, 11 - gR + eyeDX, -9);
+    ctx.stroke();
+    // the temples — short ink stubs to the head's edge
+    ctx.beginPath();
+    ctx.moveTo(-11 - gR + eyeDX, -7);
+    ctx.lineTo(-33 + eyeDX * 0.4, -11);
+    ctx.moveTo(11 + gR + eyeDX, -7);
+    ctx.lineTo(33 + eyeDX * 0.4, -11);
+    ctx.stroke();
+  }
   // brows (existing semantics) — AUDIT-2 / 1.2: THREE SHAPES per side.
   //   neutral    straight stroke (the house brow);
   //   raised     quadratic ARCH on surprise — the brow lifts and curves,
@@ -2091,7 +2139,8 @@ export function drawStickmanV2(
   const bRaise = pose.browRaise * AMP.browTravelPx;
   const bAngle = pose.browAngle * D2R;
   ctx.strokeStyle = ink;
-  ctx.lineWidth = 6;
+  // fix 6.1: screen-px floor — the brows never thin below ~6px at 1080p
+  ctx.lineWidth = Math.max(6, featureFloor(6));
   ctx.lineCap = 'round';
   const browSide = (dir: number): void => {
     const x0 = dir * (6 + eyeDX), x1 = dir * (20 + eyeDX);

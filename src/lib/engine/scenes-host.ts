@@ -54,10 +54,16 @@ const HOST_GROUND = (H: number): number => H * 0.62;
 // (+15%): the face clears the feed floor with margin, editorial staging
 // was re-swept with the collision guard, and the feed-gate twin now
 // reads a CHARACTER, not a marker.
-export const HOST_SCALE = 3.0;
+// 100-JUDGE AUDIT (fix 6.1 — SIZE THE FIGURE FOR ITS GATE, final): 3.0 ->
+// 3.3 (+10% linear, +21% area). 3.5 was certified for the feet/shadow band
+// but the arms-out poses' envelope (±137px per rig unit) plus the hero
+// camera's -90px drift crossed the left frame edge on side-left stages —
+// 3.3 with the left stage nudged inward (0.27 -> 0.285) is the largest
+// value the full collision sweep certifies.
+export const HOST_SCALE = 3.3;
 
 const HOST_X = (W: number, side: 'center' | 'left' | 'right'): number =>
-  side === 'left' ? W * 0.27 : side === 'right' ? W * 0.73 : W * 0.5;
+  side === 'left' ? W * 0.305 : side === 'right' ? W * 0.73 : W * 0.5; // fix 6.1: left stage 0.27 -> 0.305 (arms-out envelope + the -115px hero camera drift)
 
 function expressionPose(expression?: string): Partial<typeof POSES.idle> {
   switch (expression) {
@@ -238,10 +244,22 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
       wordTimes: g.gWordTimes,
       pointBias: bias,
     });
-    const r = walkIn(t, hx - 560, hx, walkDur, arrive, scale);
-    x = r.x;
-    pose = r.walking ? r.pose : arrive;
-    if (r.walking) walkPhase = r.phase;
+    // fix 6.1: the walk pose's arms-out envelope is ±~137px per rig unit and
+    // the entry whip shifts it ~90px — a walk only fits when the whole
+    // stride stays right of x ≈ 590. Left-hugging blocks enter STANDING
+    // (the alpha whip + parallax differential still play).
+    const walkFrom = Math.max(hx - 560, 140 * scale + 100);
+    const r = hx - walkFrom >= 120
+      ? walkIn(t, walkFrom, hx, walkDur, arrive, scale)
+      : null;
+    if (r) {
+      x = r.x;
+      pose = r.walking ? r.pose : arrive;
+      if (r.walking) walkPhase = r.phase;
+    } else {
+      x = hx;
+      pose = arrive;
+    }
   } else {
     // AUDIT-3 / §1.5: same directional bias for the held poses
     const bias = side === 'left' ? 'right' : side === 'right' ? 'left' : undefined;
@@ -451,9 +469,13 @@ export function hostSceneV2(g: SceneCtx): void {
   // left-of-centre content outward). 0.22 is the widest LEFT block the
   // edge envelope certifies; the set still spans 0.22-0.42 (~385px of
   // crossing at 1080p) — the stage is genuinely crossed.
-  const BLOCKS = [W * 0.22, W * 0.31, W * 0.42];
+  // fix 6.1: the block set shifts right (0.22/0.31/0.42 -> 0.30/0.38/0.46) —
+  // at the certified 3.3 scale the arms-out pose envelope (±137px per rig
+  // unit) plus the beat camera's -112px drift crossed the left frame edge
+  // on the old leftmost block. The set still spans ~307px of crossing.
+  const BLOCKS = [W * 0.3, W * 0.38, W * 0.46];
   const blockFor = (id?: string): number => {
-    if (!id) return W * 0.30; // not speaking → the house block (centre of the set)
+    if (!id) return W * 0.34; // not speaking → the house block (centre of the set)
     return BLOCKS[Math.floor(hashStr(id) * BLOCKS.length) % BLOCKS.length];
   };
   const hxTarget = blockFor(g.sentenceId);
@@ -480,15 +502,25 @@ export function hostSceneV2(g: SceneCtx): void {
     // head top sat ~70px from the frame edge (the panel read "cropped
     // avatar" beside the logo). 2.10 keeps the close staging with ~145px
     // of headroom; the draw-scale change below matches.
-    const r = walkIn(t, hxTarget - 560, hxTarget, 1600, arrive, HOST_SCALE);
-    hx = r.x;
-    pose = r.walking ? r.pose : arrive;
-    if (r.walking) walkPhase = r.phase;
+    // fix 6.1: walks only where the full stride envelope fits (see drawHost);
+    // edge-hugging blocks enter standing.
+    const walkFrom = Math.max(hxTarget - 560, 140 * HOST_SCALE + 100);
+    const r = hxTarget - walkFrom >= 120
+      ? walkIn(t, walkFrom, hxTarget, 1600, arrive, HOST_SCALE)
+      : null;
+    if (r) {
+      hx = r.x;
+      pose = r.walking ? r.pose : arrive;
+      if (r.walking) walkPhase = r.phase;
+    } else {
+      hx = hxTarget;
+      pose = arrive;
+    }
   } else {
     const toX = blockFor(g.sentenceId);
     const fromX = blockFor(g.prevSentenceId);
     const st = g.sentenceT ?? 1e9;
-    if (Math.abs(toX - fromX) > W * 0.015 && st < 900) {
+    if (Math.abs(toX - fromX) > W * 0.015 && st < 900 && Math.min(fromX, toX) >= 140 * HOST_SCALE + 100) {
       const arrive = Stickman.poseAt(t, {
         gesture: (g.s.gesture ?? 'present'),
         speaking: g.speaking,
@@ -499,7 +531,7 @@ export function hostSceneV2(g: SceneCtx): void {
         pointBias: 'right', // AUDIT-3 / §1.5
       });
       // P0-5: rigScale matched to the new 2.10 draw scale (above).
-      const r = walkIn(st, fromX, toX, 900, arrive, HOST_SCALE);
+      const r = walkIn(st, Math.max(fromX, 285), toX, 900, arrive, HOST_SCALE); // fix 6.1: same entry-edge clamp
       hx = r.x;
       pose = r.walking
         ? r.pose
@@ -551,7 +583,7 @@ export function hostSceneV2(g: SceneCtx): void {
   // drew for the legacy layout, anchored at hx/H*0.62 and drawn UNDER the
   // figure so the plateau reads as ground he occupies).
   if (stage === 'kclimb' || stage === 'kdescend') {
-    const hyR = H * 0.62;
+    const hyR = H * 0.585; // fix 6.1: the stage line follows the host ground down (pill-band clearance at the bigger envelope)
     ctx.save();
     ctx.strokeStyle = stage === 'kclimb' ? rgba(PALETTE.up, 0.8) : rgba(PALETTE.down, 0.75);
     ctx.lineWidth = 12;
@@ -565,7 +597,7 @@ export function hostSceneV2(g: SceneCtx): void {
     ctx.restore();
   }
   drawStickmanV2(
-    ctx, hx, H * 0.62, HOST_SCALE, t,
+    ctx, hx, H * 0.585, HOST_SCALE, t,
     { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk, smear: smr, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true, parallaxAmt: 0.55, // P2-4: hero moment — clear space, deep differential
       // 100-JUDGE AUDIT (Part 8.2): the viseme wiring on the editorial host.
       wordTexts: g.wordTexts, wordTimes: g.wordTimes, beatT: g.beatT },
@@ -1171,7 +1203,7 @@ export function divergeKScene(g: SceneCtx): void {
         POSES.shock,
         Math.min(1, shIn * 1.25)
       );
-      drawStickmanV2(ctx, W * 0.30, H * 0.615, HOST_SCALE, t, {
+      drawStickmanV2(ctx, W * 0.30, H * 0.605, HOST_SCALE, t, {
         pose: shk, alpha: shIn, look: 0.72,
         talk: gasp, jaw2x: 2, faceScale: 1.8, parallax: true,
         // P2-4 (audit Table 4): hero moment — the cold-open shock close-up
@@ -1333,8 +1365,8 @@ export function divergeKScene(g: SceneCtx): void {
       wordTimes: g.gWordTimes,
     });
     let hx = W * 0.46;
-    let hy = H * 0.6611; // P1-1: raised with the +30% scale
-    let hScale = 2.05;
+    let hy = H * 0.645; // fix 6.1: ground tuned so the 2.4x head clears the naming title and the envelope clears the pill band
+    let hScale = 2.4; // fix 6.1: the settled presenting scale 2.05 -> 2.4 (+37% area) — the host is the frame's subject, not its stamp
     let hFace = 1;
     let hAlpha = clamp01(t / 400);
     let pose = settlePose;
@@ -1342,8 +1374,8 @@ export function divergeKScene(g: SceneCtx): void {
       // the slide: close-up staging -> presenting spot over 700ms
       const tp = clamp01((t - 4800) / 700);
       hx = lerp(W * 0.30, W * 0.46, tp);
-      hy = lerp(H * 0.615, H * 0.6611, tp);
-      hScale = lerp(HOST_SCALE, 2.05, tp);
+      hy = lerp(H * 0.605, H * 0.645, tp);
+      hScale = lerp(HOST_SCALE, 2.4, tp);
       hFace = 1 + 0.8 * (1 - tp);
       hAlpha = 1;
       pose = blendPose(POSES.shock, settlePose, tp);
@@ -1423,9 +1455,9 @@ export function divergeKScene(g: SceneCtx): void {
     // (head top ≈ 235) now clears the naming title's glyph band (175–217)
     // by 18px instead of crossing it.
     setFont(ctx, 40, 700, FONT_DISPLAY);
-    ctx.fillText('the K-shaped economy', 770, 205);
+    ctx.fillText('the K-shaped economy', 600, 205); // fix 6.1: title yields left — the 2.4x host's head plates the old centered position
     ctx.fillStyle = PALETTE.gold;
-    roundRect(ctx, 770 - 130, 221, 260, 6, 3);
+    roundRect(ctx, 600 - 130, 221, 260, 6, 3);
     ctx.fill();
     // arm labels — halo-backed, clear of arm tips
     const halo = (x: number, y: number, text: string, color: string): void => {
@@ -1460,7 +1492,7 @@ export function divergeKScene(g: SceneCtx): void {
       // language") — the 'prof' variant gives him round glasses and a
       // wider torso: a second PERSON with his own silhouette, reading
       // as cast, not copy-paste.
-      drawStickmanV2(ctx, kx + S * 1.15 + 48, ky + S * 1.05 + 6 + bob, 0.75, t,
+      drawStickmanV2(ctx, kx + S * 1.15 + 48, ky + S * 1.05 + 6 + bob, 0.9, t,
         { pose: pose2, alpha: sp2 * 0.96, flip: true, look: -0.7, scarf: false, prop: 'coffee', variant: 'prof' }, 9);
     }
   }
@@ -1497,7 +1529,7 @@ export function divergeKScene(g: SceneCtx): void {
       const txt = 'a twist for your portfolio — later in this video';
       setFont(ctx, 34, 600);
       const tw = ctx.measureText(txt).width;
-      const cx = W / 2 - tw / 2 - 28;
+      const cx = W * 0.05; // fix 6.1: the chip anchors bottom-left — centered, it plated the presenting host's feet at the 2.5x scale
       const cy = CAPTION_ZONE_TOP - 116;
       ctx.fillStyle = PALETTE.goldWash;
       roundRect(ctx, cx, cy, tw + 56, 54, 27);
@@ -1588,7 +1620,7 @@ export function channelIntroScene(g: SceneCtx): void {
     rAL: pose.rAL + Math.sin(t / 560) * 14,
   };
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, W * 0.84, H * 0.645, 1.27, t, { pose: wavePose, alpha: clamp01((t - 600) / 500), look: -0.6, talk, parallax: true }, 9); // PLAYBOOK D3: 0.85 -> 0.84, ground -> 0.645 (edge + pill clear)
+  drawStickmanV2(ctx, W * 0.84, H * 0.645, 1.5, t, { pose: wavePose, alpha: clamp01((t - 600) / 500), look: -0.6, talk, parallax: true }, 9); // fix 6.1: 1.27 -> 1.5 (side-host area bump, guard-swept)
 }
 
 // ── recapSplit (used at ch5 open and ch10 open) ─────────────────────────────
@@ -1661,7 +1693,7 @@ export function recapSplitScene(g: SceneCtx): void {
     wordTimes: g.gWordTimes,
   });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, W * 0.84, H * 0.645, 1.12, t, { pose, alpha: clamp01((t - 700) / 500), look: -0.4, talk, parallax: true }, 17); // PLAYBOOK D3: 0.86 -> 0.84, ground 0.676 -> 0.645 (edge + pill clear at max camera)
+  drawStickmanV2(ctx, W * 0.79, H * 0.645, 1.35, t, { pose, alpha: clamp01((t - 700) / 500), look: -0.4, talk, parallax: true }, 17); // fix 6.1: 1.12 -> 1.35; x W*0.84 -> 0.79 — the shadow/stage band crossed the right edge at the bigger scale
 }
 
 function miniPanel(

@@ -90,7 +90,7 @@ export const PALETTE: Palette = {
   // AUDIT-PHASE-1: ink deepens #2E4A43 -> #1F3328 — deeper ink raises
   // perceived ink-mass weight without changing the hue family. Still
   // slate-teal, still AAA contrast, just visibly heavier.
-  ink: '#1F3328',
+  ink: '#152420',
   inkSoft: '#4F5D59',
   inkFaint: '#65736F',
   card: '#FBFAF4',
@@ -483,7 +483,13 @@ export function scenePlate(
   W: number,
   H: number,
   tone: 'up' | 'down' | 'gold' | 'neutral' = 'neutral',
-  strength = 0.82
+  // 100-JUDGE AUDIT / fix 6.3 (THE REGISTER PASS, round 2): 0.82 -> 0.95 —
+  // the audit's measured target is mean luminance 180-205 on data rooms
+  // (the dark datacenter at 191 was the film's best composite by every
+  // judge's account; the rooms must meet the datacenter). Multiply at
+  // 0.475 alpha lands 6-10 points deeper than the 0.82 blend while the
+  // white card foregrounds keep their deliberate pop.
+  strength = 0.95
 ): void {
   // PHASE-0 (report §6, Fix 1): default plate strength 0.72 -> 0.82 — the
   // audit measured data/host rooms still washing out under the 0.72 blend
@@ -528,8 +534,10 @@ export function scenePlate(
     const bandTop = H * 0.66;
     const fg = ctx.createLinearGradient(0, bandTop, 0, H);
     fg.addColorStop(0, rgba(PALETTE.ink, 0));
-    fg.addColorStop(0.45, rgba(PALETTE.ink, 0.16));
-    fg.addColorStop(1, rgba(PALETTE.ink, 0.22));
+    // fix 6.3: 0.16/0.22 -> 0.20/0.28 — the ground must read as a FLOOR the
+    // figure stands on at the 320px gate, not a whisper under the plate.
+    fg.addColorStop(0.45, rgba(PALETTE.ink, 0.2));
+    fg.addColorStop(1, rgba(PALETTE.ink, 0.28));
     ctx.fillStyle = fg;
     ctx.fillRect(0, bandTop, W, H - bandTop);
   }
@@ -592,14 +600,17 @@ export function paintBg(
   // peach-gradient stacking scenes). The glow blob pair still breathes
   // on the same 6s clock; the frame still reads light — but a chapter
   // change now lands as a NARRATIVE event, not a whisper.
+  // 100-JUDGE AUDIT / fix 6.3: the journey climbs one more audible step —
+  // teal 0.215 / gold 0.20 / neutral 0.185 / coral 0.17. Room changes now
+  // read as narrative events at the feed; the light register holds.
   const strength =
     chapterTone === 'neutral'
-      ? 0.155
+      ? 0.185
       : chapterTone === 'gold'
-        ? 0.17
+        ? 0.2
         : chapterTone === 'down'
-          ? 0.15
-          : 0.19;
+          ? 0.17
+          : 0.215;
   glowBlob(ctx, W * 0.82, H * 0.16 + driftY(t), W * 0.5, wash, strength + 0.012 * pulse);
   glowBlob(ctx, W * 0.1, H * 0.9, W * 0.42, wash, strength * 0.73 + 0.010 * (1 - pulse));
 }
