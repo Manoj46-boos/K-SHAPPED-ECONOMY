@@ -23,6 +23,8 @@
  */
 
 import { PALETTE, FONT_UI, rgba, roundRect, setFont } from './theme';
+import { POSES } from './stickman';
+import { drawStickmanV2 } from './stickman-v2';
 
 /** Tapered stroke helper (thick-to-thin polygon with round caps). */
 function taper(
@@ -140,73 +142,31 @@ export function drawThumbnail(
   // shadow crossing both color fields. The split IS the K-shape; the man
   // standing astride it is the film. Chibi head (r 62) so the worry reads
   // at 100px feed height; hands up; brows up; mouth open.
+  // ── CHARACTER FIRST (fix 5) — 100-JUDGE PANEL REPORT (fix F — SAME
+  // BRAND): the generic white stick man was a stranger — "the viewer who
+  // clicks meets a different character." The thumbnail now renders the
+  // FILM's host with the real rig (drawStickmanV2) in the re-keyed shock
+  // pose, astride the seam, waist-up staging (the legs run below the
+  // canvas edge): the face carries the worry at feed size, and the
+  // character matches the first frame of the video.
   {
-    // Panel round 2: the figure stands ASTRIDE the seam (one foot each
-    // economy — the split IS the K) at 0.95 scale: LARGE, the first read.
-    // The seam runs (0.62W,0)→(0.50W,H): at the feet's y it sits at ~0.52W
-    // — the figure's center rides it, feet both sides, contact shadow
-    // crossing both color fields.
-    const fx = W * 0.515, fy = H * 0.80;
-    const CH = 0.95;
+    const fx = W * 0.52;
+    const fy = H * 1.08; // pelvis below the bottom edge: waist-up framing
+    const SC = 3.2;      // head ≈ 145px at 1280×720 — the worry reads at 320px
     ctx.save();
     ctx.translate(fx, fy);
-    ctx.scale(CH, CH);
-    const BODY = '#FFFFFF';
-    // the contact shadow — ON both color fields: a dark ellipse straddling
-    // the seam under his feet (teal half reads teal-shadow, coral half
-    // coral-shadow — the figure STANDS, he does not float)
-    ctx.fillStyle = 'rgba(15, 40, 34, 0.42)';
-    ctx.beginPath();
-    ctx.ellipse(0, 10, 96, 16, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // legs — astride the seam
-    taper(ctx, 0, -128, -34, 0, 16, 13, BODY);
-    taper(ctx, 0, -128, 34, 0, 16, 13, BODY);
-    // torso
-    taper(ctx, 0, -128, 0, -240, 20, 25, BODY);
-    // arms — hands UP (the shrug)
-    taper(ctx, -6, -226, -68, -292, 14, 11, BODY);
-    taper(ctx, 6, -226, 68, -292, 14, 11, BODY);
-    ctx.fillStyle = '#0C2E27';
-    ctx.lineWidth = 6;
-    for (const hx of [-72, 72]) {
-      ctx.beginPath(); ctx.arc(hx, -298, 18, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = BODY;
-      ctx.stroke();
-    }
-    // head — chibi, the worry readable at feed scale
-    const hr = 64;
-    ctx.fillStyle = '#FFFFFF';
-    ctx.lineWidth = 9;
-    ctx.strokeStyle = '#0C2E27';
-    ctx.beginPath();
-    ctx.arc(0, -340, hr, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    // worried brows (inner ends up)
-    ctx.lineWidth = 8;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#0C2E27';
-    ctx.beginPath(); ctx.moveTo(-38, -360); ctx.lineTo(-14, -372); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(38, -360); ctx.lineTo(14, -372); ctx.stroke();
-    // eyes — wide
-    ctx.fillStyle = '#0C2E27';
-    ctx.beginPath(); ctx.ellipse(-21, -344, 9, 11.5, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(21, -344, 9, 11.5, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath(); ctx.arc(-18, -349, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(24, -349, 3, 0, Math.PI * 2); ctx.fill();
-    // open-mouth worry
-    ctx.fillStyle = DOWN;
-    ctx.beginPath();
-    ctx.ellipse(0, -310, 14, 18, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#0C2E27';
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.ellipse(0, -310, 14, 18, 0, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.scale(SC, SC);
+    drawStickmanV2(ctx, 0, 0, 1, 4000, {
+      pose: POSES.shock,
+      talk: 0.8, jaw2x: 1.6, faceScale: 1.35,
+      look: 0.15, parallax: false, scarf: true,
+    }, 7);
     ctx.restore();
+    // the contact shadow — astride the seam at the canvas edge
+    ctx.fillStyle = 'rgba(15, 40, 34, 0.35)';
+    ctx.beginPath();
+    ctx.ellipse(W * 0.52, H - 6, 200, 20, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   // ── QUESTION LOUDEST (fix 5): the question line carries the frame —
