@@ -166,7 +166,15 @@ export const POSES: Record<string, Pose> = {
   // PLAYBOOK P6 (report §8.1 — SILHOUETTE EMOTIONS): +shoulderDrop 6 —
   // the chest COLLAPSES on shock (the near shoulder sinks; the panel:
   // "emotions that change silhouette shapes survive" the phone gate).
-  shock: { ...base(), lean: -6, headTilt: -6, rootY: 3, lAU: -104, lAL: -128, rAU: 118, rAL: 142, lLU: -11, lLL: 4, rLU: 12, rLL: -8, browRaise: 0.95, smile: 0.02, pelvisTilt: 4.5, shoulderTilt: -3.5, shoulderDrop: 6, eyeL: 1.3, eyeR: 1.3 },
+  // 100-JUDGE PANEL REPORT (fix E1 — THE SHOCK RE-KEY): the old key flung
+  // BOTH arms up symmetrically (lAU -104 / rAU 118) with the mouth wide —
+  // the silhouette read as jazz hands, as CELEBRATION, on the exact beat
+  // the narration says two contradictory numbers collided. A premium
+  // shock is asymmetric: the near arm guards high but FLEXED, the far arm
+  // recoils LOW with the elbow bent, the head rocks back with the weight
+  // settling onto the back foot (pelvisTilt flips), shoulders dropped.
+  // Reads as recoil with zero motion — the test a hero shock must pass.
+  shock: { ...base(), lean: -4, headTilt: -6, rootY: 5, lAU: -95, lAL: -115, rAU: -30, rAL: -75, lLU: -11, lLL: 4, rLU: 12, rLL: -8, browRaise: 0.95, smile: 0.02, pelvisTilt: -6, shoulderTilt: -3.5, shoulderDrop: 6, eyeL: 1.3, eyeR: 1.3 },
   // wry: the paradox resolve (c7-paradox) — the knowing half-smile: one brow
   // up, one down, head tilted, hand low like “well, actually”.
   // P1-4: + silhouette terms — the near eye squints to 0.55 while the far
