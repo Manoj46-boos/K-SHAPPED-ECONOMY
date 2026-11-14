@@ -855,9 +855,10 @@ export function groundShadowV2(
   // phantom plane).
   if (rot !== 0) ctx.rotate(rot);
   // the ambient ring — the soft outer claim on the floor (kept, smaller)
+  // 100-JUDGE REPORT fix C2: shadow mass deepens (ambient 0.45 → 0.52).
   const g = ctx.createRadialGradient(-4 + skewX, 4, 6, -4 + skewX, 4, 88);
-  g.addColorStop(0, rgba(PALETTE.shadow, 0.45));
-  g.addColorStop(0.5, rgba(PALETTE.shadow, 0.15));
+  g.addColorStop(0, rgba(PALETTE.shadow, 0.52));
+  g.addColorStop(0.5, rgba(PALETTE.shadow, 0.17));
   g.addColorStop(1, rgba(PALETTE.shadow, 0));
   ctx.fillStyle = g;
   ctx.beginPath();
@@ -865,32 +866,28 @@ export function groundShadowV2(
   ctx.fill();
   // the CRISP contact line — the tight dark line the K's shadow already
   // has, right under the feet (±40px): the anchor that kills the float.
-  // Panel round 2: the judge read the first pass as "a line running through
-  // the shadow" — the contact line now sits clearly below the ellipse's
-  // core, darker (0.58) and thicker (4.2), hugging the soles.
-  ctx.strokeStyle = rgba(PALETTE.shadow, 0.58);
-  ctx.lineWidth = 4.2;
+  // 100-JUDGE REPORT fix C2: contact line 0.58 → 0.68, 4.2 → 4.6.
+  ctx.strokeStyle = rgba(PALETTE.shadow, 0.68);
+  ctx.lineWidth = 4.6;
   ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(-40, 10); ctx.lineTo(40, 10); ctx.stroke();
-  // PREMIUM UPGRADE FIX 10 (100-judge critique §5.3): TIGHT VERTICAL CONTACT
-  // SHADOW — a 40px-tall gradient directly under the soles (0.55 alpha at the
-  // sole, fading to 0 over 40px). The 'planted' cue the audit-round-2 fix was
-  // reaching for: the figure reads as anchored, not floating. Scales with the
-  // host rig (drawn in the local space below the feet line).
-  const cg = ctx.createLinearGradient(0, 10, 0, 50);
-  cg.addColorStop(0, rgba(PALETTE.shadow, 0.55));
-  cg.addColorStop(1, rgba(PALETTE.shadow, 0));
-  ctx.fillStyle = cg;
-  ctx.beginPath();
-  ctx.ellipse(0, 28, 52, 22, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // the soft stage line — kept at low alpha
-  ctx.strokeStyle = rgba(PALETTE.shadow, 0.30);
+  // 100-JUDGE PANEL REPORT (fix B1 — ONE GROUND LANGUAGE): the ground
+  // system merges to THREE elements — the ambient radial patch, the crisp
+  // contact line, and one short horizon tick. Retired here:
+  //   • the vertical 'puddle' gradient ellipse (a second soft mass hanging
+  //     BELOW the contact line — the hovering-over-a-puddle double shadow);
+  //   • the ±130 soft stage line (a grey rule running through the shadow);
+  //   • the ±34 GOLD stage line at hero rigs — the "skateboard deck" the
+  //     brief itself named. The gold tick survives ONLY at background rigs
+  //     (≤1.2) at whisper alpha, where it reads as the brand's floor mark.
+  ctx.strokeStyle = rgba(PALETTE.shadow, 0.22);
   ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(-130, 8); ctx.lineTo(130, 8); ctx.stroke();
-  ctx.strokeStyle = rgba(PALETTE.gold, 0.85);
-  ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.moveTo(-34, 8); ctx.lineTo(34, 8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-70, 8); ctx.lineTo(70, 8); ctx.stroke();
+  if (scale <= 1.2) {
+    ctx.strokeStyle = rgba(PALETTE.gold, 0.35);
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(-22, 8); ctx.lineTo(22, 8); ctx.stroke();
+  }
   ctx.restore();
 }
 

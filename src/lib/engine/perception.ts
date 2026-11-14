@@ -149,14 +149,17 @@ export const HERO = {
  *  mass on pale ground. Limb/torso/head weights sized so the figure carries
  *  the frame's identity even at 320px. */
 export const INK = {
-  /** Near arm taper: shoulder → elbow → wrist (was 13/11/9). */
-  armNear: [17, 13, 10] as [number, number, number],
-  /** Far arm taper (was 9/8/7). */
-  armFar: [13, 10, 8] as [number, number, number],
-  /** Near leg taper (was 15/12/10). */
-  legNear: [21, 16, 12] as [number, number, number],
-  /** Far leg taper (was 12/10/9). */
-  legFar: [17, 13, 10] as [number, number, number],
+  /** Near arm taper: shoulder → elbow → wrist.
+   *  100-JUDGE REPORT fix C2 (INK MASS): 17/13/10 → 20/15/11 — the figure
+   *  must carry the frame's value structure (dark ink was 2.3% of frame;
+   *  the target band is 4-5%). */
+  armNear: [20, 15, 11] as [number, number, number],
+  /** Far arm taper (C2: 13/10/8 → 15/12/9). */
+  armFar: [15, 12, 9] as [number, number, number],
+  /** Near leg taper (C2: 21/16/12 → 25/19/14 — the report's number). */
+  legNear: [25, 19, 14] as [number, number, number],
+  /** Far leg taper (C2: 17/13/10 → 20/15/11). */
+  legFar: [20, 15, 11] as [number, number, number],
   /** Torso taper: hips → shoulders (was 15/22). */
   torso: [19, 30] as [number, number],
   /** Head outline stroke (was 9). AUDIT-PHASE-2: 12 -> 14 — the face's

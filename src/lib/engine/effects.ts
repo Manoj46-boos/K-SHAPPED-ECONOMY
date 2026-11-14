@@ -471,7 +471,10 @@ export function lightVignette(ctx: CanvasRenderingContext2D, W: number, H: numbe
   const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.28, W / 2, H / 2, Math.max(W, H) * 0.72);
   g.addColorStop(0, rgba(PALETTE.shadow, 0));
   g.addColorStop(0.45, rgba(PALETTE.shadow, 0));
-  g.addColorStop(1, rgba(PALETTE.shadow, 0.55 * strength));
+  // 100-JUDGE REPORT fix C2: corner alpha 0.55 → 0.62 — the edges carry
+  // more of the frame's value structure (the film used 40 of its 255
+  // luminance levels; the range is the point, not darkness).
+  g.addColorStop(1, rgba(PALETTE.shadow, 0.62 * strength));
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
 }
