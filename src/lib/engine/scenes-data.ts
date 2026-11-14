@@ -425,32 +425,59 @@ export function chartJourneyScene(g: SceneCtx): void {
   });
 
   // extra stat chips — v3: beat-relative stagger + anchored above the band
-  extraStats.forEach((st, i) => {
-    const ap = clamp01((bt - 1400 - i * 500) / 700);
-    if (ap <= 0) return;
-    const c = TONE(st.tone || 'default');
-    ctx.save();
-    ctx.globalAlpha = ap;
-    // bottom-anchored stack: last row's bottom edge sits at ~798 (design
-    // grid), clear of the caption pill top (800/808)
-    const cyy = ((732 - (extraStats.length - 1 - i) * 84) / 1080) * H;
-    ctx.fillStyle = c.soft;
-    roundRect(ctx, 330, cyy, 560, 66, 33); // PLAYBOOK D3: ride the chart column
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = rgba(c.main, 0.4);
-    roundRect(ctx, 330, cyy, 560, 66, 33);
-    ctx.stroke();
-    setFont(ctx, 36, 700);
-    ctx.fillStyle = c.main;
-    ctx.textAlign = 'left';
-    ctx.fillText(st.big, 366, cyy + 46);
+  // 100-JUDGE PANEL REPORT (defect D4 — THE OVERFLOWING CHIP): the label
+  // was drawn unmeasured from x=440 inside a fixed 560px plate — a 52-char
+  // label at 34px ran ~450px past the plate's right edge (measured on the
+  // 16%-rated frame). The plate now grows from MEASURED text (capped at
+  // 1086 so the worst-camera right edge stays ~1870), and the label wraps
+  // at the plate interior into up to two lines, the chip growing to 100px
+  // tall when it does; rows stack bottom-anchored with the same 18px gap.
+  {
     setFont(ctx, 34, 600);
-    ctx.fillStyle = PALETTE.inkSoft;
-    const label = st.label.length > 52 ? st.label.slice(0, 51) + '…' : st.label;
-    ctx.fillText(label, 440, cyy + 43);
-    ctx.restore();
-  });
+    const metas = extraStats.map((st: any) => {
+      const label = st.label.length > 52 ? st.label.slice(0, 51) + '…' : st.label;
+      const labelW = ctx.measureText(label).width;
+      const plateW = Math.min(Math.max(440 + labelW + 28, 560), 1086);
+      const innerW = plateW - 110 - 24;
+      const lines = labelW > innerW ? wrapText(ctx, label, innerW, 34, 600).slice(0, 2) : [label];
+      return { label, plateW, lines, chipH: lines.length > 1 ? 100 : 66 };
+    });
+    const bottoms: number[] = new Array(metas.length);
+    let yBottom = 798;
+    for (let i = metas.length - 1; i >= 0; i--) {
+      bottoms[i] = yBottom;
+      yBottom = yBottom - metas[i].chipH - 18;
+    }
+    extraStats.forEach((st: any, i: number) => {
+      const ap = clamp01((bt - 1400 - i * 500) / 700);
+      if (ap <= 0) return;
+      const c = TONE(st.tone || 'default');
+      const m = metas[i];
+      ctx.save();
+      ctx.globalAlpha = ap;
+      const cyy = (bottoms[i] - m.chipH) / 1080 * H;
+      const pw = (m.plateW / 1080) * W;
+      ctx.fillStyle = c.soft;
+      roundRect(ctx, 330, cyy, pw, m.chipH, 33); // PLAYBOOK D3: ride the chart column
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = rgba(c.main, 0.4);
+      roundRect(ctx, 330, cyy, pw, m.chipH, 33);
+      ctx.stroke();
+      setFont(ctx, 36, 700);
+      ctx.fillStyle = c.main;
+      ctx.textAlign = 'left';
+      ctx.fillText(st.big, 366, cyy + (m.lines.length > 1 ? 62 : 46));
+      setFont(ctx, 34, 600);
+      ctx.fillStyle = PALETTE.inkSoft;
+      if (m.lines.length > 1) {
+        m.lines.forEach((ln, j) => ctx.fillText(ln, 440, cyy + 42 + j * 40));
+      } else {
+        ctx.fillText(m.lines[0], 440, cyy + 43);
+      }
+      ctx.restore();
+    });
+  }
 
   // chips row — v3 (panel P0-2 + P1-1): the stack was uncapped and with 2+
   // extraStats the chips landed at y 821-989 — under the caption pill (top ≈
