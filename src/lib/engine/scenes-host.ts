@@ -1465,10 +1465,32 @@ export function divergeKScene(g: SceneCtx): void {
     }
   }
 
-  // twist chip — v4 (audit P0-6): held from the first scene; in the opening
-  // beat it arrives at ~2.8s (mid cold-open), otherwise at 4.2s as before
+  // twist chip — MOVED BELOW the host rest pass (D8 follow-up, panel
+  // re-review): at the 3.0x staging the host's legs plate the chip's text
+  // when the chip draws first; a UI chip plating the FIGURE is standard
+  // lower-third grammar, the reverse is a layering error. In `opening`
+  // mode it now arrives WITH the tear (t 4800) — the 2.8s arrival collided
+  // with the "AMERICANS CALL THE ECONOMY GOOD" label the re-review caught
+  // at t=3.0s.
+
+  // AUDIT-ROUND-2 (fix 19): the REST pass — the near arm (and body/head)
+  // draw AFTER the K: the raised hand passes IN FRONT of the letter's stem
+  // with its contact shadow, the far arm behind it. One figure, correct
+  // occlusion, the signature scene finally touches.
+  if (hostRestPass) {
+    drawStickmanV2(ctx, hostRestPass.hx, hostRestPass.hy, hostRestPass.hScale, t,
+      { pose: hostRestPass.pose, alpha: hostRestPass.hAlpha, look: 0.9, talk: hostRestPass.talk,
+        faceScale: hostRestPass.hFace, parallax: true, phase: 'rest', kContact: true,
+        // 100-JUDGE AUDIT (Part 8.2): the viseme wiring on the signature
+        // scene's rest pass (the pass that draws the head + mouth).
+        wordTexts: g.wordTexts, wordTimes: g.wordTimes, beatT: g.beatT }, 5);
+  }
+  // twist chip — drawn AFTER the host rest pass (D8 follow-up): the chip
+  // plates the figure's shins as a lower-third, never the reverse. In
+  // `opening` mode it arrives WITH the tear (t 4800 — the 2.8s arrival
+  // collided with the "AMERICANS CALL THE ECONOMY GOOD" label at t=3.0s).
   if (s.twistChip) {
-    const ap = clamp01((t - (opening ? 2800 : 4200)) / 800);
+    const ap = clamp01((t - (opening ? 4800 : 4200)) / 800);
     if (ap > 0) {
       ctx.save();
       ctx.globalAlpha = ap;
@@ -1476,26 +1498,6 @@ export function divergeKScene(g: SceneCtx): void {
       setFont(ctx, 34, 600);
       const tw = ctx.measureText(txt).width;
       const cx = W / 2 - tw / 2 - 28;
-      // v5: the chip lived at H-236 — INSIDE the caption pill's band
-      // (808–956), so whenever a caption was live the opaque pill plated
-      // over the chip and left a garbled gold sliver (vision panel: “a
-      // messy yellow highlight over the subtitle”). It now rides fully
-      // ABOVE the pill zone.
-      // PANEL-9 R7b (chip corners clipped by the pill): the v5 math placed
-      // the chip at CAPTION_ZONE_TOP-56 (744..798) — but a TWO-ROW pill is
-      // 160px tall from baseY 952, topping out at y=796, so the pill's
-      // opaque plate still bit 2px (+2px stroke) off the chip's bottom
-      // rounded corners whenever the cold-open's long VO line wrapped to
-      // two rows (the re-review judge read it as "clipped, not fully
-      // rendered"). CAPTION_ZONE_TOP-76 put the chip bottom at 778 — 18px
-      // clear of the tallest pill.
-      // 100-JUDGE PANEL REPORT (defect D8 — THE FOOT-PLATED CHIP): at -76
-      // the chip's top (y≈724) sat inside the host's foot envelope on the
-      // naming-beat framing (feet at ground H*0.6611 ≈ 714, shoe+shadow to
-      // ≈748) — the figure stepped ON the pill and the layering read as an
-      // error. The chip rides 40px higher: bottom 738, top 684 — clear of
-      // the feet by 30px, still 114px above the tallest pill's top (796),
-      // and the K's lower-arm tip (x≈1355 vs chip right ≈1298) stays clear.
       const cy = CAPTION_ZONE_TOP - 116;
       ctx.fillStyle = PALETTE.goldWash;
       roundRect(ctx, cx, cy, tw + 56, 54, 27);
@@ -1509,19 +1511,6 @@ export function divergeKScene(g: SceneCtx): void {
       ctx.fillText(txt, cx + 28, cy + 35);
       ctx.restore();
     }
-  }
-
-  // AUDIT-ROUND-2 (fix 19): the REST pass — the near arm (and body/head)
-  // draw AFTER the K: the raised hand passes IN FRONT of the letter's stem
-  // with its contact shadow, the far arm behind it. One figure, correct
-  // occlusion, the signature scene finally touches.
-  if (hostRestPass) {
-    drawStickmanV2(ctx, hostRestPass.hx, hostRestPass.hy, hostRestPass.hScale, t,
-      { pose: hostRestPass.pose, alpha: hostRestPass.hAlpha, look: 0.9, talk: hostRestPass.talk,
-        faceScale: hostRestPass.hFace, parallax: true, phase: 'rest', kContact: true,
-        // 100-JUDGE AUDIT (Part 8.2): the viseme wiring on the signature
-        // scene's rest pass (the pass that draws the head + mouth).
-        wordTexts: g.wordTexts, wordTimes: g.wordTimes, beatT: g.beatT }, 5);
   }
   softBloom(ctx, W, H, t - 3800, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)
 }
