@@ -969,9 +969,14 @@ export function kDefScene(g: SceneCtx): void {
   // hand off to the ink face exactly as divergeK stages it.
   const grow = clamp01((t - 200) / 2600);
   const kA2 = clamp01((grow - 0.55) / 0.45);
-  if (grow > 0.3 && kA2 < 1) {
+  // 100-JUDGE PANEL REPORT (defect D7 — THE HANDOFF): the overlay tubes ran
+  // with alpha 1-kA2 across the WHOLE landing, coexisting with the visible
+  // K face across kA2 0.3-1.0 — the "straws on the letter" read, here on
+  // the kDef naming beat. The handoff completes at kA2 0.30 (the face is
+  // 30% in): no coexistence with a legible face.
+  if (grow > 0.3 && kA2 < 0.30) {
     ctx.save();
-    ctx.globalAlpha = 1 - kA2;
+    ctx.globalAlpha = 1 - kA2 / 0.30;
     ctx.lineCap = 'round';
     const armK = (frac: number, vivid: string, dir: number): void => {
       if (frac <= 0) return;

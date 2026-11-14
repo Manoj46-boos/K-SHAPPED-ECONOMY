@@ -1121,15 +1121,16 @@ export function divergeKScene(g: SceneCtx): void {
   // they take the vivid data-ink ramp (one step brighter than text teal) so
   // the formation survives the transcode; all arm LABELS stay on the
   // text-safe tones.
-  if ((upArmK > 0 || dnArmK > 0) && kA < 0.55) {
-    // D-6 (100-judge dossier): the handoff now COMPLETES. The overlay arms
-    // faded with alpha 1-kA up to kA 0.99, so the vivid tubes ran alongside
-    // the K's own gold arms for most of the formation — on the Shorts frame
-    // they read as a teal straw lying on the letter. The fade now lands at
-    // kA 0.55, while the K's own arms are still growing in: no coexistence,
-    // no straw. (The strike aftermath below completes by kA 0.49, inside
-    // the gate.)
-    ctx.globalAlpha = 1 - kA / 0.55;
+  if ((upArmK > 0 || dnArmK > 0) && kA < 0.30) {
+    // D-6 (100-judge dossier) + 100-JUDGE PANEL REPORT (defect D7 — THE
+    // HANDOFF): the previous completion at kA 0.55 still left both vivid
+    // tubes AND their 34px white halos coexisting with the K's gold face
+    // across kA 0.3-0.55 — the "two straws lying across the letter" read
+    // at t=6.5s. The handoff now completes at kA 0.30 while the K's own
+    // arms are still growing in: the halos die first (alpha lands 0 by the
+    // time the face passes 30% opacity), the strike aftermath below still
+    // completes by kA 0.49, inside the gate.
+    ctx.globalAlpha = 1 - kA / 0.30;
     // v10.1 (panel 11 re-review, round 2): the judge read BOTH versions' arms
     // as "pale, low-contrast grey strokes" — at 13px on a 1920 frame the
     // signature stroke is 2px at phone scale, and the subject halo behind
