@@ -1001,7 +1001,12 @@ export function divergeKScene(g: SceneCtx): void {
     // collision centre) and RECOIL ~44px apart after the 1.7s impact — the
     // bounce is what sells the hit.
     const shIn = clamp01((t - 2400) / 260);        // close-up arrival
-    const dim = 1 - 0.88 * shIn;                   // numbers all but vanish behind it
+    // 100-JUDGE PANEL REPORT (defect D10 — THE VANISHING HOOK DATA): the
+    // old dim floor of 0.12 made the cited numbers invisible in the exact
+    // seconds the narration speaks them — the hook frame's data became two
+    // ghost stains. The dim now floors at 0.35: the close-up still owns the
+    // left half, but the +18%/16% stay legible at feed scale while spoken.
+    const dim = Math.max(0.35, 1 - 0.88 * shIn);   // numbers dim behind it — legibility floor 0.35
     const aP = clamp01((t - 120) / 300);           // left number slams
     const bP = clamp01((t - 480) / 300);           // right number slams
     const sh = microShake(t, 1700);                // the collision hit
