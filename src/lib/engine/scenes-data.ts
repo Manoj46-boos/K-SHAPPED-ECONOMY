@@ -1263,7 +1263,13 @@ export function gasPumpScene(g: SceneCtx): void {
     // PLAYBOOK D3 follow-up: right card W*0.63 → W*0.60 — the ch4 hero
     // truck (±180px) pushed its right edge 45px past the frame bound at
     // the group's dense-mid frames. The card narrows with it (480 → 460).
-    const x = i === 0 ? W * 0.07 : W * 0.60;
+    // 100-JUDGE PANEL REPORT (defect D2 — THE CLIPPED CARD): the who-label
+    // ("LOWER-INCOME HOUSEHOLDS", 34px/700) measured ~480px — wider than
+    // the plate's 380px interior — and under the ch4 truck the overflow
+    // ran to the literal frame edge (measured x=1919, mid-word). The card
+    // pulls left to W*0.555 (worst-camera right edge ~1733) and the label
+    // now WRAPS at the measured interior width instead of overflowing.
+    const x = i === 0 ? W * 0.07 : W * 0.555;
     const y = H * 0.26;
     ctx.save();
     ctx.globalAlpha = cap;
@@ -1273,17 +1279,22 @@ export function gasPumpScene(g: SceneCtx): void {
     setFont(ctx, 34, 700);
     ctx.fillStyle = tone.main;
     ctx.textAlign = 'left';
-    ctx.fillText(c.who.toUpperCase(), x + 40, y + 62);
+    // the who-label wraps at the plate's measured interior (460 - 2*40):
+    // two lines max, the rule and the stat line shift down when wrapped
+    const whoTxt = (c.who as string).toUpperCase();
+    const whoLines = wrapText(ctx, whoTxt, 380, 34, 700).slice(0, 2);
+    const wrapped = whoLines.length > 1;
+    whoLines.forEach((ln, j) => ctx.fillText(ln, x + 40, y + 62 + j * 40));
     ctx.lineWidth = 3;
     ctx.strokeStyle = rgba(tone.main, 0.4);
     ctx.beginPath();
-    ctx.moveTo(x + 40, y + 84);
-    ctx.lineTo(x + 200, y + 84);
+    ctx.moveTo(x + 40, y + (wrapped ? 124 : 84));
+    ctx.lineTo(x + 200, y + (wrapped ? 124 : 84));
     ctx.stroke();
     // ONE stat line per card — the numeric only (fix 3)
     setFont(ctx, 54, 700);
     ctx.fillStyle = tone.main;
-    ctx.fillText((c.stats as string[])[0], x + 40, y + 168);
+    ctx.fillText((c.stats as string[])[0], x + 40, y + (wrapped ? 196 : 168));
     ctx.restore();
   });
   // v10 (D-02): the caption — moved from y≈992 (ON the source tag) to the
