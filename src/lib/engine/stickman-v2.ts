@@ -1615,9 +1615,18 @@ export function drawStickmanV2(
   // every CONTACT-VERB staging (pie rim, rack face, 493 wall). Drawn just
   // UNDER the hand glyph so the hand lands ON the object.
   if (r.kContact || r.contact) {
-    ctx.fillStyle = rgba(PALETTE.shadow, 0.38);
+    // 100-JUDGE PANEL REPORT (defect D6 — THE SHADOW IN THE AIR): the
+    // contact ellipse drew at hand + (+2, +7) — BELOW the hand — so on
+    // vertical surfaces (the K stem) it floated in the air BESIDE the
+    // object, a grey oval attached to nothing (the naming-beat frames).
+    // The press-point shadow now sits centered ON the hand and rotates to
+    // the FOREARM direction (canvas rotation pi/2 - a aligns the major
+    // axis with the (sin a, cos a) limb convention): wherever the hand
+    // presses — stem, wall, pie rim — the shadow reads as pressure AT the
+    // contact, never as a floating smudge.
+    ctx.fillStyle = rgba(PALETTE.shadow, 0.30);
     ctx.beginPath();
-    ctx.ellipse(hand.ex + 2, hand.ey + 7, 26, 11, pose.rAL * D2R * 0.4, 0, Math.PI * 2);
+    ctx.ellipse(hand.ex, hand.ey, 24, 10, Math.PI / 2 - pose.rAL * D2R, 0, Math.PI * 2);
     ctx.fill();
   }
   // P0-2 + AUDIT-2 / 1.3 (report §10.2, C5): TWO GLYPHS — the fan at hero
