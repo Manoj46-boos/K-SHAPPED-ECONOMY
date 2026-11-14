@@ -372,17 +372,19 @@ export function hostScene(g: SceneCtx): void {
   // v2 (PATCH 9): beats that carry an editorial `headline` get the composed
   // layout — host anchored at the left third, serif headline + sub filling
   // the right two-thirds (the v1 centered-host layout left the middle 40% of
-  // the frame empty ivory; panel verdict 3/10). Beats with a chartstand /
-  // kclimb / kdescend stage keep the legacy stage dressing.
-  const stage = (g.s.stage as string) || 'spot';
-  if (g.s.headline && stage === 'spot') {
-    hostSceneV2(g);
-    return;
-  }
-  const side = (g.s.hostSide as string) || (g.s.stage === 'chartstand' ? 'left' : 'center');
-  hostStage(g, side as 'center' | 'left' | 'right');
-  drawHost(g, side as 'center' | 'left' | 'right');
-  hostChips(g, side as 'center' | 'left' | 'right');
+  // the frame empty ivory; panel verdict 3/10).
+  // 100-JUDGE PANEL REPORT (defect D9 — THE SKIPPED EDITORIAL LAYOUT):
+  // beats on chartstand / kflip / kclimb / kdescend stages fell through to
+  // the legacy centered layout — a centered figure, a 0.1-alpha watermark
+  // K, and the frame's entire right two-thirds as empty tone (measured
+  // near-zero mid-band density; "small cartoon, big pink wall" at the
+  // 320px gate). EVERY host beat now runs the editorial composition;
+  // hostSceneV2 derives the headline from the beat's own narration when
+  // the beat ships no headline prop, and the stage dressing draws INSIDE
+  // the editorial column (easel) or at the host's footing (climb ramps).
+  // The legacy hostStage/drawHost/hostChips remain for the other drawers
+  // that stage side hosts (splitNumbers, recapSplit, paradoxResolve).
+  hostSceneV2(g);
 }
 
 /**
@@ -414,6 +416,10 @@ export function hostSceneV2(g: SceneCtx): void {
 
   // ── host at the left third, walking in then presenting ──
   const entrance = g.s.entrance as string | undefined;
+  // D9: the beat's stage (spot / chartstand / kflip / kclimb / kdescend) —
+  // declared early: the ramps draw with the host, the column furniture
+  // draws with the type block.
+  const stage = (g.s.stage as string) || 'spot';
   // AUDIT-2 / 1.7 (report §10.2, C8): THE HOST TRAVELS — two/three stage
   // positions per scene, WALKED between on sentence boundaries. He was
   // pinned at W*0.28 for entire scenes: "a presenter who never crosses the
@@ -533,6 +539,24 @@ export function hostSceneV2(g: SceneCtx): void {
   // The signature scene's 1.56 counterweight and the diagram-figure table
   // are their own registry entries (below) — the HOST is one person,
   // film-wide, at 2.05.
+  // D9: the climb/descend ramps still terminate at the host's footing —
+  // now the editorial composition's footing (the same geometry hostStage
+  // drew for the legacy layout, anchored at hx/H*0.62 and drawn UNDER the
+  // figure so the plateau reads as ground he occupies).
+  if (stage === 'kclimb' || stage === 'kdescend') {
+    const hyR = H * 0.62;
+    ctx.save();
+    ctx.strokeStyle = stage === 'kclimb' ? rgba(PALETTE.up, 0.8) : rgba(PALETTE.down, 0.75);
+    ctx.lineWidth = 12;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(W * 0.10, stage === 'kclimb' ? hyR + 60 : hyR - 120);
+    ctx.lineTo(hx - 24, hyR);
+    ctx.lineTo(hx + 66, hyR);
+    ctx.stroke();
+    ctx.restore();
+  }
   drawStickmanV2(
     ctx, hx, H * 0.62, HOST_SCALE, t,
     { pose, alpha: clamp01(t / 380), look: 0.8, scarf: true, nod: nodP, talk, smear: smr, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true, parallaxAmt: 0.55, // P2-4: hero moment — clear space, deep differential
@@ -546,14 +570,37 @@ export function hostSceneV2(g: SceneCtx): void {
   // the far stage block (W*0.42) never plates the kicker/headline — the
   // host PRESENTS BESIDE his content (fix 4's converse) instead of
   // standing under it.
+  // 100-JUDGE PANEL REPORT (D9 companion): beats that ship no editorial
+  // props now derive the column from their OWN narration — the first VO
+  // sentence becomes a serif pull-quote (word-wrapped at ≤26 chars/line,
+  // up to three lines, the remainder becoming the sub copy), so the routed
+  // stage beats read as composed editorial frames, never as a template
+  // placeholder — and never overflow the column (the 54px headline floor
+  // holds ~30 chars per line; a naive 2-line split of a 90-char sentence
+  // measured 1200px at the floor and ran past the frame edge).
   const hx2 = W * 0.47;
-  const head = (g.s.headline as string) ?? 'Two numbers\nthat don’t add up.';
+  const voSentences = (g.beat.vo || '').match(/[^.!?]+[.!?]*/g)?.map((s) => s.trim()).filter(Boolean) ?? [];
+  const mkPull = (txt: string): { head: string; rest: string } => {
+    const words = txt.replace(/\s+/g, ' ').split(' ').filter(Boolean);
+    const hLines: string[] = [];
+    let i = 0;
+    while (i < words.length && hLines.length < 3) {
+      let line = words[i++];
+      while (i < words.length && (line + ' ' + words[i]).length <= 26) line += ' ' + words[i++];
+      hLines.push(line);
+    }
+    return { head: hLines.join('\n'), rest: words.slice(i).join(' ') };
+  };
+  const pull = voSentences[0] ? mkPull(voSentences[0]) : { head: 'Two numbers\nthat don’t add up.', rest: '' };
+  const head = (g.s.headline as string) ?? pull.head;
   const lines = head.split('\n');
   const sub = (g.s.sub as string) ??
-    'Markets near record highs — and a country that feels like it’s\nfalling behind. Both are true.';
+    (pull.rest ? (pull.rest.length > 110 ? pull.rest.slice(0, 109) + '…' : pull.rest)
+    : (voSentences[1] ? voSentences[1].slice(0, 110) :
+    'Markets near record highs — and a country that feels like it’s\nfalling behind. Both are true.'));
 
   // kicker chip
-  const kick = (g.s.kicker as string) ?? 'THE K-SHAPED ECONOMY · CH 01';
+  const kick = (g.s.kicker as string) ?? 'THE DATA DESK · THE K-SHAPED ECONOMY';
   setFont(ctx, 34, 600); // v9 (D-07): floor
   const kw = ctx.measureText(kick).width;
   registerRect('hostV2:kicker', hx2, 168, kw + 48, 52);
@@ -592,18 +639,25 @@ export function hostSceneV2(g: SceneCtx): void {
       setFont(ctx, hSize, 700, FONT_SERIF);
     }
     setFont(ctx, hSize, 700, FONT_SERIF);
-    ctx.fillStyle = PALETTE.ink;
-    ctx.fillText(lines[0], hx2, 330);
-    ctx.fillStyle = PALETTE.goldDeep;
-    ctx.fillText(lines[1] ?? '', hx2, 330 + hSize * 1.11);
+    // D9 companion: up to THREE headline lines (ink / gold / ink) — the
+    // VO-derived pull-quotes wrap wider than the two-line props; the
+    // hairline and sub copy anchor below the LAST line.
+    const lineCols = [PALETTE.ink, PALETTE.goldDeep, PALETTE.ink];
+    lines.slice(0, 3).forEach((l, i) => {
+      ctx.fillStyle = lineCols[Math.min(i, lineCols.length - 1)];
+      ctx.fillText(l, hx2, 330 + i * hSize * 1.11);
+    });
     // hairline + sub copy — anchored to the (possibly shrunk) headline
-    const hairY = 330 + hSize * 1.11 + 40;
+    const hairY = 330 + (Math.min(lines.length, 3) - 1) * hSize * 1.11 + 40;
     ctx.fillStyle = PALETTE.gold;
     roundRect(ctx, hx2, hairY, 96, 6, 3);
     ctx.fill();
     setFont(ctx, 34, 400);
     ctx.fillStyle = PALETTE.inkSoft;
-    sub.split('\n').forEach((ln, i) => ctx.fillText(ln, hx2, hairY + 72 + i * 44));
+    // the sub yields to the K-fig panel's top (604): only lines that fit
+    const subLines = sub.split('\n');
+    const maxSub = Math.max(1, Math.floor((596 - (hairY + 72)) / 44));
+    subLines.slice(0, Math.max(1, maxSub)).forEach((ln, i) => ctx.fillText(ln, hx2, hairY + 72 + i * 44));
     ctx.restore();
   }
 
@@ -618,7 +672,7 @@ export function hostSceneV2(g: SceneCtx): void {
   // editorial figure the host presents. The lower band carries
   // information; the phone gate reads a composed frame.
   const fp = clamp01((t - 1100) / 500);
-  if (fp > 0) {
+  if (fp > 0 && stage !== 'chartstand') {
     ctx.save();
     ctx.globalAlpha = fp;
     ctx.translate(0, (1 - easeOutCubic(fp)) * 24);
@@ -678,6 +732,45 @@ export function hostSceneV2(g: SceneCtx): void {
     ctx.fillText('MARKETS', fx0 + fw - 24, fy0 + 38);
     ctx.fillStyle = PALETTE.downVivid;
     ctx.fillText('MAIN STREET', fx0 + fw - 24, fy0 + fh - 24);
+    ctx.restore();
+  }
+  // D9: on chartstand beats the stage's easel moves INSIDE the editorial
+  // column — the prop the host presents becomes the lower-right figure
+  // (the legacy W*0.68 easel plated the type block and left the host
+  // centered in front of an empty wall). Same easel geometry as
+  // hostStage's chartstand branch, scaled 0.8 and column-centered.
+  if (fp > 0 && stage === 'chartstand') {
+    ctx.save();
+    ctx.globalAlpha = fp;
+    ctx.translate(0, (1 - easeOutCubic(fp)) * 24);
+    const ex = hx2 + (W - hx2 - 240) / 2;
+    const ey = 604 + 170;
+    ctx.save();
+    ctx.translate(ex, ey);
+    ctx.scale(0.8, 0.8);
+    ctx.translate(-ex, -ey);
+    card(ctx, ex - 210, ey - 160, 420, 320, { r: 24 });
+    ctx.strokeStyle = rgba(PALETTE.grid, 0.7);
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(ex - 90, ey + 160);
+    ctx.lineTo(ex - 150, ey + 250);
+    ctx.moveTo(ex + 90, ey + 160);
+    ctx.lineTo(ex + 150, ey + 250);
+    ctx.stroke();
+    // abstract rising chart doodle on the easel
+    ctx.strokeStyle = PALETTE.up;
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    const pts = [
+      [ex - 150, ey + 90], [ex - 80, ey + 40], [ex - 30, ey + 66],
+      [ex + 30, ey - 30], [ex + 100, ey - 70],
+    ];
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (const [px2, py2] of pts.slice(1)) ctx.lineTo(px2, py2);
+    ctx.stroke();
+    ctx.restore();
     ctx.restore();
   }
 }
