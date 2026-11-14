@@ -502,29 +502,34 @@ export function scenePlate(
     : tone === 'gold' ? PALETTE.goldWash
     : '#DCE9E3';
   ctx.save();
-  // P1-2 + panel re-review: 0.72 default; the film's LOUDEST beats
-  // (bigText/stampCard hard cuts) pass 0.88 — a room the slam can land in
-  // ("a barely-there wash is not a tonal field", round-2 judge note).
-  // PHASE-0 (report §6, Fix 1): 0.72 -> 0.82 (see signature note above).
-  ctx.fillStyle = rgba(soft, strength);
+  // 100-JUDGE PANEL REPORT (fix C1 — THE MULTIPLY REGISTER): three rounds
+  // of "deepen bgTop" failed because alpha-over of pale colors converges
+  // to the plate, not to the target (alpha-over of a #E-toned soft at 0.82
+  // over the ivory lands within ~4 luminance points of the base — the
+  // arithmetic reason the register never moved). The plate composites
+  // MULTIPLY at half strength: multiply actually darkens, and the room
+  // finally reads as a tonal field instead of a slightly greener white.
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.fillStyle = rgba(soft, strength * 0.5);
   ctx.fillRect(0, 0, W, H);
-  // BLUEPRINT Phase 4 (report §11): the 5% darker FLOOR BAND — a soft
-  // gradient ramp under the presenter's ground line (host ground ≈
-  // 0.66·H; the band ramps from there to the frame bottom). The frame
-  // gains a GROUND LINE: the stage reads as a floor the figures stand
-  // on, not a lightbox they float over. Soft-edged (a gradient, never a
-  // hard stripe), light-register (5% ink over the plate), background —
+  ctx.globalCompositeOperation = 'source-over';
+  // BLUEPRINT Phase 4 (report §11): the FLOOR BAND — a soft gradient ramp
+  // under the presenter's ground line (host ground ≈ 0.66·H; the band
+  // ramps from there to the frame bottom). The frame gains a GROUND LINE:
+  // the stage reads as a floor the figures stand on, not a lightbox they
+  // float over. Soft-edged (a gradient, never a hard stripe), background —
   // never registered with the collision guard.
-  // PHASE-0 (report §6, Fix 1): the floor band deepens 0.035/0.055 ->
-  // 0.06/0.085 — the ground line is the single cheapest depth cue on
-  // every host frame; it survives the 6x downsample where the plate's
-  // tonal difference alone does not.
+  // 100-JUDGE PANEL REPORT (fix B2 — THE INVISIBLE FLOOR): the band drew
+  // at 0.06/0.085 ink alpha over an 0.82-alpha plate — arithmetic that
+  // lands 2-3 luminance points above the room: invisible. The audit's
+  // numbers (0.16/0.22) put the floor 8-12 points below the room —
+  // visible, still light-register.
   {
     const bandTop = H * 0.66;
     const fg = ctx.createLinearGradient(0, bandTop, 0, H);
     fg.addColorStop(0, rgba(PALETTE.ink, 0));
-    fg.addColorStop(0.45, rgba(PALETTE.ink, 0.06));
-    fg.addColorStop(1, rgba(PALETTE.ink, 0.085));
+    fg.addColorStop(0.45, rgba(PALETTE.ink, 0.16));
+    fg.addColorStop(1, rgba(PALETTE.ink, 0.22));
     ctx.fillStyle = fg;
     ctx.fillRect(0, bandTop, W, H - bandTop);
   }
