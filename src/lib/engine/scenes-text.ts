@@ -58,6 +58,55 @@ export function bigTextScene(g: SceneCtx): void {
     if (shake.dx !== 0 || shake.dy !== 0) ctx.translate(shake.dx, shake.dy);
   }
   const lines = (s.lines as string[]) || [];
+  // P2 density payload (100-judge dossier, Prototype 8-2 — THE STATEMENT
+  // PAYOFF): the beat's dotPayoff prop draws the index field the statement
+  // DESCRIBES — 500 whisper dots with the 7 gold members bracketed and
+  // labelled — behind the type. Static furniture (pure function of W/H,
+  // sits behind every content rect by construction, never guard-registered,
+  // same register as the scene plates). The frame's info density rises from
+  // the 3.3% typographic desert to a populated room, and the empty lower
+  // band carries the label.
+  const payoff = s.dotPayoff as { gold?: number; total?: number; label?: string } | undefined;
+  if (payoff) {
+    const totalDots = payoff.total ?? 500;
+    const goldN = payoff.gold ?? 7;
+    const cols = 50;
+    const rows = Math.ceil(totalDots / cols);
+    const fx = W * 0.115;
+    const fy = H * 0.60;
+    const fw = W * 0.77;
+    const fh = H * 0.21;
+    const pitchX = fw / cols;
+    const pitchY = fh / rows;
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    for (let i = 0; i < totalDots; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const cx = fx + col * pitchX + 8;
+      const cy = fy + row * pitchY + 8;
+      const isGold = i < goldN;
+      ctx.fillStyle = isGold ? PALETTE.gold : rgba(PALETTE.grid, 0.5);
+      ctx.beginPath();
+      ctx.arc(cx, cy, isGold ? 10 : 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // the bracket cradles the gold members
+    ctx.strokeStyle = rgba(PALETTE.goldDeep, 0.85);
+    ctx.lineWidth = 3;
+    roundRect(ctx, fx - 14, fy - 12, goldN * pitchX + 22, fh + 24, 14);
+    ctx.stroke();
+    // the label under the bracket
+    if (payoff.label) {
+      setFont(ctx, 30, 700);
+      ctx.textAlign = 'left';
+      ctx.fillStyle = PALETTE.goldDeep;
+      ctx.fillText(String(goldN), fx - 14, fy + fh + 46);
+      ctx.fillStyle = PALETTE.inkSoft;
+      ctx.fillText(payoff.label, fx + 6, fy + fh + 46);
+    }
+    ctx.restore();
+  }
   // P1-2 (report): the lines SNAP in as ONE block (80ms + a single 260ms
   // ramp — both lines solid by ~340ms) instead of the v5 per-line fade
   // (160 + 620 stagger + 700ms ramp, full at 860ms+). Two reasons: (1) the

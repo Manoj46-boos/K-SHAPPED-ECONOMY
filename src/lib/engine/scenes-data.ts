@@ -1677,7 +1677,10 @@ export function aiDatacenterScene(g: SceneCtx): void {
       // at 308 by 6px, and they never touch the watermark horizontally).
       // One reading band, two steps — the cascade was already in the
       // timing; now it's in the geometry too.
-      x: 180 + i * 540, y: i === 0 ? 186 : 126, w: 480, h: 176,
+      // D-2 (100-judge dossier): labels now wrap to TWO rows and the plate
+      // grows to fit (188px) — cards 2-3 rise to y 104 so the grown bottoms
+      // (292) clear the host envelope (308) by 16px under the same camera.
+      x: 180 + i * 540, y: i === 0 ? 186 : 104, w: 480, h: 176,
       compact: true,
       bigIsNumber: false, // '¾' / '$700–730B' are strings; count-up mangles them
       big: st.big, label: st.label, tone: st.tone || 'gold',
@@ -2137,14 +2140,22 @@ export function fundSplitScene(g: SceneCtx): void {
     ctx.textAlign = 'left';
     ctx.fillText(st.big, W * 0.09 + 32, y + 68);
     const bigW = ctx.measureText(st.big).width;
-    // the glance label — one line, LABEL_FLOOR, measured to fit the chip
+    // the glance label — up to TWO stacked lines, LABEL_FLOOR, measured to
+    // fit the chip. D-3 (100-judge dossier): the old slice(0,1) truncated
+    // the glance mid-phrase on the second chip ("<1.5%  of the" — verified
+    // on frame 15-fundSplit). The wrap now draws its first two lines inside
+    // the 104px chip (baselines y+50/y+80, descenders ≈88 < 104) and the
+    // script glance strings are sized to wrap cleanly.
     setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.inkSoft;
     const glance = String(st.label ?? '').split(' · ')[0];
     const maxLW = W * 0.09 + 420 - 24 - (W * 0.09 + 32 + bigW + 22);
     if (maxLW > 140) {
-      const gl = wrapText(ctx, glance, maxLW, 34, 600).slice(0, 1)[0] ?? glance;
-      ctx.fillText(gl, W * 0.09 + 32 + bigW + 22, y + 60);
+      const gl = wrapText(ctx, glance, maxLW, 34, 600).slice(0, 2);
+      const baseY = gl.length > 1 ? y + 50 : y + 60;
+      gl.forEach((ln, li) => {
+        ctx.fillText(ln, W * 0.09 + 32 + bigW + 22, baseY + li * 30);
+      });
     }
     ctx.restore();
   });

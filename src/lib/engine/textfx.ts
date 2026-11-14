@@ -347,7 +347,7 @@ export function drawChapterCard(
   // PHASE-0 round 4: ease-in window 700 -> 400ms — the harness pick at
   // t=450ms sat at ~0.19 effective alpha; at 400ms the ghost is fully
   // arrived by the pick (RMS 22.5 was the flat-frame flag).
-  ctx.globalAlpha = a * 0.30 * easeOutCubic(clamp01(t / 400));
+  ctx.globalAlpha = a * 0.42 * easeOutCubic(clamp01(t / 400));
   setFont(ctx, 460, 700, FONT_DISPLAY);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
@@ -374,12 +374,36 @@ export function drawChapterCard(
   setFont(ctx, 30, 600);
   ctx.fillStyle = PALETTE.goldInk;
   ctx.textAlign = 'center';
-  ctx.fillText(`CHAPTER ${String(index).padStart(2, '0')}`, W / 2, H * 0.485);
+  const kicker = `CHAPTER ${String(index).padStart(2, '0')}`;
+  const kw = ctx.measureText(kicker).width;
+  ctx.fillText(kicker, W / 2, H * 0.485);
+  // D-10 (100-judge dossier): the chapter's ACCENT OBJECT — the brand K
+  // mark flanks the kicker, so the transition carries the film's owned
+  // object instead of type alone (the panel's "add the chapter accent" fix;
+  // paired with the ghost numeral deepened 0.30 → 0.42).
+  const kY = H * 0.485;
+  for (const side of [-1, 1]) {
+    const kx = W / 2 + side * (kw / 2 + 40);
+    ctx.save();
+    ctx.strokeStyle = PALETTE.gold;
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(kx - 7, kY - 12); ctx.lineTo(kx - 7, kY + 12);
+    ctx.moveTo(kx - 7, kY + 1); ctx.lineTo(kx + 6, kY - 12);
+    ctx.moveTo(kx - 7, kY + 1); ctx.lineTo(kx + 6, kY + 12);
+    ctx.stroke();
+    ctx.restore();
+  }
   // title — v4 (audit §4.3): serif like every scene headline; one family
   // policy for scene titles kills the “brand switches voice” note
   setFont(ctx, 62, 700, FONT_DISPLAY);
   ctx.fillStyle = PALETTE.ink;
-  const size = fitShrink(ctx, title, W - 400, 62);
+  // D-4 (100-judge dossier): fitShrink re-sets the font as it shrinks —
+  // without the family it silently swapped the serif display face for the
+  // UI face and every chapter title rendered in Inter (verified on frame
+  // 20-chaptercard). The family now rides the shrink loop.
+  const size = fitShrink(ctx, title, W - 400, 62, FONT_DISPLAY);
   void size;
   ctx.fillText(title, W / 2, H * 0.56);
   // progress dots — v4 (audit P1-5): the active chapter dot is enlarged
@@ -490,13 +514,17 @@ function fitShrink(
   ctx: CanvasRenderingContext2D,
   text: string,
   maxW: number,
-  size: number
+  size: number,
+  family?: string
 ): number {
   let s = size;
-  setFont(ctx, s, 700);
+  // D-4 (100-judge dossier): the family must ride every setFont inside the
+  // shrink loop, or the measured-then-drawn face silently differs from the
+  // caller's chosen face.
+  setFont(ctx, s, 700, family);
   while (ctx.measureText(text).width > maxW && s > 30) {
     s -= 2;
-    setFont(ctx, s, 700);
+    setFont(ctx, s, 700, family);
   }
   return s;
 }

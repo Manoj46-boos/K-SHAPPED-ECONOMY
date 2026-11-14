@@ -716,13 +716,23 @@ export function splitNumbersScene(g: SceneCtx): void {
     // whole punch beat while THE MOOD kept its numbers. The fallback now
     // engages for missing, non-array, AND empty stats. The vs-punch beat
     // also carries the real stats in script-data (explicit over implicit).
+    // 100-JUDGE DOSSIER (D-1): the vs beat ships the MOOD numbers in
+    // s.stats — they describe the right-hand panel — but this drawer fed
+    // them to THE MARKET panel, so both panels rendered identical coral
+    // stats under different headers (verified on frame 03-splitnumbers-vs).
+    // s.stats now routes by MODE: 'left' beats carry market numbers →
+    // market panel; 'vs'/'vs-punch' beats carry mood numbers → mood panel;
+    // the market panel owns its own list in every vs mode.
     const propStats = s.stats as StatItem[] | undefined;
+    const hasProps = Array.isArray(propStats) && propStats.length > 0;
     const marketStats: StatItem[] =
-      Array.isArray(propStats) && propStats.length ? propStats : [
-        { big: '+18%', label: 'S&P 500 · past year', tone: 'up' },
-        { big: '+20%', label: 'Nasdaq · past year', tone: 'up' },
-        { big: 'RECORD', label: 'corporate profit margins', tone: 'gold' },
-      ];
+      mode === 'left' && hasProps
+        ? (propStats as StatItem[])
+        : [
+            { big: '+18%', label: 'S&P 500 · past year', tone: 'up' },
+            { big: '+20%', label: 'Nasdaq · past year', tone: 'up' },
+            { big: 'RECORD', label: 'corporate profit margins', tone: 'gold' },
+          ];
     // v4 (audit P1-5): break the mirror — the market panel rides 44px
     // higher than the mood panel so the divergence is felt in the layout
     // itself, not just in the numbers.
@@ -730,10 +740,17 @@ export function splitNumbersScene(g: SceneCtx): void {
   }
   if (mode === 'right' || mode === 'vs' || mode === 'vs-punch') {
     const delay = mode === 'vs' || mode === 'vs-punch' ? 300 : 0;
-    drawNumberPanel(g, rx, py + 22, panelW, panelH, 'THE MOOD', [
-      { big: '16%', label: 'called the economy “good” or “excellent”', tone: 'down' },
-      { big: '1 in 4', label: 'average recession odds · 72 economists (WSJ)', tone: 'down' },
-    ], t, delay);
+    // D-1: in vs modes the beat's own stats (the mood numbers) drive this
+    // panel, with the same empty-array guard the market panel got in D-03.
+    const moodPropStats = s.stats as StatItem[] | undefined;
+    const moodStats: StatItem[] =
+      Array.isArray(moodPropStats) && moodPropStats.length
+        ? moodPropStats
+        : [
+            { big: '16%', label: 'called the economy “good” or “excellent”', tone: 'down' },
+            { big: '1 in 4', label: 'average recession odds · 72 economists (WSJ)', tone: 'down' },
+          ];
+    drawNumberPanel(g, rx, py + 22, panelW, panelH, 'THE MOOD', moodStats, t, delay);
   }
   if (mode === 'vs' || mode === 'vs-punch') {
     // divider + anchored statement slot (PATCH 4 follow-up).
@@ -1059,8 +1076,15 @@ export function divergeKScene(g: SceneCtx): void {
   // they take the vivid data-ink ramp (one step brighter than text teal) so
   // the formation survives the transcode; all arm LABELS stay on the
   // text-safe tones.
-  if ((upArmK > 0 || dnArmK > 0) && kA < 1) {
-    ctx.globalAlpha = 1 - kA;
+  if ((upArmK > 0 || dnArmK > 0) && kA < 0.55) {
+    // D-6 (100-judge dossier): the handoff now COMPLETES. The overlay arms
+    // faded with alpha 1-kA up to kA 0.99, so the vivid tubes ran alongside
+    // the K's own gold arms for most of the formation — on the Shorts frame
+    // they read as a teal straw lying on the letter. The fade now lands at
+    // kA 0.55, while the K's own arms are still growing in: no coexistence,
+    // no straw. (The strike aftermath below completes by kA 0.49, inside
+    // the gate.)
+    ctx.globalAlpha = 1 - kA / 0.55;
     // v10.1 (panel 11 re-review, round 2): the judge read BOTH versions' arms
     // as "pale, low-contrast grey strokes" — at 13px on a 1920 frame the
     // signature stroke is 2px at phone scale, and the subject halo behind

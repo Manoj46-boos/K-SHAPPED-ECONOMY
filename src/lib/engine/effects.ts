@@ -965,33 +965,14 @@ export function drawK3D(
   // the stem's width, the right eye clear of the counter, the smile
   // under them still on the stem face. A face ON the object reads as a
   // mascot; a face NEAR the object reads as a sticker.
-  if (face && grow > 0.7) {
-    const faceAlpha = clamp01((grow - 0.7) / 0.3);
-    // the face rides the front plane: proud of it by 12% of the depth
-    // (opposite the extrusion axis), scaled with the depth
-    const fShift = 0.12;
-    const fS = 1 - 0.1 * K3D.depthFrac;
-    ctx.save();
-    ctx.globalAlpha = faceAlpha;
-    ctx.translate(-dAll.x * fShift, -dAll.y * fShift);
-    ctx.scale(fS, fS);
-    ctx.fillStyle = PALETTE.ink;
-    // eyes — ON the stem's face, across its width (±0.075s; the stem's
-    // face is ±0.071s wide at s=210 — the eyes cover it, edge to edge)
-    ctx.beginPath();
-    ctx.arc(x - s * 0.075, y - s * 0.16, s * 0.058, 0, Math.PI * 2);
-    ctx.arc(x + s * 0.075, y - s * 0.16, s * 0.058, 0, Math.PI * 2);
-    ctx.fill();
-    // smile — under the eyes, still on the stem face, spanning it
-    ctx.strokeStyle = PALETTE.ink;
-    ctx.lineWidth = Math.max(2.4, s * 0.05);
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(x - s * 0.085, y - s * 0.04);
-    ctx.quadraticCurveTo(x, y + s * 0.035, x + s * 0.085, y - s * 0.04);
-    ctx.stroke();
-    ctx.restore();
-  }
+  // 100-JUDGE DOSSIER / P1 (one mascot, enforced in code): the K's smiley
+  // face is RETIRED — not per call site, but here at the only place it
+  // could ever draw. Two mascots competed for one audience (the becker
+  // host + a smiling letter), and the mascot register fought the serif
+  // financial-editorial register (verified on frames 04-divergeK-named and
+  // the Shorts K frame). The `face` parameter survives for API
+  // compatibility and is ignored.
+  void face;
   ctx.restore();
 }
 

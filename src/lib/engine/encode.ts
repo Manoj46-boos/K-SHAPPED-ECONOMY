@@ -125,7 +125,7 @@ export interface CapabilityReport {
 }
 
 export async function probeCapabilities(log?: (m: string) => void): Promise<CapabilityReport> {
-  const video = await pickVideoCodec(1920, 1080, 8_000_000, 30, log);
+  const video = await pickVideoCodec(1920, 1080, 12_000_000, 30, log); // D-9: probe at the shipped bitrate
   const audio = await pickAudioCodec(log);
   const fsa = 'showSaveFilePicker' in (globalThis as any);
   const webcodecs = !!(video && audio);
@@ -204,10 +204,13 @@ export async function renderVideo(job: RenderJob): Promise<{ bytes: number }> {
   const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true })!;
   ctx.imageSmoothingQuality = 'high';
 
-  // v2 (PATCH 10): 8 Mbps for 1080p — dense 40px caption strokes and thin
-  // chart lines survive YouTube's re-encode instead of smearing. ~35% larger
-  // file, same render time. 720p stays the half-price fallback.
-  const bitrate = W >= 1920 ? 8_000_000 : 4_500_000;
+  // D-9 (100-judge dossier): 12 Mbps for 1080p — the film's vivid data inks
+  // (upVivid/downVivid fills, thin chart strokes) were being washed by the
+  // platform transcode off an 8 Mbps master; 12 Mbps sits in YouTube's
+  // recommended 1080p band and stops the register loss. Bitrate does not
+  // change render speed (same frames; larger stream writes, ~50% bigger
+  // file). 720p stays the half-price fallback.
+  const bitrate = W >= 1920 ? 12_000_000 : 4_500_000;
   const video = await pickVideoCodec(W, H, bitrate, fps, onLog);
   const audio = await pickAudioCodec(onLog);
   if (!video || !audio) {

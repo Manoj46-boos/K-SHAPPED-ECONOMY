@@ -201,7 +201,11 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     roundRect(ctx, bx, y, bw, h, 12);
     ctx.stroke();
     ctx.save();
-    ctx.translate(bx + bw / 2, y + h - 14);
+    // D-5 (100-judge dossier): the caption moves to the TOP of its band —
+    // at the bottom it shared the row with the chart's right-edge x-label
+    // ("all-time-high zone" plated "today" on frame 06-chartJourney). The
+    // band's top rail is empty ink in every caller.
+    ctx.translate(bx + bw / 2, y + 26);
     setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor
     ctx.textAlign = 'center';
     ctx.fillStyle = PALETTE.goldDeep;
@@ -378,7 +382,11 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       // title is clipped by an annotation badge", the audit's
       // strongest-data-scene finding). The pill now clamps INSIDE the chart
       // body: never above the chart's own top rail.
-      const lyC = Math.max(ly, y + 52);
+      // D-5 (100-judge dossier): it now also bottom-clamps ABOVE the x-label
+      // band when the chart carries axis labels — the "low-23,000s · March"
+      // pill used to plate the "last Oct" tick label on frame 06-chartJourney.
+      const lyMax = opts.xLabels && opts.xLabels.length ? y + h - 56 : y + h - 12;
+      const lyC = Math.min(Math.max(ly, y + 52), lyMax);
       registerRect(`annotation:${a.label.slice(0, 14)}`, lx - tw / 2 - 16, lyC - 34, tw + 32, 46);
       ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
       // PANEL-12 / P3-3: one-light rule (−5, +7), matching theme.chip
@@ -812,9 +820,22 @@ export function statCard(
   // the card numeral is the frame's biggest data-ink mass after the pie
   // and the bars; vivid is one step brighter and survives the transcode.
   const cVivid = TONE(tone).vivid ?? c;
+  // D-2 (100-judge dossier): measure the wrapped label BEFORE drawing the
+  // plate and grow the card to fit it. Compact metrics put the label base
+  // at y+128 with a 34px step, so a 3-line label needs 196px + pad — more
+  // than the 176px plates the datacenter scene ships, and the overflow line
+  // landed on the room background (verified on frame 13-aiDatacenter,
+  // cards "1.4–1.5%" and "$700–730B"). Full cards get the same guard with
+  // a 40px tail pad. Tops stay aligned; only the plate bottom grows.
+  const labelSizePre = opts.compact ? LABEL_FLOOR : TYPE_FLOOR;
+  const labelBasePre = opts.compact ? 128 : 192;
+  const labelStepPre = opts.compact ? 34 : 38;
+  setFont(ctx, labelSizePre, 600);
+  const labelRows = wrapText(ctx, label, w - 68, labelSizePre, 600).length;
+  const H2 = Math.max(h, labelBasePre + (labelRows - 1) * labelStepPre + (opts.compact ? 26 : 40));
   // v10 (panel COLOR-4): tone-tinted card shadow — the card reads as lit by
   // its own number (teal card, teal-whisper shadow) instead of neutral slate
-  card(ctx, x, y, w, h, { r: opts.compact ? 22 : 30, tint: c });
+  card(ctx, x, y, w, H2, { r: opts.compact ? 22 : 30, tint: c });
   const bigSize = opts.compact ? 58 : 88;
   const bigBase = opts.compact ? 84 : 138;
   // AUDIT-ROUND-2 (fix 1): the label floor — compact row metrics render at
@@ -863,7 +884,7 @@ export function statCard(
       // fits one chip row at the 28px floor, and the old single-line chip
       // overran the card's right edge. Wrap to ≤2 measured rows, stacked.
       const tagLines = wrapText(ctx, tag, w - 68, TYPE_FLOOR, 600).slice(0, 2);
-      const tagY = (opts.compact ? y + h - 40 : y + h - 58) - (tagLines.length - 1) * 44;
+      const tagY = (opts.compact ? y + H2 - 40 : y + H2 - 58) - (tagLines.length - 1) * 44;
       tagLines.forEach((ln, li) => {
         const tw = ctx.measureText(ln).width;
         ctx.fillStyle = TONE(tone === 'down' ? 'down' : tone).soft;

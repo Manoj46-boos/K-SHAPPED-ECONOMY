@@ -708,52 +708,31 @@ function scarfTail(
   wave: number,                  // the existing Math.sin(t / 700 + seed) * 6
   colTop: string, colUnder: string
 ): void {
-  const fxp = x0 - 8 + wave;            // the fold point (~55% out)
-  const fyp = y0 + 42;
-  const ex = x0 - 24 + wave * 1.5;     // the tail end, past the fold
-  const ey = y0 + 78;
+  // P1 scarf v3 (100-judge dossier): the old 42/33/21-unit chest-length
+  // ribbon hung DOWN the front of the gold torso and merged with it — the
+  // panel read "a gold bib". The tail is now a SHORT ribbon that escapes
+  // BACKWARD past the shoulder line (root 14, fold 9, tip 5 units) and is
+  // drawn BEFORE the torso, so the body occludes the root and only the
+  // flick beyond the back edge shows: cloth WORN around the neck, not a
+  // pendant slab. One fold crease; the under-shadow retires with the bib.
+  const fxp = x0 - 14 + wave * 0.4;    // the fold at the shoulder line
+  const fyp = y0 + 16;
+  const ex = x0 - 30 + wave;           // the tip beyond the back edge
+  const ey = y0 + 30;
   // ONE continuous tapered ribbon — root segment then fold segment,
   // round caps at the fold so the crease reads as cloth bending.
-  // Panel round 2: the tail crosses the gold torso band and the two gold
-  // masses MERGED ("a separate parallel strip crossing the scarf"). The
-  // ribbon now carries its own DRAWN EDGE — a goldDeep under-taper 1.6px
-  // wider on each side — so the cloth reads as cloth LAYERED OVER the band,
-  // never as one blob with seams.
-  // PREMIUM UPGRADE FIX 3 (100-judge critique §5.1): scarf taper widths ×1.8.
-  // The shipped widths (14.6/11.6/7.2/5.6) produced a ribbon 6-8px wide at its
-  // visible midpoint at 1080p — 1-1.3px at the 320px phone feed, where gold-on-
-  // ivory falls below perception. ×1.8 gives 11-15px at the midpoint (1.8-2.5px
-  // at the feed) — the minimum at which the brand-color accent survives the
-  // transcode. The scarf is the single thumbnail-recognizability asset the
-  // film has; it must read at feed scale.
-  // PLAYBOOK P5 (report §8.1): ×1.6 AGAIN (26.3→42 root) — the scarf is the
-  // brand mark and must read at 4-6px at the 320px feed; at ×1.8 it was still
-  // 1.8-2.5px. 42/33/21 root-fold-tip widths put the midpoint at ~26px
-  // (4.3px at the feed) — the thumbnail-recognizability register.
-  taper(ctx, x0, y0, fxp, fyp, 42.1, 33.4, colUnder);
-  taper(ctx, fxp, fyp, ex, ey, 33.4, 20.8, colUnder);
-  taper(ctx, x0, y0, fxp, fyp, 37.4, 28.8, colTop);
-  taper(ctx, fxp, fyp, ex, ey, 28.8, 16.2, colTop);
+  taper(ctx, x0, y0, fxp, fyp, 14, 9, colUnder);
+  taper(ctx, fxp, fyp, ex, ey, 9, 5, colUnder);
+  taper(ctx, x0, y0, fxp, fyp, 11.5, 7, colTop);
+  taper(ctx, fxp, fyp, ex, ey, 7, 4.2, colTop);
   // the fold crease — the one seam a real scarf HAS (the two-tone hint
   // at the bend, in the under colour)
   ctx.strokeStyle = rgba(colUnder, 0.85);
-  ctx.lineWidth = 2.6;
+  ctx.lineWidth = 2.2;
   ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(fxp - 5.5, fyp - 2);
-  ctx.lineTo(fxp + 5.5, fyp + 2);
-  ctx.stroke();
-  // the under-shadow — the tail's root passing under the knot's edge
-  // (fabric over fabric, grounded). Panel round 2: alpha 0.6 → 0.42,
-  // width 3.2 → 2.4, shortened to the root third — the audit-round-2 judge
-  // read the old stroke as "a translucent horizontal band crossing as a
-  // fully separate parallel strip"; a shading HINT now, never a second
-  // ribbon.
-  ctx.strokeStyle = rgba(colUnder, 0.42);
-  ctx.lineWidth = 2.4;
-  ctx.beginPath();
-  ctx.moveTo(x0 - 4.5, y0 + 10);
-  ctx.quadraticCurveTo(x0 - 10 + wave * 0.3, y0 + 20, x0 - 7 + wave * 0.4, y0 + 30);
+  ctx.moveTo(fxp - 3.5, fyp - 1.5);
+  ctx.lineTo(fxp + 3.5, fyp + 1.5);
   ctx.stroke();
 }
 
@@ -1253,6 +1232,19 @@ export function drawStickmanV2(
   // with an ivory brim-edge line so the cap reads as a DIFFERENT
   // silhouette at 320px — the ownerWorker pair becomes cast, not copies.
   const worker = r.variant === 'worker';
+  // P1 scarf v3 (100-judge dossier): the tail escapes BACKWARD past the
+  // shoulder and draws BEFORE the torso — the body occludes the root, the
+  // cloth reads as worn AROUND the neck, and the gold bib read dies. The
+  // wave is damped 0.5x: a short tail flicks, it does not whip.
+  if (r.scarf !== false && !prof) {
+    const talkEnv0 = r.talk ?? 0;
+    const wave0 =
+      Math.sin(t / 700 + seed) * 6 * (r.walkPhase !== undefined ? 3.2 : 1) * (1 + talkEnv0 * 1.4) +
+      Math.sin(t / 240 + seed * 2) * 3.2 * talkEnv0;
+    if (scale >= 1.2) {
+      scarfTail(ctx, neckX - 3, neckY + 12, wave0 * 0.5, PALETTE.gold, '#A8851B');
+    }
+  }
   {
     const tx0 = 0, ty0 = pelvisY + 4, tx1 = neckX, ty1 = neckY;
     const tdx = tx1 - tx0, tdy = ty1 - ty0;
@@ -1368,14 +1360,6 @@ export function drawStickmanV2(
   // whips on the push-off — a secondary action that says "there is mass
   // and air here", the classic follow-through tell).
   if (r.scarf !== false) {
-    // P1-3 (audit Table 3 — the CREST WAVE): the tail's crest now answers
-    // the VOICE — amplitude couples to the talk envelope (speech is air
-    // moving) plus a fast secondary term, so word accents whip the crest
-    // the way strides whip the whole tail.
-    const talkEnv = r.talk ?? 0;
-    const wave =
-      Math.sin(t / 700 + seed) * 6 * (r.walkPhase !== undefined ? 3.2 : 1) * (1 + talkEnv * 1.4) +
-      Math.sin(t / 240 + seed * 2) * 3.2 * talkEnv;
     ctx.fillStyle = PALETTE.gold;
     ctx.beginPath();
     ctx.ellipse(neckX, neckY + 10, 13, 8, leanR * 0.6, 0, Math.PI * 2);
@@ -1388,14 +1372,17 @@ export function drawStickmanV2(
     ctx.beginPath();
     ctx.ellipse(neckX, neckY + 10, 13, 8, leanR * 0.6, 0, Math.PI * 2);
     ctx.stroke();
-    // the ribbon — width, S-curve, two-tone underside (was 2 stroked lines)
-    // AUDIT-3 / §1.3 (report Phase 1.3 — the mitten lesson applied to
-    // cloth): below rig scale 1.2 the ribbon collapses into a smear at
-    // phone-feed scale (Finding C-8: “the gold scarf becomes a smear”).
-    // Below 1.2 the scarf is the KNOT ONLY — a clean brand mark, never mush.
-    if (scale >= 1.2) {
-      scarfTail(ctx, neckX - 3, neckY + 14, wave, PALETTE.gold, '#A8851B'); // P1-3 r2: +3 — chin clearance under the solid head
-    }
+    // P1 scarf v3 (100-judge dossier): the neck-wrap collar — a gold band
+    // around the neck base, drawn after the torso so it sits ON the body.
+    // This is what makes the scarf read as WORN (the tail lives behind the
+    // shoulder, drawn pre-torso); the knot becomes the band's tie knot.
+    ctx.fillStyle = PALETTE.gold;
+    roundRect(ctx, neckX - 13, neckY + 1, 26, 11, 5.5);
+    ctx.fill();
+    ctx.strokeStyle = PALETTE.goldDeep;
+    ctx.lineWidth = 2.2;
+    roundRect(ctx, neckX - 13, neckY + 1, 26, 11, 5.5);
+    ctx.stroke();
   }
 
   // NEAR arm — capture the hand so props ride it (v5, audit P1-3)
@@ -1414,57 +1401,14 @@ export function drawStickmanV2(
   // pose, scrub-determinism preserved. The smear's leading edge extends
   // 18% PAST the hand (the classic smear overshoot), the taper narrows
   // toward the trail, and 3 finger-stubs dot the swept arc behind the hand.
-  if ((r.smear ?? 0) > 0.12) {
-    const sm = clamp01(r.smear ?? 0);
-    const sx = neckX + 4 + Math.sin(shT) * 4;
-    const sy = neckY + 3 - Math.sin(shT) * 9 + shDrop;
-    const aU = pose.rAU * Math.PI / 180;
-    const aL = pose.rAL * Math.PI / 180;
-    // the hand NOW
-    const ex = sx + Math.sin(aU) * U_ARM + Math.sin(aL) * L_ARM;
-    const ey = sy + Math.cos(aU) * U_ARM + Math.cos(aL) * L_ARM;
-    // the hand one accent-swing ago (rAL at current − accent*44°; M3
-    // raised the accent amplitude, so the sweep window widens to match)
-    const swing = 44 * Math.PI / 180 * sm;
-    const aLprev = aL - swing;
-    const px = sx + Math.sin(aU) * U_ARM + Math.sin(aLprev) * L_ARM;
-    const py = sy + Math.cos(aU) * U_ARM + Math.cos(aLprev) * L_ARM;
-    // the leading edge — 18% past the hand along the sweep direction
-    const lx = ex + (ex - px) * 0.18;
-    const ly = ey + (ey - py) * 0.18;
-    ctx.save();
-    // PLAYBOOK M4 (report §8.2 — DEFORMATION SMEARS): the ghost trail
-    // read as "motion blur". A real smear frame is a DEFORMED DRAWING —
-    // the arm itself drawn 3× along its sweep with progressive width
-    // squash (each pass narrower and shorter, the classic multi-limb
-    // smear of hand-drawn animation), plus the finger-stubs. All three
-    // passes are full ink drawings at stepped alphas, not translucent
-    // overlays: at the feed this reads as a limb in motion, not a blur.
-    const passes = 3;
-    for (let f = 0; f < passes; f++) {
-      // pass 0 = the leading edge (near-full width), 1..2 trail back
-      const k = f / passes;                       // 0 .. 0.67 back along the sweep
-      const squash = 1 - f * 0.28;                // width squash per pass
-      const fax = sx + (px - sx) * k * 0.8;
-      const fay = sy + (py - sy) * k * 0.8;
-      const hx = ex + (px - ex) * k;
-      const hy = ey + (py - ey) * k;
-      // AUDIT-ROUND-3 (Fix 1): the alpha ladder hardens — 0.72/0.34/0.16
-      // translucent gray read as "a smearing artifact" / "an un-clipped
-      // alpha". The three passes are INK DRAWINGS at stepped opacity
-      // (0.85/0.55/0.30): a limb in motion, not a blur.
-      ctx.globalAlpha = alpha * (f === 0 ? 0.85 : f === 1 ? 0.55 : 0.30) * sm;
-      taper(ctx, fax, fay, hx, hy,
-        INK.armNear[1] * squash, INK.armNear[2] * squash * 0.75, ink);
-    }
-    // AUDIT-ROUND-3 iter-2: the 3 finger-stub dots are RETIRED — the
-    // re-review read them as "a dotted/segmented gray ghost trail...
-    // floating polka-dot scraps... a rendering error, not a smear
-    // frame". The continuous 3-pass swept arc carries the whole smear;
-    // a real smear frame is ONE elongated drawing, not decorations
-    // along its path.
-    ctx.restore();
-  }
+  // D-7 (100-judge dossier — SMEAR RETIRED): the 3-pass accent ghost drew
+  // three ink arm drawings at stepped alphas after ~1 word in 4. On stills
+  // — paused frames, thumbnails, every audit evidence dump — it read as a
+  // gray cloud at the hand (verified on frame 04-divergeK-named). The
+  // accent smear is deleted; the stride-keyed leg smear (legSmear, below)
+  // stays — it fires only mid-stride at real velocity, the report's "keep
+  // a velocity streak for the run". Velocity now reads through the keyed
+  // poses and the walk strike, never through ghost ink.
   // BLUEPRINT Phase 2: near arm 13/11/9 -> 17/13/10 (INK.armNear); the
   // shoulder anchor rides the shoulder-line counter-tilt (Phase 2's
   // second rotation term — the near shoulder rises when shT is positive)
@@ -1592,7 +1536,10 @@ export function drawStickmanV2(
   // mechanism on hero scales." Default faceScale 1 -> 1.25 (explicit
   // caller overrides still win); eye radius 7.5 -> 9 and brow stroke
   // 4.6 -> 6 below.
-  const faceS = r.faceScale ?? 1.25;
+  // D-8 / P1 (100-judge dossier): faceScale caps at 1.1 outside reaction
+  // windows — the 1.25 default inflated the face past caricature into
+  // googly (explicit close-up overrides still win).
+  const faceS = r.faceScale ?? 1.1;
   // P1-1 (100-judge audit, Table 3 — HEAD REDESIGN): the shipped head
   // (cream fill + 14px ink outline) read as "a dark ring around a tan
   // disc — big-head/ninja-hood stick figure": the outline is heavy
@@ -1605,9 +1552,19 @@ export function drawStickmanV2(
   // A/B VERDICT (panel, 320px shock close-up): becker > thin > classic —
   // "silhouette-first wins: every saved interior pixel becomes emotional
   // signal". BECKER ships as the film's head. See AB_P1-1_*.png frames.
-  const headStyle = r.headStyle ?? 'becker';
+  // 100-JUDGE DOSSIER / P1 (head v3): the film's own THUMBNAIL is the
+  // strongest character asset — an ivory-white head with ink contour and
+  // ink features — and the viewer who clicks it meets a stranger. The
+  // HOST (the only unvariant character) now ships the thumbnail head:
+  //   'ivory'   — #F6F1E3 fill, 9.5px ink contour, ink pupils in small
+  //               sclera, ink brows/mouth, the full expression rig;
+  //   'becker'  — KEPT for the prof/worker variants (cast by silhouette:
+  //               different PEOPLE stay ink-headed, with the D-8 pupil fix).
+  const hostIvory = !r.variant;
+  const headStyle = r.headStyle ?? (hostIvory ? 'ivory' : 'becker');
   const becker = headStyle === 'becker';
-  const headStroke = becker ? 0 : headStyle === 'thin' ? 9.5 : INK.headStroke;
+  const ivory = headStyle === 'ivory';
+  const headStroke = becker ? 0 : headStyle === 'thin' || ivory ? 9.5 : INK.headStroke;
   ctx.save();
   if (yawR !== 0) {
     // fix 11: pivot about the neck joint — the head leans around its
@@ -1640,7 +1597,11 @@ export function drawStickmanV2(
   // the jaw channel rides the head scale — squash on the vertical axis
   // (jaw open = the skull shortens) and a matching widening on X (volume
   // preservation, the classic squash-and-stretch pair).
-  ctx.scale(faceS * (1 - 0.12 * yawMag) * (1 + jawOpen * 0.04), faceS * (1 - jawOpen * 0.04));
+  // P1 head v3 (100-judge dossier): the whole head space shrinks 13% —
+  // head-to-body proportion moves from bobblehead (≈1:3.4) toward the
+  // premium 1:4.5 band; every interior feature scales with it.
+  const HEAD_SHRINK = 0.87;
+  ctx.scale(faceS * HEAD_SHRINK * (1 - 0.12 * yawMag) * (1 + jawOpen * 0.04), faceS * HEAD_SHRINK * (1 - jawOpen * 0.04));
   // Panel round 2: the head outline yaws ±14° about the neck; the FACE
   // rotates an additional fraction of the same term about the head's own
   // centre (+6° at full yaw) — the features lead the turn the way a real
@@ -1656,7 +1617,7 @@ export function drawStickmanV2(
   // A circle reads as a ball/bullet; an egg reads as a skull. This is the
   // single highest-leverage character upgrade — the audience locks onto
   // the head first. The chin gives a jawline; the nose gives facial depth.
-  ctx.fillStyle = becker ? ink : '#E8D5B7';
+  ctx.fillStyle = becker ? ink : ivory ? '#F6F1E3' : '#E8D5B7';
   ctx.strokeStyle = ink;
   ctx.lineWidth = headStroke;
   // the egg — taller than wide, slightly offset up for chin room
@@ -1730,13 +1691,24 @@ export function drawStickmanV2(
   // survives the 320px downsample; the head stops reading as a decal
   // pasted on a lit room and starts reading as an object IN the light.
   {
-    ctx.strokeStyle = '#F7EFD8';
-    ctx.lineWidth = 3.2;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    // C1: rim light follows the egg ellipse, not the old circle
-    ctx.ellipse(0, -1, 32 - 1.8, 38 - 1.8, 0, -Math.PI * 0.52, -Math.PI * 0.02);
-    ctx.stroke();
+    // P1 head v3 (D-8): the rim rides CLIPPED to the egg silhouette — the
+    // unclipped arc bled past the crown and read as a white patch on the
+    // head top (verified on frames 13/15). The ivory head skips it (ivory
+    // on ivory is invisible by construction).
+    if (!ivory) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(0, -1, 32, 38, 0, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.strokeStyle = '#F7EFD8';
+      ctx.lineWidth = 3.2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      // C1: rim light follows the egg ellipse, not the old circle
+      ctx.ellipse(0, -1, 32 - 1.8, 38 - 1.8, 0, -Math.PI * 0.52, -Math.PI * 0.02);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
   // eyes + glints
   // v10 (panel CHAR-2): GAZE WANDER — the look value drifts ±0.15 on a 7.4s
@@ -1799,12 +1771,25 @@ export function drawStickmanV2(
   // 7.5 -> 9 units ("let the eye radius run to 9 units at host scale").
   // The 1.25x head + 9-unit eyes is the Becker-grade caricature that
   // reads at 320px from ANY staging, not just close-ups.
-  const eyeFloorR = scale > 1.5 ? 9 : 5.4;
+  // D-8 (100-judge dossier): the 9-unit bare-white ovals read googly —
+  // sclera drops to 6.5 units and INK PUPILS restore a focus point (the
+  // gaze now reads; the whites stop dominating the face). The ivory host
+  // head uses the ink-dot branch below; this floor now only serves the
+  // becker variants.
+  const eyeFloorR = scale > 1.5 ? 6.5 : 5.4;
   if (becker) {
     ctx.fillStyle = '#FFFFFF';
     ctx.beginPath();
     ctx.ellipse(-11 + eyeDX, -6, eyeFloorR * eyeSL, eyeFloorR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
     ctx.ellipse(11 + eyeDX, -6, eyeFloorR * eyeSR, eyeFloorR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // D-8: ink pupils inside the sclera — the missing focus point was the
+    // googly read's root cause
+    ctx.fillStyle = ink;
+    const pupR = 2.9 * (1 + surprise * 0.28);
+    ctx.beginPath();
+    ctx.ellipse(-11 + eyeDX, -6, pupR * eyeSL, pupR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
+    ctx.ellipse(11 + eyeDX, -6, pupR * eyeSR, pupR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
     ctx.fill();
   } else if (pose.browRaise > 0.55) {
     ctx.fillStyle = '#FFFFFF';

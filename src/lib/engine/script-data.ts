@@ -250,6 +250,12 @@ export const SCRIPT: ChapterSpec[] = [
         pauseAfter: 900,
         scene: P('bigText', 'c3-bigtext', {
           lines: ['SEVEN COMPANIES.', 'OUT OF FIVE HUNDRED.'],
+          // P2 density payload (100-judge dossier, Prototype 8-2): the
+          // statement frame stops being a typographic desert — a 500-dot
+          // index field draws behind the type with the 7 gold members
+          // bracketed and labelled. The sentence the film is speaking,
+          // drawn behind the words that say it.
+          dotPayoff: { gold: 7, total: 500, label: 'of 500 decide the year' },
         }),
       },
       {
@@ -580,9 +586,13 @@ export const SCRIPT: ChapterSpec[] = [
           stats: [
             // v4 (audit P0-1): labels shortened to one clean wrap line so
             // the compact cards read fully inside their bodies
+            // D-2 (100-judge dossier): glance strings sized to TWO wrap rows
+            // — the drawer now grows the plate to fit its label (so nothing
+            // bleeds onto the room), and two rows keep the grown bottoms
+            // clear of the walk host's envelope (scene raises cards 2-3).
             { big: '¾', label: 'of all U.S. GDP growth · Q1 2026 (BEA estimate)' },
-            { big: '1.4–1.5%', label: 'of GDP · AI infrastructure · Epoch AI — 2× pre-2023' },
-            { big: '$700–730B', label: '2026 build-out · five biggest cloud & AI companies', tone: 'gold' },
+            { big: '1.4–1.5%', label: 'of GDP · AI infrastructure (Epoch AI)' },
+            { big: '$700–730B', label: '2026 build-out · top five cloud & AI firms', tone: 'gold' },
           ],
         }),
       },
@@ -770,7 +780,9 @@ export const SCRIPT: ChapterSpec[] = [
         pauseAfter: 700,
         scene: P('fundSplit', 'c8-fund', {
           stats: [
-            { big: '42%', label: 'of the S&P 500\u2019s total return in 2025 · seven stocks', tone: 'gold' },
+            // D-3 (100-judge dossier): glance strings sized to wrap cleanly
+            // inside the compact chip (the drawer draws up to 2 lines).
+            { big: '42%', label: 'of the S&P 500\u2019s 2025 return · seven stocks', tone: 'gold' },
             { big: '<1.5%', label: 'of the names in the index', tone: 'down' },
           ],
           callbackChip: 'sound familiar? the small-cap rotation from earlier',

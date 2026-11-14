@@ -27,8 +27,12 @@ export const AMP = {
    *  joint +/-11.7px of SCREEN wobble at 10Hz: a shiver, not drawn ink.
    *  1.6 local x 2.6 rig = 4.2px screen: alive at the 320px gate, calm at
    *  1080p. stickman-v2 boilOff() additionally caps this to 4px SCREEN at
-   *  any rig scale. */
-  boilPx: 1.6,
+   *  any rig scale.
+   *  100-JUDGE DOSSIER (P3 — motion contrast): 1.6 -> 0.8 — quiet scenes
+   *  become genuinely still (2.1px screen at rig 2.6, under the feed's
+   *  static-perception floor, so ambient ink stops shimmering); hero
+   *  moments carry the film's motion through the keyed poses instead. */
+  boilPx: 0.8,
   /** Contrapposto idle weight shift, px.
    *  AUDIT-ROUND-3: 15 -> 8 — the hip settle reads without the sway of a
    *  boat. */

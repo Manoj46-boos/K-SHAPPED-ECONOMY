@@ -138,7 +138,11 @@ export const POSES: Record<string, Pose> = {
   heroPresent: { ...base(), lean: 7, headTilt: -3, rootY: -2, lLU: -9, lLL: 6, rLU: 11, rLL: -7, lAU: -18, lAL: 14, rAU: 72, rAL: 98, browRaise: 0.25, smile: 0.55 },
   // heroPoint: conviction — full-body point up-right, free hand parked on
   // the hip, chin up.
-  heroPoint: { ...base(), lean: 9, headTilt: -5, lAU: -58, lAL: 118, rAU: 96, rAL: 118, browRaise: 0.4, smile: 0.45 },
+  // heroPoint: conviction — full-body point up-right, free hand parked on
+  // P1 hands (100-judge dossier): the contact gestures grip — the near hand
+  // takes the FIST glyph (a closed hand on the K's stem / at the point),
+  // not the open fan. Contact scenes get contact hands.
+  heroPoint: { ...base(), lean: 9, headTilt: -5, lAU: -58, lAL: 118, rAU: 96, rAL: 118, browRaise: 0.4, smile: 0.45, rHand: 'fist' },
   // heroExplain: the teacher — near palm open low ("this number"), far arm
   // relaxed, head tilted into the audience.
   heroExplain: { ...base(), lean: -5, headTilt: 6, lAU: -64, lAL: -84, rAU: 16, rAL: 10, browRaise: 0.3, smile: 0.4 },
@@ -149,7 +153,7 @@ export const POSES: Record<string, Pose> = {
   // after the formation completes (the round-5 panel: "proximity ≠
   // contact — you moved the presenter to the object and forgot the
   // pointing").
-  leanOnK: { ...base(), lean: 10, headTilt: -4, lLU: -9, lLL: 6, rLU: 11, rLL: -7, lAU: -20, lAL: -26, rAU: 84, rAL: 102, browRaise: 0.25, smile: 0.5 },
+  leanOnK: { ...base(), lean: 10, headTilt: -4, lLU: -9, lLL: 6, rLU: 11, rLL: -7, lAU: -20, lAL: -26, rAU: 84, rAL: 102, browRaise: 0.25, smile: 0.5, rHand: 'fist' }, // P1 hands: the fist GRIPS the stem
   // ── BLUEPRINT Phase 2 (report §11): the three REACTION pose keys the
   // film's emotional beats were missing — the twist, the resolve and the
   // final takeaway shared the presenting smile before (“a static mask
