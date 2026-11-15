@@ -1754,12 +1754,27 @@ export function divergeKScene(g: SceneCtx): void {
     const ap = clamp01((t - (opening ? 4800 : 4200)) / 800);
     if (ap > 0) {
       ctx.save();
-      ctx.globalAlpha = ap;
       const txt = 'a twist for your portfolio — later in this video';
       setFont(ctx, 34, 600);
       const tw = ctx.measureText(txt).width;
       const cx = W * 0.05; // fix 6.1: the chip anchors bottom-left — centered, it plated the presenting host's feet at the 2.5x scale
-      const cy = CAPTION_ZONE_TOP - 116;
+      // 100-JUDGE PANEL / Phase 4 item 4.2 — THE COLD-OPEN SECOND ACT: the
+      // chip used to land at 4.8s and then SIT — the novelty scanner's
+      // first-30s map measured seconds 11-18 (the narration's promise) with
+      // ZERO visible-change events (D-06: an ~8s sub-threshold stretch, the
+      // first hard cut only at 18.9s). The chip now carries the promise's
+      // own pulse — three interleaved ~2s clocks so something on it visibly
+      // changes every 1-2s per the film's own doctrine:
+      //   bob — ±3px, 2.8s period (the chip breathes at its anchor);
+      //   shimmer — a 110px ivory band sweeps the pill every 2.2s, clipped
+      //     to the chip (the specular pass a premium UI token earns);
+      //   halo — the gold glow behind the pill breathes 0.08-0.16, 1.8s.
+      const bob = Math.sin(t / 1400 * Math.PI * 2) * 3;
+      const cy = CAPTION_ZONE_TOP - 116 + bob;
+      // halo first (behind the pill), breathing
+      glowBlob(ctx, cx + (tw + 56) / 2, cy + 27, (tw + 56) * 0.62, PALETTE.gold,
+        (0.08 + 0.08 * (0.5 + 0.5 * Math.sin(t / 900 * Math.PI * 2))) * ap);
+      ctx.globalAlpha = ap;
       ctx.fillStyle = PALETTE.goldWash;
       roundRect(ctx, cx, cy, tw + 56, 54, 27);
       ctx.fill();
@@ -1767,9 +1782,63 @@ export function divergeKScene(g: SceneCtx): void {
       ctx.strokeStyle = PALETTE.gold;
       roundRect(ctx, cx, cy, tw + 56, 54, 27);
       ctx.stroke();
+      // the shimmer sweep — a soft ivory specular band crossing the pill,
+      // clipped to its rounded body, one pass every 2.2s
+      ctx.save();
+      roundRect(ctx, cx, cy, tw + 56, 54, 27);
+      ctx.clip();
+      const sweepW = 110;
+      const phase = (t % 2200) / 2200;
+      const bandX = cx - sweepW + phase * (tw + 56 + sweepW * 2);
+      const sg = ctx.createLinearGradient(bandX, cy, bandX + sweepW, cy + 54);
+      sg.addColorStop(0, rgba('#FFFFFF', 0));
+      sg.addColorStop(0.5, rgba('#FFFFFF', 0.30));
+      sg.addColorStop(1, rgba('#FFFFFF', 0));
+      ctx.fillStyle = sg;
+      ctx.fillRect(cx, cy, tw + 56, 54);
+      ctx.restore();
       ctx.fillStyle = PALETTE.goldDeep;
       ctx.textAlign = 'left';
       ctx.fillText(txt, cx + 28, cy + 35);
+      ctx.restore();
+    }
+  }
+  // 100-JUDGE PANEL / Phase 4 item 4.2 — THE ONE-WORD TEASER OF THE
+  // DIVERGENCE. During the 11-18s promise the frame now also slides in a
+  // 30%-opacity ghost line — "SEVEN COMPANIES", the divergence the whole
+  // film resolves — in the open upper-right band (the arm labels are
+  // hidden in `opening` mode; the shelf sits above the K's up-arm mass,
+  // whose ink ends ≈x 1390 under the 95° extrusion rest — the 48px serif
+  // set right-aligned at 1868 starts ≈x 1458, 60px clear, and the
+  // scene's pullback camera (scale < 1) holds the right edge 60px+ inside
+  // the frame with the drift included). Its clock stacks MORE visible
+  // changes onto the promise window: slide-in 11.2-12.2s, a 2.2s opacity
+  // breathe while it creeps 6px/s, the gold underline draws itself at
+  // 15.6-16.4s, then the ghost fades 17.6-18.2s — handing off clean to
+  // the beat's hard cut at 18.9s. Pure function of t.
+  if (opening && t >= 11200 && t < 18200) {
+    const inP = clamp01((t - 11200) / 1000);
+    const outP = clamp01((t - 17600) / 600);
+    const breathe = 0.85 + 0.15 * Math.sin(((t - 12200) / 2200) * Math.PI * 2);
+    const alpha = 0.30 * easeOutCubic(inP) * breathe * (1 - easeInOutSine(outP));
+    if (alpha > 0.01) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      setFont(ctx, 46, 700, FONT_DISPLAY);
+      ctx.textAlign = 'right';
+      const txt = 'SEVEN COMPANIES';
+      const tw = ctx.measureText(txt).width;
+      // slide-in from +150px right of its shelf, then a slow 4px/s creep
+      const settleRight = 1880;
+      const right = settleRight + (1 - easeOutCubic(inP)) * 150 - Math.max(0, t - 12200) * 0.004;
+      ctx.fillStyle = PALETTE.ink;
+      ctx.fillText(txt, right, 380);
+      // the gold underline draws itself mid-window (the second act's beat)
+      const uP = clamp01((t - 15600) / 800);
+      if (uP > 0) {
+        ctx.fillStyle = PALETTE.gold;
+        ctx.fillRect(right - tw, 402, tw * easeOutCubic(uP), 6);
+      }
       ctx.restore();
     }
   }

@@ -463,7 +463,18 @@ function cameraV2(
   // payoff at the seam, on every long scene in the film (host scenes already
   // walk between the widened stage blocks — fix 15; this covers the data
   // rooms). Pure function of (gt, groupDur) — scrub-safe, guard-clean.
-  if (groupDur > 12000) {
+  // 100-JUDGE PANEL / Phase 4 item 4.1 — BREAK THE LONG HOLDS: the rule is
+  // "no scene group over ≈30s without a reframe, prop arrival, or sub-cut",
+  // and the film holds THREE 42-50s stages (D-07: aiDatacenter c6-ai 49.9s,
+  // fundSplit c8-fund 42.5s, oddsSpread c8-odds 50.1s — the three longest
+  // single-scene holds on the map). Their groups get the reframe at the
+  // same amplitudes from 9s (the cap's windows run 8-13s there), and the
+  // scenes themselves carry the OTHER half of the fix: a second CONTENT
+  // arrival at the stage's own 55% seam (see the drawers — beatP-keyed, so
+  // it lands once per stage no matter where the cap's seams fall).
+  const LONG_STAGE =
+    sceneKey === 'c6-ai' || sceneKey === 'c8-fund' || sceneKey === 'c8-odds';
+  if (groupDur > (LONG_STAGE ? 9000 : 12000)) {
     const seam = groupDur * 0.5;
     const release = groupDur * 0.85;
     const dir = groupIdx % 2 === 0 ? 1 : -1;
@@ -741,6 +752,9 @@ export function drawFrame(
     sentenceT: activeSent !== null ? t - activeSent.startMs : undefined,
     channelName: opts.channelName,
     nextVideoTitle: opts.nextVideoTitle,
+    // 100-JUDGE PANEL / Phase 4 item 4.3: the beat's chapter index — the
+    // value-plane rotation's key (theme.valuePlaneFor(g.chapterIdx)).
+    chapterIdx: beat.chapter,
   };
 
   // scale context for non-1080p targets (design grid is 1920×1080)

@@ -49,6 +49,11 @@ export interface SceneCtx {
    *  Scenes pass this to paintBg() so a 20-minute film travels through
    *  color instead of one flat white. Optional for backward compat. */
   chapterTone?: 'up' | 'down' | 'gold' | 'neutral';
+  /** 100-JUDGE PANEL / Phase 4 item 4.3 — the beat's chapter index (0-based).
+   *  The value-plane rotation keys to it (theme.valuePlaneFor), so a scene's
+   *  material alternates with the chapter rhythm without per-beat script
+   *  changes. */
+  chapterIdx: number;
 }
 
 export type SceneDrawer = (g: SceneCtx) => void;

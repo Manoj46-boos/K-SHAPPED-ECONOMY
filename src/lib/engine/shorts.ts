@@ -45,6 +45,18 @@ const SHORT_TONES: Array<'up' | 'down' | 'gold' | 'neutral'> = [
  *  by drawShortHost. Pure function of (tMs, spec) per frame. */
 let hostZoneFrom = Infinity;
 
+/** 100-JUDGE PANEL / Phase 4 item 4.4 — THE 5% RAIL MARGIN RULE.
+ *  The packaging board (D-11) caught two native drawers whose content rode
+ *  "within ~5% of the right action rail": the pump's household column ended
+ *  at x 994 and the K's micro-labels right-aligned at x 1008 — both INSIDE
+ *  the Shorts action rail's own zone (~x 980-1000+), where the like/share/
+ *  comment column plates them on device. The rule: a native drawer keeps a
+ *  5%-of-width (54px) operating margin CLEAR of that rail zone — which lands
+ *  on x 940, the same certified bound the bars drawer has run since the
+ *  round-2 panel caught its value pill under the rail. One shared bound,
+ *  three drawers: pump and K now join bars at x ≤ 940. */
+const RAIL_SAFE_RIGHT = 940;
+
 /** v6 (audit P2-2): every strong moment composes natively — no crop.
  *  P1-4 (report): + 'bars' (barsCompare) and 'journey' (chartJourney) —
  *  the two data-scene families the report called out, both reusing the
@@ -377,18 +389,44 @@ function drawNativeVerticalK(
     }
   }
 
-  // arm labels — right-aligned hard against the safe margin so they can
-  // never clip (the crop path cut “THE MARKET” at the window edge)
+  // arm labels — right-aligned against the RAIL-safe margin (4.4) so they
+  // can never clip (the crop path cut “THE MARKET” at the window edge) and
+  // never ride under the Shorts action rail: they end at RAIL_SAFE_RIGHT.
+  // Both labels MIRROR around their arm tips (market 60-65px above its tip
+  // clamped to the y-350 shelf, mood 0.2·S below its tip) and each carries
+  // a short LEADER TICK from its inner edge to its tip — the film's own
+  // pill-leader grammar — so the pair reads as anchored annotations, not
+  // floating type. The up label's tip-relative slot keeps it clear of the
+  // arm stroke (above the tip), the tip glow and the 2-row title band.
   const lblA = clamp01((t - 3000) / 700);
   if (lblA > 0) {
     ctx.save();
     ctx.globalAlpha = lblA;
     setFont(ctx, 30, 700);
     ctx.textAlign = 'right';
+    const mktY = Math.min(ky - S * 1.05 - 60, 350);
+    const moodY = ky + S * 1.25;
     ctx.fillStyle = PALETTE.up;
-    ctx.fillText('THE MARKET', W - 72, ky - S * 1.05 + 10);
+    ctx.fillText('THE MARKET', RAIL_SAFE_RIGHT, mktY);
     ctx.fillStyle = PALETTE.down;
-    ctx.fillText('THE MOOD', W - 72, ky + S * 1.25);
+    ctx.fillText('THE MOOD', RAIL_SAFE_RIGHT, moodY);
+    // the leader ticks — 30px hairlines angled at each tip (2.5px, the
+    // label's own tone at 0.6); drawn after the labels so they read as
+    // ONE annotation unit
+    const tipUpX = kx + S * 1.15, tipUpY = ky - S * 1.05;
+    const tipDnX = kx + S * 1.15, tipDnY = ky + S * 1.05;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = rgba(PALETTE.up, 0.6 * lblA);
+    ctx.beginPath();
+    ctx.moveTo(RAIL_SAFE_RIGHT - ctx.measureText('THE MARKET').width - 14, mktY - 6);
+    ctx.lineTo(tipUpX + 14, tipUpY - 12);
+    ctx.stroke();
+    ctx.strokeStyle = rgba(PALETTE.down, 0.6 * lblA);
+    ctx.beginPath();
+    ctx.moveTo(RAIL_SAFE_RIGHT - ctx.measureText('THE MOOD').width - 14, moodY - 26);
+    ctx.lineTo(tipDnX + 14, tipDnY + 16);
+    ctx.stroke();
     // PHASE 1 item 4 companion: the K's naming label moves ABOVE the
     // letterform (ky − S·1.18). At the old ky + S·1.6 slot the label sank
     // into the caption pill's band at full growth — and under the
@@ -739,27 +777,57 @@ function drawNativeVerticalPump(
   // ~110px past its 392px text column into the LOWER-INCOME card (flagged
   // on the S6 render). Cards are now 444 wide with a 16px gutter, and each
   // stat auto-shrinks to its column (floor 26px) or wraps to two rows.
+  // 100-JUDGE PANEL / Phase 4 item 4.4 (D-11 — the 5% RAIL MARGIN RULE):
+  // the right card's edge landed at x 996-1012 — inside the Shorts action
+  // rail's zone. The pair re-grids INSIDE the rail-safe window AND reads
+  // composed, not trimmed: 140px margins BOTH sides (140..528 / 552..940),
+  // the row's optical centre at the frame's own 540, symmetric against the
+  // pump above it. Same auto-shrink text columns, caps and timing.
   const cards = ((s.cards as any[]) || []).slice(0, 2);
   cards.forEach((c, i) => {
     const cap = clamp01((t - 1000 - i * 900) / 800);
     if (cap <= 0) return;
-    const x = i === 0 ? 84 : 552;
-    const cw2 = 444;
+    const x = i === 0 ? 140 : 552;
+    const cw2 = 388;
     const y = 780;
     ctx.save();
     ctx.globalAlpha = cap;
     ctx.translate(0, (1 - easeOutCubic(cap)) * 40);
     const tone = TONE(c.tone);
     card(ctx, x, y, cw2, 250, { r: 26 });
+    // the who header — MEASURED (4.4 round 2): at the 388px card the 28px
+    // caps header ('LOWER-INCOME HOUSEHOLDS' ≈ 385px) overran the 324px
+    // interior and printed past the card's right edge — the panel caught it
+    // on the re-grade. It now wraps to two measured rows when it would not
+    // fit, the tone rule drops under the second row, and the stat block
+    // keeps its y+140 start.
+    const whoTxt = String(c.who).toUpperCase();
     setFont(ctx, 28, 700, FONT_UI); // v9 (D-07): floor
     ctx.fillStyle = tone.main;
     ctx.textAlign = 'left';
-    ctx.fillText(String(c.who).toUpperCase(), x + 32, y + 52);
+    const maxHW = cw2 - 64;
+    let ruleY = y + 72;
+    if (ctx.measureText(whoTxt).width <= maxHW) {
+      ctx.fillText(whoTxt, x + 32, y + 52);
+    } else {
+      // split at the space nearest the width balance
+      const wds = whoTxt.split(' ');
+      let l1 = '';
+      for (const wd of wds) {
+        const test = l1 ? l1 + ' ' + wd : wd;
+        if (ctx.measureText(test).width > maxHW && l1) break;
+        l1 = test;
+      }
+      const l2 = whoTxt.slice(l1.length).trim();
+      ctx.fillText(l1, x + 32, y + 46);
+      ctx.fillText(l2, x + 32, y + 76);
+      ruleY = y + 94;
+    }
     ctx.lineWidth = 3;
     ctx.strokeStyle = rgba(tone.main, 0.4);
     ctx.beginPath();
-    ctx.moveTo(x + 32, y + 72);
-    ctx.lineTo(x + 180, y + 72);
+    ctx.moveTo(x + 32, ruleY);
+    ctx.lineTo(x + 180, ruleY);
     ctx.stroke();
     const maxSW = cw2 - 64;
     let sy = y + 140;

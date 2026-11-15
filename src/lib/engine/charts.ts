@@ -5,7 +5,7 @@
  */
 
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, easeOutQuad, hashStr, lerp, springTo } from './easing';
-import { PALETTE, TONE, card, chip, rgba, roundRect, setFont, fitText, TYPE_FLOOR, LABEL_FLOOR } from './theme';
+import { PALETTE, TONE, card, chip, rgba, roundRect, setFont, fitText, TYPE_FLOOR, LABEL_FLOOR, toneRoom, deskRule, ValuePlane } from './theme';
 import { registerRect, registerFixed, registerText } from './collision';
 
 export interface Pt {
@@ -1126,9 +1126,19 @@ export function statCard(
      * shipped 112px cards, so its text rendered OUTSIDE the card bodies and
      * the next card overpainted it. */
     compact?: boolean;
+    /** 100-JUDGE PANEL / Phase 4 item 4.3 — THE VALUE PLANE. 'card' is the
+     *  house cream card (every layout certification below was earned on it);
+     *  'room' swaps the material for the chapter cards' full-bleed tone slab
+     *  (same footprint, no shadow); 'desk' drops the plate entirely — the
+     *  value sits on the room background over one ink rule. Geometry NEVER
+     *  changes with the plane, so a scene can rotate material per chapter
+     *  without re-certifying its layout. Callers pick via theme's
+     *  valuePlaneFor(chapterIdx). */
+    plane?: ValuePlane;
   }
 ): void {
   const { x, y, w, h, big, label, tag, tone = 'up', p, t } = opts;
+  const plane: ValuePlane = opts.plane ?? 'card';
   const ap = clamp01(p);
   const rise = (1 - easeOutCubic(ap)) * 26;
   const pop = easeOutBack(clamp01(ap / 0.7));
@@ -1156,7 +1166,19 @@ export function statCard(
   const H2 = Math.max(h, labelBasePre + (labelRows - 1) * labelStepPre + (opts.compact ? 26 : 40));
   // v10 (panel COLOR-4): tone-tinted card shadow — the card reads as lit by
   // its own number (teal card, teal-whisper shadow) instead of neutral slate
-  card(ctx, x, y, w, H2, { r: opts.compact ? 22 : 30, tint: c });
+  // 4.3: the material rotates — 'room' = the chapter slab (flat, no shadow,
+  // its own gold rule at the accent slot), 'desk' = no plate (the rule below
+  // spans the block), 'card' = the house card. Footprint identical.
+  if (plane === 'card') {
+    card(ctx, x, y, w, H2, { r: opts.compact ? 22 : 30, tint: c });
+  } else if (plane === 'room') {
+    toneRoom(ctx, x, y, w, H2, tone, {
+      ruleX: x + 34, ruleY: y + (opts.compact ? 22 : 26),
+      ruleW: opts.compact ? 52 : 64, ruleH: opts.compact ? 6 : 8, grow: pop,
+    });
+  } else {
+    deskRule(ctx, x + 34, y + (opts.compact ? 25 : 30), w - 68, pop, Math.min(1, ap * 1.6));
+  }
   const bigSize = opts.compact ? 58 : 88;
   const bigBase = opts.compact ? 84 : 138;
   // AUDIT-ROUND-2 (fix 1): the label floor — compact row metrics render at
@@ -1167,9 +1189,13 @@ export function statCard(
   const labelStep = opts.compact ? 34 : 38;
   // tone top accent line
   // PHASE-0 (Fix 3): accent line rides cVivid.
-  ctx.fillStyle = cVivid;
-  roundRect(ctx, x + 34, y + (opts.compact ? 22 : 26), (opts.compact ? 52 : 64) * pop, opts.compact ? 6 : 8, 3);
-  ctx.fill();
+  // 4.3: on the 'room' plane the slab's gold rule IS the accent (drawn
+  // above); on 'desk' the ink rule replaces it. Only 'card' keeps the bar.
+  if (plane === 'card') {
+    ctx.fillStyle = cVivid;
+    roundRect(ctx, x + 34, y + (opts.compact ? 22 : 26), (opts.compact ? 52 : 64) * pop, opts.compact ? 6 : 8, 3);
+    ctx.fill();
+  }
   // big number
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
@@ -1186,11 +1212,15 @@ export function statCard(
   setFont(ctx, bigSize, 700);
   // PHASE-0 (Fix 3): the big numeral rides cVivid (gold keeps goldDeep —
   // the AA note above: goldDisplay on white is fill-grade only).
-  ctx.fillStyle = tone === 'gold' ? PALETTE.goldDeep : cVivid;
+  // 4.3: numeral ink follows the plane's material — on the room slab the
+  // numeral rides INK (the chapter card's own title treatment; gold keeps
+  // goldInk for its AA-safe gold semantics); 'desk'/'card' keep the vivid
+  // ramp on their lighter grounds.
+  ctx.fillStyle = plane === 'room' ? PALETTE.ink : tone === 'gold' ? PALETTE.goldDeep : cVivid;
   ctx.fillText(bigText, x + 34, y + bigBase);
   // label
   setFont(ctx, labelSize, 600);
-  ctx.fillStyle = PALETTE.inkSoft;
+  ctx.fillStyle = plane === 'room' ? PALETTE.ink : PALETTE.inkSoft;
   const labelLines = wrapText(ctx, label, w - 68, labelSize, 600);
   labelLines.forEach((ln, i) => {
     ctx.fillText(ln, x + 34, y + labelBase + i * labelStep);
@@ -1208,7 +1238,10 @@ export function statCard(
       const tagY = (opts.compact ? y + H2 - 40 : y + H2 - 58) - (tagLines.length - 1) * 44;
       tagLines.forEach((ln, li) => {
         const tw = ctx.measureText(ln).width;
-        ctx.fillStyle = TONE(tone === 'down' ? 'down' : tone).soft;
+        // 4.3: on the 'room' plane the chip's soft body would melt into the
+        // slab's own soft tone — it stays white there (the house chip on the
+        // slab reads as a pinned tag).
+        ctx.fillStyle = plane === 'room' ? PALETTE.white : TONE(tone === 'down' ? 'down' : tone).soft;
         roundRect(ctx, x + 34, tagY + li * 44, tw + 30, 38, 19);
         ctx.fill();
         // PHASE-0 (Fix 3): tag chip text rides cVivid for consistency with

@@ -6,7 +6,7 @@
  */
 
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, hash01, hashStr, lerp, springTo } from './easing';
-import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, CAPTION_ZONE_TOP, TYPE_FLOOR, LABEL_FLOOR } from './theme';
+import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, CAPTION_ZONE_TOP, TYPE_FLOOR, LABEL_FLOOR, FONT_DISPLAY, toneRoom, deskRule, valuePlaneFor, roomFill } from './theme';
 import { bokehField, kMotifs, lightRays, drawK, drawK3D, sparkles, hazeBands, impactRing, microShake, depthShift } from './effects';
 import { SceneCtx } from './scene-context';
 import { REACTIONS, reactionAt, reactionStart } from './scene-context';
@@ -2309,6 +2309,11 @@ export function aiDatacenterScene(g: SceneCtx): void {
   // Envelope y 136-312 vs nearest rack top ~548: 236px of clear air —
   // no card ever plates a rack again.
   const stats = (s.stats as any[]) || [];
+  // 100-JUDGE PANEL / Phase 4 item 4.3 — THE VALUE PLANE: this chapter
+  // (ch5, the AI engine) draws 'room' — the three compact cards swap the
+  // cream card for the chapter cards' own full-bleed tone slab, same
+  // footprint, gold rule accent, numeral stepped to the text-safe tone.
+  const valuePlane = valuePlaneFor(g.chapterIdx);
   stats.forEach((st, i) => {
     statCard(ctx, {
       // P0-4 sweep fix round 2 — the STEPPED CASCADE: card 1 sits LOW
@@ -2323,11 +2328,77 @@ export function aiDatacenterScene(g: SceneCtx): void {
       // (292) clear the host envelope (308) by 16px under the same camera.
       x: 180 + i * 540, y: i === 0 ? 186 : 104, w: 480, h: 176,
       compact: true,
+      plane: valuePlane,
       bigIsNumber: false, // '¾' / '$700–730B' are strings; count-up mangles them
-      big: st.big, label: st.label, tone: st.tone || 'gold',
+      // 4.3: the room slabs pair the chapter's deep teal with ONE bronze-gold
+      // payoff slab (card 3, the $700–730B build-out). The old fallback
+      // painted every tone-less card gold — under the room plane all three
+      // slabs rendered bronze (panel round 2) — so tone-less cards take the
+      // chapter's 'up' register and the script's explicit gold stays gold.
+      big: st.big, label: st.label, tone: st.tone || 'up',
       p: clamp01((t - 800 - i * 900) / 900), t,
     });
   });
+  // ── 100-JUDGE PANEL / Phase 4 item 4.1 — THE SECOND CONTENT ARRIVAL AT
+  // THE 55% SEAM. This stage runs 49.9s on one staging (D-07, the film's
+  // longest hold); its build-out all lands inside the first ~2.6s and the
+  // rest of the minute is ambient life. At the STAGE's own 55% seam
+  // (beatP 0.55 — beat-local, immune to the cap's re-splits) a SECOND
+  // content arrival lands: the VO's "more than double its share from
+  // before 2023" line becomes a wall-mounted share panel — two bars
+  // (before-2023 vs now, the now-bar 2.4× the before-bar — the VO's own
+  // "more than double" ratio, no invented numbers) plus the gold '2×'
+  // badge. It annotates CARD 2's own claim (the 1.4–1.5% slab directly
+  // above): a compact tone panel in the open bay under card 2 (x 720-1100,
+  // y 306-436 — card 2's grown bottom is 292, the hero rack's top face
+  // starts at 408 at x 1105). Registered for the guard.
+  // Entry: slab → bars → badge, ~2s of staged draw; pure function of
+  // (beatP, t) — scrub-safe, replays identically on any re-split.
+  {
+    const seamP = clamp01((g.beatP - 0.55) / 0.02);
+    if (seamP > 0) {
+      const mx = 720, my = 306, mw = 380, mh = 130;
+      const bar1P = clamp01((g.beatP - 0.552) / 0.012);
+      const bar2P = clamp01((g.beatP - 0.562) / 0.012);
+      const badgeP = clamp01((g.beatP - 0.572) / 0.012);
+      const bodyA = Math.min(1, seamP * 1.4);
+      toneRoom(ctx, mx, my, mw, mh, 'up', {
+        ruleX: mx + 36, ruleY: my + 14, ruleW: 44, ruleH: 6,
+        grow: easeOutCubic(seamP), alpha: bodyA,
+      });
+      ctx.save();
+      ctx.globalAlpha = bodyA;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      setFont(ctx, LABEL_FLOOR, 700);
+      ctx.fillStyle = PALETTE.ink;
+      ctx.fillText('SHARE OF GDP', mx + 36, my + 46);
+      // the two share bars — 'now' is the VO's own "more than double" ratio
+      // vs 'before' (2.14× drawn; no invented numbers — the only printed
+      // values are the VO's own 1.4–1.5%, on card 2 above, and the 2× token)
+      setFont(ctx, LABEL_FLOOR, 600);
+      ctx.fillStyle = PALETTE.inkSoft;
+      ctx.fillText('2023', mx + 36, my + 84);
+      ctx.fillStyle = rgba(PALETTE.grid, 0.9);
+      roundRect(ctx, mx + 130, my + 72, 70 * easeOutCubic(bar1P), 12, 6);
+      ctx.fill();
+      setFont(ctx, LABEL_FLOOR, 700);
+      ctx.fillStyle = PALETTE.up;
+      ctx.fillText('now', mx + 36, my + 116);
+      roundRect(ctx, mx + 130, my + 104, 150 * easeOutCubic(bar2P), 12, 6);
+      ctx.fill();
+      // the payoff token rides the now-bar's tip — the VO's own "more than
+      // double", inline (a boxed badge plated the panel title in the guard
+      // sweep's neighbour check; inline reads as the bar's value tag)
+      if (badgeP > 0) {
+        ctx.globalAlpha = bodyA * badgeP;
+        setFont(ctx, 40, 700);
+        ctx.fillStyle = PALETTE.goldDisplay;
+        ctx.fillText('2\u00d7', mx + 292, my + 118);
+      }
+      ctx.restore();
+    }
+  }
   // v8: the host — the vision panel flagged this scene "no character, no
   // motion cue, lowest energy on the sheet". The presenter now walks the
   // datacenter floor (bottom-right, presenting the racks) with the talk
@@ -2423,6 +2494,12 @@ export function statCardsScene(g: SceneCtx): void {
   // mid plane with the hero content everywhere).
   const heroDepth = depthShift(0.7);
   const chipDepth = depthShift(0.55);
+  // 100-JUDGE PANEL / Phase 4 item 4.3 — THE VALUE PLANE: this scene is the
+  // film's flagship value row and runs in TWO chapters (ch5 margins → 'room',
+  // ch6 debt → 'desk' by theme.valuePlaneFor) — the two consecutive value
+  // chapters now sit on DIFFERENT materials, and the next chapter (the twist)
+  // returns to the house card. Geometry identical in all three planes.
+  const valuePlane = valuePlaneFor(g.chapterIdx);
   // ── THE HERO CARD — 1150px wide (60% of frame), one 190px numeral ──
   const hx0 = 180;
   const hy0 = H * 0.22;
@@ -2433,8 +2510,19 @@ export function statCardsScene(g: SceneCtx): void {
   registerRect('statCards:hero', hx0 + heroDepth.dx, hy0 + heroDepth.dy, hw, hh);
   ctx.save();
   ctx.translate(heroDepth.dx, heroDepth.dy);
-  card(ctx, hx0, hy0, hw, hh, { r: 34, tint: tone.main });
-  const heroP = clamp01((t - 300) / 900);
+  const heroP0 = clamp01((t - 300) / 900);
+  if (valuePlane === 'card') {
+    card(ctx, hx0, hy0, hw, hh, { r: 34, tint: tone.main });
+  } else if (valuePlane === 'room') {
+    // the chapter card's own material at hero scale — full tone field, flat
+    toneRoom(ctx, hx0, hy0, hw, hh, String(hero.tone || 'gold'), {
+      ruleX: hx0 + 72, ruleY: hy0 + 44, ruleW: 96, ruleH: 9, grow: easeOutCubic(heroP0),
+    });
+  } else {
+    // the desk plane — no plate; the ledger rule draws itself above the numeral
+    deskRule(ctx, hx0 + 72, hy0 + 52, hw - 144, easeOutCubic(heroP0), 1);
+  }
+  const heroP = heroP0;
   if (heroP > 0) {
     ctx.save();
     ctx.globalAlpha = heroP;
@@ -2446,7 +2534,8 @@ export function statCardsScene(g: SceneCtx): void {
       bigSize -= 4;
       setFont(ctx, bigSize, 700);
     }
-    ctx.fillStyle = tone.main;
+    ctx.fillStyle =
+      valuePlane === 'room' ? PALETTE.ink : tone.main;
     ctx.textAlign = 'left';
     ctx.fillText(hero.big, hx0 + 72, hy0 + 232);
     // the label — READ text at the floor (40), one wrap, max 2 lines
@@ -2458,7 +2547,7 @@ export function statCardsScene(g: SceneCtx): void {
     // clear of the 40px plate pad), two lines max — the tag chip sits at
     // the card's TOP right (y≈hy0+62), the label at y≥hy0+306: no overlap.
     setFont(ctx, 40, 600);
-    ctx.fillStyle = PALETTE.inkSoft;
+    ctx.fillStyle = valuePlane === 'room' ? PALETTE.ink : PALETTE.inkSoft;
     const labelLines = wrapText(ctx, String(hero.label ?? ''), hw - 140, 40, 600).slice(0, 2);
     labelLines.forEach((ln, j) => ctx.fillText(ln, hx0 + 72, hy0 + 306 + j * 48));
     // the tag — a tone chip at the card's top right, RIGHT-ALIGNED so it
@@ -2492,16 +2581,33 @@ export function statCardsScene(g: SceneCtx): void {
     ctx.save();
     ctx.globalAlpha = cp2;
     registerRect(`statCards:chip${i}`, cx2, cy2, hw / 2 - 40, 84);
-    ctx.fillStyle = PALETTE.white;
-    roundRect(ctx, cx2, cy2, hw / 2 - 40, 84, 42);
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = rgba(ct.main, 0.5);
-    roundRect(ctx, cx2, cy2, hw / 2 - 40, 84, 42);
-    ctx.stroke();
+    // 4.3: the demoted chips ride their chapter's plane too — cream pill
+    // ('card'), tone slab ('room'), or a bare ledger entry ('desk'). Same
+    // rect in all three.
+    if (valuePlane === 'card') {
+      ctx.fillStyle = PALETTE.white;
+      roundRect(ctx, cx2, cy2, hw / 2 - 40, 84, 42);
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = rgba(ct.main, 0.5);
+      roundRect(ctx, cx2, cy2, hw / 2 - 40, 84, 42);
+      ctx.stroke();
+    } else if (valuePlane === 'room') {
+      // the room slab, one register down (theme.toneRoom's mix) and sharp —
+      // unmistakably NOT a pill
+      ctx.fillStyle = roomFill(String(c.tone || 'up'));
+      roundRect(ctx, cx2, cy2, hw / 2 - 40, 84, 3);
+      ctx.fill();
+      ctx.fillStyle = PALETTE.gold;
+      roundRect(ctx, cx2 + 30, cy2 + 16, 44 * easeOutCubic(cp2), 5, 2.5);
+      ctx.fill();
+    } else {
+      deskRule(ctx, cx2 + 8, cy2 + 8, hw / 2 - 56, easeOutCubic(cp2), 1);
+    }
     setFont(ctx, 62, 700);
     ctx.textAlign = 'left';
-    ctx.fillStyle = ct.main;
+    ctx.fillStyle =
+      valuePlane === 'room' ? PALETTE.ink : ct.main;
     const bw = ctx.measureText(c.big).width;
     ctx.fillText(c.big, cx2 + 34, cy2 + 58);
     // the chip's label — measured, wrapped to 2 rows inside the 84px pill
@@ -2512,7 +2618,7 @@ export function statCardsScene(g: SceneCtx): void {
     // baselines y+40/y+70; a label that cannot fit two rows inside the
     // column yields (the VO carries the full text).
     setFont(ctx, 34, 600);
-    ctx.fillStyle = PALETTE.inkSoft;
+    ctx.fillStyle = valuePlane === 'room' ? PALETTE.ink : PALETTE.inkSoft;
     const short = String(c.label ?? '').split(' · ')[0];
     const maxLW = cx2 + (hw / 2 - 40) - 24 - (cx2 + 34 + bw + 22);
     if (maxLW > 140) {
@@ -3058,6 +3164,36 @@ export function fundSplitScene(g: SceneCtx): void {
     setFont(ctx, 40, 700);
     ctx.fillStyle = PALETTE.inkSoft;
     ctx.fillText('493 others', grayX, gy + 356);
+    // ── 100-JUDGE PANEL / Phase 4 item 4.1 — THE SECOND CONTENT ARRIVAL AT
+    // THE 55% SEAM. This stage runs 42.5s (D-07) and its build completes at
+    // ~5s (fund box, arrows, bars, wall, chips, callback). At the stage's
+    // own 55% seam (beatP 0.55 — beat-local, immune to the cap's re-splits)
+    // the seven bars are NAMED: the film's own Magnificent Seven roll
+    // (magChips, ch3) cascades into the bars as rotated ledger labels —
+    // the twist's payoff ("a huge share of your return has come from seven
+    // stocks") gets its WHO. Drawn after the bars they live in; each name
+    // is gated on ITS bar being fully grown (t-keyed), so a re-split
+    // seam's bar re-pop never leaves a name floating in air. Pure function
+    // of (beatP, t) — scrub-safe.
+    const SEVEN = ['Nvidia', 'Microsoft', 'Apple', 'Alphabet', 'Amazon', 'Meta', 'Tesla'];
+    SEVEN.forEach((nm, i) => {
+      const np = clamp01((g.beatP - 0.552 - i * 0.004) / 0.01);
+      // the name only prints over a GROWN bar (the re-split seam replays
+      // the bars' growth on the group clock — the name waits for it)
+      const grown = clamp01((t - 1400 - i * 110 - 460) / 400);
+      const a = np * grown;
+      if (a <= 0.01) return;
+      ctx.save();
+      ctx.globalAlpha = a * 0.94;
+      ctx.translate(gx + i * 78 + 28, gy + 154);
+      ctx.rotate(-Math.PI / 2);
+      setFont(ctx, LABEL_FLOOR, 700);
+      ctx.fillStyle = PALETTE.ink;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(nm.toUpperCase(), 0, 0);
+      ctx.restore();
+    });
   }
 
   // stats
@@ -3222,6 +3358,71 @@ export function oddsSpreadScene(g: SceneCtx): void {
   ctx.restore();
 
   const markers = (s.markers as any[]) || [];
+  // ── 100-JUDGE PANEL / Phase 4 item 4.1 — THE SECOND CONTENT ARRIVAL AT
+  // THE 55% SEAM. This stage runs 50.1s (D-07 — the film's longest) on one
+  // staging: markers land by ~4s, the kicker/closer by ~6s, then nothing
+  // new for the rest of the minute. At the stage's own 55% seam (beatP
+  // 0.55 — beat-local, immune to the cap's re-splits) the RANGE ITSELF
+  // arrives: a gold rope draws ON the range line from the 1% pin to the
+  // 80% pin — the survey's own extremes ("ranged from 1% all the way to
+  // 80%") made physical on the track the film's terrain grammar already
+  // owns — and a '79-point spread' chip (80 − 1, derived not invented)
+  // drops in above the rope's right end. Drawn HERE so the marker pins,
+  // bands and cards render on top of it (the rope is track furniture,
+  // unregistered like the track itself; the chip is registered). The
+  // first cut lived as a read-out card at x 1592-1824 — the guard sweep
+  // measured its mapped right edge 16-45px past the frame bound under
+  // the exit-window camera (S 1.12, drift +) and it moved into the
+  // envelope: chip right edge 1404, mapped ≤ 1550 at the worst sampled
+  // camera. Pure function of (beatP, t) — scrub-safe.
+  {
+    const ropeP = clamp01((g.beatP - 0.55) / 0.02);
+    if (ropeP > 0 && markers.length >= 5) {
+      const x0 = trackX + (clamp01(markers[0].at / 100)) * trackW;
+      const x1 = trackX + (clamp01(markers[markers.length - 1].at / 100)) * trackW;
+      const drawW = (x1 - x0) * easeOutCubic(ropeP);
+      ctx.save();
+      ctx.globalAlpha = 0.92;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = PALETTE.gold;
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.moveTo(x0, trackY);
+      ctx.lineTo(x0 + drawW, trackY);
+      ctx.stroke();
+      // the end rings + bracket terminals pop once the rope reaches each pin
+      const ring1 = clamp01((ropeP - 0.1) / 0.25);
+      const ring2 = clamp01((ropeP - 0.85) / 0.15);
+      if (ring1 > 0) {
+        ctx.globalAlpha = 0.92 * ring1;
+        ctx.strokeStyle = PALETTE.gold;
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(x0, trackY, 19, 0, Math.PI * 2);
+        ctx.stroke();
+        // the bracket terminal — a short tick rising from the rope's end so
+        // the span reads as a measured bracket, not a stray line
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(x0, trackY - 2);
+        ctx.lineTo(x0, trackY - 18);
+        ctx.stroke();
+      }
+      if (ring2 > 0) {
+        ctx.globalAlpha = 0.92 * ring2;
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(x1, trackY, 19, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(x1, trackY - 2);
+        ctx.lineTo(x1, trackY - 18);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
   // ── 100-JUDGE PANEL / PHASE 2 item 4 — TERRAIN STAGING (report §6 Phase 2:
   // "port ownerWorker's 'data IS the terrain' to oddsSpread — host on the
   // range line walking between markers") + the pre-existing defect it
@@ -3383,6 +3584,39 @@ export function oddsSpreadScene(g: SceneCtx): void {
     // behind the pill. Sit ≥48px above CAPTION_ZONE_TOP.
     ctx.fillText(s.closer as string, W / 2, ((CAPTION_ZONE_TOP - 48) / 1080) * H);
     ctx.restore();
+  }
+  // ── 4.1 (continued) — the rope's LABEL: a '1–80% · 79-point spread' chip
+  // above the rope's right end (right edge at the 80% pin, y 230-284 — above
+  // the walker's head-dome band (top ≈295 at the last station, guard-swept),
+  // x-clear of the scene title (ends x 880), clear of the above-row cards
+  // and the mapped camera envelope). The chip states BOTH terminals so the
+  // bracket reads unambiguously at feed scale. Registered.
+  {
+    const chipP = clamp01((g.beatP - 0.565) / 0.015);
+    if (chipP > 0 && markers.length >= 5) {
+      setFont(ctx, LABEL_FLOOR, 700);
+      const txt = '1\u201380% \u00b7 79-point spread';
+      const tw = ctx.measureText(txt).width;
+      const cx = trackX + (clamp01(markers[markers.length - 1].at / 100)) * trackW;
+      const cw = tw + 48;
+      const chx = cx - cw;
+      const chy = 230;
+      registerRect('oddsSpread:spreadChip', chx, chy, cw, 54);
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, chipP * 1.3);
+      ctx.translate(0, (1 - easeOutCubic(chipP)) * -26);
+      ctx.fillStyle = PALETTE.goldWash;
+      roundRect(ctx, chx, chy, cw, 54, 27);
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = PALETTE.gold;
+      roundRect(ctx, chx, chy, cw, 54, 27);
+      ctx.stroke();
+      ctx.fillStyle = PALETTE.goldDeep;
+      ctx.textAlign = 'left';
+      ctx.fillText(txt, chx + 24, chy + 36);
+      ctx.restore();
+    }
   }
   sourceTag(ctx, W, s.source as string, H - 60);
 }

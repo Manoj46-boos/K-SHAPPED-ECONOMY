@@ -442,6 +442,98 @@ export function chipWidth(
   return ctx.measureText(text).width + padX * 2 + (iconDot ? size * 0.9 + 10 : 0);
 }
 
+// ── 100-JUDGE PANEL / Phase 4 item 4.3 — THE VALUE-PLANE SYSTEM ─────────────
+// D-15: "Value-plane sameness — same cream card + pill grammar in 17/18
+// sampled frames; chapters change hue, not plane." The fix: the film's
+// value moments rotate between THREE materials, keyed deterministically to
+// the chapter so consecutive value chapters alternate:
+//   'card' — the house cream card (the existing grammar, kept);
+//   'room' — a full-bleed tone slab in the chapter cards' own material
+//            (soft tone at 1.0, gold rule, no shadow — architecture, not
+//            furniture);
+//   'desk' — no plate at all: the value set directly on the room
+//            background over one horizontal ink rule (ledger style).
+// Geometry NEVER changes across planes — same x/y/w/h — so every layout
+// certification the card grammar earned carries over; only the material
+// rotates. Scrub-safe: pure functions of their arguments.
+
+export type ValuePlane = 'card' | 'room' | 'desk';
+
+/** The chapter-keyed plane rotation: card → room → desk → card … Consecutive
+ *  chapters that carry values now sit on different materials (the audit's
+ *  own alternation ask), and the read dies that "by frame 14 the eye stops
+ *  registering new information". */
+export function valuePlaneFor(chapterIdx: number): ValuePlane {
+  const rot: ValuePlane[] = ['card', 'room', 'desk'];
+  return rot[((chapterIdx % 3) + 3) % 3];
+}
+
+/** The ROOM plane's field color — the chapter-card tone ONE register down:
+ *  the soft tone mixed 48% toward its main (gold toward goldDeep, its
+ *  text-safe register). Solid enough that a slab never reads as a pale
+ *  chip; ink numerals on it hold ≈5.5:1. One source of truth for every
+ *  room-plane fill (toneRoom + the statCards chips). */
+export function roomFill(tone: string): string {
+  const tn = TONE(tone);
+  return tone === 'gold'
+    ? mixHex(PALETTE.goldWash, PALETTE.goldDeep, 0.48)
+    : mixHex(tn.soft, tn.main, 0.48);
+}
+
+/** The ROOM plane slab — the chapter cards' material at value-block size:
+ *  a full tone field DEEPENED to the room register (see roomFill),
+ *  ARCHITECTURALLY SHARP (3px corner — the chapter card's fillRect
+ *  genealogy; a floating card's 22-34px rounding is the other material's
+ *  signature), flat (no layered shadow), with the gold rule at the caller's
+ *  accent slot. Numerals on a room slab ride INK. Drawn in scene space. */
+export function toneRoom(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  tone: string,
+  opts: { ruleX?: number; ruleY?: number; ruleW?: number; ruleH?: number; grow?: number; alpha?: number } = {}
+): void {
+  const { ruleX = x + 34, ruleY = y + 26, ruleW = 64, ruleH = 8, grow = 1, alpha = 1 } = opts;
+  registerRect(`toneRoom@${Math.round(x)},${Math.round(y)}`, x, y, w, h);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = roomFill(tone);
+  roundRect(ctx, x, y, w, h, 3);
+  ctx.fill();
+  // the gold rule rides goldInk on the deep field (goldDisplay washes on it)
+  ctx.fillStyle = tone === 'gold' ? PALETTE.goldInk : PALETTE.gold;
+  if (grow > 0) roundRect(ctx, ruleX, ruleY, Math.max(2, ruleW * grow), ruleH, ruleH / 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** The DESK plane rule — one horizontal ink hairline the value sits on,
+ *  ledger-style. `grow` drives the draw-on. Registered so the guard sees
+ *  the line as content. */
+export function deskRule(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  grow = 1,
+  alpha = 1
+): void {
+  if (grow <= 0) return;
+  registerRect(`deskRule@${Math.round(x)},${Math.round(y)}`, x, y, Math.max(2, w * grow), 4);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = rgba(PALETTE.ink, 0.55);
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + w * grow, y);
+  ctx.stroke();
+  ctx.restore();
+}
+
 /** Soft radial glow blob. */
 export function glowBlob(
   ctx: CanvasRenderingContext2D,
