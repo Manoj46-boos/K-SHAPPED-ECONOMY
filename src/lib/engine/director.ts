@@ -11,7 +11,7 @@ import { drawGrain, lightVignette, bokehField, scalePunch, camState, guardCamSta
 import { drawParticles, emitterKindFor } from './particles';
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
 import { Timeline, beatAt } from './timeline';
-import { SceneCtx, SceneDrawer, REACTIONS, reactionAt } from './scene-context';
+import { SceneCtx, SceneDrawer, REACTIONS, reactionAt, resetHeadlineDedup } from './scene-context';
 import { collisionGuard, collisionGuard as guardRef, resetGuard, setGuardOverlay, setGuardCamera, collectViolations } from './collision';
 import { AMP, HERO } from './perception';
 import { hostScene, splitNumbersScene, divergeKScene, channelIntroScene, recapSplitScene, paradoxResolveScene } from './scenes-host';
@@ -646,6 +646,9 @@ export function drawFrame(
   // v9 (report P0-1): per-frame collision-guard reset (no-op unless the
   // harness enabled it — zero cost in the studio render path)
   if (collisionGuard.enabled) resetGuard(`t=${Math.round(t)}ms`);
+  // PHASE-0 (§7-D2): the caption-vs-headline registry resets per frame, so
+  // a scene's declared headline only suppresses captions on its own frame.
+  resetHeadlineDedup();
 
   const beat = beatAt(tl, t);
   const group = groupAt(tl, t);
@@ -1012,6 +1015,10 @@ export function drawFrame(
     mode: opts.captions,
     maxRows: isOneRowScene ? 1 : 2,
     maxWords: isOneRowScene ? 6 : 8,
+    // PHASE-0 (§7-D2): the 16:9 path opts into the caption-vs-headline
+    // dedup — while a scene's serif headline is on screen, the karaoke
+    // pill stands down for windows that repeat its words.
+    dedup: true,
   });
 
   // watermark — PANEL-10 (guard v2): drawn BEFORE collectViolations so its

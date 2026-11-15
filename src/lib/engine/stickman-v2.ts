@@ -1873,9 +1873,14 @@ export function drawStickmanV2(
   // head leads a look, without breaking the audit's 14° silhouette cap.
   ctx.rotate(tiltR * 0.6 + yawR * 0.45);
   // soft head shadow for depth
+  // PHASE-0 (panel report §7-D4 — ONE LIGHT): the form shade used to sit at
+  // (+3, +5) — light falling on the head's lower-RIGHT while the figure's
+  // own ground shadow falls lower-LEFT, two lighting systems inside one
+  // character. It now sits (−4, +4): the shade on the side the key light
+  // (upper right) actually leaves dark.
   ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
   ctx.beginPath();
-  ctx.ellipse(3, 5, 35, 42, 0, 0, Math.PI * 2);
+  ctx.ellipse(-4, 4, 35, 42, 0, 0, Math.PI * 2);
   ctx.fill();
   // PREMIUM UPGRADE C1: EGG HEAD. The circle (34x34) is replaced with an
   // egg ellipse (32 wide × 39 tall) + a chin extension + a nose wedge.

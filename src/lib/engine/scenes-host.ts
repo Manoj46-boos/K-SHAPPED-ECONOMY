@@ -9,10 +9,11 @@ import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp, sub
 import { Stickman, POSES, blendPose, walkIn, nodPulse, accentPulse, launchPulse, walkSmear, take } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
 import { HERO } from './perception';
-import { SceneCtx } from './scene-context';
+import { SceneCtx, declareOnScreenHeadline } from './scene-context';
+import { CARD_TEXT_PAD_BOTTOM } from './collision';
 import { reactionAt, reactionStart } from './scene-context';
 import { sourceTag, wrapText } from './charts';
-import { registerRect } from './collision';
+import { registerRect, registerText } from './collision';
 
 // BLUEPRINT Phase 1 (report Table 7 — "the plant must LAND"): the contact
 // strike pulse that drives the squash-on-landing transform. Fires at each
@@ -748,6 +749,14 @@ export function hostSceneV2(g: SceneCtx): void {
   // available column (W - hx2 - 110 safe margin), floor 54px.
   const hp = clamp01((t - 300) / 650);
   if (hp > 0) {
+    // PHASE-0 (panel report §7-D2 — the caption-vs-headline dedup): the
+    // moment this serif headline is on screen it is DECLARED, and the
+    // karaoke caption suppresses any window that repeats it. The derived
+    // pull-quote IS the beat's first VO sentence, so during that sentence
+    // the pill showed the same words the 88px serif already carried —
+    // flagged in every host-scene audit as the "AI template" tell. The
+    // headline is the premium element; the redundant copy is the pill's.
+    declareOnScreenHeadline(lines.join(' '));
     ctx.save();
     ctx.globalAlpha = hp;
     registerRect('hostV2:headline', hx2, 240, W - hx2 - 180, 320);
@@ -1113,32 +1122,49 @@ function drawNumberPanel(
   ctx.fillStyle = kicker === 'THE MARKET' ? PALETTE.up : PALETTE.down;
   roundRect(ctx, x + 44, y + 84, w - 88, 8, 4);
   ctx.fill();
-  // v4 (audit P0-2): row rhythm widens only when a label actually wraps.
-  // PANEL-9 R7p (3-stat stack cramped at the panel floor): first row was at
-  // y+160 with the label at sy+100 — the 3-stat market panel (S&P / Nasdaq /
-  // RECORD · corporate profit margins) landed its last label 15px from the
-  // panel bottom and only ~20px under the 74px numeral, which the letterboxed
-  // Shorts inset read as "flush / clipping". First row y+150, label sy+104:
-  // last label clears the floor by ~23px and the numeral↔label air grows 4px.
-  const rowGap = stats.some((st) => wrapText(ctx, st.label, w - 88, 25, 600).length > 1) ? 138 : 118;
+  // ── PHASE-0 (panel report §7-D6 — THE BOTTOM-PADDING GUARD) ─────────
+  // The shipped defect: with three stats at the fixed 118px row gap, the
+  // last row's label baseline landed at y+490 — 15px BELOW the card's
+  // bottom edge (y+475) — so "corporate profit margins" shipped with its
+  // descenders sliced off at full 1080p (the audit's Figure 6). The stack
+  // is now composed BOTTOM-SAFE: rows start at +130, the row pitch adapts
+  // so the last row's lowest descender keeps ≥ CARD_TEXT_PAD_BOTTOM (14px)
+  // of clear card below it, and every row is registerText'd so the guard's
+  // new cardPad assert (collision.ts) proves it every frame. Companion fix
+  // in the same class: the wrap MEASUREMENT ran at 25px for labels that
+  // RENDER at 34px — a 40-char mood label measured 500px ("fits") but
+  // rendered 680px, 39px past the card's right edge. Labels now wrap at
+  // their true render size.
+  const ROW_TOP = 130; // first numeral's cap sits ~40px under the accent rail
+  const NUM_OFF = 56;  // numeral baseline below the row origin
+  const LBL_OFF = 94;  // label baseline below the row origin
+  const DESC = 8;      // 34px Inter descender allowance
+  setFont(ctx, 34, 600); // measure at the RENDER size (was 25 — see note)
+  const statLines = stats.map((st) => wrapText(ctx, st.label, w - 88, 34, 600).slice(0, 2));
+  const maxLines = Math.max(1, ...statLines.map((ls) => ls.length));
+  const rowH = LBL_OFF + (maxLines - 1) * 32 + DESC;
+  const nStats = stats.length;
+  let rowGap = statLines.some((ls) => ls.length > 1) ? 138 : 118;
+  if (nStats > 1) {
+    const maxGap = Math.floor((h - CARD_TEXT_PAD_BOTTOM - ROW_TOP - rowH) / (nStats - 1));
+    rowGap = Math.min(rowGap, Math.max(88, maxGap));
+  }
   stats.forEach((st, i) => {
     const sa = clamp01((t - delay - 350 - i * 480) / 600);
     if (sa <= 0) return;
-    const sy = y + 150 + i * rowGap;
+    const sy = y + ROW_TOP + i * rowGap;
     ctx.globalAlpha = ap * sa;
     const tone = TONE(st.tone);
     setFont(ctx, 74, 700);
     ctx.fillStyle = tone.main;
-    ctx.fillText(st.big, x + 44, sy + 62);
-    // v4 (audit P0-2): wrap, never truncate. The v3 line hard-cut labels at
-    // 33 characters with an ellipsis even when they FIT the panel — the
-    // cold open shipped “called the economy “good” or “excell…””. Two wrap
+    ctx.fillText(st.big, x + 44, sy + NUM_OFF);
+    // v4 (audit P0-2): wrap, never truncate — now measured at the true
+    // render size, so a wrapped stack is a real fit, not a guess. Two wrap
     // lines max; if the wrapped stack would overrun the panel body the
     // label auto-shrinks onto one line instead (never truncates).
-    setFont(ctx, 34, 600); // v9 (D-07): floor
-    let lines = wrapText(ctx, st.label, w - 88, 25, 600).slice(0, 2);
-    const stackedBottom = 150 + (stats.length - 1) * rowGap + 136;
-    if (lines.length > 1 && stackedBottom > h - 18) {
+    let lines = statLines[i];
+    const stackedBottom = ROW_TOP + (nStats - 1) * rowGap + rowH;
+    if (lines.length > 1 && stackedBottom > h - CARD_TEXT_PAD_BOTTOM) {
       let size = 25;
       while (ctx.measureText(st.label).width > w - 88 && size > 19) {
         size -= 1;
@@ -1147,7 +1173,19 @@ function drawNumberPanel(
       lines = [st.label];
     }
     ctx.fillStyle = PALETTE.inkSoft;
-    lines.forEach((ln, j) => ctx.fillText(ln, x + 44, sy + 104 + j * 32));
+    lines.forEach((ln, j) => ctx.fillText(ln, x + 44, sy + LBL_OFF + j * 32));
+    // PHASE-0 §7-D6: register the row so the cardPad assert checks this
+    // plate's text-vs-card-edge every frame (the guard class that was
+    // missing when the descender clip shipped).
+    const rowTop = sy + NUM_OFF - 62;
+    const lastBaseline = sy + LBL_OFF + (lines.length - 1) * 32;
+    registerText(
+      `splitNum:${kicker}:${i}`,
+      x + 44,
+      rowTop,
+      Math.max(w - 88, 120),
+      lastBaseline + DESC - rowTop
+    );
   });
   ctx.restore();
 }
@@ -1495,28 +1533,24 @@ export function divergeKScene(g: SceneCtx): void {
     const kd = depthShift(0.85);
     drawK3D(ctx, kx + kd.dx, ky + kd.dy, S * kd.scale, 1, t, true, turnP);
     ctx.restore();
-    // small population dots riding each arm
-    const dotA = clamp01((t - 2600) / 600);
-    if (dotA > 0) {
-      ctx.fillStyle = PALETTE.up;
-      ctx.beginPath();
-      ctx.arc(kx + S * 0.9, ky - S * 0.82, 10, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = PALETTE.down;
-      ctx.beginPath();
-      ctx.arc(kx + S * 0.9, ky + S * 0.82, 10, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // v5 (audit P1-3): the K's lower arm personified — a second character
-    // (same rig, coffee mug instead of the host's scarf) stands at the coral
-    // arm's tip, gently bobbing: the "bottom half of the K" now has a face.
-    // P1-1 (report): 0.55 → 0.75 — at 0.55 he read as a distant prop, not a
-    // person; 0.75 reads as a second player. Envelope bottom 734+36·0.75 =
-    // 761 — clear of even a 2-row pill (top 796) by 35px. The figure itself
-    // is drawn AFTER the arm labels (see below) — the P1 panel flagged his
-    // feet kissing THE MOOD's halo; he now stands IN FRONT of the label
-    // (natural depth) with the label pushed out clear of his body.
+    // PHASE-0 (panel report §7-D3 — KILL the unexplained markers): the two
+    // 10px teal/coral dots that used to ride the arms are GONE. They were
+    // "markers with no legend, no label, no callout — data-viz sin #1 in a
+    // data explainer" (the audit's exact words): nothing on screen said
+    // what they counted, and the arms' own THE MARKET / THE MOOD labels
+    // already carry the color semantics. Redundant decoration loses to a
+    // clean letterform; the population-dot motif still lives where it is
+    // EXPLAINED (the splitNumbers 500-household band, the kDef travelers).
   }
+  // v5 (audit P1-3): the K's lower arm personified — a second character
+  // (same rig, coffee mug instead of the host's scarf) stands at the coral
+  // arm's tip, gently bobbing: the "bottom half of the K" now has a face.
+  // P1-1 (report): 0.55 → 0.75 — at 0.55 he read as a distant prop, not a
+  // person; 0.75 reads as a second player. Envelope bottom 734+36·0.75 =
+  // 761 — clear of even a 2-row pill (top 796) by 35px. The figure itself
+  // is drawn AFTER the arm labels (see below) — the P1 panel flagged his
+  // feet kissing THE MOOD's halo; he now stands IN FRONT of the label
+  // (natural depth) with the label pushed out clear of his body.
 
   // labels on the arms — v4 (audit P0-6): hidden in `opening` mode so the
   // cold open teases the shape and the naming beat (c1-k) lands the reveal.

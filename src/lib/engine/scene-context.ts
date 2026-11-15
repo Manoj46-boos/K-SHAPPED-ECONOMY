@@ -53,6 +53,37 @@ export interface SceneCtx {
 
 export type SceneDrawer = (g: SceneCtx) => void;
 
+// ── PHASE-0 (panel report §7-D2): the caption-vs-headline dedup registry ────
+// The scene drawer DECLARES the big on-screen headline text the moment it
+// draws it (hostSceneV2); drawCaptions consults this registry and stands
+// down for any karaoke window whose words already sit on screen in the
+// serif. The director resets the registry per frame, so a headline only
+// ever suppresses captions on ITS OWN frame — scrub-safe, deterministic.
+const DEDUP_THRESHOLD = 0.6; // ≥60% of the window's words on screen = duplicate
+
+let headlineWords: string[] = [];
+
+const normWord = (w: string): string => w.toLowerCase().replace(/[^a-z0-9%]/g, '');
+
+export function resetHeadlineDedup(): void {
+  headlineWords = [];
+}
+
+export function declareOnScreenHeadline(text: string): void {
+  const words = text.split(/\s+/).map(normWord).filter(Boolean);
+  if (words.length) headlineWords = words;
+}
+
+export function captionDuplicatesHeadline(windowWords: string[]): boolean {
+  if (!headlineWords.length || !windowWords.length) return false;
+  const ws = windowWords.map(normWord).filter(Boolean);
+  if (!ws.length) return false;
+  const head = new Set(headlineWords);
+  let hits = 0;
+  for (const w of ws) if (head.has(w)) hits++;
+  return hits / ws.length >= DEDUP_THRESHOLD;
+}
+
 // ── PANEL-12 / P2-6 (report §14.6): REACTION SHOTS ───────────────────────────
 // The missing emotional grammar: three held-expression beats per film — on
 // the twist (c8-fund), the paradox resolve (c7-paradox) and the final

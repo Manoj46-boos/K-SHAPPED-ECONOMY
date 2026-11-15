@@ -168,11 +168,12 @@ export function bigTextScene(g: SceneCtx): void {
       // happening... reads as a slide"). The type now SITS in the room: a
       // soft one-light drop shadow under the block. The cheapest material
       // cue in 2D typography: the words gain height without gaining noise.
-      // iter-3 (panel: "the shadow doesn't know the light is upper-right"):
-      // the offset now falls LOWER-LEFT (-2,+4) — the direction every
-      // shadow in the film obeys.
+      // PHASE-0 (panel report §7-D4): the offset unifies to the ONE-LIGHT
+      // rule (−4, 0) — the exact vector groundShadowV2, card()'s passes and
+      // the caption pill all obey (the (−2, +4) hand-roll was a fourth
+      // dialect of the same light).
       ctx.fillStyle = rgba(PALETTE.shadow, 0.18);
-      ctx.fillText(ln, dx - 2, 4);
+      ctx.fillText(ln, dx - 4, 0);
       ctx.fillStyle = i === 1 ? PALETTE.goldDeep : PALETTE.inkDeep;
       ctx.fillText(ln, dx, 0);
       ctx.restore();

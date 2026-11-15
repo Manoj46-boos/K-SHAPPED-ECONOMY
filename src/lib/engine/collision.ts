@@ -20,6 +20,13 @@
  *     - every content rect that crosses the frame edge under the exact camera
  *       (PANEL-10: the aiDatacenter host's shadow was pushed 39px past x=1920
  *       by the ch5 hero push — invisible to a pill-only guard).
+ *  5. PHASE-0 (panel report §7-D6): the TEXT-VS-CARD-EDGE pass the audit
+ *     said was missing — every reading-text rect registered inside a card()
+ *     plate must keep CARD_TEXT_PAD_BOTTOM of clear card below its own
+ *     bottom edge. This is the assert that retires the splitNumbers class
+ *     ("the sub-line 'corporate profit margins' clips the card's bottom
+ *     edge — a credibility kill at full 1080p"): the guard now protects
+ *     not just the pill, but the pixels inside every card.
  *
  * Zero production cost: everything is a no-op unless `collisionGuard.enabled`
  * is set to true (the render harness and tools/frame-dump.mjs do this).
@@ -45,8 +52,16 @@ export interface CollisionViolation {
    *  v10.1 (panel 11 re-review): 'host' — a side-host body envelope plating
    *  scene content (statCards host over the 12.4% card, aiDatacenter host
    *  in the scrolling rack field). */
-  kind: 'pill' | 'fixed' | 'edge' | 'text' | 'host';
+  kind: 'pill' | 'fixed' | 'edge' | 'text' | 'host' | 'cardPad';
 }
+
+/** PHASE-0 (panel report §7-D6): the ONE bottom-padding floor for text that
+ *  sits inside a card() plate. card() draws the plate; this constant is the
+ *  ASSERT it now carries (enforced in collectViolations, kind 'cardPad'):
+ *  any registerText'd reading text whose rect ends within CARD_TEXT_PAD_BOTTOM
+ *  px of its card's bottom edge is a shipped defect. 14px ≈ one label
+ *  descender plus the breathing room a premium plate keeps below its copy. */
+export const CARD_TEXT_PAD_BOTTOM = 14;
 
 interface State {
   enabled: boolean;
@@ -344,6 +359,36 @@ export function collectViolations(): CollisionViolation[] {
           pill: { x: c.x, y: c.y, w: c.w, h: c.h },
           depth: Math.round(Math.min(ox, oy)),
           kind: 'host',
+        });
+      }
+    }
+  }
+
+  // ── PHASE-0 (§7-D6): TEXT-VS-CARD-EDGE — the 14px min-padding assert.
+  // theme.card() registers its plate as `card@x,y`; every reading-text rect
+  // that sits inside one must clear the plate's bottom edge by
+  // CARD_TEXT_PAD_BOTTOM. The shipped defect this retires: the splitNumbers
+  // MARKET panel's third label rendered its descenders ~15px PAST the card
+  // bottom at full 1080p while every sweep stayed green (the guard swept
+  // captions-vs-host and host-vs-content, but nothing checked text-vs-card).
+  // Screen-space text (source tags) never rides the camera — skip it here
+  // the same way the text-text pass does.
+  for (const t of g.texts) {
+    if (t.screen) continue;
+    for (const c of g.content) {
+      if (!c.id.startsWith('card@')) continue;
+      // the text must actually sit INSIDE the card horizontally — a rect
+      // merely passing over a plate edge is some other element's business
+      if (t.x < c.x - 2 || t.x + t.w > c.x + c.w + 2) continue;
+      const pad = c.y + c.h - (t.y + t.h);
+      if (pad < CARD_TEXT_PAD_BOTTOM - 1) {
+        out.push({
+          frame: g.frame,
+          id: t.id,
+          rect: { x: t.x, y: t.y, w: t.w, h: t.h },
+          pill: { x: c.x, y: c.y, w: c.w, h: c.h },
+          depth: Math.round(CARD_TEXT_PAD_BOTTOM - pad),
+          kind: 'cardPad',
         });
       }
     }

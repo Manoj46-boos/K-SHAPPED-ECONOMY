@@ -6,7 +6,7 @@
  */
 
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, lerp, springTo } from './easing';
-import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
+import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, CAPTION_ZONE_TOP, TYPE_FLOOR, LABEL_FLOOR } from './theme';
 import { bokehField, kMotifs, lightRays, drawK, drawK3D, floatCoins, sparkles, hazeBands, impactRing, microShake, depthShift } from './effects';
 import { SceneCtx } from './scene-context';
 import { REACTIONS, reactionAt, reactionStart } from './scene-context';
@@ -1186,13 +1186,17 @@ export function gasPumpScene(g: SceneCtx): void {
   ctx.save();
   ctx.globalAlpha = ap;
   // ground shadow — the pump STANDS on the stage
-  const gs = ctx.createRadialGradient(px, py + 352, 10, px, py + 352, 150);
+  // PHASE-0 (panel report §7-D4 — ONE LIGHT): the ellipse joins the film's
+  // one-light rule — (−4, 0), the same vector groundShadowV2 gives every
+  // figure, so the pump's shadow falls lower-left like everything else
+  // standing on this stage (it used to be a centered decal).
+  const gs = ctx.createRadialGradient(px - 4, py + 352, 10, px - 4, py + 352, 150);
   gs.addColorStop(0, rgba(PALETTE.shadow, 0.18));
   gs.addColorStop(0.6, rgba(PALETTE.shadow, 0.07));
   gs.addColorStop(1, rgba(PALETTE.shadow, 0));
   ctx.fillStyle = gs;
   ctx.beginPath();
-  ctx.ellipse(px, py + 352, 150, 26, 0, 0, Math.PI * 2);
+  ctx.ellipse(px - 4, py + 352, 150, 26, 0, 0, Math.PI * 2);
   ctx.fill();
   // plinth base
   ctx.fillStyle = '#FFFFFF';
@@ -1229,11 +1233,19 @@ export function gasPumpScene(g: SceneCtx): void {
   ctx.fillRect(px + 78, py, 30, 306);
   ctx.restore();
   // screen bezel + teal screen
+  // PHASE-0 (panel report §7-D1 — THE TEXT-ON-OBJECT COLLISION): the label
+  // "PRICE / GALLON" measured 268px at its 34px render size inside a 144px
+  // screen — the overflow ran onto the dark bezel and the pump's side-face
+  // shading, the audit's "visually clipped by the pump body". The display
+  // widens one register (bezel 156→168, screen 144→156 — still 20px inside
+  // the 208px body) and the unit line becomes the pump-authentic "$ / GAL"
+  // (121px, ≥14px clear of both screen walls): the prop reads as an
+  // instrument again, nothing prints past its own glass.
   ctx.fillStyle = rgba(PALETTE.shadow, 0.16);
-  roundRect(ctx, px - 78, py + 24, 156, 118, 14);
+  roundRect(ctx, px - 84, py + 24, 168, 118, 14);
   ctx.fill();
   ctx.fillStyle = PALETTE.upSoft;
-  roundRect(ctx, px - 72, py + 30, 144, 106, 10);
+  roundRect(ctx, px - 78, py + 30, 156, 106, 10);
   ctx.fill();
   setFont(ctx, 40, 700);
   ctx.fillStyle = PALETTE.up;
@@ -1241,7 +1253,7 @@ export function gasPumpScene(g: SceneCtx): void {
   ctx.fillText('GAS', px, py + 78);
   setFont(ctx, 34, 600);
   ctx.fillStyle = rgba(PALETTE.up, 0.75);
-  ctx.fillText('PRICE / GALLON', px, py + 112);
+  ctx.fillText('$ / GAL', px, py + 112);
   // price digits roll — on the screen, tabular feel; fix 6.5: gold plate
   ctx.fillStyle = PALETTE.goldWash;
   roundRect(ctx, px - 64, py + 142, 128, 42, 10);
@@ -1290,10 +1302,15 @@ export function gasPumpScene(g: SceneCtx): void {
     ctx.setLineDash([]);
   }
   // brand dot row (the pump's little identity)
+  // PHASE-0 (§7-D1 companion — the illegible micro-sparkline): the dots
+  // used to sit at py+206 — INSIDE the sparkline's band (py+190..224),
+  // stamping three 5px dots on the data line. They drop below the receipt
+  // perforation (py+236) where they read as the pump's identity row
+  // without touching the instrument's data.
   for (let d = 0; d < 3; d++) {
     ctx.fillStyle = d === 1 ? PALETTE.gold : rgba(PALETTE.up, 0.55);
     ctx.beginPath();
-    ctx.arc(px - 26 + d * 26, py + 206, 5, 0, Math.PI * 2);
+    ctx.arc(px - 26 + d * 26, py + 252, 5, 0, Math.PI * 2);
     ctx.fill();
   }
   // hose — leaves the RIGHT side, sags under gravity, returns to a holster
@@ -2333,6 +2350,31 @@ export function ownerWorkerScene(g: SceneCtx): void {
         ctx.moveTo(ax + lenX * e, ay + lenY * e);
         ctx.lineTo(ax + 18 + lenX * e, ay - 6 + lenY * e);
         ctx.stroke();
+        // PHASE-0 (panel report §7-D3 — CAPTION the unexplained marker):
+        // the arrow stays — it IS the worker's terminal trend mark — but it
+        // no longer points at nothing: a coral tag pinned at the tip names
+        // the thing it measures. A labeled annotation, not debris. The tag
+        // rides the arrow's own diagonal (below-right of the tip) and clears
+        // BOTH the panel's wrap line (ascender band starts ~y696) and the
+        // worst-case 2-row caption pill (top 796) — the frame's lower third
+        // stays a clean stack: figure → tag → pill.
+        setFont(ctx, LABEL_FLOOR, 700);
+        const alTxt = 'paychecks';
+        const alW = ctx.measureText(alTxt).width;
+        const alX = Math.min(ax + lenX * e + 18, 1920 - 40 - alW - 28);
+        const alY = Math.min(ay + lenY * e + 30, CAPTION_ZONE_TOP - 14 - 38);
+        registerRect(`owArrowTag:${Math.round(hx)}`, alX, alY, alW + 28, 38);
+        registerText(`owArrowTagTxt:${Math.round(hx)}`, alX, alY, alW + 28, 38);
+        ctx.fillStyle = PALETTE.downSoft;
+        roundRect(ctx, alX, alY, alW + 28, 38, 19);
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = rgba(PALETTE.down, 0.7);
+        roundRect(ctx, alX, alY, alW + 28, 38, 19);
+        ctx.stroke();
+        ctx.fillStyle = PALETTE.down;
+        ctx.textAlign = 'left';
+        ctx.fillText(alTxt, alX + 14, alY + 26);
         ctx.restore();
       }
     }

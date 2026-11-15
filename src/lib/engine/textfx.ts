@@ -8,6 +8,7 @@ import { PALETTE, FONT_UI, FONT_DISPLAY, rgba, roundRect, setFont, TYPE_FLOOR } 
 import { Stickman } from './stickman';
 import { drawStickmanV2 } from './stickman-v2';
 import { registerPill, registerFixed } from './collision';
+import { captionDuplicatesHeadline } from './scene-context';
 
 export interface CaptionWord {
   t: number; // ms, absolute timeline time
@@ -34,6 +35,12 @@ export interface CaptionStyle {
   /** v9 (report P0-7): words per sliding window (default 8; host scenes
    *  pass 6 so the single row fits the pill width cap). */
   maxWords?: number;
+  /** PHASE-0 (§7-D2): opt-in caption-vs-headline dedup. Only the 16:9
+   *  drawFrame path sets it — the Shorts pipeline calls drawCaptions
+   *  directly with its own vertical composition and its captions must
+   *  stay ALWAYS-ON (feed viewers watch muted), so it never opts in and
+   *  never inherits a 16:9 headline declaration. */
+  dedup?: boolean;
 }
 
 /**
@@ -212,6 +219,16 @@ export function drawCaptions(
   // the initial fit; the pill's width accounts for it here.
   trlW = trails ? MARK_W : 0;
 
+  // PHASE-0 (panel report §7-D2 — the caption-vs-headline dedup): when the
+  // on-screen headline (declared by the scene drawer this same frame)
+  // already carries the words this window is about to print, the pill
+  // STANDS DOWN. Duplicated copy was flagged in every host-scene audit as
+  // the "AI template" tell; the serif headline is the premium element and
+  // the caption returns the moment the narration moves past it. Pure
+  // function of (tMs, declared text) — scrub-safe, no timing change.
+  // Gated behind style.dedup: only the 16:9 path opts in (see CaptionStyle).
+  if (style.dedup && captionDuplicatesHeadline(rows.flat().map((wd) => wd.w))) return;
+
   const rowH = fontSize + 22;
   const totalH = rows.length * rowH + 24;
   const baseY = style.baseY ?? H - 128; // clear of the 8px progress bar + safe margin
@@ -242,8 +259,13 @@ export function drawCaptions(
   const px = W / 2 - widest / 2 - 34;
   const py = baseY - totalH + 4;
   ctx.globalAlpha = fade;
+  // PHASE-0 (panel report §7-D4 — ONE LIGHT): the pill's whisper shadow
+  // used to fall (+1, +4) — LOWER-RIGHT, the one shadow in the film that
+  // contradicted the upper-right key light, on the element that appears in
+  // the most frames. It now falls (−4, 0), the exact vector every figure's
+  // ground shadow obeys.
   ctx.fillStyle = rgba(PALETTE.shadow, 0.06);
-  roundRect(ctx, px + 1, py + 4, widest + 68, totalH, 18);
+  roundRect(ctx, px - 4, py, widest + 68, totalH, 18);
   ctx.fill();
   ctx.fillStyle = '#FFFFFF';
   roundRect(ctx, px, py, widest + 68, totalH, 18);

@@ -163,9 +163,11 @@ export function drawThumbnail(
     }, 7);
     ctx.restore();
     // the contact shadow — astride the seam at the canvas edge
+    // PHASE-0 (§7-D4): joins the one-light rule — (−4, 0) like every
+    // ground contact shadow in the film.
     ctx.fillStyle = 'rgba(15, 40, 34, 0.35)';
     ctx.beginPath();
-    ctx.ellipse(W * 0.52, H - 6, 200, 20, 0, 0, Math.PI * 2);
+    ctx.ellipse(W * 0.52 - 4, H - 6, 200, 20, 0, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -231,8 +233,11 @@ export function drawThumbnail(
     const bx = W - plateW - 36; // bottom-right, crop-safe
     const by = H - plateH - 45;
     ctx.save();
+    // PHASE-0 (§7-D4): the badge's drop shadow used to fall (+7, +11) —
+    // lower-RIGHT, contradicting the film's upper-right key light. Same
+    // magnitude, corrected direction: lower-left like every plate.
     ctx.fillStyle = 'rgba(15, 40, 34, 0.42)';
-    roundRect(ctx, bx + 7, by + 11, plateW, plateH, 38);
+    roundRect(ctx, bx - 7, by + 11, plateW, plateH, 38);
     ctx.fill();
     ctx.fillStyle = '#FFFFFF';
     roundRect(ctx, bx, by, plateW, plateH, 38);

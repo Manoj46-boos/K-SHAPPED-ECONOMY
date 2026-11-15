@@ -363,41 +363,86 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       const rise = (1 - easeOutCubic(app)) * 18;
       let dyA = a.dy ?? 40;
       if (i > 0 && Math.abs(py + dyA - prevLy) < 58) dyA = -dyA; // fix 6.6: flip the stack
+      setFont(ctx, 46, 600);
+      ctx.textAlign = 'center';
+      const tw = ctx.measureText(a.label).width;
+      // ── PHASE-0 (panel report §7-D5 — LABEL-VS-DATA-POINT ANCHORING) ──
+      // The shipped defect: the pill's row was clamped AFTER the connector
+      // and the data dot were already drawn — when the clamp moved the
+      // plate (the 'low-23,000s · March' pill clamps above the x-label
+      // band), the plate covered its own data point and the eye saw a pill
+      // floating off the trough with no visible anchor. Resolution is now
+      // POSITION-FIRST and clamp-proof:
+      //   1. the pill's final row (clamps included) resolves BEFORE any ink;
+      //   2. the plate never crowds its own point — a placement whose
+      //      leader would be shorter than LEAD_MIN flips to the other side
+      //      of the point (the trough annotation moves ABOVE its low — the
+      //      classic premium annotation grammar);
+      //   3. the dashed connector retargets the FINAL pill edge — straight
+      //      when the point sits under the plate, elbowed when the x-clamp
+      //      moved the plate sideways;
+      //   4. the data point draws LAST — no clamp can ever plate it.
+      const pillH = 46;
+      const dotR = 6;
+      const LEAD_MIN = 14; // the shortest leader that still reads as "tied"
+      const half = tw / 2 + 34;
+      const lx = Math.min(Math.max(px, x + half), Math.max(x + half, x + w - half));
+      const lyMax = opts.xLabels && opts.xLabels.length ? y + h - 56 : y + h - 12;
+      const yMin2 = opts.peakBand ? y + 88 : y + 52;
+      const clampRow = (v: number): number => Math.min(Math.max(v, yMin2), lyMax);
+      const lyRaw = py + dyA;
+      const belowLy = py + dotR + 2 + LEAD_MIN + 34; // pill-top clears the dot by LEAD_MIN
+      const aboveLy = py - dotR - 2 - LEAD_MIN - pillH - Math.min(60, Math.abs(dyA));
+      let lyT = clampRow(lyRaw);
+      const coversPoint = (row: number): boolean => {
+        const top = row - 34;
+        const bot = row + 12;
+        if (top <= py && bot >= py) return true; // plate straddles the point
+        if (bot < py) return py - dotR - 2 - bot < LEAD_MIN; // above: leader too short
+        return top - (py + dotR + 2) < LEAD_MIN; // below: leader too short
+      };
+      if (coversPoint(lyT)) {
+        if (dyA >= 0 && belowLy <= lyMax) lyT = clampRow(Math.max(lyRaw, belowLy));
+        else if (aboveLy >= yMin2) lyT = clampRow(Math.min(lyRaw, aboveLy));
+        else if (belowLy <= lyMax) lyT = clampRow(Math.max(lyRaw, belowLy));
+        // else: the chart is too tight on both sides — keep the clamped row
+      }
+      const lyC = clampRow(lyT - rise);
       ctx.save();
       ctx.globalAlpha = app;
-      // connector
+      // the connector — retargeted to the FINAL pill edge (§7-D5)
       ctx.strokeStyle = rgba(tone, 0.75);
       ctx.lineWidth = 2.5;
       ctx.setLineDash([4, 5]);
-      ctx.beginPath();
-      ctx.moveTo(px, py);
-      ctx.lineTo(px, py + dyA * 0.6);
-      ctx.stroke();
+      {
+        const pillL = lx - tw / 2 - 16;
+        const pillR = lx + tw / 2 + 16;
+        const pillT = lyC - 34;
+        const pillB = lyC + 12;
+        const below = pillT > py;
+        ctx.beginPath();
+        if (px >= pillL && px <= pillR) {
+          ctx.moveTo(px, below ? py + dotR + 2 : py - dotR - 2);
+          ctx.lineTo(px, below ? pillT : pillB);
+        } else {
+          const edgeX = px < pillL ? pillL : pillR;
+          const rowY = (pillT + pillB) / 2;
+          ctx.moveTo(px, below ? py + dotR + 2 : py - dotR - 2);
+          ctx.lineTo(px, rowY);
+          ctx.lineTo(edgeX, rowY);
+        }
+        ctx.stroke();
+      }
       ctx.setLineDash([]);
-      ctx.fillStyle = tone;
-      ctx.beginPath();
-      ctx.arc(px, py, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(px, py, 6, 0, Math.PI * 2);
-      ctx.stroke();
       // label pill — AUDIT-ROUND-2 (fix 1, panel round 2): the annotation is
       // READ text riding the chart's busiest moments — 46px (the middle of
       // the audit's 40-60px body band); the re-review found 40 still
       // borderline at the 320px gate.
-      setFont(ctx, 46, 600);
-      ctx.textAlign = 'center';
-      const tw = ctx.measureText(a.label).width;
-      const ly = py + dyA - rise;
       // PLAYBOOK D3 follow-up: the x-clamp margin 18 → 34 — a wide pill
       // ("−33 · still worth…) still crossed the chart's left bound under
       // the exit camera (edge @292-312s, up to 64px). The clamp now
       // accounts for the pill's plate + shadow, and the pill YIELDS to
       // inside the plot when the label is wider than the tail space.
-      const half = tw / 2 + 34;
-      const lx = Math.min(Math.max(px, x + half), Math.max(x + half, x + w - half));
       // AUDIT-ROUND-2 (C3 — the chartJourney title/badge collision): the
       // label pill's y was UNCLAMPED — a high annotation (dy:-46) rose past
       // the chart's top edge and plated the scene title band ("the scene
@@ -407,14 +452,8 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       // D-5 (100-judge dossier): it now also bottom-clamps ABOVE the x-label
       // band when the chart carries axis labels — the "low-23,000s · March"
       // pill used to plate the "last Oct" tick label on frame 06-chartJourney.
-      const lyMax = opts.xLabels && opts.xLabels.length ? y + h - 56 : y + h - 12;
-      // DOSSIER FOLLOW-UP (vision-verified on the chartJourney pick): the
-      // "+30% off the low" pill top-clamped to y+52 — INTO the peak-band
-      // label's glyph row (y+26 baseline). Charts carrying a peakBand clamp
-      // their annotations below the band label's row.
-      const yMin2 = opts.peakBand ? y + 88 : y + 52;
-      const lyC = Math.min(Math.max(ly, yMin2), lyMax);
       registerRect(`annotation:${a.label.slice(0, 14)}`, lx - tw / 2 - 16, lyC - 34, tw + 32, 46);
+      registerText(`annotationTxt:${a.label.slice(0, 14)}`, lx - tw / 2 - 16, lyC - 34, tw + 32, 46);
       prevLy = lyC; // fix 6.6: the next pill flips if this band is taken
       ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
       // PANEL-12 / P3-3: one-light rule (−5, +7), matching theme.chip
@@ -429,6 +468,16 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       ctx.stroke();
       ctx.fillStyle = tone;
       ctx.fillText(a.label, lx, lyC - 4);
+      // the data point — drawn LAST so no clamp can ever plate it (§7-D5)
+      ctx.fillStyle = tone;
+      ctx.beginPath();
+      ctx.arc(px, py, dotR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(px, py, dotR, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.restore();
     });
   }
