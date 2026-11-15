@@ -862,6 +862,61 @@ export function drawK3D(
   const colLit = PALETTE.goldDisplay;
   const colShadow = PALETTE.goldDeep;
   const W_K = 30;
+  // ── 100-JUDGE PANEL / PHASE 3 item 3.4 — FLAT-GOLD K (report §6 Phase 3:
+  // "retire the specular extrusion for a painted two-tone face + one-light
+  // depth wall in the film's own ink language; keep the 3D read only on
+  // the chapter-card K-turn") ────────────────────────────────────────────
+  // The resting letter was a 7-tone PBR ramp with bevel, chamfer and white
+  // glint — "mustard plus noise" at the phone gate, and a second lighting
+  // system in every frame it shared with the host. The REST state is now
+  // PAINTED, in the film's own ink language:
+  //   • ONE-LIGHT DEPTH WALL — one flat goldDeep silhouette offset along
+  //     the light's own diagonal (down-left, the film's one-light rule),
+  //     the same offset-print grammar the thumbnail's K tag and every
+  //     pill shadow already speak. One tone, no gradient, no walls.
+  //   • PAINTED TWO-TONE FACE — flat goldDisplay with ONE flat lit zone
+  //     (#F5E6A8, the ramp's own bright tone, kept in the family) hard-
+  //     split along the light diagonal: upper arm + stem top lit, lower
+  //     arm + stem base in base gold. Two values, one hard edge — the
+  //     Kurzgesagt flat-gold read, keyed to the SAME light the walls obey.
+  // THE K-TURN KEEPS THE 3D READ: the full extrusion (walls, AO wedge,
+  // gold rim, ramp face, chamfer, glint) crossfades in over the caller's
+  // 900ms turn window while the axis sweeps 30° → 95° — the flat letter
+  // becomes mass exactly once per act, and the resting letter never
+  // carries specular ink again.
+  const turnE = easeOutCubic(clamp01(turn));
+  if (turnE < 1) {
+    ctx.save();
+    ctx.globalAlpha *= 1 - turnE;
+    // the one-light depth wall — one flat tone, one offset, no gradient
+    drawK(ctx, x - s * 0.055, y + s * 0.075, s, W_K, colShadow, grow);
+    // the painted face — base gold
+    drawK(ctx, x, y, s, W_K, colLit, grow);
+    // the lit zone — one flat tone clipped to the light's half-plane
+    // (split runs perpendicular to the light through the letter's optical
+    // centre; everything up-right of the split catches the key light)
+    ctx.save();
+    ctx.beginPath();
+    const cxS = x + s * 0.15;
+    const cyS = y + s * 0.02;
+    const L = s * 4;
+    const uxS = 0.7071, uyS = 0.7071;   // along the split line
+    const nxS = 0.7071, nyS = -0.7071;  // toward the light (up-right)
+    // the quad's first edge LIES ON the split line (C ± uL); the far edge
+    // rides 3L out along the light — the clip covers the whole lit side
+    ctx.moveTo(cxS - uxS * L, cyS - uyS * L);
+    ctx.lineTo(cxS + uxS * L, cyS + uyS * L);
+    ctx.lineTo(cxS + uxS * L + nxS * L * 3, cyS + uyS * L + nyS * L * 3);
+    ctx.lineTo(cxS - uxS * L + nxS * L * 3, cyS - uyS * L + nyS * L * 3);
+    ctx.closePath();
+    ctx.clip();
+    drawK(ctx, x, y, s, W_K, '#F5E6A8', grow);
+    ctx.restore();
+    ctx.restore();
+  }
+  if (turnE > 0) {
+    ctx.save();
+    ctx.globalAlpha *= turnE;
   extrudeStroke(ctx, x, y - s * stemF, x, y + s * stemF, W_K, depth, colLit, colShadow, dAll);
   if (upArm > 0) {
     extrudeStroke(ctx, x, y + s * 0.1, x + s * 1.15 * upArm, y - s * 1.05 * upArm, W_K, depth, colLit, colShadow, dArmUp);
@@ -943,7 +998,9 @@ export function drawK3D(
   // the old sweeping sheen band).
   if (grow > 0.8) {
     ctx.save();
-    ctx.globalAlpha = clamp01((grow - 0.8) / 0.2);
+    // PHASE 3.4: *= (not =) — the glint rides the K-turn's crossfade alpha;
+    // an assignment here would burst it back to full strength mid-fade.
+    ctx.globalAlpha *= clamp01((grow - 0.8) / 0.2);
     const gl = ctx.createRadialGradient(x - 4, y - s * 0.55, 0.5, x - 4, y - s * 0.55, 9);
     gl.addColorStop(0, 'rgba(255, 252, 235, 0.95)');
     gl.addColorStop(1, 'rgba(255, 252, 235, 0)');
@@ -951,6 +1008,8 @@ export function drawK3D(
     ctx.beginPath();
     ctx.ellipse(x - 4, y - s * 0.55, 9, 6.5, -0.5, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+  }
     ctx.restore();
   }
   // AUDIT-PHASE-4: ANTHROPOMORPHIZATION — the K gets a FACE. Two ink-dot

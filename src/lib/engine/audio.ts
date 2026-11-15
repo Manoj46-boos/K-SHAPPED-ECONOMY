@@ -560,6 +560,40 @@ export function addWalkPlant(
   }
 }
 
+/** 100-JUDGE PANEL / PHASE 3 item 3.6 — THE PEN TICK (report §6 Phase 3:
+ *  "add the missing line-draw sound — a soft pen tick at reveal completion;
+ *  the film's most repeated event is currently silent"). Every line-chart
+ *  draw-on now LIFTS: a soft graphite tick — a 1.15kHz body with a fast
+ *  decay over a whisper of band-passed noise — the pen leaving the paper
+ *  the instant the endpoint dot pops. Quieter than the walk plant by half
+ *  (it fires on the film's most repeated event; rhythm, never percussion).
+ *  Hand-drawn DSP, deterministic (seeded xorshift), free. */
+export function addPenTick(
+  L: Float32Array, R: Float32Array,
+  startSec: number, gain: number
+): void {
+  const n0 = Math.round(startSec * SR_OUT);
+  const dur = Math.round(0.1 * SR_OUT);
+  let seed = 7717;
+  const rng = () => {
+    seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+    return ((seed >>> 0) / 4294967296) * 2 - 1;
+  };
+  let bp = 0;
+  for (let i = n0; i < Math.min(L.length, n0 + dur); i++) {
+    const t = (i - n0) / SR_OUT;
+    // the tick body — 1.15kHz, gone in ~35ms (graphite, not wood)
+    const body = Math.sin(2 * Math.PI * 1150 * t) * Math.exp(-t * 90);
+    // the paper whisper — noise band-passed around the body, decaying faster
+    bp += 0.28 * (rng() - bp);
+    const noise = bp * Math.exp(-t * 140) * 0.5;
+    const env = gain * 0.035;
+    const s = (body + noise) * env;
+    L[i] += s * 0.9;
+    R[i] += s;
+  }
+}
+
 /** The slam — bigText / stampCard landings: a descending band-passed
  *  whoosh that LANDS in a thud (the statement frames get the film's one
  *  heavyweight gesture). */
@@ -1032,14 +1066,43 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
         addCoin(L, R, (b.startMs + 2400) / 1000, bgmVolume);
       }
     }
-    // card pops — every statCards card arrival (300ms + i·550 stagger)
+    // card pops — 100-JUDGE PANEL / PHASE 3 item 3.6 (report §6 Phase 3:
+    // "card pops re-timed to the CURRENT chip arrivals"). The statCards
+    // scene's visual grammar changed and the audio never followed: the
+    // hero card lands at +300ms, the demoted chip row lands at +1500 +
+    // i·550ms — the v1 pops fired at +300 + i·550, half of them into dead
+    // air between arrivals. One pop per visual arrival, exactly on it.
     for (const b of tl.beats) {
       if (b.beat.scene.type === 'statCards') {
         const cards = ((b.beat.scene as any).cards as any[]) ?? [];
         const n = Math.max(1, cards.length);
-        for (let i = 0; i < Math.min(3, n); i++) {
-          addCardPop(L, R, (b.startMs + 300 + i * 550) / 1000, bgmVolume);
+        addCardPop(L, R, (b.startMs + 300) / 1000, bgmVolume); // the hero card
+        for (let i = 0; i < n - 1; i++) {
+          addCardPop(L, R, (b.startMs + 1500 + i * 550) / 1000, bgmVolume * 0.8); // the chip row
         }
+      }
+    }
+    // pen ticks — 3.6: the reveal completion finally SOUNDS. The hero
+    // journey chart completes its draw at group t=2600 (the group's FIRST
+    // beat owns the clock — later beats share the same sceneKey and the
+    // same draw); a recovery re-run completes on ITS clock at bt=4800.
+    // chartTwin's two charts complete at t=2600 / t=2860 — two pens, two
+    // lifts (the second a step softer). The trioConverge minis stay silent:
+    // three sub-hero draws completing 320ms apart would read as a glitch,
+    // not a gesture.
+    for (let bi = 0; bi < tl.beats.length; bi++) {
+      const b = tl.beats[bi];
+      const sc = b.beat.scene;
+      const groupHead = bi === 0 || tl.beats[bi - 1].beat.scene.sceneKey !== sc.sceneKey;
+      if (sc.type === 'chartJourney') {
+        if (groupHead) addPenTick(L, R, (b.startMs + 2600) / 1000, Math.max(0.4, bgmVolume));
+        if ((sc as any).phase === 'recovery') {
+          addPenTick(L, R, (b.startMs + 4800) / 1000, Math.max(0.4, bgmVolume) * 0.85);
+        }
+      }
+      if (sc.type === 'chartTwin') {
+        addPenTick(L, R, (b.startMs + 2600) / 1000, Math.max(0.4, bgmVolume));
+        addPenTick(L, R, (b.startMs + 2860) / 1000, Math.max(0.4, bgmVolume) * 0.8);
       }
     }
     // walk plants — the host walk-in entrances (4 soft thumps across the

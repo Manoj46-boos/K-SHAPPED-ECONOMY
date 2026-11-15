@@ -27,6 +27,16 @@ export interface Annotation {
   dy?: number;
 }
 
+/** PHASE 3 verification hook — the evidence tools assert the annotation
+ *  discipline (3.1) and the reveal settle (3.2) against THIS — the engine's
+ *  own geometry, not a re-implementation of the layout math. lineChart
+ *  refreshes both arrays on every call; the newest call's entries sit at
+ *  the end. Zero cost to the render besides two small pushes. */
+export const chartDebug: {
+  pills: Array<{ label: string; rect: [number, number, number, number]; alpha: number; strokeOverlapPx: number }>;
+  reveal: Array<{ raw: number; settled: number }>;
+} = { pills: [], reveal: [] };
+
 export interface LineChartOpts {
   x: number;
   y: number;
@@ -52,7 +62,14 @@ export interface LineChartOpts {
    *  same scale as points[][0]); they render under the plot, TYPE_FLOOR
    *  sized, and are omitted by callers that genuinely have no time axis. */
   xLabels?: { at: number; label: string }[];
-  /** 100-JUDGE PANEL / PHASE 2 item 4 (report §6 Phase 2 — TERRAIN STAGING):
+  /** 100-JUDGE PANEL / PHASE 3 item 3.2 (FEED LEGIBILITY — THE REVEAL
+   *  SETTLE): the absolute group-clock ms at which the draw-on COMPLETES.
+   *  The endpoint dot's 140ms scale-in is keyed to this instant — without it
+   *  the dot could only hard-swap in on the frame `p` crosses 1, which is
+   *  exactly the one-frame head swap the audit retired. Callers whose draw
+   *  clock is not `p·2600` (recovery re-runs, twin charts) pass their own;
+   *  callers without the field keep the legacy instant dot.
+   *  100-JUDGE PANEL / PHASE 2 item 4 (report §6 Phase 2 — TERRAIN STAGING):
    *  the presenter-lane cap. When a scene stages its host ON the chart's
    *  own x-axis (the data-IS-the-terrain grammar), the annotation pills
    *  clamp ABOVE this y (the host's crown top) — the same position-first,
@@ -61,6 +78,29 @@ export interface LineChartOpts {
    *  base, and their leader lines simply lengthen (low-point pills can
    *  always rise — the leader grows, the anchor holds). */
   crownTopY?: number;
+  /** PHASE 3 item 3.2 — see the field doc above. */
+  doneAt?: number;
+  /** PHASE 3 item 3.1 — the ABSOLUTE scene-space x the plate's right edge
+   *  may reach on a slide, under THIS scene's worst camera. The certified
+   *  screen bound is 1910: screen_x = 960 + (R−960)·s + truck ≤ 1910 — a
+   *  hero-truck beat (truck +190, push ≤ 1.15) puts the safe plate edge at
+   *  ≈ 1620. The BASE placement clamp (x + w − half) is unchanged and
+   *  always safe; the extension exists only for plates the chart's own
+   *  width cannot place. Default: x + w — the v1 certified bound. */
+  slideRightMax?: number;
+}
+
+/** PHASE 3 item 3.2 (100-judge audit — THE REVEAL SETTLE): ease the final
+ *  15% of the draw-on. The remap is a cubic Hermite h(s) = s + s² − s³ —
+ *  h(0)=0, h(1)=1, h'(0)=1 (slope-matched at the join: the pen does not
+ *  hitch when the tail begins), h'(1)=0 (the pen LIFTS OFF at the endpoint
+ *  — velocity decays smoothly to zero instead of a hard stop). The last
+ *  15% of every line's journey now settles the way a hand-drawn stroke
+ *  settles: fast, then landing, then still. */
+function settleReveal(r: number): number {
+  if (r <= 0.85) return r;
+  const s = Math.min(1, (r - 0.85) / 0.15);
+  return 0.85 + 0.15 * (s + s * s - s * s * s);
 }
 
 function yBounds(opts: LineChartOpts): [number, number] {
@@ -233,7 +273,9 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     ctx.restore();
   }
 
-  const reveal = clamp01((opts.revealFrac ?? 1) * p);
+  const rawReveal = clamp01((opts.revealFrac ?? 1) * p);
+  const reveal = settleReveal(rawReveal);
+  chartDebug.reveal.push({ raw: rawReveal, settled: reveal });
 
   // area under first series
   const s0 = series[0];
@@ -269,6 +311,11 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     ctx.restore();
   }
 
+  // series pixel polylines — computed once, shared by the draw loop and the
+  // PHASE 3 item 3.1 annotation discipline (the stroke-avoidance search
+  // needs the same polyline the pen is drawing)
+  const seriesPxAll = series.map((s) => toPx(s, x, y, w, h, yMin, yMax));
+
   // series lines
   series.forEach((s, si) => {
     const tone = TONE(s.tone);
@@ -276,7 +323,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     // text-safe tone, so the LINE survives the transcode on a phone while
     // every label keeps its AA contrast.
     const strokeCol = tone.vivid ?? tone.main;
-    const pts = toPx(s, x, y, w, h, yMin, yMax);
+    const pts = seriesPxAll[si];
     // P1-4 (report §12.4): reveal by cumulative ARC LENGTH, not point count.
     // The old floor(pts.length * reveal) drew a fixed number of points per
     // tick — a plotter pen moving at constant speed regardless of the data.
@@ -319,59 +366,129 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     ctx.strokeStyle = strokeCol;
     ctx.lineWidth = lineWidth;
     strokePath(ctx, vis);
-    // head glow while drawing
-    if (reveal < 0.999 && vis.length > 1) {
+    // head glow while drawing — PHASE 3 item 3.2: the head FADES over the
+    // final approach (the last 3.8% of the reveal, where the settle ease is
+    // already decelerating) instead of surviving at full strength until the
+    // one-frame swap. The pen visibly lifts off the paper.
+    const headFade = 1 - clamp01((reveal - 0.962) / 0.034);
+    if (reveal < 0.999 && vis.length > 1 && headFade > 0) {
       const head = vis[vis.length - 1];
-      const g = ctx.createRadialGradient(head.x, head.y, 0, head.x, head.y, 26);
+      ctx.save();
+      ctx.globalAlpha = headFade;
+      const gr = 26 * (0.7 + 0.3 * headFade);
+      const g = ctx.createRadialGradient(head.x, head.y, 0, head.x, head.y, gr);
       g.addColorStop(0, rgba(strokeCol, 0.55));
       g.addColorStop(1, rgba(strokeCol, 0));
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(head.x, head.y, 26, 0, Math.PI * 2);
+      ctx.arc(head.x, head.y, gr, 0, Math.PI * 2);
       ctx.fill();
+      const cr = 7 * (0.6 + 0.4 * headFade);
       ctx.fillStyle = '#fff';
       ctx.beginPath();
-      ctx.arc(head.x, head.y, 7, 0, Math.PI * 2);
+      ctx.arc(head.x, head.y, cr, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = strokeCol;
       ctx.beginPath();
-      ctx.arc(head.x, head.y, 5, 0, Math.PI * 2);
+      ctx.arc(head.x, head.y, cr * 0.72, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
     }
+    // PHASE 3 item 3.2 — THE ENDPOINT DOT: a 140ms easeOutBack scale-in
+    // keyed to `doneAt` (the caller's draw-completion instant), replacing
+    // the one-frame head swap the audit flagged. The pulse only starts once
+    // the pop has fully landed — the dot arrives, then breathes.
     if (reveal >= 0.999 && opts.emphasizeLast !== false) {
       const last = vis[vis.length - 1];
-      const pulse = 0.5 + 0.5 * Math.sin(t / 350);
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(last.x, last.y, 9 + pulse * 2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = strokeCol;
-      ctx.beginPath();
-      ctx.arc(last.x, last.y, 6.5, 0, Math.PI * 2);
-      ctx.fill();
+      const pop = opts.doneAt !== undefined ? clamp01((t - opts.doneAt) / 140) : 1;
+      if (pop > 0) {
+        const pulse = pop >= 1 ? 0.5 + 0.5 * Math.sin(t / 350) : 0;
+        const scale = easeOutBack(pop);
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(last.x, last.y, Math.max(0.5, (9 + pulse * 2) * scale), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = strokeCol;
+        ctx.beginPath();
+        ctx.arc(last.x, last.y, Math.max(0.4, 6.5 * scale), 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     void si;
   });
 
   // annotations
   if (opts.annotations) {
-    // 100-JUDGE AUDIT (fix 6.6 — THE PILL STACK): annotations rendered in one
-    // band overprint into mush at the 320px gate (three 46px plates merged on
-    // the journey chart's mid-section). Consecutive pills now flip to the
-    // opposite side of their data point whenever their bands would overlap —
-    // deterministic per-index, no timing change, readable at every scale.
+    // ── PHASE 3 item 3.1 (100-judge audit — ANNOTATION DISCIPLINE) ─────────
+    // Three rules, one system:
+    //   a) THE PEN-CLOCKED PILL — a pill appears when the pen PASSES ITS OWN
+    //      data point (the settled reveal crosses the point's x-fraction),
+    //      not on a fixed wall-clock stagger. The leader line ties each label
+    //      to the exact moment the stroke draws through its anchor — the
+    //      "leader line to its exact data point" the brief asks for.
+    //   b) THE TWO-PILL RULE — at most TWO plates are ever visible: when a
+    //      third pill pops, the OLDEST fades out (plate + leader together),
+    //      and its data DOT stays behind (the anchor is series ink, not
+    //      text). At the 320px feed gate three stacked 46px plates read as
+    //      mush; two never do. The fade is a 12%-of-reveal crossfade — felt,
+    //      not seen.
+    //   c) PILLS NEVER OVERPRINT THE SERIES STROKE — the plate's final row
+    //      is searched against the polyline's own y-range inside the plate's
+    //      x-span (search band inflated by the 18px arrival rise so the
+    //      whole pop animation is stroke-clear too). A row whose plate would
+    //      cross the stroke is rejected and the search walks outward —
+    //      other side of the point first, then farther — so the series keeps
+    //      its line-of-sight at every frame of the sweep. Rows already had
+    //      to clear their own point (§7-D5) and the presenter lane
+    //      (crownTopY); the stroke itself is now the third protected ink.
     let prevLy = -Infinity;
+    const anns = opts.annotations; // narrowed once — TS loses the guard in closures
     opts.annotations.forEach((a, i) => {
       const s = opts.series[a.series ?? 0];
-      const app = clamp01((p - 0.55 - i * 0.08) / 0.3);
-      if (app <= 0) return;
       const [ax, av] = atX(s.points, a.at);
-      const px = x + (ax / s.points[s.points.length - 1][0]) * w;
+      const xf = ax / s.points[s.points.length - 1][0];
+      // (a) the pen clock — the pill pops just after the pen clears its
+      // point, over ~10% of the reveal
+      const app = clamp01((reveal - xf) / 0.1);
+      if (app <= 0) return;
+      // (b) the two-pill rule — the exit LEADS the arrival: as the pill two
+      // slots later approaches (4% of reveal before its pop), the oldest
+      // plate begins yielding. The two alphas cross mid-window — at every
+      // instant at most one of the pair is above 0.6, so at most TWO plates
+      // ever read as present. The data dot persists after the fade.
+      let exit = 0;
+      const later = anns![i + 2];
+      if (later) {
+        const [lxP2] = atX(opts.series[later.series ?? 0].points, later.at);
+        const xf2 = lxP2 / opts.series[later.series ?? 0].points[opts.series[later.series ?? 0].points.length - 1][0];
+        exit = clamp01((reveal - xf2 + 0.04) / 0.1);
+      }
+      const alpha = app * (1 - exit);
+      if (alpha <= 0.01) {
+        // the plate is gone, but its data dot persists — the anchor is
+        // series ink, not text (rule b)
+        const pyKeep = y + h - ((av - yMin) / (yMax - yMin)) * h;
+        const pxKeep = x + xf * w;
+        const toneKeep = TONE(a.tone).main;
+        ctx.save();
+        ctx.globalAlpha = app;
+        ctx.fillStyle = toneKeep;
+        ctx.beginPath();
+        ctx.arc(pxKeep, pyKeep, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(pxKeep, pyKeep, 6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        return;
+      }
+      const px = x + xf * w;
       const py = y + h - ((av - yMin) / (yMax - yMin)) * h;
       const tone = TONE(a.tone).main;
       const rise = (1 - easeOutCubic(app)) * 18;
-      let dyA = a.dy ?? 40;
-      if (i > 0 && Math.abs(py + dyA - prevLy) < 58) dyA = -dyA; // fix 6.6: flip the stack
+      const dyA = a.dy ?? 40;
       setFont(ctx, 46, 600);
       ctx.textAlign = 'center';
       const tw = ctx.measureText(a.label).width;
@@ -398,11 +515,18 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       const lx = Math.min(Math.max(px, x + half), Math.max(x + half, x + w - half));
       const lyMax = opts.xLabels && opts.xLabels.length ? y + h - 56 : y + h - 12;
       const yMin2 = opts.peakBand ? y + 88 : y + 52;
-      const clampRow = (v: number): number => Math.min(Math.max(v, yMin2), lyMax);
+      // PHASE 3 fix: the walker-lane bound is part of the clamp itself — the
+      // search must explore only CROWN-LEGAL rows, so the shipped row is
+      // exactly the row whose stroke-overlap was measured (the v1 order —
+      // search first, crown-clamp after — let the clamp silently move a
+      // found-clear row back INTO the stroke)
+      const lyMaxC = opts.crownTopY !== undefined
+        ? Math.min(lyMax, opts.crownTopY - 28)
+        : lyMax;
+      const clampRow = (v: number): number => Math.min(Math.max(v, yMin2), lyMaxC);
       const lyRaw = py + dyA;
       const belowLy = py + dotR + 2 + LEAD_MIN + 34; // pill-top clears the dot by LEAD_MIN
       const aboveLy = py - dotR - 2 - LEAD_MIN - pillH - Math.min(60, Math.abs(dyA));
-      let lyT = clampRow(lyRaw);
       const coversPoint = (row: number): boolean => {
         const top = row - 34;
         const bot = row + 12;
@@ -410,31 +534,116 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
         if (bot < py) return py - dotR - 2 - bot < LEAD_MIN; // above: leader too short
         return top - (py + dotR + 2) < LEAD_MIN; // below: leader too short
       };
-      if (coversPoint(lyT)) {
-        if (dyA >= 0 && belowLy <= lyMax) lyT = clampRow(Math.max(lyRaw, belowLy));
-        else if (aboveLy >= yMin2) lyT = clampRow(Math.min(lyRaw, aboveLy));
-        else if (belowLy <= lyMax) lyT = clampRow(Math.max(lyRaw, belowLy));
-        // else: the chart is too tight on both sides — keep the clamped row
+      // (c) the stroke-avoidance search — the plate rect must not cross the
+      // series polyline. The metric is the TRUE stroke area inside the plate:
+      // each polyline segment is clipped against the plate rect (Liang-
+      // Barsky) and the clipped length × the stroke's own width is summed —
+      // a diagonal graze contributes what it actually covers, not its
+      // bounding box. The search walks ROWS (both sides of the point, then
+      // outward) at dx=0, and — only for plates too wide for the chart's
+      // clear bands — slides the plate horizontally in 80px steps (the
+      // leader elbow carries the displacement, §7-D5 grammar). Every
+      // candidate must also clear its own point (§7-D5) and keep 56px off
+      // the previous plate's row. If the whole space fails (a chart whose
+      // stroke spans every crown-legal band inside the plate's reach), the
+      // candidate with the SMALLEST true overlap ships.
+      const strokeW = 8; // the 6.5px stroke + antialias, rounded up
+      const plateBand = (row: number): [number, number] => [row - 34, row + 12];
+      const strokeOverlap = (row: number, lxA: number): number => {
+        const [top, bot] = plateBand(row);
+        const pL = lxA - tw / 2 - 16;
+        const pR = lxA + tw / 2 + 16;
+        let area = 0;
+        for (const pts of seriesPxAll) {
+          for (let k = 1; k < pts.length; k++) {
+            const x0 = pts[k - 1].x, y0 = pts[k - 1].y, x1 = pts[k].x, y1 = pts[k].y;
+            // Liang-Barsky clip of the segment against the plate rect
+            const dx = x1 - x0, dy = y1 - y0;
+            let t0 = 0, t1 = 1;
+            let ok = true;
+            const clip = (p: number, q: number): void => {
+              if (p === 0) { if (q < 0) ok = false; return; }
+              const r = q / p;
+              if (p < 0) { if (r > t1) ok = false; else if (r > t0) t0 = r; }
+              else { if (r < t0) ok = false; else if (r < t1) t1 = r; }
+            };
+            clip(-dx, x0 - pL); clip(dx, pR - x0);
+            clip(-dy, y0 - top); clip(dy, bot - y0);
+            if (!ok || t1 <= t0) continue;
+            const len = Math.hypot(dx, dy) * (t1 - t0);
+            area += len * strokeW;
+          }
+        }
+        return area;
+      };
+      const rowCands: number[] = [lyRaw, belowLy, aboveLy];
+      for (let k = 1; k <= 6; k++) rowCands.push(belowLy + 30 * k, aboveLy - 30 * k);
+      const dxCands = [0, 80, -80, 160, -160, 240, -240, 320, -320, 400, -400, 480, -480];
+      // the slide-search right bound — the scene's certified camera-safe
+      // plate edge (default: the chart's own right edge, the v1 bound)
+      const slideRight = opts.slideRightMax ?? (x + w);
+      let lyT = -Infinity;
+      let lxF = lx;
+      let bestArea = Infinity;
+      let bestRow = -Infinity;
+      let bestLx = lx;
+      outer:
+      for (const dx of dxCands) {
+        const lxS = Math.min(Math.max(px + dx, x + half), Math.max(x + half, slideRight - half));
+        if (dx !== 0 && Math.abs(lxS - lx) < Math.abs(dx) - 1) continue; // clamp ate the slide
+        for (const cand of rowCands) {
+          const cr = clampRow(cand);
+          if (coversPoint(cr)) continue;
+          if (prevLy !== -Infinity && Math.abs(cr - prevLy) < 56) continue;
+          if (strokeOverlap(cr, lxS) > 0) continue;
+          lyT = cr;
+          lxF = lxS;
+          break outer;
+        }
       }
+      if (lyT === -Infinity) {
+        // degenerate chart — the stroke spans every reachable band. Ship the
+        // candidate with the smallest residual overlap (the v1 behaviour was
+        // the blind first candidate; this is the least-harm placement).
+        for (const dx of [0, 160, -160, 320, -320]) {
+          const lxS = Math.min(Math.max(px + dx, x + half), Math.max(x + half, slideRight - half));
+          for (const cand of [lyRaw, belowLy, aboveLy]) {
+            const cr = clampRow(cand);
+            if (coversPoint(cr)) continue;
+            const area = strokeOverlap(cr, lxS);
+            if (area < bestArea) {
+              bestArea = area;
+              bestRow = cr;
+              bestLx = lxS;
+            }
+          }
+        }
+        if (bestRow !== -Infinity) {
+          lyT = bestRow;
+          lxF = bestLx;
+        } else {
+          lyT = clampRow(lyRaw);
+          if (coversPoint(lyT)) {
+            if (belowLy <= lyMax) lyT = clampRow(Math.max(lyRaw, belowLy));
+            else if (aboveLy >= yMin2) lyT = clampRow(Math.min(lyRaw, aboveLy));
+          }
+        }
+      }
+      const lx2 = lxF;
       const lyC = clampRow(lyT - rise);
-      // PHASE 2 terrain staging: pills yield ABOVE the presenter lane (see
-      // LineChartOpts.crownTopY) — clamped after the flip logic so a pill's
-      // own-point anchor is decided first, then the row rises clear of the
-      // host walking the axis below it (16px clear of the crown — the panel's
-      // re-review note). Floor at yMin2: a pill never rises
-      // past the chart's own top rail (§10.3 C3).
-      const lyCrown = opts.crownTopY !== undefined
-        ? Math.max(yMin2, Math.min(lyC, opts.crownTopY - 28))
-        : lyC;
+      // the search is crown-aware (clampRow carries the walker-lane bound),
+      // so the shipped row IS the measured row — no post-clamp surprises
+      const lyCrown = lyC;
       ctx.save();
-      ctx.globalAlpha = app;
-      // the connector — retargeted to the FINAL pill edge (§7-D5)
+      ctx.globalAlpha = alpha;
+      // the connector — retargeted to the FINAL pill edge (§7-D5); it fades
+      // WITH the plate under the two-pill rule (rule b)
       ctx.strokeStyle = rgba(tone, 0.75);
       ctx.lineWidth = 2.5;
       ctx.setLineDash([4, 5]);
       {
-        const pillL = lx - tw / 2 - 16;
-        const pillR = lx + tw / 2 + 16;
+        const pillL = lx2 - tw / 2 - 16;
+        const pillR = lx2 + tw / 2 + 16;
         const pillT = lyCrown - 34;
         const pillB = lyCrown + 12;
         const below = pillT > py;
@@ -470,23 +679,36 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       // D-5 (100-judge dossier): it now also bottom-clamps ABOVE the x-label
       // band when the chart carries axis labels — the "low-23,000s · March"
       // pill used to plate the "last Oct" tick label on frame 06-chartJourney.
-      registerRect(`annotation:${a.label.slice(0, 14)}`, lx - tw / 2 - 16, lyCrown - 34, tw + 32, 46);
-      registerText(`annotationTxt:${a.label.slice(0, 14)}`, lx - tw / 2 - 16, lyCrown - 34, tw + 32, 46);
-      prevLy = lyCrown; // fix 6.6: the next pill flips if this band is taken
+      registerRect(`annotation:${a.label.slice(0, 14)}`, lx2 - tw / 2 - 16, lyCrown - 34, tw + 32, 46);
+      registerText(`annotationTxt:${a.label.slice(0, 14)}`, lx2 - tw / 2 - 16, lyCrown - 34, tw + 32, 46);
+      prevLy = lyCrown; // the next pill keeps 56px off this row
+      // the verification hook — the DRAWN rect and its residual stroke
+      // overlap (the search tested lyT; the crown clamp may have moved the
+      // row, so the probe measures the shipped position)
+      chartDebug.pills.push({
+        label: a.label,
+        rect: [lx2 - tw / 2 - 16, lyCrown - 34, tw + 32, 46],
+        alpha,
+        strokeOverlapPx: strokeOverlap(lyCrown, lx2),
+      });
       ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
       // PANEL-12 / P3-3: one-light rule (−5, +7), matching theme.chip
-      roundRect(ctx, lx - tw / 2 - 16 - 5, lyCrown - 34 + 7, tw + 32, 46, 23);
+      roundRect(ctx, lx2 - tw / 2 - 16 - 5, lyCrown - 34 + 7, tw + 32, 46, 23);
       ctx.fill();
       ctx.fillStyle = '#fff';
-      roundRect(ctx, lx - tw / 2 - 16, lyCrown - 34, tw + 32, 46, 23);
+      roundRect(ctx, lx2 - tw / 2 - 16, lyCrown - 34, tw + 32, 46, 23);
       ctx.fill();
       ctx.lineWidth = 2;
       ctx.strokeStyle = rgba(tone, 0.55);
-      roundRect(ctx, lx - tw / 2 - 16, lyCrown - 34, tw + 32, 46, 23);
+      roundRect(ctx, lx2 - tw / 2 - 16, lyCrown - 34, tw + 32, 46, 23);
       ctx.stroke();
       ctx.fillStyle = tone;
-      ctx.fillText(a.label, lx, lyCrown - 4);
-      // the data point — drawn LAST so no clamp can ever plate it (§7-D5)
+      ctx.fillText(a.label, lx2, lyCrown - 4);
+      ctx.restore();
+      // the data point — drawn LAST so no clamp can ever plate it (§7-D5);
+      // it rides `app` only (rule b: the dot stays after the plate fades)
+      ctx.save();
+      ctx.globalAlpha = app;
       ctx.fillStyle = tone;
       ctx.beginPath();
       ctx.arc(px, py, dotR, 0, Math.PI * 2);

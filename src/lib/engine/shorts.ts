@@ -982,6 +982,12 @@ function drawNativeVerticalJourney(
       { at: 40, label: 'today' },
     ],
     revealFrac: s.phase === 'recovery' ? Math.max(0.75, clamp01((bt - 800) / 4000)) : undefined,
+    // PHASE 3 item 3.2: the short's draw completes at t=2600 — the endpoint
+    // dot pops on its 140ms scale-in instead of hard-swapping.
+    doneAt: 2600,
+    // PHASE 3 item 3.1: the slide search's camera-safe right bound — the
+    // short frame's right margin (1080 − 45), no trucks in the short camera
+    slideRightMax: 1035,
   });
 
   // extra stat chips below the chart (rail-safe width, matching the chart)

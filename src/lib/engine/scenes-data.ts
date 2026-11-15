@@ -347,6 +347,9 @@ export function chartTwinScene(g: SceneCtx): void {
       p: clamp01((t - 200 - i * 260) / 2400),
       t,
       yFormat: 'idx100', showYAxis: true, gridLines: 3,
+      // PHASE 3 item 3.2: each twin's dot pops at its OWN draw completion
+      // (chart 0 at t=2600, chart 1 at t=2860 — two pens, two lifts).
+      doneAt: 2600 + i * 260,
       // PANEL-9 R2: twin charts shipped axis-less — "illustrative squiggles",
       // not data. Y axis on + a 3-stop time axis underneath.
       // R2b: yFormat 'index'→'idx100' — the axis now reads as % change vs
@@ -493,6 +496,15 @@ export function chartJourneyScene(g: SceneCtx): void {
     // v3 (panel P1-1): beat-relative — the reveal RE-RUNS as the recovery
     // beat's VO explains it, instead of arriving pre-pinned at 1.0
     revealFrac: s.phase === 'recovery' ? Math.max(0.75, clamp01((bt - 800) / 4000)) : undefined,
+    // PHASE 3 item 3.2 (THE REVEAL SETTLE): the endpoint dot's 140ms pop
+    // keys to the draw's true completion instant — the plain draw lands at
+    // group t=2600; a recovery re-run lands when ITS clock (bt−800/4000)
+    // reaches 1.0, i.e. bt=4800. (t−bt) is this beat's start in group time.
+    doneAt: s.phase === 'recovery' ? (t - bt) + 4800 : 2600,
+    // PHASE 3 item 3.1: the slide search's camera-safe right bound —
+    // screen_x = 960 + (R−960)·1.15 + 190 ≤ 1910 → R ≤ 1620 (the ch2/ch3
+    // hero-truck envelope the PLAYBOOK D3 certifications measured)
+    slideRightMax: 1620,
     // PHASE 2 terrain staging: the annotation layer clamps ABOVE the walker's
     // crown — pills never overprint the presenter pacing the chart's base.
     crownTopY: walkerCrown,
@@ -1799,24 +1811,41 @@ export function recessionGaugeScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 161);
   sceneTitle(ctx, 'Recession odds — serious people, different answers', 180, 220, clamp01(t / 600));
-  // debates on left
+  // ── 100-JUDGE PANEL / PHASE 3 item 3.3 — ONE TEXT SYSTEM PER FRAME ──
+  // (report §6 Phase 3: "recessionGauge loses the bio-card captions when
+  // the gauge is the subject — the VO already speaks them"). The shipped
+  // frame ran two competing text systems: two paragraph-length quote
+  // plates AND the instrument — while the VO quotes both men VERBATIM two
+  // beats later (the beat structure even hands those quotes to dedicated
+  // voices). The printed captions are retired; the cards become
+  // ATTRIBUTION PLATES — who, on a compact plate, with the film's
+  // quote-card bar glyph (the same 6px gold bar grammar the quoteCard
+  // scene owns, re-toned to each house's side of the argument). The
+  // debate's TEXT lives in the voice track; the frame keeps only its CAST.
   const debates = (s.debates as any[]) || [];
   debates.forEach((d, i) => {
     const ap = clamp01((t - 400 - i * 600) / 700);
     if (ap <= 0) return;
     ctx.save();
     ctx.globalAlpha = ap;
-    const y = H * 0.26 + i * 150;
-    card(ctx, W * 0.07, y, 560, 120, { r: 26 });
+    const y = H * 0.26 + i * 128;
+    const toneC = i === 0 ? PALETTE.up : PALETTE.down;
     setFont(ctx, 34, 700);
-    ctx.fillStyle = i === 0 ? PALETTE.up : PALETTE.down;
+    const who = String(d.who ?? '');
+    // the plate grows from the MEASURED name — a 560px plate holding a
+    // 12-char name read as dead paper (the same defect class the audit's
+    // D4 called "the overflowing chip", from the other side)
+    const whoW = ctx.measureText(who).width;
+    const plateW = whoW + 36 + 26 + 46;
+    card(ctx, W * 0.07, y, plateW, 88, { r: 26 });
+    // the quote bar — "a voice lives here" (the quoteCard glyph), toned to
+    // the house's side: teal for the dissent, coral for the alarm
+    ctx.fillStyle = toneC;
+    roundRect(ctx, W * 0.07 + 26, y + 22, 6, 44, 3);
+    ctx.fill();
+    ctx.fillStyle = toneC;
     ctx.textAlign = 'left';
-    ctx.fillText(d.who, W * 0.07 + 36, y + 44);
-    setFont(ctx, 34, 600);
-    ctx.fillStyle = PALETTE.inkSoft;
-    wrapText(ctx, d.line, 490, 24, 600).forEach((ln, j) => {
-      ctx.fillText(ln, W * 0.07 + 36, y + 82 + j * 32);
-    });
+    ctx.fillText(who, W * 0.07 + 26 + 36, y + 55);
     ctx.restore();
   });
   // gauge on right
