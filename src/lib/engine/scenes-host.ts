@@ -21,7 +21,9 @@ import { registerRect, registerText } from './collision';
 // footfall (φ≈0.5 left, φ≈0.97 right — the walk's own contact phases),
 // ~0.09 of phase wide, squared for a punchy decay. Pure function of the
 // walk phase — scrub-safe.
-function walkStrike(phase: number): number {
+// PHASE 2: exported — the terrain-staging walkers (chartJourney's axis
+// walkway, gasPump's two-roads figures) share the same plant grammar.
+export function walkStrike(phase: number): number {
   const ph = ((phase % 1) + 1) % 1;
   const circ = (x: number): number => { const a = Math.abs(x % 1); return Math.min(a, 1 - a); };
   const near = Math.min(circ(ph - 0.5), circ(ph - 0.97));
@@ -31,8 +33,8 @@ function walkStrike(phase: number): number {
 // PANEL ACCEPTANCE (audit FIX 6 — THE LAUNCH HALF): the push-off STRETCH
 // window between contacts (φ≈0.25 / 0.72), the same closed-form grammar
 // walkStrike uses. Squash on the plant, stretch on the push — the walk now
-// carries both halves of the classical pair.
-function walkPush(phase: number): number {
+// carries both halves of the classical pair. PHASE 2: exported (see above).
+export function walkPush(phase: number): number {
   const ph = ((phase % 1) + 1) % 1;
   const circ = (x: number): number => { const a = Math.abs(x % 1); return Math.min(a, 1 - a); };
   const near = Math.min(circ(ph - 0.25), circ(ph - 0.72));
@@ -667,6 +669,10 @@ export function hostSceneV2(g: SceneCtx): void {
     }
   }
   // v3 (panel P0-4): nods + articulate mouth on the editorial host too
+  // 100-JUDGE PANEL / PHASE 2 item 2 — THE HEADLINE COLUMN, hoisted: the
+  // type column's left edge is needed by the host draw below (the
+  // pointing-hand clearance rule targets the headline's bounding box).
+  const hx2 = W * 0.47;
   const nodP = g.speaking ? nodPulse(g.beatT, g.wordTimes) : 0;
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
   // 100-JUDGE PANEL / Phase 2 item 4 — TAKE GRAMMAR WIRING (report §6
@@ -736,7 +742,20 @@ export function hostSceneV2(g: SceneCtx): void {
         (walkPhase !== undefined ? walkPush(walkPhase) : 0)
         + (g.speaking ? launchPulse(g.beatT, g.wordTimes) : 0)),
       // 100-JUDGE AUDIT (Part 8.2): the viseme wiring on the editorial host.
-      wordTexts: g.wordTexts, wordTimes: g.wordTimes, beatT: g.beatT },
+      wordTexts: g.wordTexts, wordTimes: g.wordTimes, beatT: g.beatT,
+      // 100-JUDGE PANEL / PHASE 2 item 2 — THE COVERAGE-CRIME FIX (report
+      // §6 Phase 2: "the pointing hand physically covers the word 'news' of
+      // its own headline — the gesture destroys its own target"). The
+      // presenting arm + its accent strikes now ENFORCE the clearance rule
+      // against the headline column's bounding box: the hand animates
+      // freely everywhere, and the moment a strike would cross into the
+      // 40-60px band (or the words themselves) the arm solves to the
+      // boundary — the gesture flattens against the column's edge, never
+      // plates its own text. The fingertip registers cls 'contact'; the
+      // headline registers as reading text below — the guard's hand-vs-text
+      // pass verifies the rule on every sweep frame.
+      pointAt: { x: hx2, y: 240, w: W - hx2 - 180, h: 320, enforce: true },
+    },
     11
   );
 
@@ -744,16 +763,8 @@ export function hostSceneV2(g: SceneCtx): void {
   // AUDIT-ROUND-2 (fix 15 companion): the column shifts W*0.42 → W*0.47 so
   // the far stage block (W*0.42) never plates the kicker/headline — the
   // host PRESENTS BESIDE his content (fix 4's converse) instead of
-  // standing under it.
-  // 100-JUDGE PANEL REPORT (D9 companion): beats that ship no editorial
-  // props now derive the column from their OWN narration — the first VO
-  // sentence becomes a serif pull-quote (word-wrapped at ≤26 chars/line,
-  // up to three lines, the remainder becoming the sub copy), so the routed
-  // stage beats read as composed editorial frames, never as a template
-  // placeholder — and never overflow the column (the 54px headline floor
-  // holds ~30 chars per line; a naive 2-line split of a 90-char sentence
-  // measured 1200px at the floor and ran past the frame edge).
-  const hx2 = W * 0.47;
+  // standing under it. (hx2 hoisted above — the host's clearance rule
+  // consumes it before this block.)
   const voSentences = (g.beat.vo || '').match(/[^.!?]+[.!?]*/g)?.map((s) => s.trim()).filter(Boolean) ?? [];
   const mkPull = (txt: string): { head: string; rest: string } => {
     const words = txt.replace(/\s+/g, ' ').split(' ').filter(Boolean);
@@ -814,6 +825,11 @@ export function hostSceneV2(g: SceneCtx): void {
     ctx.save();
     ctx.globalAlpha = hp;
     registerRect('hostV2:headline', hx2, 240, W - hx2 - 180, 320);
+    // PHASE 2 item 2: the headline joins the READING-TEXT registry — the
+    // guard's hand-vs-text pass verifies the clearance rule (the host's
+    // pointAt above enforces it) on every frame; the text-vs-text pass
+    // skips same-family ids, so the pair never self-collides.
+    registerText('hostV2:headlineTxt', hx2, 240, W - hx2 - 180, 320);
     let hSize = 88;
     setFont(ctx, hSize, 700, FONT_SERIF);
     const maxHeadW = W - hx2 - 200; // guard sweep: survives the exit camera
@@ -1518,7 +1534,7 @@ export function divergeKScene(g: SceneCtx): void {
   // AUDIT-ROUND-2 (fix 19): the presenting host's deferred REST pass — set
   // by the host block below, drawn AFTER the K/labels/second character so
   // the near arm lands IN FRONT of the letter (far-arm → K → near-arm).
-  let hostRestPass: { hx: number; hy: number; hScale: number; hFace: number; hAlpha: number; pose: import('./stickman').Pose; talk: number } | null = null;
+  let hostRestPass: { hx: number; hy: number; hScale: number; hFace: number; hAlpha: number; pose: import('./stickman').Pose; talk: number; kHand?: { x: number; y: number; hand: 'fist'; bend: 1 }; kPoint?: { x: number; y: number; w: number; h: number; hand: 'point'; strength: number }; hParallax: boolean } | null = null;
   // AUDIT-ROUND-2 (fix 19 — Z-ORDER + CONTACT, THE SPLIT DRAW): the
   // presenting host now draws in TWO passes around the letter — far limbs
   // BEFORE the K (behind its stem), body + near arm AFTER it (in front) —
@@ -1530,18 +1546,50 @@ export function divergeKScene(g: SceneCtx): void {
   // the fist meets the stem, so "the presenter touches what he presents"
   // finally has its shadow.
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
+  // 100-JUDGE PANEL / PHASE 2 item 2 — THE K-POINT OVERSHOOT FIX (report
+  // §6 Phase 2: "the signature K scene's pointing arm overshoots the K
+  // entirely and lands in empty teal space"). The leanOnK / heroPoint
+  // poses were angle-keyed for an older staging — at the 2.4× scale their
+  // fist sailed PAST the stem. Two solves, per the audit's own rule split:
+  //   heroPoint (the formation still growing) → pointAt: the arm terminates
+  //     40-60px OUTSIDE the K's bounding box — the conviction point that
+  //     precedes the object, never inside it;
+  //   leanOnK (the letter landed) → contact: the fist IK-solved ONTO the
+  //     stem's upper section — "host pushing the gold K", the praised read,
+  //     restored with the press shadow kContact already draws.
+  // The host rides parallax FALSE (the pump/gauge plane rule): the solved
+  // hand tracks the K's OWN depth shift (kd) every frame — the letter may
+  // drift in depth under the camera; the hand stays planted on it.
+  const kDepth = depthShift(0.85);
+  const kBox = {
+    x: kx + kDepth.dx - S * 0.30 * kDepth.scale,
+    y: ky + kDepth.dy - S * 1.18 * kDepth.scale,
+    w: S * 1.62 * kDepth.scale,
+    h: S * 2.48 * kDepth.scale,
+  };
+  const leanOn = upArmK >= 0.5;
+  const kHand = leanOn
+    ? { x: kx + kDepth.dx - 18 * kDepth.scale, y: ky + kDepth.dy - S * 0.35 * kDepth.scale, hand: 'fist' as const, bend: 1 as const }
+    : undefined;
+  const kPoint = leanOn
+    ? undefined
+    : { x: kBox.x, y: kBox.y, w: kBox.w, h: kBox.h, hand: 'point' as const, strength: 1 };
   if (opening && t < 4800) {
     // the close-up block owns the host until 4.8s — nothing to draw here
   } else {
     const settlePose = Stickman.poseAt(t, {
-      gesture: upArmK < 0.5 ? 'heroPoint' : 'leanOnK',
+      gesture: leanOn ? 'leanOnK' : 'heroPoint',
       speaking: g.speaking,
       sentenceId: g.sentenceId,
       prevSentenceId: g.prevSentenceId,
       sentenceT: g.sentenceT,
       wordTimes: g.gWordTimes,
     });
-    let hx = W * 0.46;
+    // P0-3 sweep fix (host re-stage for the fist's reach): the shoulder at
+    // W*0.46 sat 293px from the stem — 24px past the 269px arm envelope at
+    // 2.4×. hx 910 brings the solved fist ONTO the stem (246px, 23px of
+    // elbow slack) with the hip band (742-1078) still 18px clear of it.
+    let hx = 910;
     let hy = H * 0.645; // fix 6.1: ground tuned so the 2.4x head clears the naming title and the envelope clears the pill band
     let hScale = 2.4; // fix 6.1: the settled presenting scale 2.05 -> 2.4 (+37% area) — the host is the frame's subject, not its stamp
     let hFace = 1;
@@ -1550,19 +1598,23 @@ export function divergeKScene(g: SceneCtx): void {
     if (opening) {
       // the slide: close-up staging -> presenting spot over 700ms
       const tp = clamp01((t - 4800) / 700);
-      hx = lerp(W * 0.30, W * 0.46, tp);
+      hx = lerp(W * 0.30, 910, tp);
       hy = lerp(H * 0.605, H * 0.645, tp);
       hScale = lerp(HOST_SCALE, 2.4, tp);
       hFace = 1 + 0.8 * (1 - tp);
       hAlpha = 1;
       pose = blendPose(POSES.shock, settlePose, tp);
     }
+    // plane rule: the close-up + slide keep the hero differential; once the
+    // presenting spot is held, the figure drops to the K's own plane so the
+    // solved hand tracks the letter's depth shift exactly.
+    const hParallax = !opening || t <= 5500;
     // FAR pass — shadow + far limbs, drawn BEFORE the K (behind the letter)
     drawStickmanV2(ctx, hx, hy, hScale, t,
-      { pose, alpha: hAlpha, look: 0.9, talk, faceScale: hFace, parallax: true, phase: 'far' }, 5);
+      { pose, alpha: hAlpha, look: 0.9, talk, faceScale: hFace, parallax: hParallax, phase: 'far' }, 5);
     // (the REST pass — near leg, torso, scarf, NEAR ARM, head — draws after
     // the K, the labels and the second character; see the end of the scene)
-    hostRestPass = { hx, hy, hScale, hFace, hAlpha, pose, talk };
+    hostRestPass = { hx, hy, hScale, hFace, hAlpha, pose, talk, kHand, kPoint, hParallax };
   }
 
   // the full K fades in as the lines complete (the lines ARE the K)
@@ -1685,7 +1737,11 @@ export function divergeKScene(g: SceneCtx): void {
   if (hostRestPass) {
     drawStickmanV2(ctx, hostRestPass.hx, hostRestPass.hy, hostRestPass.hScale, t,
       { pose: hostRestPass.pose, alpha: hostRestPass.hAlpha, look: 0.9, talk: hostRestPass.talk,
-        faceScale: hostRestPass.hFace, parallax: true, phase: 'rest', kContact: true,
+        faceScale: hostRestPass.hFace, parallax: hostRestPass.hParallax, phase: 'rest', kContact: true,
+        // PHASE 2 item 2: the solved hand — fist ON the stem (leanOnK) or
+        // the 40-60px conviction point (heroPoint, pre-formation).
+        contact: hostRestPass.kHand,
+        pointAt: hostRestPass.kPoint,
         // 100-JUDGE AUDIT (Part 8.2): the viseme wiring on the signature
         // scene's rest pass (the pass that draws the head + mouth).
         wordTexts: g.wordTexts, wordTimes: g.wordTimes, beatT: g.beatT }, 5);

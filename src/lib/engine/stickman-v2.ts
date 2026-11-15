@@ -989,6 +989,34 @@ export function drawStickmanV2(
      *  let the body stand near registered content declare the touched
      *  object with collision.declareHostContact(). */
     contact?: { x: number; y: number; hand?: 'palm' | 'point' | 'fist' | 'count1' | 'count2' | 'count3'; bend?: 1 | -1; shadow?: boolean };
+    /** 100-JUDGE PANEL / PHASE 2 item 2 — THE POINTING-HAND CLEARANCE RULE
+     *  (report §6 Phase 2: "the pointing hand terminates 40-60px from its
+     *  target's bounding box, never inside it"). A SCENE-SPACE rect the
+     *  near hand must POINT AT without ever entering: the arm is IK-solved
+     *  so the fingertip parks on the rect's boundary expanded by a
+     *  hash-picked 40-60px clearance band. Two modes:
+     *  - strength (default 1): the arm holds the clearance point every
+     *    frame (a declared conviction point, e.g. the K scene's naming
+     *    beat) — accents are overridden while it holds.
+     *  - enforce: the pose animates freely; the solve fires ONLY when the
+     *    pose's own hand would enter the clearance zone (the editorial
+     *    host's presenting arm + accent strikes flatten against the
+     *    headline column's edge instead of plating its words).
+     *  Out-of-reach targets degrade honestly: the arm straightens toward
+     *  the target and the hand terminates as close as the arm allows —
+     *  still never inside the rect. The fingertip registers cls 'contact'
+     *  (tight ±13·scale pad) so the guard's hand-vs-text sweep verifies
+     *  the rule on every frame. */
+    pointAt?: { x: number; y: number; w: number; h: number; hand?: 'point' | 'palm' | 'fist'; bend?: 1 | -1; strength?: number; enforce?: boolean };
+    /** 100-JUDGE PANEL / PHASE 2 item 5 — CAST PROPS (report §6 Phase 2:
+     *  "briefcase vs lunchbox on owner/worker — one-beat silhouette reads").
+     *  Both ride the FAR hand's solved position (the near arm belongs to
+     *  the pose — climb / facepalm), so the prop is HELD, never free-
+     *  floating: the owner's hard briefcase swings at his side, the
+     *  worker's domed lunchbox hangs from his. Drawn in rig units so they
+     *  scale with the figure and read at the 320px gate. */
+    briefcase?: boolean;
+    lunchbox?: boolean;
   },
   seed = 0
 ): void {
@@ -1267,6 +1295,9 @@ export function drawStickmanV2(
     ctx.restore();
   };
   let farFoot: { ex: number; ey: number } | null = null;
+  // PHASE 2 cast props: the FAR hand's solved position, hoisted out of the
+  // far pass so the briefcase/lunchbox (drawn after the near arm) can ride it.
+  let farHandRef: { ex: number; ey: number } | null = null;
   // PREMIUM UPGRADE C2: TORSO AS SHAPED CAPSULE. The single taper (a spine
   // line that widens) is replaced with a filled path: chest bulge, waist
   // narrowing, hip block, shoulder caps. The figure gains silhouette mass
@@ -1300,6 +1331,7 @@ export function drawStickmanV2(
     const farAU = pose.lAU + counterSmear * 8;   // small upward counter
     const farAL = pose.lAL - counterSmear * 12;  // small outward counter
     const farHand = limb2(ctx, neckX - 4 + Math.sin(shT) * -4, neckY + 3 + Math.sin(shT) * 9 - (pose.shoulderDrop ?? 0) * 0.6, farAU, farAL, U_ARM, L_ARM, INK.armFar[0], INK.armFar[1], INK.armFar[2], farInk, 0, 0.92); // iter-3: elbow mass
+    farHandRef = farHand;
     // 100-JUDGE PANEL REPORT (fix A3 — THE ROLLED SLEEVE, far arm): the
     // torso gold runs out mid-upper-arm in a slightly wider #A8851B band —
     // the silhouette reads "gold workshirt with pushed-up sleeves" over an
@@ -1598,6 +1630,91 @@ export function drawStickmanV2(
       'contact'
     );
   }
+  // ── 100-JUDGE PANEL / PHASE 2 item 2 — POINTAT, the clearance solve ──
+  // The near arm is solved so the fingertip TERMINATES on the target rect's
+  // boundary expanded by a 40-60px band (hash-picked per seed — one figure
+  // holds one distance, scrub-stable), never inside it. strength mode parks
+  // the arm on the boundary every frame; enforce mode only corrects the
+  // pose when its own hand enters the zone. Out-of-reach: armIk's clamp
+  // straightens the arm toward the point — the hand falls SHORT of the
+  // boundary, which still respects "never inside".
+  if (r.pointAt && !r.contact) {
+    const shXp = neckX + 4 + Math.sin(shT) * 4;
+    const shYp = neckY + 3 - Math.sin(shT) * 9 + shDrop;
+    const flipP = r.flip ? -1 : 1;
+    const pt = r.pointAt;
+    const cl = 40 + hash01(seed * 7.31 + 1.7) * 20;
+    // the figure's shoulder in SCENE space (the same mapping the contact
+    // block inverts — rig → scene with flip)
+    const shSceneX = cx + flipP * shXp * scale;
+    const shSceneY = groundY + shYp * scale;
+    // the pose's OWN hand in scene space (enforce mode's trigger test)
+    const ownAL = pose.rAL * D2R;
+    const ownAU = pose.rAU * D2R;
+    const ownRx = shXp + Math.sin(ownAU) * U_ARM + Math.sin(ownAL) * L_ARM;
+    const ownRy = shYp + Math.cos(ownAU) * U_ARM + Math.cos(ownAL) * L_ARM;
+    const ownSceneX = cx + flipP * ownRx * scale;
+    const ownSceneY = groundY + ownRy * scale;
+    // nearest point on the EXPANDED rect to a scene point
+    const exp = { x: pt.x - cl, y: pt.y - cl, w: pt.w + cl * 2, h: pt.h + cl * 2 };
+    const nearOn = (sx2: number, sy2: number): { x: number; y: number; inside: boolean } => {
+      const qx = Math.max(exp.x, Math.min(sx2, exp.x + exp.w));
+      const qy = Math.max(exp.y, Math.min(sy2, exp.y + exp.h));
+      const insideExp = qx === sx2 && qy === sy2;
+      if (!insideExp) return { x: qx, y: qy, inside: false };
+      // the point sits inside the expanded rect — push it out along the
+      // point → rect-center axis to the expanded boundary
+      const cxr = pt.x + pt.w / 2;
+      const cyr = pt.y + pt.h / 2;
+      const dx2 = sx2 - cxr;
+      const dy2 = sy2 - cyr;
+      const l2 = Math.hypot(dx2, dy2) || 1;
+      // distance from the center to the expanded rect's edge along the axis
+      const exX = Math.abs(dx2 / l2) > 1e-6 ? (exp.w / 2) / Math.abs(dx2 / l2) : Infinity;
+      const exY = Math.abs(dy2 / l2) > 1e-6 ? (exp.h / 2) / Math.abs(dy2 / l2) : Infinity;
+      const t2 = Math.min(exX, exY);
+      return { x: cxr + (dx2 / l2) * t2, y: cyr + (dy2 / l2) * t2, inside: true };
+    };
+    let fire = false;
+    if (pt.enforce) {
+      // fire only when the pose's own hand enters the clearance zone of the
+      // TRUE rect (distance < cl) or the rect itself
+      const dRect = Math.hypot(
+        Math.max(pt.x - ownSceneX, 0, ownSceneX - (pt.x + pt.w)),
+        Math.max(pt.y - ownSceneY, 0, ownSceneY - (pt.y + pt.h))
+      );
+      fire = dRect < cl;
+    } else {
+      fire = (pt.strength ?? 1) > 0.02;
+    }
+    if (fire) {
+      const target = nearOn(pt.enforce ? ownSceneX : shSceneX, pt.enforce ? ownSceneY : shSceneY);
+      const tLxp = ((target.x - cx) / scale) * flipP;
+      const tLyp = (target.y - groundY) / scale;
+      const ikP = armIk(shXp, shYp, tLxp, tLyp, U_ARM, L_ARM, pt.bend ?? 1);
+      const st = pt.enforce ? 1 : (pt.strength ?? 1);
+      pose.rAU = pose.rAU + (ikP.aU - pose.rAU) * st;
+      pose.rAL = pose.rAL + (ikP.aL - pose.rAL) * st;
+      if (pt.hand) pose.rHand = pt.hand;
+    }
+    // the fingertip's scene-space rect — TIGHT pad (±13·scale: the drawn
+    // glyph + tip) — the guard's hand-vs-text pass reads it. At the 40-60px
+    // clearance band the pad's edge keeps ≥ ~2px from the target bbox at
+    // any rig scale in the film (max 2.65).
+    {
+      const aUf = pose.rAU * D2R;
+      const aLf = pose.rAL * D2R;
+      const hfx = shXp + Math.sin(aUf) * U_ARM + Math.sin(aLf) * L_ARM;
+      const hfy = shYp + Math.cos(aUf) * U_ARM + Math.cos(aLf) * L_ARM;
+      const hsxP = cx + flipP * hfx * scale;
+      const hsyP = groundY + hfy * scale;
+      registerRect(
+        `point@${Math.round(hsxP)},${Math.round(hsyP)}`,
+        hsxP - 13 * scale, hsyP - 13 * scale, 26 * scale, 26 * scale,
+        'contact'
+      );
+    }
+  }
   // 100-JUDGE AUDIT (Part 9.1 — REAL SMEAR FRAMES). The old 2-ghost trail
   // read as "three arms" / "rubbery" on stills and vanished at the phone
   // gate. A real smear frame is ONE elongated drawing spanning the arc the
@@ -1780,6 +1897,59 @@ export function drawStickmanV2(
         -4 + s * 9 + Math.sin(ph + 1.2) * 9, -38
       );
       ctx.stroke();
+    }
+    ctx.restore();
+  }
+  // ── 100-JUDGE PANEL / PHASE 2 item 5 — CAST PROPS: briefcase / lunchbox ──
+  // One-beat silhouette reads on the ownerWorker pair: the OWNER's hard
+  // case (ink body, gold clasp — the capital he carries) and the WORKER's
+  // domed lunchbox (cream body, coral lid — the shift he brings). Both hang
+  // from the FAR hand (the near arm belongs to climb / facepalm), riding
+  // farHand's solved position with the walk's own swing — a held prop, never
+  // a floating decal (the audit's "nothing free-floats" rule).
+  if ((r.briefcase || r.lunchbox) && farHandRef) {
+    const swing = Math.sin(t / 340 + seed * 2.2) * 0.09;
+    ctx.save();
+    // the prop hangs FROM the hand (handle at the grip) — the case body
+    // starts at the hand line so the carry reads held, never dragged.
+    ctx.translate(farHandRef.ex, farHandRef.ey + 2);
+    ctx.rotate(swing);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = ink;
+    if (r.briefcase) {
+      // the hard case — ink body, gold clasp, the handle at the hand
+      ctx.fillStyle = PALETTE.ink;
+      roundRect(ctx, -27, -6, 54, 40, 7);
+      ctx.fill();
+      ctx.stroke();
+      // the seam + clasp
+      ctx.strokeStyle = rgba('#F7EFD8', 0.85);
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.moveTo(-27, 9);
+      ctx.lineTo(27, 9);
+      ctx.stroke();
+      ctx.fillStyle = PALETTE.gold;
+      roundRect(ctx, -6, 5, 12, 9, 3);
+      ctx.fill();
+    } else {
+      // the lunchbox — cream body, coral lid, wire handle
+      ctx.fillStyle = '#F6F1E3';
+      roundRect(ctx, -22, -4, 44, 34, 6);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = PALETTE.down;
+      roundRect(ctx, -22, -4, 44, 13, 6);
+      ctx.fill();
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 3.4;
+      ctx.beginPath();
+      ctx.arc(0, -6, 10, Math.PI * 1.08, Math.PI * 1.92);
+      ctx.stroke();
+      // the latch
+      ctx.fillStyle = PALETTE.gold;
+      roundRect(ctx, -5, 8, 10, 7, 2.5);
+      ctx.fill();
     }
     ctx.restore();
   }

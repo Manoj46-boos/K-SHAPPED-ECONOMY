@@ -52,7 +52,7 @@ export interface CollisionViolation {
    *  v10.1 (panel 11 re-review): 'host' — a side-host body envelope plating
    *  scene content (statCards host over the 12.4% card, aiDatacenter host
    *  in the scrolling rack field). */
-  kind: 'pill' | 'fixed' | 'edge' | 'text' | 'host' | 'cardPad';
+  kind: 'pill' | 'fixed' | 'edge' | 'text' | 'host' | 'cardPad' | 'hand';
 }
 
 /** PHASE-0 (panel report §7-D6): the ONE bottom-padding floor for text that
@@ -429,6 +429,36 @@ export function collectViolations(): CollisionViolation[] {
           pill: { x: rb.x, y: rb.y, w: rb.w, h: rb.h },
           depth: Math.round(Math.min(ox, oy)),
           kind: 'text',
+        });
+      }
+    }
+  }
+
+  // ── 100-JUDGE PANEL / PHASE 2 item 2 (report §6 Phase 2) — HAND-VS-TEXT.
+  // The coverage-crime pass: every solved hand rect (cls 'contact' — the
+  // contact-verb palm AND the pointAt fingertip) is checked against every
+  // registered reading-text rect. A hand that enters reading text is the
+  // audit's "gesture destroys its own target" defect — zero intersections
+  // is the acceptance. Scenes that DESIGN a hand-on-text touch declare the
+  // text id via declareHostContact() (the same exemption the body pass
+  // honors). Camera-exact like the text pass; ≥8px depth / ≥300px² —
+  // stricter than content checks because the hand is small and the crime
+  // is binary.
+  const handRects = g.content.filter((r0) => r0.cls === 'contact');
+  for (const hnd of handRects) {
+    for (const t of texts) {
+      if (g.contactIds.has(t.id)) continue;
+      const ts2 = toScreen(t);
+      const oxH = Math.min(hnd.x + hnd.w, ts2.x + ts2.w) - Math.max(hnd.x, ts2.x);
+      const oyH = Math.min(hnd.y + hnd.h, ts2.y + ts2.h) - Math.max(hnd.y, ts2.y);
+      if (oxH > 0 && oyH > 0 && Math.min(oxH, oyH) >= 8 && oxH * oyH >= 300) {
+        out.push({
+          frame: g.frame,
+          id: `${hnd.id}⇄${t.id}`,
+          rect: { x: hnd.x, y: hnd.y, w: hnd.w, h: hnd.h },
+          pill: { x: ts2.x, y: ts2.y, w: ts2.w, h: ts2.h },
+          depth: Math.round(Math.min(oxH, oyH)),
+          kind: 'hand',
         });
       }
     }

@@ -52,6 +52,15 @@ export interface LineChartOpts {
    *  same scale as points[][0]); they render under the plot, TYPE_FLOOR
    *  sized, and are omitted by callers that genuinely have no time axis. */
   xLabels?: { at: number; label: string }[];
+  /** 100-JUDGE PANEL / PHASE 2 item 4 (report §6 Phase 2 — TERRAIN STAGING):
+   *  the presenter-lane cap. When a scene stages its host ON the chart's
+   *  own x-axis (the data-IS-the-terrain grammar), the annotation pills
+   *  clamp ABOVE this y (the host's crown top) — the same position-first,
+   *  clamp-proof discipline §7-D5 established, extended to the walking
+   *  presenter: pills never overprint the figure walking his chart's
+   *  base, and their leader lines simply lengthen (low-point pills can
+   *  always rise — the leader grows, the anchor holds). */
+  crownTopY?: number;
 }
 
 function yBounds(opts: LineChartOpts): [number, number] {
@@ -408,6 +417,15 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
         // else: the chart is too tight on both sides — keep the clamped row
       }
       const lyC = clampRow(lyT - rise);
+      // PHASE 2 terrain staging: pills yield ABOVE the presenter lane (see
+      // LineChartOpts.crownTopY) — clamped after the flip logic so a pill's
+      // own-point anchor is decided first, then the row rises clear of the
+      // host walking the axis below it (16px clear of the crown — the panel's
+      // re-review note). Floor at yMin2: a pill never rises
+      // past the chart's own top rail (§10.3 C3).
+      const lyCrown = opts.crownTopY !== undefined
+        ? Math.max(yMin2, Math.min(lyC, opts.crownTopY - 28))
+        : lyC;
       ctx.save();
       ctx.globalAlpha = app;
       // the connector — retargeted to the FINAL pill edge (§7-D5)
@@ -417,8 +435,8 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       {
         const pillL = lx - tw / 2 - 16;
         const pillR = lx + tw / 2 + 16;
-        const pillT = lyC - 34;
-        const pillB = lyC + 12;
+        const pillT = lyCrown - 34;
+        const pillB = lyCrown + 12;
         const below = pillT > py;
         ctx.beginPath();
         if (px >= pillL && px <= pillR) {
@@ -452,22 +470,22 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       // D-5 (100-judge dossier): it now also bottom-clamps ABOVE the x-label
       // band when the chart carries axis labels — the "low-23,000s · March"
       // pill used to plate the "last Oct" tick label on frame 06-chartJourney.
-      registerRect(`annotation:${a.label.slice(0, 14)}`, lx - tw / 2 - 16, lyC - 34, tw + 32, 46);
-      registerText(`annotationTxt:${a.label.slice(0, 14)}`, lx - tw / 2 - 16, lyC - 34, tw + 32, 46);
-      prevLy = lyC; // fix 6.6: the next pill flips if this band is taken
+      registerRect(`annotation:${a.label.slice(0, 14)}`, lx - tw / 2 - 16, lyCrown - 34, tw + 32, 46);
+      registerText(`annotationTxt:${a.label.slice(0, 14)}`, lx - tw / 2 - 16, lyCrown - 34, tw + 32, 46);
+      prevLy = lyCrown; // fix 6.6: the next pill flips if this band is taken
       ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
       // PANEL-12 / P3-3: one-light rule (−5, +7), matching theme.chip
-      roundRect(ctx, lx - tw / 2 - 16 - 5, lyC - 34 + 7, tw + 32, 46, 23);
+      roundRect(ctx, lx - tw / 2 - 16 - 5, lyCrown - 34 + 7, tw + 32, 46, 23);
       ctx.fill();
       ctx.fillStyle = '#fff';
-      roundRect(ctx, lx - tw / 2 - 16, lyC - 34, tw + 32, 46, 23);
+      roundRect(ctx, lx - tw / 2 - 16, lyCrown - 34, tw + 32, 46, 23);
       ctx.fill();
       ctx.lineWidth = 2;
       ctx.strokeStyle = rgba(tone, 0.55);
-      roundRect(ctx, lx - tw / 2 - 16, lyC - 34, tw + 32, 46, 23);
+      roundRect(ctx, lx - tw / 2 - 16, lyCrown - 34, tw + 32, 46, 23);
       ctx.stroke();
       ctx.fillStyle = tone;
-      ctx.fillText(a.label, lx, lyC - 4);
+      ctx.fillText(a.label, lx, lyCrown - 4);
       // the data point — drawn LAST so no clamp can ever plate it (§7-D5)
       ctx.fillStyle = tone;
       ctx.beginPath();
