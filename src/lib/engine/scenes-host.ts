@@ -1812,7 +1812,16 @@ export function recapSplitScene(g: SceneCtx): void {
     wordTimes: g.gWordTimes,
   });
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, W * 0.79, H * 0.645, 1.35, t, { pose, alpha: clamp01((t - 700) / 500), look: -0.4, talk, parallax: true }, 17); // fix 6.1: 1.12 -> 1.35; x W*0.84 -> 0.79 — the shadow/stage band crossed the right edge at the bigger scale
+  // ── 100-JUDGE PANEL / PHASE 1 item 1 — CONTACT IS MANDATORY (report §6
+  // Phase 1). The recap host stands IN FRONT of the sentiment panel (his
+  // body column 1422-1612 rides the panel's footprint 1056-1747), so the
+  // near hand SOLVES onto the panel's lower-right face at chest height —
+  // the palm RESTING on the recap card he is summarizing, contact shadow
+  // at the press point. Reach check: shoulder (1521, 451) → (1620, 540)
+  // = 133px, inside the 151px arm envelope at 1.35. Round-3: the palm drops
+  // to (1610, 570) — BELOW the panel's sparkline band (the curve swings
+  // y 400-541) so the resting hand never prints over the data curve.
+  drawStickmanV2(ctx, W * 0.79, H * 0.645, 1.35, t, { pose, alpha: clamp01((t - 700) / 500), look: -0.4, talk, parallax: true, contact: { x: 1610, y: 570, hand: 'palm' } }, 17); // fix 6.1: 1.12 -> 1.35; x W*0.84 -> 0.79 — the shadow/stage band crossed the right edge at the bigger scale
 }
 
 function miniPanel(
@@ -2018,13 +2027,22 @@ export function paradoxResolveScene(g: SceneCtx): void {
     // K in his gesture cone instead of stranded at the frame's edge
     // ("two unexplained tiny figures" at the gate). His raised hand now
     // terminates toward the letter's stem.
-    ctx, W * 0.26, H * 0.667, 1.3, t,
+    // ── 100-JUDGE PANEL / PHASE 1 item 1 — CONTACT IS MANDATORY (report
+    // §6 Phase 1). "His raised hand terminates TOWARD the stem" becomes
+    // the armIk-solved verb: the host steps to W*0.344 (body core
+    // 605-715 — 24px clear of the K3D face wall at 739) and the near hand
+    // FISTS onto the K's stem at (772, 565) — THE GRIP ON THE LETTER, the
+    // same leanOnK grammar the cold open owns, now solver-true here.
+    // Reach check: shoulder (664, 483) → (772, 565) = 135px, inside the
+    // 146px envelope at 1.3. The contact hand registers cls 'contact'.
+    ctx, W * 0.344, H * 0.667, 1.3, t,
     {
       pose, alpha: clamp01((t - 600) / 500), look: 0.5, talk,
       // AUDIT-PHASE-3: faceScale peak 1.65 -> 1.8 — the paradox reaction
       // beat finally reads as a face close-up at phone scale.
       faceScale: 1 + 0.8 * rP,
       parallax: true,
+      contact: { x: 772, y: 565, hand: 'fist' },
     },
     23
   );

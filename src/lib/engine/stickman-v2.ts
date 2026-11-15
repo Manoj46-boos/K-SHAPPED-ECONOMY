@@ -1689,16 +1689,23 @@ export function drawStickmanV2(
     // axis with the (sin a, cos a) limb convention): wherever the hand
     // presses — stem, wall, pie rim — the shadow reads as pressure AT the
     // contact, never as a floating smudge.
-    ctx.fillStyle = rgba(PALETTE.shadow, 0.30);
+    // PHASE 1 round 3 (panel: "contact shadows soft — verify at 1x"): the
+    // press-point shadow deepens one register (0.30 → 0.42) and widens
+    // (24x10 → 30x12) so the junction reads at feed scale on both cream
+    // and white surfaces.
+    ctx.fillStyle = rgba(PALETTE.shadow, 0.42);
     ctx.beginPath();
-    ctx.ellipse(hand.ex, hand.ey, 24, 10, Math.PI / 2 - pose.rAL * D2R, 0, Math.PI * 2);
+    ctx.ellipse(hand.ex, hand.ey, 30, 12, Math.PI / 2 - pose.rAL * D2R, 0, Math.PI * 2);
     ctx.fill();
   }
   // P0-2 + AUDIT-2 / 1.3 (report §10.2, C5): TWO GLYPHS — the fan at hero
   // scale, the mitten below rig scale 0.85 (BLUEPRINT: threshold 1.0 ->
   // 0.85 so the glyph never switches mid-scene on a scaled host),
   // selected right here.
-  handGlyph(ctx, hand.ex, hand.ey, pose.rAL, 16, ink, scale, pose.rHand, grip); // P1-2 r3: rig scale picks the glyph tier; Phase 1: hands stay ink
+  // PHASE 1 round 5 (the panel's "no palm pad" note): a hand mid-contact
+  // draws one size step up so the pad reads at feed scale — a pressing palm,
+  // not a tapered limb tip.
+  handGlyph(ctx, hand.ex, hand.ey, pose.rAL, r.contact ? 19 : 16, ink, scale, pose.rHand, grip); // P1-2 r3: rig scale picks the glyph tier; Phase 1: hands stay ink
   // 100-JUDGE PANEL / Phase 1 item 4 — CAST BY SILHOUETTE (report §6
   // Phase 1): "the count host gets rolled sleeves." When the near hand
   // runs a count glyph, the sleeve's cuff ROLLS — a bright ivory band at

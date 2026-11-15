@@ -27,8 +27,8 @@ import { paintBg, scenePlate, PALETTE, TONE, card, rgba, roundRect, setFont, FON
 import { renderVideo } from './encode';
 import { getSharedAudioContext } from './audio';
 import { clamp01, easeOutCubic, lerp } from './easing';
-import { bokehField, drawK3D, lightRays, sparkles, floatCoins } from './effects';
-import { Stickman, walkIn } from './stickman';
+import { bokehField, drawK3D, lightRays, sparkles } from './effects';
+import { Stickman, blendPose, POSES } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
 import { gauge, barRow, lineChart } from './charts';
 
@@ -151,21 +151,31 @@ function scenePropsAt(tl: Timeline, tMs: number): Record<string, any> {
 
 /** Caption pill bottom edge: centre lands ≈ 62% of 1920 = 1190. */
 const CAPTION_BASE_NATIVE = 1260;
-/** Presenter ground line in the bottom-left presenter zone.
- *  AUDIT-3 / §1.6 (report Phase 1.6 — Shorts re-stage): 1450 → 1470. The
- *  presenter drops 20px closer to the new bottom engagement band so the
- *  composition tightens toward the middle 70% and the dead gap below his
- *  feet shrinks. (Horizontal clearance to the caption pill is unchanged —
- *  the pill constraint is an x-axis one.) */
-const HOST_GROUND = 1470;
+/** Presenter ground line.
+ *  100-JUDGE PANEL / PHASE 1 item 4 — THE SHORTS RE-STAGE (report §6
+ *  Phase 1: "character at 2-3x current scale, center-weighted, REACTING
+ *  to the K… Shorts retention lives in the first 1.5s and dies with
+ *  corner-postage-stamp characters"). 1450 → 1640: the host no longer
+ *  lives in a bottom-left presenter zone — he stands CENTER-WEIGHTED at
+ *  x 540, feet at 1640 (72px above the bottom engagement band's rule at
+ *  1712), his face band clearing the opaque caption pill's top (1164)
+ *  so the eyes and glasses always read above the karaoke pill. The pill
+ *  plates his chest — standard platform captioning-over-speaker
+ *  grammar; the opaque backing keeps every word legible. */
+const HOST_GROUND = 1640;
+/** The re-staged host's persistent scale: 1.12 → 2.3 (2.05× — inside the
+ *  audit's 2-3x band). The entry close-up (below) rides 2.6. */
+const HOST_SCALE_SHORTS = 2.3;
 
-/** v6: the host, bottom-left of the presenter zone, clear of the pill/rail.
- *  P1-1/P1-4 (report): 0.9 → 1.12 (+24%) and x 165 → 132 — the 9:16
- *  presenter zone is tighter than 16:9, but with Shorts captions now
- *  1-row/6-word (drawShortFrame) the widest pill's left edge sits at x≈196:
- *  at 1.12/x120 the head's worst-case right edge (max lean, ≈193) stays
- *  clear of even that, with the feet envelope inside the frame. The panel's
- *  round-1 note ('only marginally larger') moved the bump from 1.05 to 1.12. */
+/** v6: the host — CENTER-WEIGHTED, 2.05× the old postage stamp, feet on
+ *  HOST_GROUND, clear of the pill (face above), clear of the bottom band
+ *  (feet at 1640). `react` (0..1) blends the SHOCK pose — the gasp the
+ *  'k' Short plays while the letter tears itself into its two arms above
+ *  his head ("REACTING to the K", report §6 Phase 1). The mode-k call
+ *  site drives react off the K's own formation clock; every other mode
+ *  presents. Gesture choice per mode keeps the hands out of the content
+ *  band: at 2.3 the reach-up tops ≈y1068 — below every native drawer's
+ *  content bottom (≈1050) — and 'talkB'-class gestures hang lower. */
 function drawShortHost(
   ctx: CanvasRenderingContext2D,
   tl: Timeline,
@@ -173,20 +183,27 @@ function drawShortHost(
   gesture: string,
   alpha: number,
   look: number,
-  seed: number
+  seed: number,
+  react = 0
 ): void {
   if (alpha <= 0) return;
   // AUDIT-2 / §10.5: suppressed while the face-first entry host owns the
   // frame (see drawShortFrame).
   if (tMs < hostZoneFrom) return;
   const speaking = tl.voIntervals.some((v) => tMs >= v.start - 150 && tMs <= v.end + 250);
-  const pose = Stickman.poseAt(tMs, { gesture, speaking });
+  let pose = Stickman.poseAt(tMs, { gesture, speaking });
+  // 100-JUDGE PANEL / Phase 1 item 4 — REACTING TO THE K: the shock
+  // blend (brows 0.95, arms up, gasp jaw) rides the reaction envelope.
+  if (react > 0.02) pose = blendPose(pose, POSES.shock, clamp01(react * 1.1));
   let talk = 0;
   const line = tl.captionLines.find((l) => tMs >= l.start - 120 && tMs <= l.end + 260);
   if (line && speaking) {
     talk = talkAt(tMs - line.start, line.words.map((w) => w.t - line.start));
   }
-  drawStickmanV2(ctx, 120, HOST_GROUND, 1.12, tMs, { pose, alpha, look, talk }, seed);
+  // the reaction gasp holds the mouth open (the P0-4 grammar: talk floor
+  // under a live reaction)
+  talk = Math.max(talk, 0.85 * react);
+  drawStickmanV2(ctx, 540, HOST_GROUND, HOST_SCALE_SHORTS, tMs, { pose, alpha, look, talk, jaw2x: react > 0.3 ? 1.6 : 1 }, seed);
 }
 
 /** Small centered source credit above the channel mark (data scenes). */
@@ -263,7 +280,7 @@ function drawNativeVerticalText(
   }
   if (t > 1800) sparkles(ctx, W / 2, bandCy, tMs, 1800, { count: 10, radius: 240 }); // PANEL-12/P2-4: dead t0 fixed
 
-  // host counting on fingers, in the presenter zone
+  // host counting on fingers — center-weighted, 2.3× (Phase 1 item 4)
   const hp = clamp01((t - 2200) / 600);
   if (hp > 0) drawShortHost(ctx, tl, tMs, 'count2', hp, -0.6, 31);
 }
@@ -372,15 +389,25 @@ function drawNativeVerticalK(
     ctx.fillText('THE MARKET', W - 72, ky - S * 1.05 + 10);
     ctx.fillStyle = PALETTE.down;
     ctx.fillText('THE MOOD', W - 72, ky + S * 1.25);
+    // PHASE 1 item 4 companion: the K's naming label moves ABOVE the
+    // letterform (ky − S·1.18). At the old ky + S·1.6 slot the label sank
+    // into the caption pill's band at full growth — and under the
+    // re-staged 2.3× host it would have printed straight across his
+    // face. Above the K it reads as the object's NAMEPLATE, always
+    // visible, 36px under the title band at max growth.
     setFont(ctx, 40, 700, FONT_DISPLAY);
     ctx.textAlign = 'center';
     ctx.fillStyle = PALETTE.ink;
-    ctx.fillText('the K-shaped economy', kx, ky + S * 1.6);
+    ctx.fillText('the K-shaped economy', kx, ky - S * 1.18);
     ctx.restore();
   }
 
-  // host presenting, in the presenter zone below the captions
-  drawShortHost(ctx, tl, tMs, 'present', clamp01(t / 400), 0.85, 5);
+  // host presenting, center-weighted below the letter — REACTING to the K
+  // while the arms tear (the shock blend eases out as the letter completes)
+  // 100-JUDGE PANEL / Phase 1 item 4 (report §6 Phase 1).
+  const relT = Math.max(0, tMs - (beat ? beat.startMs : 0));
+  const reactK = clamp01((relT - 500) / 500) * (1 - clamp01((relT - 1900) / 800));
+  drawShortHost(ctx, tl, tMs, 'present', clamp01(t / 400), 0.85, 5, reactK);
 }
 
 /**
@@ -697,7 +724,13 @@ function drawNativeVerticalPump(
   ctx.quadraticCurveTo(px + 200, py + 120, px + 150, py + 210);
   ctx.stroke();
   ctx.restore();
-  floatCoins(ctx, px, py + 60, t, 4, 60);
+  // PHASE 1 round 3 (panel: coins "emanate from the GAS badge rather than
+  // the $/GAL readout; the top coin overlaps the A of GAS"): any upward
+  // coin path from the price display must cross the GAS screen plate —
+  // an unownable, colliding prop. The P2-3 precedent on the 16:9 pump
+  // applies verbatim: the pump's money story IS its rolling price display;
+  // the coins are GONE. (The ownerWorker coin flow remains — there the
+  // coins are the fired transfer between two characters.)
 
   // two household cards, side by side
   // PANEL-9 R7l (stat text overflowing into the neighbour card): the cards
@@ -712,7 +745,7 @@ function drawNativeVerticalPump(
     if (cap <= 0) return;
     const x = i === 0 ? 84 : 552;
     const cw2 = 444;
-    const y = 800;
+    const y = 780;
     ctx.save();
     ctx.globalAlpha = cap;
     ctx.translate(0, (1 - easeOutCubic(cap)) * 40);
@@ -765,6 +798,12 @@ function drawNativeVerticalPump(
   });
 
   if (t > 3000) sparkles(ctx, px, py + 180, tMs, 3000, { count: 8, radius: 150 }); // PANEL-12/P2-4: dead t0 fixed
+  // PHASE 1 item 4: the pump Short carries the SAME center-weighted host
+  // the other native moments own — the last drawer without a presenter.
+  // His head band (top 1042) sits below the household cards' bottom (1050)
+  // — an 8px dome overlap reads as natural depth (the figure stands in
+  // front of the cards' lower edge, the divergeK second-character grammar).
+  drawShortHost(ctx, tl, tMs, 'present', clamp01((t - 1200) / 600), 0.5, 25);
   drawShortSource(ctx, s.source as string);
 }
 
@@ -1048,7 +1087,7 @@ export function drawShortFrame(
   const native = nativeMode ? NATIVE_DRAWERS[nativeMode] : null;
   // AUDIT-2 / §10.5: the native drawers' presenter-zone host stays
   // suppressed while the face-first entry window is open.
-  hostZoneFrom = spec.startMs + 2000;
+  hostZoneFrom = spec.startMs + 2600;
   if (native) {
     native(ctx, W, H, tl, tMs);
   } else {
@@ -1093,46 +1132,53 @@ export function drawShortFrame(
     ctx.drawImage(offscreen, 0, 0, 1920, 1080, 0, fy, fw, fh);
   }
 
-  // 2b) AUDIT-2 / §10.5 (report Phase 4): FACE-FIRST ENTRY. The swipe
-  //     decision is made in 1-3 seconds on a frozen first frame; faces
-  //     are the number-one thumb-stopper. For the first ~1.4s of every
-  //     Short the host stands LARGE in the upper third — face at ~38%
-  //     frame height, eye contact with the lens, presenting — then WALKS
-  //     DOWN to the presenter zone as the content band takes over: the
-  //     Short starts mid-action, on the move, never as a static page.
-  //     Scrub-deterministic (every term is a pure function of tMs).
+  // 2b) 100-JUDGE PANEL / PHASE 1 item 4 — THE FACE-FIRST ENTRY, RE-STAGED
+  //     (report §6 Phase 1: "character at 2-3x current scale,
+  //     center-weighted, REACTING to the K… Shorts retention lives in the
+  //     first 1.5s and dies with corner-postage-stamp characters"). The
+  //     old entry stamped the host at W·0.22/1.52 — a corner figurine
+  //     beside dead air. Now: a TRUE reaction close-up — the host at 2.6×
+  //     (2.05-2.3× the old stamp), CENTER-WEIGHTED at x 540, feet at
+  //     1660, faceScale 1.35, gasping at the hero content forming above
+  //     his head (the shock blend on the 'k' Short as the arms tear;
+  //     heroPresent elsewhere) — then he SETTLES IN PLACE to the 2.3×
+  //     persistent staging over 600ms (a compression, not a walk: the
+  //     walk-down is retired, the corner stamp never exists). The
+  //     swipe-stop frame is now a face at ~16% of frame height over the
+  //     forming K — the reaction close-up the panel scored highest.
   {
     const rel = tMs - spec.startMs;
-    if (rel >= 0 && rel < 2000) {
+    if (rel >= 0 && rel < 2600) {
       const speaking = tl.voIntervals.some((v) => tMs >= v.start - 150 && tMs <= v.end + 250);
+      // the mode-k gasp: ramps in as the first arm tears (rel 500), holds
+      // through the tear, eases out as the letter completes (rel 1900)
+      const reactK = spec.native === 'k'
+        ? clamp01((rel - 500) / 500) * (1 - clamp01((rel - 1900) / 800))
+        : 0;
       if (rel < 1400) {
         const ap = clamp01(rel / 220);
-        const pose = Stickman.poseAt(tMs, {
+        const pose0 = Stickman.poseAt(tMs, {
           gesture: 'heroPresent', speaking,
           sentenceId: 'short-entry', prevSentenceId: 'short-entry',
           sentenceT: Math.min(rel, 420), wordTimes: [],
         });
+        const pose = reactK > 0.02 ? blendPose(pose0, POSES.shock, clamp01(reactK * 1.1)) : pose0;
         // panel round note: "consider 1.5x head scale" — the faceScale rig
         // exists for exactly this; the swipe-stop face gets 35% more face.
-        drawStickmanV2(ctx, W * 0.22, 1140, 1.52, tMs, { pose, alpha: ap, look: 0.2, faceScale: 1.35 }, 41);
+        drawStickmanV2(ctx, 540, 1660, 2.6, tMs, { pose, alpha: ap, look: 0.2, faceScale: 1.35, talk: Math.max(0, 0.85 * reactK), jaw2x: reactK > 0.3 ? 1.6 : 1 }, 41);
       } else {
-        const wp = clamp01((rel - 1400) / 600);
-        // AUDIT-3 / Walk 3.0: rigScale term keeps the planted foot exact
-        // through the scale-down (1.52 → 1.12, ~1.3 mid-walk).
-        const w = walkIn(wp * 600, W * 0.22, 120, 600, undefined, 1.3);
-        const gy = lerp(1140, HOST_GROUND, easeOutCubic(wp));
-        const sc = lerp(1.52, 1.12, easeOutCubic(wp));
-        // AUDIT-3 / §2.4: the landing squash — he ARRIVES at the presenter
-        // zone with a 300ms volume-preserving compress about his feet (the
-        // walk-down ends on a plant, not a glide).
-        const sinceLand = rel - 2000;
-        const squash = wp >= 1 && sinceLand >= 0 && sinceLand < 300
-          ? Math.sin((sinceLand / 300) * Math.PI)
-          : 0;
-        drawStickmanV2(ctx, w.x, gy, sc, tMs, {
-          pose: w.pose, alpha: 1, look: 0.5, squash,
-          walkPhase: w.walking ? w.phase : undefined,
-        }, 41);
+        const wp = clamp01((rel - 1400) / 1200);
+        // the settle — 2.6 → 2.3 in place (no walk; the composition never
+        // had a corner to walk from)
+        const gy = lerp(1660, HOST_GROUND, easeOutCubic(wp));
+        const sc = lerp(2.6, HOST_SCALE_SHORTS, easeOutCubic(wp));
+        const pose0 = Stickman.poseAt(tMs, {
+          gesture: 'heroPresent', speaking,
+          sentenceId: 'short-entry', prevSentenceId: 'short-entry',
+          sentenceT: Math.min(rel, 420), wordTimes: [],
+        });
+        const pose = reactK > 0.02 ? blendPose(pose0, POSES.shock, clamp01(reactK * 1.1)) : pose0;
+        drawStickmanV2(ctx, 540, gy, sc, tMs, { pose, alpha: 1, look: 0.4, faceScale: 1.35, talk: Math.max(0, 0.85 * reactK), jaw2x: reactK > 0.3 ? 1.6 : 1 }, 41);
       }
     }
   }

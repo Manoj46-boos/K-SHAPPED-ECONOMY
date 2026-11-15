@@ -210,6 +210,26 @@ export const POSES: Record<string, Pose> = {
   // P1-4: + silhouette terms — both eyes widen 1.15 (soft wide-eyed
   // warmth) and the shoulders lift (chest open, −3px drop = rise).
   warm: { ...base(), lean: -3, headTilt: -3, lAU: -34, lAL: -44, rAU: 30, rAL: 44, lLU: -9, rLU: 10, rLL: 6, browRaise: 0.42, smile: 0.85, pelvisTilt: -3.0, shoulderTilt: 2.4, eyeL: 1.15, eyeR: 1.15, shoulderDrop: -3 },
+  // ── 100-JUDGE PANEL / PHASE 1 item 1 — THE DELIBERATE REFUSAL ──────────
+  // report §6 Phase 1: "Target: 100% of beats with an on-screen host have
+  // a contact verb or a deliberate crossed-arm refusal." `crossed` is the
+  // refusal's KEY: both forearms fold across the chest (the near arm
+  // tucks under, the far arm wraps over — two angle sets that read as one
+  // folded stack at any scale), the chin lifts 2°, the brow flattens
+  // (browAngle) and the smile zeroes out: the body says "I'm not buying
+  // it" without a word. It is the sanctioned NON-contact verb for data
+  // beats whose staging keeps every object out of arm's reach — the
+  // arms CROSSED AT the data instead of reaching for it.
+  // Angle check (degrees from the down axis, + toward screen-right; limb
+  // angles are ABSOLUTE — the fold is authored end-to-end):
+  //   GEOMETRY (round-4 correction — the panel's pixel reads caught two
+  //   wrong folds: −148/−142 was the shrug's splay, −168 planted the fist
+  //   at the JAW). The true fold is a near-HORIZONTAL forearm: rAU 55 puts
+  //   the near elbow out at (51, −146); rAL −99 swings the forearm almost
+  //   level, left and 9px up — the fist lands at (−2, −154), the sternum.
+  //   The far arm mirrors (lAU −55, lAL 105 — 6px higher): two fists
+  //   stacked at the sternum, the forearms crossing the whole chest.
+  crossed: { ...base(), lean: 2, headTilt: 4, lAU: -55, lAL: 105, rAU: 55, rAL: -99, lLU: -6, rLU: 8, rLL: 4, browAngle: 12, smile: 0.06, browRaise: 0.14, pelvisTilt: -2, shoulderDrop: 4, lHand: 'fist', rHand: 'fist' },
 };
 
 export function blendPose(a: Pose, b: Pose, t: number): Pose {

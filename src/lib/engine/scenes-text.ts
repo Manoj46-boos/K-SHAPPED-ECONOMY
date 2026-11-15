@@ -240,6 +240,15 @@ export function bigTextScene(g: SceneCtx): void {
     // AUDIT-3 / §2.4 (report Phase 2.4 — SQUASH ON LANDINGS): the count
     // host LANDS — a 300ms volume-preserving squash about his feet as he
     // arrives (the film's loudest words get a body that receives them).
+    // 100-JUDGE PANEL / PHASE 1 item 1 — CONTACT IS MANDATORY (report §6
+    // Phase 1). The count host's data is the STATEMENT — the near hand
+    // SOLVES onto the gold underline's right end-cap (1246, 632): the palm
+    // BRACKETS the statement's underline while the far hand keeps the
+    // count2 tally raised. The host steps in from W*0.83 to 1330 so the
+    // underline tip is inside the 131px arm envelope (shoulder (1334, 543)
+    // → tip 125px, lands); the body core 1256-1404 stays 16px right of the
+    // underline's full extent (wipe ends 1240). Ground 735 keeps the feet
+    // band clear of the 2-row pill (top 796).
     const sinceLand = t - 2200;
     const squash = sinceLand >= 0 && sinceLand < 300
       ? Math.sin((sinceLand / 300) * Math.PI)
@@ -249,7 +258,7 @@ export function bigTextScene(g: SceneCtx): void {
     // gesture is work; the sleeves roll. Driven inside drawStickmanV2
     // from the pose's own rHand count glyph (cuff at the forearm, on
     // the body's ivory) so every count host inherits it.
-    drawStickmanV2(ctx, W * 0.83, H * 0.672, 1.17, t, { pose, alpha: hp, look: -0.6, parallax: true, squash }, 31);
+    drawStickmanV2(ctx, 1310, H * 0.681, 1.17, t, { pose, alpha: hp, look: -0.6, parallax: true, squash, contact: { x: 1240, y: 632, hand: 'palm' } }, 31);
   }
 }
 
@@ -518,7 +527,12 @@ export function quoteCardScene(g: SceneCtx): void {
     // v3 (panel P0-3): v2 renderer
     // P1-1 (report): +30% (0.94 → 1.22); ground → H*0.672 (envelope 770).
     // PANEL-12 / P2-1: foreground parallax.
-    drawStickmanV2(ctx, W * 0.83, H * 0.672, 1.22, t, { pose, alpha: hp, look: -0.7, parallax: true }, 33);
+    // ── 100-JUDGE PANEL / PHASE 1 item 1 — CONTACT IS MANDATORY (report
+    // §6 Phase 1): the hand ON the quote card he is reading. The host
+    // steps in from W*0.83 to 1500 (body core 1429-1571 — 8px clear of
+    // the card's right edge 1450) and the near hand palms the card's
+    // right edge at chest height; contact shadow at the press point.
+    drawStickmanV2(ctx, 1500, H * 0.672, 1.22, t, { pose, alpha: hp, look: -0.7, parallax: true, contact: { x: 1453, y: 480, hand: 'palm' } }, 33);
   }
 }
 
@@ -554,7 +568,10 @@ export function takeawaysScene(g: SceneCtx): void {
     });
     // v3 (panel P0-3): v2 renderer
     // P1-1 (report): +30% (1.0 → 1.3); ground → H*0.667 (envelope 767).
-    drawStickmanV2(ctx, W * 0.81, H * 0.667, 1.3, t, { pose, alpha: clamp01(t / 600), look: -0.5 }, 34);
+    // ── 100-JUDGE PANEL / PHASE 1 item 1 — CONTACT IS MANDATORY: the same
+    // palm-on-the-quote-card verb on the soft variant (shoulder (1499, 476)
+    // → edge (1453, 480) = 46px, lands with elbow bend).
+    drawStickmanV2(ctx, 1495, H * 0.667, 1.3, t, { pose, alpha: clamp01(t / 600), look: -0.5, contact: { x: 1453, y: 480, hand: 'palm' } }, 34);
   } else {
     // focused card zooms; other two minimized to the left rail
     for (let i = 1; i <= 3; i++) {
@@ -709,7 +726,14 @@ export function takeawaysScene(g: SceneCtx): void {
       // DOSSIER FOLLOW-UP: ground 0.635 -> 0.615 — the 0.635 ground was
       // sweep-certified at ZERO margin and the sweep caught a 12px graze
       // into the 2-row pill at the max camera + mid-group reframe stack.
-      drawStickmanV2(ctx, W * 0.19, H * 0.615, 1.3, t,
+      // ── 100-JUDGE PANEL / PHASE 1 item 1 — CONTACT IS MANDATORY (report
+      // §6 Phase 1): the host's hand ON the takeaway card he is walking
+      // through. Steps in to 420 (body core 329-511 — 27px clear of the
+      // card's registered left edge 538, feet band still clear of the
+      // frame's left edge under the steady camera) and the near hand palms
+      // the card's left edge at chest height — the hand on the list he is
+      // counting down, contact shadow at the press point.
+      drawStickmanV2(ctx, 420, H * 0.615, 1.3, t,
         {
           pose, alpha: hp, look: 0.6,
           prop: focus === 3 && rP <= 0.5 ? 'thumb' : undefined,
@@ -718,6 +742,7 @@ export function takeawaysScene(g: SceneCtx): void {
           // arches, talk envelope read at feed scale.
           faceScale: 1 + 0.8 * rP,
           parallax: true,
+          contact: { x: 546, y: 460, hand: 'palm' },
         }, 35);
     }
   }
@@ -959,7 +984,14 @@ export function endScreenScene(g: SceneCtx): void {
   // captions; a touch more headroom settles it.
   // P1-1 (report): +30% (1.0 → 1.3); ground → H*0.645 (envelope bottom
   // 697+47 = 744 — the widest-caption worst case clears by 32px).
-  drawStickmanV2(ctx, W * 0.44, H * 0.645, 1.3, t, { pose, alpha: clamp01((t - 800) / 600), look: -0.5 }, 37);
+  // ── 100-JUDGE PANEL / PHASE 1 item 1 — CONTACT IS MANDATORY (report
+  // §6 Phase 1): the farewell host's hand ON the WATCH NEXT card. The
+  // card rides the MID plane (camState 0.45×); the host joins the SAME
+  // plane (parallax 0.45) so palm and card travel together under the
+  // camera — the near hand palms the card's right edge at (820, 505)
+  // every frame, contact shadow where hand meets card (reach check:
+  // shoulder (849, 460) → edge 52px, lands).
+  drawStickmanV2(ctx, W * 0.44, H * 0.645, 1.3, t, { pose, alpha: clamp01((t - 800) / 600), look: -0.5, parallax: true, parallaxAmt: 0.45, contact: { x: 820, y: 505, hand: 'palm' } }, 37);
 
   // ── v8: the WATCH NEXT arrow — the end screen's click mechanism ────────
   // The panel's verdict: "no thumbnail target = the most commercially
