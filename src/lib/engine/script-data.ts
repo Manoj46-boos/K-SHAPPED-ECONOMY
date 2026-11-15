@@ -155,7 +155,12 @@ export const SCRIPT: ChapterSpec[] = [
           source: 'Investing.com',
           charts: [
             {
-              title: 'S&P 500 · 12 months',
+              // Fix 5.7: the '· 12 months' suffix is de-duplicated — the axis
+              // ("12 mo ago → Jul '26") and the badge already carry the
+              // period; at the narrowed card width the suffix collided with
+              // the +18.4%/+22% badge (title 508px + badge 117px > 600px
+              // row). Shorter titles restore the title row's air.
+              title: 'S&P 500',
               badge: '+18.4%',
               points: [
                 [0, 100], [3, 101.5], [5, 102], [7, 100], [9, 98.4], [11, 100.6],
@@ -164,7 +169,7 @@ export const SCRIPT: ChapterSpec[] = [
               ],
             },
             {
-              title: 'Nasdaq Composite · 12 months',
+              title: 'Nasdaq Composite',
               badge: '+22%',
               points: [
                 [0, 100], [3, 102], [5, 103], [7, 101], [9, 97.5], [11, 100.5],

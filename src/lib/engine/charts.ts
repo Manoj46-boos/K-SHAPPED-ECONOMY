@@ -53,6 +53,17 @@ export interface LineChartOpts {
   showYAxis?: boolean;
   gridLines?: number;
   lineWidth?: number;
+  /** 100-JUDGE AUDIT (fix 5.7 — FEED-SCALE AXIS, report: chartTwin "axis
+   *  text dies"): multiplier on the TYPE_FLOOR axis-label size, weight and
+   *  tone, for callers whose axis is READ text at the 320px gate. The
+   *  default (1 / 400 / inkFaint) keeps every legacy caller pixel-identical;
+   *  the twin-chart scene passes 1.25 / 600 / inkSoft — 50px at the master,
+   *  ~9px at the feed frame, inside the audit's 40-60px read-text band.
+   *  The x-label guard band grows with the scale so the caption clearance
+   *  the band was built for still holds at the scaled size. */
+  axisScale?: number;
+  axisWeight?: 300 | 400 | 600 | 700;
+  axisColor?: string;
   /** stop progress at a specific x-fraction (for phase highlighting) */
   revealFrac?: number;
   emphasizeLast?: boolean;
@@ -61,7 +72,7 @@ export interface LineChartOpts {
    *  them as "illustrative squiggles". Pass 3–5 labels (x in data units,
    *  same scale as points[][0]); they render under the plot, TYPE_FLOOR
    *  sized, and are omitted by callers that genuinely have no time axis. */
-  xLabels?: { at: number; label: string }[];
+  xLabels?: { at: number; label: string; anchor?: 'start' | 'end' }[];
   /** 100-JUDGE PANEL / PHASE 3 item 3.2 (FEED LEGIBILITY — THE REVEAL
    *  SETTLE): the absolute group-clock ms at which the draw-on COMPLETES.
    *  The endpoint dot's 140ms scale-in is keyed to this instant — without it
@@ -101,6 +112,14 @@ function settleReveal(r: number): number {
   if (r <= 0.85) return r;
   const s = Math.min(1, (r - 0.85) / 0.15);
   return 0.85 + 0.15 * (s + s * s - s * s * s);
+}
+
+/** Fix 5.7: exported so CONTACT-VERB scenes can compute the endpoint dot's
+ *  exact scene-space y with the SAME bounds math the plot uses (the chartTwin
+ *  palm lands on the Nasdaq dot — a re-derived bound would drift from the
+ *  rendered one). Internally unchanged. */
+export function lineChartYBounds(opts: LineChartOpts): [number, number] {
+  return yBounds(opts);
 }
 
 function yBounds(opts: LineChartOpts): [number, number] {
@@ -148,13 +167,21 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
   // all sit above them; bottom-anchored under the plot area.
   if (opts.xLabels && opts.xLabels.length) {
     const lastX = series[0].points[series[0].points.length - 1][0] || 1;
+    // Fix 5.7: the feed-scale axis — one size/weight/tone for both axes
+    const axScale = opts.axisScale ?? 1;
+    const axSize = Math.round(TYPE_FLOOR * axScale);
+    const axWeight = opts.axisWeight ?? 400;
+    const axColor = opts.axisColor ?? PALETTE.inkFaint;
     ctx.save();
-    setFont(ctx, TYPE_FLOOR, 400); // v9 (D-07): 24→28 floor
+    setFont(ctx, axSize, axWeight); // v9 (D-07): 24→28 floor
     ctx.textBaseline = 'alphabetic';
     // Guard sweep (304s): at the 40px floor the label band's bottom reached
     // the caption pill zone — the band now rides flush under the plot area
     // (the type keeps its floor; the chart yields the gap).
-    registerRect('lineChart:xLabels', x, y + h - 46, w, 40);
+    // Fix 5.7: the band grows with the axis scale (54px type needs a 65px
+    // band) so the caption clearance holds at the feed-scale size.
+    const bandH = Math.ceil(axSize * 1.2);
+    registerRect('lineChart:xLabels', x, y + h - bandH, w, bandH);
     // 100-JUDGE PANEL REPORT (defect D3 — THE SMEARED LABEL): each label
     // clamped inward independently, so when two labels landed within a
     // half-width of each other ("Jun" and "today" under the truck) both
@@ -171,7 +198,26 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       // their measured half-width instead of being dropped; the tick mark
       // stays at the true position.
       const halfW = ctx.measureText(xl.label).width / 2 + 4;
-      const lx = Math.min(Math.max(trueLx, x + halfW), x + w - halfW);
+      // Fix 5.7 (FEED-SCALE AXIS): the end labels used to CENTER on their
+      // true tick — a trailing "Jul '26" / "today" hung half its width past
+      // the plot's right edge and, on the twin charts, half past the CARD
+      // edge itself (the panel read it as axis slop). `anchor` gives a
+      // label an alignment AT its tick: 'start' parks the text's LEFT edge
+      // 6px right of the tick (the opening anchor), 'end' parks the RIGHT
+      // edge 6px left of the tick (the Bloomberg end-anchor). Centered
+      // remains the default for every legacy caller.
+      const tw = ctx.measureText(xl.label).width;
+      let lx: number, lo: number, hi: number;
+      if (xl.anchor === 'start') {
+        lx = Math.min(Math.max(trueLx + 6, x + 4), x + w - tw - 4);
+        lo = lx - 4; hi = lx + tw + 4;
+      } else if (xl.anchor === 'end') {
+        lx = Math.max(Math.min(trueLx - 6, x + w - 4), x + tw + 4);
+        lo = lx - tw - 4; hi = lx + 4;
+      } else {
+        lx = Math.min(Math.max(trueLx, x + halfW), x + w - halfW);
+        lo = lx - halfW; hi = lx + halfW;
+      }
       // tick mark at the TRUE position
       ctx.strokeStyle = rgba(PALETTE.grid, 0.6);
       ctx.lineWidth = 1.5;
@@ -179,11 +225,10 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       ctx.moveTo(trueLx, y + h);
       ctx.lineTo(trueLx, y + h + 6);
       ctx.stroke();
-      const lo = lx - halfW, hi = lx + halfW;
       if (claimed.some(([a, b]) => lo < b && hi > a)) continue;
       claimed.push([lo, hi]);
-      ctx.fillStyle = PALETTE.inkFaint;
-      ctx.textAlign = 'center';
+      ctx.fillStyle = axColor;
+      ctx.textAlign = xl.anchor === 'start' ? 'left' : xl.anchor === 'end' ? 'right' : 'center';
       ctx.fillText(xl.label, lx, y + h - 12); // inside the plot band — clear of the caption zone
     }
     ctx.restore();
@@ -223,9 +268,11 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     ctx.stroke();
     ctx.setLineDash([]);
     if (showYAxis) {
-      setFont(ctx, TYPE_FLOOR, 400); // v9 (D-07): 24→28 floor
-      ctx.fillStyle = PALETTE.inkFaint;
-      ctx.fillText(label(v), x - 14, gy);
+      // Fix 5.7: the feed-scale axis — same size/weight/tone as the x-labels
+      const axScale = opts.axisScale ?? 1;
+      setFont(ctx, Math.round(TYPE_FLOOR * axScale), opts.axisWeight ?? 400);
+      ctx.fillStyle = opts.axisColor ?? PALETTE.inkFaint;
+      ctx.fillText(label(v), x - 14 * axScale, gy);
     }
   }
   void gridLines;

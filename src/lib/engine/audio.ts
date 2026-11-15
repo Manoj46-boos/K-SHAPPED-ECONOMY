@@ -951,15 +951,34 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
 
   const loopLen48 = LOOP_DUR * SR_OUT;
   const CHUNK = 2_000_000;
-  for (const sect of sections) {
+  // D-12 (100-judge dossier — THE HARD SPLICE): sections tiled
+  // end-to-start with zero overlap — at every chapter boundary the
+  // outgoing bed stopped on the exact sample and the incoming loop
+  // restarted at phase 0 mid-phrase, a hard splice the riser could only
+  // mask ("restart at zero, not beat-matched"). Two changes:
+  //   (1) BEAT-MATCHED — the incoming bed's phase-0 downbeat lands exactly
+  //       ON the chapter cut, the same bar line the riser + K motif
+  //       already announce, so the splice reads as musical intent;
+  //   (2) CROSSFADED — the outgoing bed now plays PAST the boundary for
+  //       450ms with its phase still running (a loop that keeps looping,
+  //       never a restart), fading out under the incoming bed's equal-
+  //       power fade-in: a DJ blend on the downbeat, not a cut.
+  const XF = 0.45;
+  const xfFrames = Math.round(XF * SR_OUT);
+  for (let si = 0; si < sections.length; si++) {
+    const sect = sections[si];
     const s0 = Math.max(0, Math.round(sect.start * SR_OUT));
     const s1 = Math.min(totalFrames, Math.round(sect.end * SR_OUT));
     if (s1 <= s0) continue;
+    const hasPrev = si > 0;
+    const hasNext = si + 1 < sections.length;
+    const drawEnd = Math.min(totalFrames, s1 + (hasNext ? xfFrames : 0));
+    const xfInEnd = s0 + (hasPrev ? xfFrames : 0); // no fade-in on the opener
     let pos48 = 0;
     let variant = 0;
     let loop = loops.get(`${sect.mood}:${variant}`)!;
-    for (let i = s0; i < s1; i += CHUNK) {
-      const end = Math.min(s1, i + CHUNK);
+    for (let i = s0; i < drawEnd; i += CHUNK) {
+      const end = Math.min(drawEnd, i + CHUNK);
       for (let j = i; j < end; j++) {
         // 24k source position (linear interp), x2 upsample
         const sPos = pos48 * 0.5;
@@ -976,7 +995,13 @@ export async function renderMix(input: MixInput): Promise<AudioBuffer> {
         const fadeStart = totalSec - 4;
         if (t > fadeStart) tail = Math.max(0, 1 - (t - fadeStart) / 4);
         if (t < 2) tail *= 0.35 + 0.65 * (t / 2);
-        const g = duck * tail;
+        // the boundary blend: equal-power ramps (sqrt keeps the summed
+        // loudness flat through the overlap), in over [s0, xfInEnd], out
+        // over [s1, drawEnd]
+        let xf = 1;
+        if (j < xfInEnd) xf *= Math.sqrt(Math.max(0, (j - s0) / xfFrames));
+        else if (j >= s1 && hasNext) xf *= Math.sqrt(Math.max(0, 1 - (j - s1) / xfFrames));
+        const g = duck * tail * xf;
         L[j] += (loop.L[sIdx] + (loop.L[idx2] - loop.L[sIdx]) * frac) * g;
         R[j] += (loop.R[sIdx] + (loop.R[idx2] - loop.R[sIdx]) * frac) * g;
         pos48 += 1;

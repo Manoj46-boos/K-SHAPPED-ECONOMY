@@ -1016,12 +1016,16 @@ export function walkIn(
   if (walking) {
     pose = Stickman.walkPose(phase, speed);
     // PREMIUM UPGRADE M1: WALK ACCELERATION LEAN. The torso leans forward
-    // +8° during the first 22% of the walk (acceleration), returns to neutral
+    // during the first 22% of the walk (acceleration), returns to neutral
     // in the cruise, and leans back -4° in the last 22% (deceleration). A
     // heavy walk leans into its acceleration and resists its deceleration —
     // the old flat lean read as gliding, not walking.
+    // 100-JUDGE AUDIT (fix 5.11 — §7 walk tuning notes): the +8° launch lean
+    // read as a stumble at the 2.65 presenting scale (the head leads too
+    // far past the entry whip). The launch lean tunes to +5° — intent kept,
+    // posture premium.
     if (p < 0.22) {
-      pose = { ...pose, lean: pose.lean + 8 * (1 - p / 0.22) };
+      pose = { ...pose, lean: pose.lean + 5 * (1 - p / 0.22) };
     } else if (p > 0.78) {
       pose = { ...pose, lean: pose.lean - 4 * ((p - 0.78) / 0.22) };
     }
@@ -1043,7 +1047,12 @@ export function walkIn(
         // the back foot closes (the drag): the near leg's angle eases
         // toward the arrival's stance while the FAR leg lags 120ms —
         // the classic closing step
-        rootY: settled.rootY + Math.sin(Math.min(1, kb) * Math.PI) * 3,
+        rootY: settled.rootY + Math.sin(Math.min(1, kb) * Math.PI) * 3
+          // 100-JUDGE AUDIT (fix 5.11 — the EXTRA ARRIVAL SETTLE BEAT, §7
+          // walk notes): a final 1.5px exhale-pulse across p 0.9→1.0 — the
+          // second bounce that turns the landing into a settle. Peaks at
+          // p≈0.95, exactly zero at the stop — motion ends at rest.
+          + Math.sin(clamp01((p - 0.9) / 0.1) * Math.PI) * 1.5,
         pelvisTilt: (settled.pelvisTilt ?? 0) + (1 - kb) * 6,
         lLift: Math.max(0, (settled.lLift ?? 0) - dragT * 4),
       };

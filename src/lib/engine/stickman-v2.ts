@@ -25,7 +25,7 @@
  */
 
 import { PALETTE, rgba, roundRect, hexLerp } from './theme';
-import { clamp, clamp01, hash01 } from './easing';
+import { clamp, clamp01, hash01, easeOutCubic } from './easing';
 import { registerRect } from './collision';
 import { camState } from './effects';
 import { AMP, INK } from './perception';
@@ -625,13 +625,34 @@ function handGlyph(
     // N extended fingers are subpaths of a single beginPath/fill (nonzero
     // winding), rooted INSIDE the mass so the union silhouette is one hand
     // (the old per-stroke tapers read as disconnected splat legs).
+    // PHASE-5 FIX (D-09 — THE LEMON HANDS): the fillStyle was set INSIDE
+    // the save/translate/rotate block and the fill() ran AFTER restore() —
+    // restore pops fillStyle back to whatever the caller last filled with
+    // (the #A8851B rolled sleeve, the scarf's gold, gold numerals), so
+    // every fist at a contact/point call site rendered in that leftover
+    // gold: the panel's "cast hands read as blobs/lemon at 1080p". The
+    // fill now happens AFTER restore with col set explicitly — hands are
+    // ink, the documented PHASE-1 language.
     ctx.save();
     ctx.translate(x + Math.sin(a) * s * 0.1, y + Math.cos(a) * s * 0.1);
     ctx.rotate(a);
-    ctx.fillStyle = col;
     ctx.beginPath();
     roundRect(ctx, -s * 0.4, -s * 0.32, s * 0.8, s * 0.74, s * 0.28);
     ctx.restore();
+    // PHASE-5 (D-09 — ARTICULATION): at close-up rig scales the plain
+    // capsule reads as a lemon. Two knuckle scallops on the leading edge
+    // (same clockwise winding as the capsule — nonzero winding unions
+    // them into one silhouette) give the fist its finger read without any
+    // interior line: silhouette articulation, safe on every plane.
+    if (rigScale >= 1.25) {
+      const fx1 = x + Math.sin(a) * s * 0.38, fy1 = y + Math.cos(a) * s * 0.38;
+      const pxk = Math.sin(a + Math.PI / 2), pyk = Math.cos(a + Math.PI / 2);
+      for (const koff of [-0.17, 0.17]) {
+        const kx = fx1 + pxk * koff * s, ky = fy1 + pyk * koff * s;
+        ctx.moveTo(kx + Math.sin(a) * s * 0.16 + s * 0.13, ky + Math.cos(a) * s * 0.16 + 0);
+        ctx.arc(kx + Math.sin(a) * s * 0.16, ky + Math.cos(a) * s * 0.16, s * 0.13, 0, Math.PI * 2);
+      }
+    }
     // the N extended fingers — PHASE-1: roots buried DEEP in the fist mass
     // (0.30s → 0.14s along the axis, base width 0.30s → 0.34s) so the
     // fingers leave the mass as one webbed bundle — never as separate
@@ -649,6 +670,7 @@ function handGlyph(
       ctx.lineTo(bx + px2 * w0 / 2, by + py2 * w0 / 2);
       ctx.closePath();
     }
+    ctx.fillStyle = col; // AFTER restore — the fix that un-lemons the hand
     ctx.fill();
     // the thumb bar across the fist — the closed-hand read
     taper(ctx, x + Math.sin(a) * s * 0.06, y + Math.cos(a) * s * 0.06,
@@ -671,15 +693,29 @@ function handGlyph(
       x + Math.sin(a) * s * 1.38, y + Math.cos(a) * s * 1.38,
       s * 0.34, s * 0.15, col);
     // the thickened mitten mass — the palm wedge +30% across the axis
+    // (PHASE-5 D-09: fill moved AFTER restore — see the fist note)
     ctx.save();
     ctx.translate(x + Math.sin(a) * s * 0.36, y + Math.cos(a) * s * 0.36);
     ctx.rotate(a);
-    ctx.fillStyle = col;
     ctx.beginPath();
     roundRect(ctx, -s * 0.65, -s * 0.46, s * 1.3, s * 0.98, s * 0.44);
     ctx.restore();
-    // the thumb lobe — a rounded bump on the wrist side, one subpath
-    ctx.beginPath();
+    // PHASE-5 (D-09 — ARTICULATION): two folded-finger scallops tucked
+    // under the index root at close-up — the pointing hand's read comes
+    // from the folded pair, not from the finger alone.
+    if (rigScale >= 1.25) {
+      const pxk = Math.sin(a + Math.PI / 2), pyk = Math.cos(a + Math.PI / 2);
+      for (const koff of [-0.34, -0.06]) {
+        const kx = x + Math.sin(a) * s * 0.52 + pxk * koff * s;
+        const ky = y + Math.cos(a) * s * 0.52 + pyk * koff * s;
+        ctx.moveTo(kx + s * 0.12, ky);
+        ctx.arc(kx, ky, s * 0.12, 0, Math.PI * 2);
+      }
+    }
+    // the thumb lobe — a rounded bump on the wrist side, ONE subpath of
+    // the mass's own path (PHASE-5 D-09: the stale beginPath here used to
+    // wipe the palm mass before its fill — the point hand drew as a bare
+    // finger + floating lobe; the mass path now survives to the fill)
     {
       const fa = a + 1.05;
       const bx = x + Math.sin(a) * s * 0.36, by = y + Math.cos(a) * s * 0.36;
@@ -693,6 +729,7 @@ function handGlyph(
       );
       ctx.closePath();
     }
+    ctx.fillStyle = col; // AFTER restore — the fix that un-lemons the hand
     ctx.fill();
     return;
   }
@@ -705,13 +742,37 @@ function handGlyph(
   // count glyphs carry the articulation). PHASE-1 also thickens the palm
   // mass ~30% (1.0s → 1.3s across the axis) so a raised hand has real
   // mass against the sky.
+  // PHASE-5 FIX (D-09 — THE LEMON HANDS, root cause): the palm mass was
+  // built inside save/translate/rotate with fillStyle=col, then filled
+  // AFTER restore() — restore pops fillStyle back to the caller's last
+  // fill (rolled sleeve #A8851B, scarf gold, gold numerals), so the
+  // mitten inherited whatever gold the scene had just laid down. Every
+  // close-up hand in the host-lead and cast frames rendered as a gold
+  // lemon with an ink thumb notch — the craft board's "the worst
+  // betrayal". The fill now runs after restore with col set explicitly:
+  // the hand is INK, the documented one-ink language, at every call site.
   ctx.save();
   ctx.translate(x + Math.sin(a) * s * 0.4, y + Math.cos(a) * s * 0.4);
   ctx.rotate(a);
-  ctx.fillStyle = col;
   ctx.beginPath();
   roundRect(ctx, -s * 0.65, -s * 0.46, s * 1.3, s * 0.98, s * 0.44);
   ctx.restore();
+  // PHASE-5 (D-09 — ARTICULATION): at close-up rig scales (host 2.65,
+  // cast 1.45+) the plain capsule silhouette reads as a lemon. Three
+  // finger scallops on the leading edge — arcs sharing the capsule's
+  // clockwise winding, unioned by nonzero fill — turn the silhouette
+  // into bump-and-notch knuckles: a hand, not a fruit, on any plane
+  // (no interior lines to survive or die at feed scale).
+  if (rigScale >= 1.25) {
+    const fxc = x + Math.sin(a) * s * 0.58, fyc = y + Math.cos(a) * s * 0.58;
+    const pxs = Math.sin(a + Math.PI / 2), pys = Math.cos(a + Math.PI / 2);
+    for (const f of [-1, 0, 1]) {
+      const sx = fxc + pxs * f * 0.28 * s, sy = fyc + pys * f * 0.28 * s;
+      const fr = s * 0.15;
+      ctx.moveTo(sx + Math.sin(a) * s * 0.14 + fr, sy + Math.cos(a) * s * 0.14);
+      ctx.arc(sx + Math.sin(a) * s * 0.14, sy + Math.cos(a) * s * 0.14, fr, 0, Math.PI * 2);
+    }
+  }
   // the thumb lobe — a rounded bump on the wrist side, one subpath
   {
     const fa = a + 1.05;
@@ -726,6 +787,7 @@ function handGlyph(
     );
     ctx.closePath();
   }
+  ctx.fillStyle = col; // AFTER restore — the fix that un-lemons the hand
   ctx.fill();
   return;
 }
@@ -988,7 +1050,7 @@ export function drawStickmanV2(
      *  true). The hand rect registers as guard cls 'contact' — scenes that
      *  let the body stand near registered content declare the touched
      *  object with collision.declareHostContact(). */
-    contact?: { x: number; y: number; hand?: 'palm' | 'point' | 'fist' | 'count1' | 'count2' | 'count3'; bend?: 1 | -1; shadow?: boolean };
+    contact?: { x: number; y: number; hand?: 'palm' | 'point' | 'fist' | 'count1' | 'count2' | 'count3'; bend?: 1 | -1; shadow?: boolean; easeAt?: number };
     /** 100-JUDGE PANEL / PHASE 2 item 2 — THE POINTING-HAND CLEARANCE RULE
      *  (report §6 Phase 2: "the pointing hand terminates 40-60px from its
      *  target's bounding box, never inside it"). A SCENE-SPACE rect the
@@ -1379,10 +1441,25 @@ export function drawStickmanV2(
     const swingAgo = (aL4 - 34 * D2R * lsm);
     const fpx = hipRX + Math.sin(aU4) * U_LEG + Math.sin(swingAgo) * L_LEG;
     const fpy = hipRY + Math.cos(aU4) * U_LEG + Math.cos(swingAgo) * L_LEG;
+    // PHASE-5 FIX (D-09 — THE GRAY CLOUD): the single 0.26-alpha taper
+    // spanned the whole swept arc as ONE translucent mass — on stills it
+    // read as a gray cloud parked behind the leg, exactly the smear-ghost
+    // critique. The echo is now DRAWN: three thin speed-lines riding the
+    // arc's normal offsets, gaps between them, each tapered hard toward
+    // the trail — velocity carried by line structure (the Preston Blair
+    // speed-line convention), not by a translucent plank. Total ink is
+    // lower than the old mass; the motion read is stronger.
     ctx.save();
-    ctx.globalAlpha = alpha * 0.26 * lsm; // iter-3: 0.40 -> 0.26 — a velocity hint, not a ghost leg
-    taper(ctx, fpx, fpy, fex + (fex - fpx) * 0.22, fey + (fey - fpy) * 0.22,
-      INK.legNear[1] * 0.9, INK.legNear[2] * 0.7, ink);
+    const nxs = -(fey - fpy), nys = (fex - fpx);
+    const nl = Math.hypot(nxs, nys) || 1;
+    for (const k of [-1, 0, 1]) {
+      const off = k * 11;
+      ctx.globalAlpha = alpha * (k === 0 ? 0.30 : 0.20) * lsm;
+      taper(ctx,
+        fpx + nxs / nl * off, fpy + nys / nl * off,
+        fex + (fex - fpx) * 0.10 + nxs / nl * off, fey + (fey - fpy) * 0.10 + nys / nl * off,
+        INK.legNear[1] * 0.5, INK.legNear[2] * 0.25, ink);
+    }
     ctx.restore();
   }
 
@@ -1615,9 +1692,30 @@ export function drawStickmanV2(
     const tLx = ((r.contact.x - cx) / scale) * flipS;
     const tLy = (r.contact.y - groundY) / scale;
     const ik = armIk(shX2, shY2, tLx, tLy, U_ARM, L_ARM, r.contact.bend ?? 1);
-    pose.rAU = ik.aU;
-    pose.rAL = ik.aL;
-    if (r.contact.hand) pose.rHand = r.contact.hand;
+    // Fix 5.7 (chartTwin — THE HAND ARRIVES WITH THE PEN): a contact that
+    // switches on mid-scene must not teleport the arm — the hard-swap read
+    // as a glitch is the exact defect the reaction-envelope round retired.
+    // `easeAt` = the scene-ms the touch begins; the solved angles blend in
+    // over the house 480ms easeOutCubic (the pose's own angles own the arm
+    // until then). Before easeAt the contact rect still registers (the hand
+    // is approaching its own target, not plating foreign content).
+    if (r.contact.easeAt !== undefined) {
+      const ep = clamp01((t - r.contact.easeAt) / 480);
+      if (ep < 1) {
+        const eb = easeOutCubic(ep);
+        pose.rAU = lerp2(pose.rAU, ik.aU, eb);
+        pose.rAL = lerp2(pose.rAL, ik.aL, eb);
+        if (r.contact.hand) pose.rHand = r.contact.hand;
+      } else {
+        pose.rAU = ik.aU;
+        pose.rAL = ik.aL;
+        if (r.contact.hand) pose.rHand = r.contact.hand;
+      }
+    } else {
+      pose.rAU = ik.aU;
+      pose.rAL = ik.aL;
+      if (r.contact.hand) pose.rHand = r.contact.hand;
+    }
     // the hand's scene-space rect — guard-visible ('contact'), so it can
     // never plate the caption pill or the watermark even mid-gesture
     const hLx = shX2 + Math.sin(pose.rAU * D2R) * U_ARM + Math.sin(pose.rAL * D2R) * L_ARM;

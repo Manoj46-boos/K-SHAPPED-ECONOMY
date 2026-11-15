@@ -13,6 +13,7 @@ import { pivotTakeStart } from './pivots';
 import { HERO } from './perception';
 import { drawStickmanV2 } from './stickman-v2';
 import { wrapText } from './charts';
+import { registerRect } from './collision';
 
 function bg(g: SceneCtx, seed: number, gold = 0.4, strength = 0.72, bokeh = 0.85): void {
   paintBg(g.ctx, g.W, g.H, g.t, g.chapterTone);
@@ -415,111 +416,177 @@ export function stampCardScene(g: SceneCtx): void {
 }
 
 // ── quoteCard: caveats, quotes, disclaimer ───────────────────────────────────
+// PHASE-5 RE-STAGE (feed board: "a text card with a shrug; zero visual
+// thought — first candidate for re-staging"). The cream card is GONE: this
+// scene becomes the film's EDITORIAL PULL-QUOTE plane — a full-bleed
+// magazine treatment that also breaks the 17-of-18 same-card-grammar read
+// (D-15): Fraunces display serif quote text floating directly on the toned
+// room, a giant ghost quotation mark as the anchor, ONE 6px gold vertical
+// rule drawing on beside the text (the pull-quote bar), a hairline foot
+// rule with the icon stamped at its end, and the host's palm resting ON
+// the hairline like a hand on a desk. Editorial furniture, not a box.
 export function quoteCardScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   bg(g, 231, 0.4, 0.72, 0.45); // P2-3: typography-forward beat — bokeh whisper, not 0.85
   const soft = !!s.soft;
   const lines = (s.lines as string[]) || [];
   const ap = clamp01(t / 700);
-  const cw = 980;
-  const x = W / 2 - cw / 2;
-  // FIX 3 (empty-band payload): the card rose 0.24H -> 0.16H — the top
-  // quarter of the frame was bare plate (the phone gate measured a 22%
-  // empty band above the card); the ghost glyph + card furniture now own it.
-  const y = H * 0.16;
-  // FIX 3 (density payload — the frame measured 2.3% info): the quote room
-  // gains its own furniture — a 400px ghost serif quotation mark behind the
-  // card's top-left (the beat IS a quotation/caveat; the glyph is content-
-  // true furniture) at readable register, and the card's accent rail doubles.
+  // the pull-quote plane's fixed furniture (fixed = the host's contact
+  // target stays put no matter how many rows the quote wraps to)
+  const ruleX = 340; // the vertical pull-quote bar
+  const textX = 396; // the quote text's left edge
+  const blockR = 1420; // the text zone's right edge (host keeps 80px clear)
+  const accent = soft ? PALETTE.inkFaint : PALETTE.gold;
+  const accentDeep = soft ? PALETTE.inkFaint : PALETTE.goldDeep;
+  // THE SHEET — the editorial column: a full-bleed, edge-to-edge paper
+  // band laid across the room (no corners, no border, no shadow — a value
+  // plane, not a card). It gives the quote its feed-scale ink mass: the
+  // 320px gate judged the first pass "an empty pink room" because 52px
+  // serif on the bare tone room carries no silhouette. The sheet is the
+  // magazine's tinted column — a DIFFERENT plane from the film's rounded
+  // cream cards, which is the point (D-15).
+  {
+    const bp = clamp01((t - 40) / 600);
+    if (bp > 0) {
+      ctx.save();
+      ctx.globalAlpha = ap * 0.42 * easeOutCubic(bp);
+      ctx.fillStyle = PALETTE.card;
+      ctx.fillRect(0, 168, W, 480 * easeOutCubic(bp));
+      ctx.restore();
+    }
+  }
+  // the eyebrow: a 44px gold dash + the kicker in small-caps register
+  {
+    const kp = clamp01((t - 120) / 500);
+    if (kp > 0) {
+      ctx.save();
+      ctx.globalAlpha = ap * kp;
+      ctx.fillStyle = accent;
+      ctx.fillRect(ruleX, 226, 44 * easeOutCubic(kp), 7);
+      setFont(ctx, 34, 700);
+      ctx.fillStyle = accentDeep;
+      ctx.textAlign = 'left';
+      ctx.fillText((s.kicker as string).toUpperCase(), ruleX + 64, 241);
+      ctx.restore();
+    }
+  }
+  // the giant ghost mark — the beat IS a quotation; the glyph is the
+  // composition's anchor, pulled INTO the block (left of the bar, behind
+  // the first rows) instead of floating in the old top quarter
   {
     const gp = clamp01((t - 200) / 700);
     if (gp > 0) {
       ctx.save();
-      ctx.globalAlpha = gp * (soft ? 0.34 : 0.42);
-      setFont(ctx, 400, 700, FONT_DISPLAY);
+      ctx.globalAlpha = gp * (soft ? 0.22 : 0.3);
+      setFont(ctx, 360, 700, FONT_DISPLAY);
       ctx.textAlign = 'left';
-      ctx.fillStyle = PALETTE.gold;
-      ctx.fillText('\u201C', x - 60, y + 330);
+      ctx.fillStyle = accent;
+      ctx.fillText('\u201C', ruleX - 74, 560);
       ctx.restore();
     }
   }
-  // PANEL-9 R7h (caveat lines colliding inside the card): ch was a flat
-  // 200 + lines.length*60 — one 60px slot per line — but lines WRAP at
-  // cw-160 = 820px, and a wrapped second row (46px below the first) crashed
-  // into the NEXT line's slot (c4-caveat: "reignited" printed 22px under
-  // "most interviews wrapped…", on top of "the mood by the time you
-  // watch…"). The card is now sized from MEASURED wrapped rows: 46px
-  // leading inside a wrap, 68px between logical lines, real bottom padding.
-  const wrapped = lines.map((ln) => wrapText(ctx, ln, cw - 160, 40, 700));
-  const ch =
-    168 +
-    wrapped.reduce((a, ls) => a + ls.length * 50, 0) +
-    Math.max(0, lines.length - 1) * 22;
-  ctx.save();
-  ctx.globalAlpha = ap;
-  ctx.translate(0, (1 - easeOutCubic(ap)) * 36);
-  card(ctx, x, y, cw, ch, { r: 34 });
-  // accent — FIX 3: 8 -> 14px rail (the card's one accent carries more mass)
-  ctx.fillStyle = soft ? rgba(PALETTE.grid, 0.9) : PALETTE.gold;
-  roundRect(ctx, x + 44, y + 40, 14, ch - 80, 7);
-  ctx.fill();
-  // kicker
-  setFont(ctx, 34, 700); // v9 (D-07): floor
-  ctx.fillStyle = soft ? PALETTE.inkFaint : PALETTE.goldDeep;
-  ctx.textAlign = 'left';
-  ctx.fillText((s.kicker as string).toUpperCase(), x + 84, y + 78);
-  // lines — R7h: running cursor; each logical line advances by its own
-  // wrapped row count (was a flat i*68 slot that wrapped rows overprinted)
-  // FIX 3: 36 -> 40px at weight 700 — the READ floor; the quote's lines are
-  // the frame's only body copy and now carry commensurate ink.
-  setFont(ctx, 40, 700);
-  ctx.fillStyle = PALETTE.ink;
-  let lnY = y + 148;
+  // the quote text — Fraunces 58px/700, measured wrap (the R7h cursor
+  // logic survives; the type is now the display face the masthead uses,
+  // sized so a row survives the 320px gate at a readable 9.7px)
+  const quoteWrap = 980;
+  setFont(ctx, 58, 700, FONT_DISPLAY);
+  const wrapped = lines.map((ln) => wrapText(ctx, ln, quoteWrap, 58, 700));
+  // compress leading if the quote runs long (the furniture never moves)
+  const rows = wrapped.reduce((a, ls) => a + ls.length, 0);
+  const leading = rows > 4 ? 64 : 72;
+  const qY0 = 340;
+  // the vertical pull-quote bar — draws on top→bottom, reaching the block's
+  // full height just as the last line lands (the reveal reads as ONE pen)
+  const ruleEnd = qY0 + Math.max(0, rows - 1) * leading + 48;
+  {
+    const rp = clamp01((t - 60) / 900);
+    if (rp > 0) {
+      const e = easeOutCubic(rp);
+      ctx.save();
+      ctx.globalAlpha = ap;
+      ctx.fillStyle = accent;
+      ctx.fillRect(ruleX, 288, 8, (ruleEnd - 288) * e);
+      ctx.restore();
+    }
+  }
+  setFont(ctx, 58, 700, FONT_DISPLAY);
+  ctx.fillStyle = soft ? PALETTE.inkSoft : PALETTE.ink;
+  let lnY = qY0;
   lines.forEach((ln, i) => {
     const lp = clamp01((t - 350 - i * 420) / 650);
     if (lp <= 0) return;
-    ctx.globalAlpha = ap * lp;
+    ctx.globalAlpha = ap * easeOutCubic(lp);
     wrapped[i].forEach((wl) => {
-      ctx.fillText(wl, x + 84, lnY);
-      lnY += 50;
+      ctx.fillText(wl, textX, lnY);
+      lnY += leading;
     });
-    lnY += 22;
+    lnY += 14;
   });
-  // icon
-  const icon = s.icon as string;
-  const ip = clamp01((t - 200) / 600);
-  if (ip > 0) {
-    ctx.globalAlpha = ap * ip;
-    const ix = x + cw - 120;
-    const iy = y + 80;
-    ctx.strokeStyle = PALETTE.gold;
-    ctx.lineWidth = 6;
-    ctx.lineCap = 'round';
-    if (icon === 'asterisk') {
-      for (let k = 0; k < 3; k++) {
-        const a = (k / 3) * Math.PI;
+  // the foot rule + the stamped icon — the quote's editorial foot; the
+  // hairline sweeps in from the left, the glyph pops at its far end
+  const footY = 596;
+  {
+    const fp = clamp01((t - 560) / 500);
+    if (fp > 0) {
+      const e = easeOutCubic(fp);
+      ctx.save();
+      ctx.globalAlpha = ap;
+      ctx.strokeStyle = soft ? PALETTE.grid : rgba(PALETTE.goldDeep, 0.55);
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(ruleX, footY);
+      ctx.lineTo(ruleX + (blockR - ruleX) * e, footY);
+      ctx.stroke();
+      // the icon stamp — the asterisk/shield glyph inside a thin ring,
+      // pinned at the eyebrow row's RIGHT end (the footnote-marker
+      // position; the first pass clipped the quote's last row)
+      const ip = clamp01((t - 620) / 400);
+      if (ip > 0) {
+        ctx.globalAlpha = ap * ip;
+        const ix = blockR - 44;
+        const iy = 226;
+        const pop = 0.6 + 0.4 * easeOutBack(ip);
+        ctx.save();
+        ctx.translate(ix, iy);
+        ctx.scale(pop, pop);
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 3.5;
         ctx.beginPath();
-        ctx.moveTo(ix - Math.cos(a) * 26, iy - Math.sin(a) * 26);
-        ctx.lineTo(ix + Math.cos(a) * 26, iy + Math.sin(a) * 26);
+        ctx.arc(0, 0, 34, 0, Math.PI * 2);
         ctx.stroke();
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'round';
+        const icon = s.icon as string;
+        if (icon === 'shield') {
+          ctx.beginPath();
+          ctx.moveTo(0, -16);
+          ctx.lineTo(13, -9);
+          ctx.lineTo(13, 5);
+          ctx.quadraticCurveTo(0, 18, -13, 5);
+          ctx.lineTo(-13, -9);
+          ctx.closePath();
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(-5, 0);
+          ctx.lineTo(-1, 5);
+          ctx.lineTo(6, -5);
+          ctx.stroke();
+        } else {
+          // asterisk (default)
+          for (let k = 0; k < 3; k++) {
+            const a2 = (k / 3) * Math.PI;
+            ctx.beginPath();
+            ctx.moveTo(-Math.cos(a2) * 14, -Math.sin(a2) * 14);
+            ctx.lineTo(Math.cos(a2) * 14, Math.sin(a2) * 14);
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
       }
-    } else if (icon === 'shield') {
-      ctx.beginPath();
-      ctx.moveTo(ix, iy - 28);
-      ctx.lineTo(ix + 24, iy - 16);
-      ctx.lineTo(ix + 24, iy + 8);
-      ctx.quadraticCurveTo(ix, iy + 32, ix - 24, iy + 8);
-      ctx.lineTo(ix - 24, iy - 16);
-      ctx.closePath();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(ix - 9, iy);
-      ctx.lineTo(ix - 2, iy + 9);
-      ctx.lineTo(ix + 11, iy - 9);
-      ctx.stroke();
+      ctx.restore();
     }
   }
-  ctx.restore();
+  registerRect('quoteCard:quote', ruleX, 220, blockR - ruleX, footY - 200);
   // host reacting
   const hp = clamp01((t - 800) / 600);
   if (hp > 0) {
@@ -528,12 +595,10 @@ export function quoteCardScene(g: SceneCtx): void {
     // v3 (panel P0-3): v2 renderer
     // P1-1 (report): +30% (0.94 → 1.22); ground → H*0.672 (envelope 770).
     // PANEL-12 / P2-1: foreground parallax.
-    // ── 100-JUDGE PANEL / PHASE 1 item 1 — CONTACT IS MANDATORY (report
-    // §6 Phase 1): the hand ON the quote card he is reading. The host
-    // steps in from W*0.83 to 1500 (body core 1429-1571 — 8px clear of
-    // the card's right edge 1450) and the near hand palms the card's
-    // right edge at chest height; contact shadow at the press point.
-    drawStickmanV2(ctx, 1500, H * 0.672, 1.22, t, { pose, alpha: hp, look: -0.7, parallax: true, contact: { x: 1453, y: 480, hand: 'palm' } }, 33);
+    // ── PHASE-5 (the pull-quote's contact verb): the palm rests ON the
+    // foot rule's right end — a hand on the desk the quote is set on,
+    // 8px clear of the text zone (body core 1480-1640).
+    drawStickmanV2(ctx, 1560, H * 0.672, 1.22, t, { pose, alpha: hp, look: -0.7, parallax: true, contact: { x: 1428, y: footY - 6, hand: 'palm' } }, 33);
   }
 }
 
@@ -939,18 +1004,89 @@ export function endScreenScene(g: SceneCtx): void {
   ctx.fillStyle = PALETTE.upSoft;
   roundRect(ctx, nx + 24, ny + 24, 612, 250, 20);
   ctx.fill();
-  // PLAYBOOK T4 (report §8.5): the teaser thumbnail's K turns too — the
-  // film's last shot of the brand object re-becomes MASS (one 900ms sweep
-  // after the card settles; face stays OFF per P0-2).
-  drawK3D(ctx, nx + 170, ny + 145, 76, clamp01((t - 300) / 900), t, false, clamp01((t - 1100) / 900));
-  ctx.strokeStyle = rgba(PALETTE.up, 0.8);
-  ctx.lineWidth = 6;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(nx + 320, ny + 210); ctx.lineTo(nx + 380, ny + 170);
-  ctx.lineTo(nx + 420, ny + 190); ctx.lineTo(nx + 500, ny + 110);
-  ctx.lineTo(nx + 580, ny + 80);
-  ctx.stroke();
+  // PLAYBOOK T4 (report §8.5): the teaser thumbnail's K re-becomes MASS —
+  // RETIRED (PHASE-5, D-08 follow-up): the turn param swept the extrusion
+  // axis to 95° at t≈2s and crossfaded the FULL glossy stack back in —
+  // walls, AO wedge, chamfer, glint — re-glossing the very K that Phase
+  // 3.4 un-speculared, on the film's last frame. The farewell K stays the
+  // PAINTED flat-gold mark (turn = 0): two-tone face + one-light depth
+  // wall, the same ink language as everything else on screen. The card's
+  // chart carries the motion instead — it's the real one (below).
+  drawK3D(ctx, nx + 170, ny + 145, 76, clamp01((t - 300) / 900), t, false, 0);
+  // PHASE-5 (feed board: "thumbnail-in-thumbnail with an unreadable chart
+  // at 320px"): the decorative 4-point squiggle is GONE — the teaser now
+  // carries a REAL labeled mini-chart of the film's own Nasdaq series:
+  // draw-on reveal, endpoint dot, value badge, hairline baseline. A chart
+  // that says what it shows survives the 320px gate; a squiggle never did.
+  {
+    const cp = clamp01((t - 500) / 1100);
+    if (cp > 0) {
+      const series: [number, number][] = [
+        [0, 100], [3, 102], [5, 103], [7, 101], [9, 97.5], [11, 100.5],
+        [13, 104], [16, 107], [19, 110.5], [22, 114], [25, 117],
+        [28, 119.5], [31, 121.5], [34, 123], [37, 124.5], [40, 122],
+      ];
+      const px0 = nx + 306, px1 = nx + 612;
+      const py0 = ny + 96, py1 = ny + 226;
+      const vmin = 95, vmax = 127;
+      const mx = 40;
+      const fx = (u: number): number => px0 + (u / mx) * (px1 - px0);
+      const fy = (v: number): number => py1 - ((v - vmin) / (vmax - vmin)) * (py1 - py0);
+      // hairline baseline — the chart plane
+      ctx.strokeStyle = rgba(PALETTE.inkSoft, 0.35);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(px0, py1 + 12);
+      ctx.lineTo(px1, py1 + 12);
+      ctx.stroke();
+      let reveal = cp;
+      if (reveal > 0.85) {
+        const u2 = (reveal - 0.85) / 0.15;
+        reveal = 0.85 + 0.15 * (1 - Math.pow(1 - u2, 2)); // the pen-lift settle
+      }
+      const drawnU = reveal * mx;
+      ctx.strokeStyle = PALETTE.upVivid;
+      ctx.lineWidth = 5.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      let ep: [number, number] | null = null;
+      for (const [u, v] of series) {
+        if (u > drawnU) break;
+        const p: [number, number] = [fx(u), fy(v)];
+        if (!ep) ctx.moveTo(p[0], p[1]);
+        else ctx.lineTo(p[0], p[1]);
+        ep = p;
+      }
+      ctx.stroke();
+      if (ep && reveal >= 0.999) {
+        const pop = 0.6 + 0.4 * clamp01((t - 500 - 1100) / 140);
+        ctx.fillStyle = PALETTE.upVivid;
+        ctx.beginPath();
+        ctx.arc(ep[0], ep[1], 6.5 * pop, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.arc(ep[0], ep[1], 2.8 * pop, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // the value badge — the chart's one number, data-true
+      const bp3 = clamp01((t - 900) / 400);
+      if (bp3 > 0) {
+        ctx.globalAlpha *= bp3;
+        setFont(ctx, 24, 700);
+        const bt2 = '+22% · 12 mo';
+        const bw2 = ctx.measureText(bt2).width;
+        ctx.fillStyle = PALETTE.up;
+        roundRect(ctx, px1 - bw2 - 26, py0 - 34, bw2 + 26, 34, 17);
+        ctx.fill();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.textAlign = 'left';
+        ctx.fillText(bt2, px1 - bw2 - 13, py0 - 11);
+        ctx.globalAlpha /= Math.max(bp3, 1e-6);
+      }
+    }
+  }
   setFont(ctx, 34, 700); // v9 (D-07): floor
   ctx.fillStyle = PALETTE.goldDeep;
   ctx.textAlign = 'left';
@@ -1075,9 +1211,13 @@ export function endScreenScene(g: SceneCtx): void {
       ctx.fillStyle = PALETTE.ink;
       ctx.textAlign = 'left';
       ctx.fillText('SUBSCRIBE', sx + 34, sy - 4);
+      // PHASE-5 (declutter): the strip repeated the top band's tagline
+      // verbatim — two identical lines on one frame. The strip now says
+      // the one thing the top band doesn't (the film's own sourcing
+      // promise, true per the description text).
       setFont(ctx, 34, 600);
       ctx.fillStyle = PALETTE.inkFaint;
-      ctx.fillText('— data-driven breakdowns, every week', sx + 34 + ctx.measureText('SUBSCRIBE').width + 76, sy - 4);
+      ctx.fillText('— every source, linked in the description', sx + 34 + ctx.measureText('SUBSCRIBE').width + 76, sy - 4);
       ctx.restore();
     }
   }

@@ -11,7 +11,7 @@ import { bokehField, kMotifs, lightRays, drawK, drawK3D, sparkles, hazeBands, im
 import { SceneCtx } from './scene-context';
 import { REACTIONS, reactionAt, reactionStart } from './scene-context';
 import { pivotTakeStart } from './pivots';
-import { lineChart, pieChart, barRow, dotGrid, gauge, statCard, sourceTag, sceneTitle, wrapText } from './charts';
+import { lineChart, lineChartYBounds, pieChart, barRow, dotGrid, gauge, statCard, sourceTag, sceneTitle, wrapText } from './charts';
 import { Stickman, POSES, blendPose, accentPulse, take, walkIn } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
 import { walkStrike, walkPush } from './scenes-host';
@@ -116,7 +116,7 @@ function hostSmall(
   // CONTACT VERBS (P2 grammar, dossier follow-up): the scene-space point
   // the near hand must LAND ON every frame (solved by stickman-v2's armIk).
   // Scenes must place the host inside arm's reach of the point.
-  contact?: { x: number; y: number; hand?: 'palm' | 'fist'; bend?: 1 | -1 },
+  contact?: { x: number; y: number; hand?: 'palm' | 'fist'; bend?: 1 | -1; easeAt?: number },
   // faceDir: explicit gesture/eyeline direction when the host stands in a
   // spot the x<W/2 heuristic misreads (e.g. beside the pie, left of centre,
   // presenting content that sits further LEFT).
@@ -301,7 +301,29 @@ export function chartTwinScene(g: SceneCtx): void {
   // PLAYBOOK D3 follow-up: the twin charts shift right 60px (title 180→240,
   // chart 190→250) — the entry whip (-90px) + left drift (-52px) at max
   // push ran the title's left edge 46px past the frame bound.
-  const cw = W * 0.38;
+  // 100-JUDGE AUDIT (fix 5.7 — FUSE HOST + FEED-SCALE AXIS, report: "host
+  // perched on card = decoration; axis text dies"): the scene re-stages.
+  // (a) THE CARDS narrow 0.38 → 0.365 and shift left, giving the presenter
+  //     a real lane at frame right and each card an in-card AXIS GUTTER —
+  //     the y-labels at the feed-scale size no longer straddle the card
+  //     edge (they used to hang half-out on the background).
+  // (b) THE AXIS goes feed-scale: 50px/600/inkSoft (the audit's 40-60px
+  //     read-text band) via lineChart's axisScale/axisWeight/axisColor, and
+  //     the x-axis drops to two anchored stops — 'start' + 'end' anchors so
+  //     no label overhangs its plot (the old centered "Jul '26" hung half
+  //     past the card edge).
+  // (c) THE HOST comes down off the card and INTO the data: ground-level
+  //     presenter at frame right, gaze + presenting cycle committed left,
+  //     and the palm LANDS ON the Nasdaq endpoint dot (+22%) the moment the
+  //     pen finishes drawing it (contact easeAt 2900 = the dot's pop beat) —
+  //     the decoration read dies by geometry: the hand touches the data.
+  const cw = W * 0.35;
+  const gap = W * 0.042;
+  const x0 = W * 0.075;
+  // the axis gutter: "+20%" measures 130px at 50px/600; plot starts at
+  // card + 174 so the label column stays INSIDE the card (label left lands
+  // at card + 26.5), plot width cw - 210 keeps a 1.40 aspect.
+  const GUTTER = 174;
   // PANEL-9 R2c (bottom-band clearance): the v8 stack put the per-chart
   // badges at y≈816 and the extraBadge card at y 886-978 — INSIDE the
   // karaoke caption zone (opaque pill, top ≈ 796 for two rows), so the
@@ -314,8 +336,24 @@ export function chartTwinScene(g: SceneCtx): void {
   const ch = H * 0.36;
   const cy = H * 0.305;
   const charts = (s.charts as any[]) || [];
+  // Fix 5.7: the Nasdaq endpoint dot's SCENE-SPACE position — the same
+  // yBounds + toPx math the plot runs (lineChartYBounds is the exported
+  // bounds helper so the contact target cannot drift from the rendered
+  // dot). The endpoint IS the max-x point: px = plot x + w.
+  const c1 = charts[1];
+  const [yMin1, yMax1] = lineChartYBounds({
+    x: 0, y: 0, w: 0, h: 0, p: 0, t: 0,
+    series: [{ name: '', tone: 'gold', points: c1 ? c1.points : [[0, 100]] }],
+  });
+  const plotX1 = x0 + cw + gap + GUTTER;
+  const plotW1 = cw - GUTTER - 36;
+  const plotY1 = cy + 30;
+  const plotH1 = ch - 60;
+  const last1 = (c1 ? c1.points[c1.points.length - 1] : [40, 122]) as [number, number];
+  const dotX = plotX1 + plotW1;
+  const dotY = plotY1 + plotH1 - ((last1[1] - yMin1) / (yMax1 - yMin1)) * plotH1;
   charts.slice(0, 2).forEach((c, i) => {
-    const x = W * 0.11 + i * (cw + W * 0.06); // PLAYBOOK D3: +60px — whip+drift left-edge clearance
+    const x = x0 + i * (cw + gap);
     const ap = clamp01((t - i * 260) / 650);
     ctx.save();
     ctx.globalAlpha = ap;
@@ -337,7 +375,7 @@ export function chartTwinScene(g: SceneCtx): void {
     ctx.textAlign = 'left';
     ctx.restore();
     lineChart(ctx, {
-      x: x + 40, y: cy + 30, w: cw - 80, h: ch - 60,
+      x: x + GUTTER, y: cy + 30, w: cw - GUTTER - 36, h: ch - 60,
       // v9 (report D-04): both series hard-coded tone 'up' — the twin
       // charts rendered in IDENTICAL teal and the 3.6-point Nasdaq
       // outperformance was invisible ("both charts look like the same
@@ -347,21 +385,27 @@ export function chartTwinScene(g: SceneCtx): void {
       p: clamp01((t - 200 - i * 260) / 2400),
       t,
       yFormat: 'idx100', showYAxis: true, gridLines: 3,
+      // Fix 5.7: the FEED-SCALE AXIS — 50px weight-600 inkSoft labels
+      // (TYPE_FLOOR × 1.25) inside their own in-card gutter. At the 320px
+      // feed the axis now reads as text, not noise; the default-size
+      // axis elsewhere in the film is untouched.
+      axisScale: 1.25, axisWeight: 600, axisColor: PALETTE.inkSoft,
       // PHASE 3 item 3.2: each twin's dot pops at its OWN draw completion
       // (chart 0 at t=2600, chart 1 at t=2860 — two pens, two lifts).
       doneAt: 2600 + i * 260,
-      // PANEL-9 R2: twin charts shipped axis-less — "illustrative squiggles",
-      // not data. Y axis on + a 3-stop time axis underneath.
+      // PANEL-9 R2: twin charts shipped axis-less — "illustrative
+      // squiggles", not data. Y axis on + a time axis underneath.
       // R2b: yFormat 'index'→'idx100' — the axis now reads as % change vs
-      // 12 mo ago (matches the +18.4% / +22% badges) instead of raw
-      // 93-129 "price levels" the re-review panel read as invented numbers.
+      // 12 mo ago (matches the +18.4% / +22% badges).
       // v9 (report P0-5): 'today' → "Jul '26" — the film records in one
       // month and uploads in another; an axis that says "today" in November
       // is a four-months-stale claim in a channel whose currency is freshness.
+      // Fix 5.7: two ANCHORED stops (start/end) at the feed-scale size —
+      // three 50px labels cannot fit a 467px plot without yielding one
+      // away, and the anchored pair reads cleaner at the 320px gate.
       xLabels: [
-        { at: 0, label: '12 mo ago' },
-        { at: 20, label: '6 mo ago' },
-        { at: 40, label: "Jul '26" },
+        { at: 0, label: '12 mo ago', anchor: 'start' },
+        { at: 40, label: "Jul '26", anchor: 'end' },
       ],
     });
   });
@@ -399,20 +443,29 @@ export function chartTwinScene(g: SceneCtx): void {
     }
   }
   sourceTag(ctx, W, s.source as string, H - 60);
-  // PANEL-9 R2b (z-order): the host used to stand at (W*0.88, H*0.86) —
-  // directly on the right chart's "today" x-label. Relocated to the empty
-  // top-right quadrant above the chart cards, smaller, looking down at
-  // the data; the full label strip along the card bottoms stays clear.
-  // ── 100-JUDGE PANEL / PHASE 1 item 1 — THE DELIBERATE REFUSAL (report
-  // §6 Phase 1: "…or a deliberate crossed-arm refusal"). The card-top perch
-  // is the certified staging (the frame's left margin fails the edge-class
-  // margin under this beat's push camera, and no reachable object exists at
-  // the perch — a 0.85-scale shoulder sits 145px above the card edge it
-  // stands on, past the 95px arm envelope; the punchline chip lives at the
-  // frame's far top-left). So the host takes the audit's OTHER sanctioned
-  // verb: the fold HELD, gaze committed down-left into the twin charts —
-  // the reserved presenting stance for a "look at both" beat.
-  hostSmall(g, W * 0.8, 'crossed', 3, H * 0.225, 0.85, 0, 'aha', 1.4, 1, false);
+  // Fix 5.7 — THE FUSED PRESENTER. The old staging put a 0.85× crossed
+  // figure ON the right card's top edge (certified in Phase 1 as the
+  // crossed refusal because nothing was reachable from the perch); the
+  // panel's re-read is definitive: "host perched on card = decoration".
+  // The re-stage puts him at the certified side-host stage line (H*0.66,
+  // clear of the 2-row caption pill by the P1-1 math), at the presenter
+  // scale, with a REACHABLE object: the Nasdaq endpoint dot sits 144.4
+  // scene px from his shoulder (110-rig envelope = 159.5 px at 1.45) — the
+  // refusal's own justification is void, so the audit's sanctioned verb
+  // applies: the palm LANDS ON the dot (contact verb, 'palm' + shadow) the
+  // moment the pen finishes it (chart 1 doneAt 2860, dot pop lands 3000,
+  // easeAt 2900 blends the arm in over the house 480ms spring — the hand
+  // arrives WITH the pen). parallax false: he touches data.
+  // Lane math (the guard sweep arbitrates): the hip envelope (±70 rig ×
+  // 1.45 = ±101.5) must clear the card's right edge (1568.6) — x ≥ 1672 —
+  // AND survive this beat's exit camera (s 1.12, dx +21): transformed hip
+  // right 1901.6 ≤ 1910 at x = 1680. Reach: shoulder→dot 144.4 scene px
+  // = 99.6 rig ≤ 110 — the arm lands with a natural near-straight reach.
+  declareHostContact(`lineChart:plot@${Math.round(plotX1)}`, 'lineChart:xLabels');
+  hostSmall(g, W * 0.875, 'present', 3, H * 0.66, 1.45, 0, 'aha', 1.4, 1,
+    false, 0.4, undefined, undefined,
+    { x: dotX, y: dotY, hand: 'palm', bend: 1, easeAt: 2900 },
+    'left');
 }
 
 // ── chartJourney: the generic annotated line chart scene ────────────────────
@@ -713,6 +766,18 @@ export function pieChartScene(g: SceneCtx): void {
   // he is touching. Guard: the pie is background-grade (unregistered); the
   // narrowed contact envelope (70·scale) clears the legend rows by >200px;
   // the hand itself registers cls 'contact'.
+  // 100-JUDGE AUDIT (fix 5.8 — VALUE-FORWARD FEED-SCALE LEGEND, report:
+  // pieChart "legend dissolves at 320px"): the old row — 34px label left,
+  // 38px % right-anchored inside a 450px column — rendered at 5.7px/6.3px
+  // on the phone feed and the whole legend read as gray mush. The legend
+  // re-stacks around its HERO — the number:
+  //   line 1  [swatch 56]  56px/700 % in the slice's own ink
+  //   line 2+ 42px/600 label, wrapped, aligned under the value
+  // The column widens 450 → 590 (the right third is empty ink; the host's
+  // envelope sits far left of it), so the longest label ("wealthiest 1 in
+  // 10 households") wraps to two lines instead of shrinking. At the 320px
+  // gate the values now read at 9.3px — inside the audit's 40-60px
+  // read-text band — and the labels at 7px stay legible as text.
   const legend = (s.slices as any[]) || [];
   const hxPie = 890;
   const hyPie = H * 0.66;
@@ -724,30 +789,38 @@ export function pieChartScene(g: SceneCtx): void {
   const dys = hyPie - 200 * 1.35 - cy;
   const dl = Math.hypot(dxs, dys) || 1;
   const pieTouch = { x: cx + (dxs / dl) * r, y: cy + (dys / dl) * r };
-  legend.forEach((sl, i) => {
-    const ap = clamp01((t - 700 - i * 300) / 600);
-    if (ap <= 0) return;
-    const ly = H * 0.4 + i * 90;
+  {
     const lx = W * 0.62;
-    registerRect(`pieLegend:${sl.label.slice(0, 12)}`, lx, ly, 450, 70);
-    ctx.save();
-    ctx.globalAlpha = ap;
-    ctx.fillStyle = TONE(sl.tone).main;
-    roundRect(ctx, lx, ly, 52, 52, 14);
-    ctx.fill();
-    setFont(ctx, 34, 600);
-    ctx.fillStyle = PALETTE.ink;
-    ctx.textAlign = 'left';
-    const lines = wrapText(ctx, sl.label, 300, 34, 600);
-    lines.forEach((ln, j) => ctx.fillText(ln, lx + 76, ly + 34 + j * 40));
-    setFont(ctx, 38, 700);
-    // v8.1: the bright fill gold (#C9A227) fails AA at 38px — text-sized
-    // gold numerals use goldInk (4.8:1); the swatch chip stays bright.
-    ctx.fillStyle = sl.tone === 'gold' ? PALETTE.goldInk : TONE(sl.tone).main;
-    ctx.textAlign = 'right';
-    ctx.fillText(`${Math.round(sl.value)}%`, lx + 440, ly + 40);
-    ctx.restore();
-  });
+    const lw = 590;
+    setFont(ctx, 42, 600);
+    let ly = H * 0.37;
+    legend.forEach((sl, i) => {
+      const ap = clamp01((t - 700 - i * 300) / 600);
+      const lines = wrapText(ctx, sl.label, lw - 80, 42, 600);
+      const blockH = 64 + lines.length * 48 + 26;
+      if (ap > 0) {
+        registerRect(`pieLegend:${sl.label.slice(0, 12)}`, lx, ly, lw, blockH);
+        ctx.save();
+        ctx.globalAlpha = ap;
+        // swatch — the wedge's own tone, sized to the value line
+        ctx.fillStyle = TONE(sl.tone).main;
+        roundRect(ctx, lx, ly + 6, 56, 56, 16);
+        ctx.fill();
+        // THE VALUE — the row's hero, first in reading order
+        setFont(ctx, 56, 700);
+        ctx.fillStyle = sl.tone === 'gold' ? PALETTE.goldInk : TONE(sl.tone).main;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillText(`${Math.round(sl.value)}%`, lx + 80, ly + 54);
+        // the label — wrapped under the value, aligned to its left edge
+        setFont(ctx, 42, 600);
+        ctx.fillStyle = PALETTE.ink;
+        lines.forEach((ln, j) => ctx.fillText(ln, lx + 80, ly + 104 + j * 48));
+        ctx.restore();
+      }
+      ly += blockH;
+    });
+  }
   // AUDIT-ROUND-2 (fix 4 + fix 11): the host beside the legend, pointing
   // into it — and hostSmall's own pointBias wiring turns his head with it.
   // CONTACT VERB edition: hand ON the pie rim, facing the pie (faceDir
@@ -2898,55 +2971,80 @@ export function ownerWorkerScene(g: SceneCtx): void {
     // v10: the worker's line gets a terminal down-tick — the trend the VO
     // names ("not a paycheck for whoever doesn't"), drawn at the flat run's
     // right end where the eye lands
-    // AUDIT-2 / 0.4 (report §10.1, S4): the arrow REGISTERS with the
-    // collision guard and its length CLAMPS above CAPTION_ZONE_TOP − 14.
+    // 100-JUDGE AUDIT (fix 5.10 — THE PAYCHECK STUB, report: "the red
+    // paychecks squiggle = the weakest asset"): the coral down-arrow + tag
+    // read as annotation debris — an 8px stroke at the feed gate. The trend
+    // the VO names now lands as a PHYSICAL OBJECT: a pay stub lying at the
+    // end of the worker's flat run — white paper, coral header band
+    // ("PAYCHECK"), perforated tear-off edge, and a WAGES line drawn as the
+    // same running-out dashes branch B carries, ending in a small down-tick.
+    // No invented amounts — the stub states the object, the dashes state
+    // the trend. Entry: the paper drops onto the counter and settles (a
+    // 4° rock easing flat) on the old arrow's 600ms clock. Registered.
     if (side === 'right') {
       const tp = clamp01((t - 2400) / 600);
       if (tp > 0) {
         const e = easeOutCubic(tp);
-        const ax = 1670;
-        const ay = branchY(1670); // rides branch B's flat run
-        const lenY = Math.min(46, CAPTION_ZONE_TOP - 14 - ay);
-        const lenX = 60 * (lenY / 46);
-        registerRect(
-          `owArrow:${Math.round(hx)}`,
-          ax - 12, ay - 12, lenX + 24, lenY + 24
-        );
+        const sw = 168, sh = 96;
+        const sx = 1598, sy = branchBFlat + 6;
+        registerRect(`owStub:${Math.round(hx)}`, sx - 10, sy - 40, sw + 20, sh + 52);
         ctx.save();
-        ctx.globalAlpha = tp * 0.9;
-        ctx.strokeStyle = PALETTE.downVivid;
-        ctx.lineWidth = 8;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(ax, ay);
-        ctx.lineTo(ax + lenX * e, ay + lenY * e);
-        ctx.stroke();
-        // arrowhead
-        ctx.beginPath();
-        ctx.moveTo(ax + lenX * e, ay + lenY * e);
-        ctx.lineTo(ax - 12 + lenX * e, ay - 12 + lenY * e);
-        ctx.moveTo(ax + lenX * e, ay + lenY * e);
-        ctx.lineTo(ax + 18 + lenX * e, ay - 6 + lenY * e);
-        ctx.stroke();
-        // PHASE-0 (panel report §7-D3): the coral tag pinned at the tip
-        // stays — a labeled annotation, not debris.
-        setFont(ctx, LABEL_FLOOR, 700);
-        const alTxt = 'paychecks';
-        const alW = ctx.measureText(alTxt).width;
-        const alX = Math.min(ax + lenX * e + 18, 1920 - 40 - alW - 28);
-        const alY = Math.min(ay + lenY * e + 30, CAPTION_ZONE_TOP - 14 - 38);
-        registerRect(`owArrowTag:${Math.round(hx)}`, alX, alY, alW + 28, 38);
-        registerText(`owArrowTagTxt:${Math.round(hx)}`, alX, alY, alW + 28, 38);
-        ctx.fillStyle = PALETTE.downSoft;
-        roundRect(ctx, alX, alY, alW + 28, 38, 19);
+        ctx.globalAlpha = tp;
+        ctx.translate(sx + sw / 2, sy + sh / 2);
+        ctx.rotate(-0.07 * (1 - e)); // the paper lands and settles flat
+        ctx.translate(-sw / 2, -sh / 2);
+        // paper + drop shadow
+        ctx.fillStyle = rgba(PALETTE.ink, 0.10);
+        roundRect(ctx, 7, 9, sw, sh, 10);
+        ctx.fill();
+        ctx.fillStyle = PALETTE.card;
+        roundRect(ctx, 0, 0, sw, sh, 10);
         ctx.fill();
         ctx.lineWidth = 2.5;
-        ctx.strokeStyle = rgba(PALETTE.down, 0.7);
-        roundRect(ctx, alX, alY, alW + 28, 38, 19);
+        ctx.strokeStyle = PALETTE.cardBorder;
+        roundRect(ctx, 0, 0, sw, sh, 10);
         ctx.stroke();
+        // the coral header band — the stub's identity, a red cap at feed
         ctx.fillStyle = PALETTE.down;
+        roundRect(ctx, 0, 0, sw, 36, 10);
+        ctx.fill();
+        ctx.fillRect(0, 18, sw, 18);
+        setFont(ctx, 26, 700);
+        ctx.fillStyle = PALETTE.card;
+        ctx.textAlign = 'center';
+        ctx.fillText('PAYCHECK', sw / 2, 27);
+        // the perforation — the tear-off edge
+        ctx.strokeStyle = PALETTE.cardBorder;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 6]);
+        ctx.beginPath();
+        ctx.moveTo(24, 40);
+        ctx.lineTo(24, sh - 8);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // the WAGES line — the running-out dashes + the down-tick
+        setFont(ctx, 24, 600);
+        ctx.fillStyle = PALETTE.inkFaint;
         ctx.textAlign = 'left';
-        ctx.fillText(alTxt, alX + 14, alY + 26);
+        ctx.fillText('wages', 38, 62);
+        ctx.strokeStyle = PALETTE.downVivid;
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        ctx.setLineDash([12, 10]);
+        ctx.beginPath();
+        ctx.moveTo(38, 74);
+        ctx.lineTo(sw - 48, 74);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        const tickY = 74 + 11 * e;
+        ctx.moveTo(sw - 48, 74);
+        ctx.lineTo(sw - 30, tickY);
+        ctx.moveTo(sw - 30, tickY);
+        ctx.lineTo(sw - 42, tickY - 4);
+        ctx.moveTo(sw - 30, tickY);
+        ctx.lineTo(sw - 28, tickY - 10);
+        ctx.stroke();
         ctx.restore();
       }
     }
@@ -2954,7 +3052,12 @@ export function ownerWorkerScene(g: SceneCtx): void {
     ctx.fillStyle = PALETTE.ink; // PHASE-0 (Fix 3): inkSoft -> ink (flat-frame flag)
     // R7d: baselines 726 / 768 — above CAPTION_ZONE_TOP, clear of the
     // terrain mass (bottom edge hy+70 = 718).
-    wrapText(ctx, pnl.line, 560, 30, 600).forEach((ln, j) => {
+    // Fix 5.10: the wrap measured at 30px while the draw ran 34px — the
+    // right panel's single line overran to x≈1697 and plated the paycheck
+    // stub's left edge. The wrap now measures the font it draws (34px) at
+    // 440 max width: two rows (baselines 726 / 768, the R7d rows), line 1
+    // ends at x≈1549 — 49px clear of the stub at 1598.
+    wrapText(ctx, pnl.line, 440, 34, 600).forEach((ln, j) => {
       ctx.fillText(ln, hx, hy + 78 + j * 42);
     });
     ctx.restore();
@@ -3143,14 +3246,28 @@ export function fundSplitScene(g: SceneCtx): void {
       roundRect(ctx, gx + i * 78, gy, 56, 300 * easeOutCubic(p2) + 8, 10);
       ctx.fill();
     }
+    // Fix 5.9: the group caption starts as "7 stocks" and yields at the
+    // 55% seam to "the Magnificent Seven" (the seam block below owns the
+    // crossfade — this base draw fades out as the seam arrives).
+    const seamP = clamp01((g.beatP - 0.552) / 0.008);
     setFont(ctx, 40, 700);
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.textAlign = 'left';
+    ctx.globalAlpha = 1 - seamP;
     ctx.fillText('7 stocks', gx, gy + 356);
+    ctx.globalAlpha = 1;
     // gray mass — the 493 wall: 6 rows × 20 cols of 20px pillars, 27px
     // pitch — a real mass the eye can weigh against the seven
-    // FIX 3 (empty-band payload): 4 -> 6 rows — the wall's mass now runs to
-    // y≈700, filling the right half of the band the phone gate measured.
+    // 100-JUDGE AUDIT (fix 5.9 — MEANINGFUL MASS, report: fundSplit
+    // "decorative dot field"): the wall's pillars were uniform — texture
+    // with no payload. The wall is now SORTED BY RETURN: a descending
+    // profile across the columns (the best of the remaining 493 at the
+    // wall's left edge, decaying toward the index median), with a
+    // deterministic per-pillar jitter so it reads as 493 companies rather
+    // than banded decoration. The eye now weighs the seven TALL gold slabs
+    // against a tail that visibly THINS — the concentration story, in the
+    // wall's own shape. Captioned below ("sorted by return") so the
+    // encoding is stated, not implied. Pure function of (i, t) — scrub-safe.
     const grayX = gx + 7 * 78 + 86;
     for (let i = 0; i < 120; i++) {
       const p2 = clamp01((t - 1900 - i * 12) / 520);
@@ -3158,30 +3275,38 @@ export function fundSplitScene(g: SceneCtx): void {
       ctx.fillStyle = rgba(PALETTE.grid, 0.72);
       const col = i % 20;
       const row = Math.floor(i / 20);
-      roundRect(ctx, grayX + col * 27, gy + 132 + row * 46, 20, 34 * easeOutCubic(p2) + 4, 3);
+      const jitter = (hash01(i * 3.71 + 0.5) - 0.5) * 7;
+      const h = Math.max(12, (34 - (col / 19) * 15 + jitter) * easeOutCubic(p2));
+      roundRect(ctx, grayX + col * 27, gy + 132 + row * 46, 20, h + 4, 3);
       ctx.fill();
     }
     setFont(ctx, 40, 700);
     ctx.fillStyle = PALETTE.inkSoft;
     ctx.fillText('493 others', grayX, gy + 356);
-    // ── 100-JUDGE PANEL / Phase 4 item 4.1 — THE SECOND CONTENT ARRIVAL AT
-    // THE 55% SEAM. This stage runs 42.5s (D-07) and its build completes at
-    // ~5s (fund box, arrows, bars, wall, chips, callback). At the stage's
-    // own 55% seam (beatP 0.55 — beat-local, immune to the cap's re-splits)
-    // the seven bars are NAMED: the film's own Magnificent Seven roll
-    // (magChips, ch3) cascades into the bars as rotated ledger labels —
-    // the twist's payoff ("a huge share of your return has come from seven
-    // stocks") gets its WHO. Drawn after the bars they live in; each name
-    // is gated on ITS bar being fully grown (t-keyed), so a re-split
-    // seam's bar re-pop never leaves a name floating in air. Pure function
-    // of (beatP, t) — scrub-safe.
+    setFont(ctx, 40, 600);
+    ctx.fillStyle = PALETTE.inkFaint;
+    const sw2 = ctx.globalAlpha;
+    ctx.globalAlpha = sw2 * clamp01((t - 2400) / 600);
+    ctx.fillText('sorted by return', grayX, gy + 404);
+    ctx.globalAlpha = sw2;
+    // ── 100-JUDGE AUDIT (fix 5.9 — LABEL THE SLABS, report: fundSplit
+    // "unlabeled gold slabs"): the SEVEN names used to wait for the 55%
+    // seam — 23 seconds of the film's most important graphic ran with seven
+    // unnamed gold slabs. The names now cascade WITH their bars (each name
+    // prints as its own slab lands, the same grown-gate so a re-split
+    // seam's bar re-pop never leaves a name floating in air). The 55% seam
+    // keeps its second-content-arrival payload (Phase 4.1's anti-hold
+    // device) but re-armed: the slabs are COLLECTED — a thin gold bracket
+    // draws across the row and the group caption crossfades "7 stocks" →
+    // "the Magnificent Seven" (the film's own name for them, c3-mag) — the
+    // beat's twist line ("the Magnificent Seven's share… around 42%") gets
+    // its WHO in the graphic at the exact seam the VO names them. Pure
+    // function of (beatP, t) — scrub-safe.
     const SEVEN = ['Nvidia', 'Microsoft', 'Apple', 'Alphabet', 'Amazon', 'Meta', 'Tesla'];
     SEVEN.forEach((nm, i) => {
-      const np = clamp01((g.beatP - 0.552 - i * 0.004) / 0.01);
       // the name only prints over a GROWN bar (the re-split seam replays
       // the bars' growth on the group clock — the name waits for it)
-      const grown = clamp01((t - 1400 - i * 110 - 460) / 400);
-      const a = np * grown;
+      const a = clamp01((t - 1400 - i * 110 - 460) / 400);
       if (a <= 0.01) return;
       ctx.save();
       ctx.globalAlpha = a * 0.94;
@@ -3194,6 +3319,33 @@ export function fundSplitScene(g: SceneCtx): void {
       ctx.fillText(nm.toUpperCase(), 0, 0);
       ctx.restore();
     });
+    // the seam bracket + the group-caption rename — the second content
+    // arrival (Phase 4.1), re-armed for the named slabs
+    const seamA = seamP
+      * clamp01((t - 1400 - 6 * 110 - 460) / 400); // the LAST bar grown
+    if (seamA > 0.01) {
+      const brX0 = gx - 8;
+      const brX1 = gx + 6 * 78 + 56 + 8;
+      const brY = gy - 16;
+      ctx.save();
+      ctx.globalAlpha = seamA;
+      ctx.strokeStyle = PALETTE.gold;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(brX0, brY + 10);
+      ctx.lineTo(brX0, brY);
+      ctx.lineTo(brX1, brY);
+      ctx.lineTo(brX1, brY + 10);
+      ctx.stroke();
+      // the caption rename: "7 stocks" has yielded (the base draw above);
+      // the group's proper name arrives with its bracket
+      setFont(ctx, 40, 700);
+      ctx.fillStyle = PALETTE.goldDeep;
+      ctx.textAlign = 'left';
+      ctx.fillText('the Magnificent Seven', gx, gy + 356);
+      ctx.restore();
+    }
   }
 
   // stats

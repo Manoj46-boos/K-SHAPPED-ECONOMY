@@ -1007,61 +1007,90 @@ export function splitNumbersScene(g: SceneCtx): void {
   const py = H * 0.17;
   const cornerNote = s.cornerNote as string | undefined;
 
-  if (mode === 'left' || mode === 'vs' || mode === 'vs-punch') {
-    // v3 (panel P1-6): the market panel reads the script's `stats` prop
-    // (previously allowed-but-unread — the panel's validator caught it);
-    // the hardcoded list stays as the fallback.
-    // PANEL-10 (D-03): `s.stats || FALLBACK` never fired for the vs-punch
-    // beat, which ships `stats: []` — an EMPTY ARRAY is truthy, so the
-    // market panel rendered with ZERO stat rows (a bare card) for the
-    // whole punch beat while THE MOOD kept its numbers. The fallback now
-    // engages for missing, non-array, AND empty stats. The vs-punch beat
-    // also carries the real stats in script-data (explicit over implicit).
-    // 100-JUDGE DOSSIER (D-1): the vs beat ships the MOOD numbers in
-    // s.stats — they describe the right-hand panel — but this drawer fed
-    // them to THE MARKET panel, so both panels rendered identical coral
-    // stats under different headers (verified on frame 03-splitnumbers-vs).
-    // s.stats now routes by MODE: 'left' beats carry market numbers →
-    // market panel; 'vs'/'vs-punch' beats carry mood numbers → mood panel;
-    // the market panel owns its own list in every vs mode.
-    const propStats = s.stats as StatItem[] | undefined;
-    const hasProps = Array.isArray(propStats) && propStats.length > 0;
-    const marketStats: StatItem[] =
-      mode === 'left' && hasProps
-        ? (propStats as StatItem[])
-        : [
-            { big: '+18%', label: 'S&P 500 · past year', tone: 'up' },
-            { big: '+20%', label: 'Nasdaq · past year', tone: 'up' },
-            { big: 'RECORD', label: 'corporate profit margins', tone: 'gold' },
-          ];
-    // v4 (audit P1-5): break the mirror — the market panel rides 44px
-    // higher than the mood panel so the divergence is felt in the layout
-    // itself, not just in the numbers.
-    drawNumberPanel(g, lx, py - 22, panelW, panelH, 'THE MARKET', marketStats, t, 0);
-  }
-  if (mode === 'right' || mode === 'vs' || mode === 'vs-punch') {
-    const delay = mode === 'vs' || mode === 'vs-punch' ? 300 : 0;
-    // D-1: in vs modes the beat's own stats (the mood numbers) drive this
-    // panel, with the same empty-array guard the market panel got in D-03.
-    const moodPropStats = s.stats as StatItem[] | undefined;
-    const moodStats: StatItem[] =
-      Array.isArray(moodPropStats) && moodPropStats.length
-        ? moodPropStats
-        : [
-            { big: '16%', label: 'called the economy “good” or “excellent”', tone: 'down' },
-            { big: '1 in 4', label: 'average recession odds · 72 economists (WSJ)', tone: 'down' },
-          ];
-    drawNumberPanel(g, rx, py + 22, panelW, panelH, 'THE MOOD', moodStats, t, delay);
+  // ── the panels' stats, hoisted above the mode branches ──
+  // v3 (panel P1-6): the market panel reads the script's `stats` prop
+  // (previously allowed-but-unread — the panel's validator caught it);
+  // the hardcoded list stays as the fallback.
+  // PANEL-10 (D-03): `s.stats || FALLBACK` never fired for the vs-punch
+  // beat, which ships `stats: []` — an EMPTY ARRAY is truthy, so the
+  // market panel rendered with ZERO stat rows (a bare card) for the
+  // whole punch beat while THE MOOD kept its numbers. The fallback now
+  // engages for missing, non-array, AND empty stats. The vs-punch beat
+  // also carries the real stats in script-data (explicit over implicit).
+  // 100-JUDGE DOSSIER (D-1): the vs beat ships the MOOD numbers in
+  // s.stats — they describe the right-hand panel — but this drawer fed
+  // them to THE MARKET panel, so both panels rendered identical coral
+  // stats under different headers (verified on frame 03-splitnumbers-vs).
+  // s.stats now routes by MODE: 'left' beats carry market numbers →
+  // market panel; 'vs'/'vs-punch' beats carry mood numbers → mood panel;
+  // the market panel owns its own list in every vs mode.
+  const propStats = s.stats as StatItem[] | undefined;
+  const hasProps = Array.isArray(propStats) && propStats.length > 0;
+  const marketStats: StatItem[] =
+    mode === 'left' && hasProps
+      ? (propStats as StatItem[])
+      : [
+          { big: '+18%', label: 'S&P 500 · past year', tone: 'up' },
+          { big: '+20%', label: 'Nasdaq · past year', tone: 'up' },
+          { big: 'RECORD', label: 'corporate profit margins', tone: 'gold' },
+        ];
+  // D-1: in vs modes the beat's own stats (the mood numbers) drive the
+  // mood panel, with the same empty-array guard the market panel got in D-03.
+  const moodStats: StatItem[] =
+    (mode !== 'left' && Array.isArray(propStats) && propStats.length
+      ? propStats
+      : [
+          { big: '16%', label: 'called the economy “good” or “excellent”', tone: 'down' },
+          { big: '1 in 4', label: 'average recession odds · 72 economists (WSJ)', tone: 'down' },
+        ]) as StatItem[];
+
+  if (mode === 'vs' || mode === 'vs-punch') {
+    // PHASE-5 (the vs frames are the ones the feed board named "host cropped
+    // or absent"): both panels step to 0.36W so the MOOD panel frees a
+    // presenter column at the right edge — the host stands BESIDE the mood
+    // panel, palm ON its right edge (the contact verb the scene never had).
+    // v4's mirror-break rides on: the market panel keeps its 44px lift.
+    const vsW = W * 0.36;
+    const delay = 300;
+    drawNumberPanel(g, W * 0.06, py - 22, vsW, panelH, 'THE MARKET', marketStats, t, 0);
+    drawNumberPanel(g, W * 0.545, py + 22, vsW, panelH, 'THE MOOD', moodStats, t, delay);
+    // the host — on the freed right column, touching the panel he narrates
+    // (0.94W / 0.95 rig: his raised arm's envelope stays 30px clear of the
+    // frame edge — the "host cropped" read never ships again)
+    drawStickmanV2(ctx, W * 0.94, H * 0.645, 0.95, t, {
+      pose: Stickman.poseAt(t, { gesture: 'present', speaking: g.speaking, sentenceId: g.sentenceId, sentenceT: g.sentenceT, wordTimes: g.gWordTimes }),
+      alpha: clamp01((t - 500) / 500),
+      look: -0.8,
+      talk: g.speaking ? talkAt(g.beatT, g.wordTimes) : 0,
+      parallax: true,
+      contact: { x: W * 0.545 + vsW + 10, y: py + 260, hand: 'palm' },
+    }, 27);
+  } else if (mode === 'left' || mode === 'right') {
+    // single-panel modes: the host owns the empty half — presenting at the
+    // panel from the 1.35 rig (the E2 subject band), addressing its face.
+    drawNumberPanel(
+      g, mode === 'left' ? lx : rx, mode === 'left' ? py - 22 : py + 22, panelW, panelH,
+      mode === 'left' ? 'THE MARKET' : 'THE MOOD',
+      mode === 'left' ? marketStats : moodStats,
+      t, 0
+    );
+    drawStickmanV2(ctx, mode === 'left' ? W * 0.7 : W * 0.3, H * 0.67, 1.35, t, {
+      pose: Stickman.poseAt(t, { gesture: 'present', speaking: g.speaking, sentenceId: g.sentenceId, sentenceT: g.sentenceT, wordTimes: g.gWordTimes }),
+      alpha: clamp01((t - 400) / 500),
+      look: mode === 'left' ? -0.7 : 0.7,
+      talk: g.speaking ? talkAt(g.beatT, g.wordTimes) : 0,
+      parallax: true,
+    }, 28);
   }
   if (mode === 'vs' || mode === 'vs-punch') {
     // DENSITY PAYLOAD (100-judge dossier, FIX 3 — the 03 frame measured the
     // film's sparsest read at 2.1% info): the same 500-household population
     // band bigText's payoff carries, drawn in the open band under the panels
     // — teal dots LEFT of the divider (the market half), coral RIGHT (the
-    // mood half). The frame stops being two floating cards in breathing
-    // room: the economy the two panels DESCRIBE is drawn between them, in
-    // the film's own dot language. Tone ink at readable alpha — credited by
-    // the tuned two-tier phone-gate metric, visible at the 320px feed.
+    // mood half). PHASE-5 (the feed board's "tick-strip ornament is
+    // meaningless"): the band now carries its OWN labels — each half is
+    // NAMED at its end, so 500 anonymous dots become a labeled population
+    // read: two halves of one country, one band, one economy.
     {
       const bp = clamp01((t - 600) / 700);
       if (bp > 0) {
@@ -1071,7 +1100,7 @@ export function splitNumbersScene(g: SceneCtx): void {
         const rows2 = Math.ceil(500 / cols);
         const fx = W * 0.08;
         const fy = H * 0.655;
-        const fw = W * 0.84;
+        const fw = W * 0.72; // clears the host column at the right edge
         const fh = H * 0.12;
         const pitX = fw / cols;
         const pitY = fh / rows2;
@@ -1086,6 +1115,14 @@ export function splitNumbersScene(g: SceneCtx): void {
           ctx.arc(dcx, dcy, 6.5, 0, Math.PI * 2);
           ctx.fill();
         }
+        // the half labels — the band says what it shows
+        setFont(ctx, 26, 700);
+        ctx.textAlign = 'left';
+        ctx.fillStyle = PALETTE.up;
+        ctx.fillText('the market half', fx + 4, fy - 14);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = PALETTE.down;
+        ctx.fillText('the mood half', fx + fw - 4, fy - 14);
         ctx.restore();
       }
     }
@@ -1232,13 +1269,22 @@ function drawNumberPanel(
     // render size, so a wrapped stack is a real fit, not a guess. Two wrap
     // lines max; if the wrapped stack would overrun the panel body the
     // label auto-shrinks onto one line instead (never truncates).
+    // PHASE-5 FIX (THE 74px LABEL BUG — the feed board's loudest splitNumbers
+    // read): the numeral's setFont(74) was still current when the label
+    // lines filled, so every SINGLE-LINE label rendered at the numeral's
+    // 74px — "S&P 500 · past year" printed as a second headline, mood
+    // labels ran off the panel's right edge — while wrapped labels fell to
+    // the old 19-25px shrink path. The label now sets its own 34px floor
+    // before drawing, and the auto-shrink starts at that same 34 (min 24)
+    // with the font SET BEFORE the first measurement.
     let lines = statLines[i];
     const stackedBottom = ROW_TOP + (nStats - 1) * rowGap + rowH;
+    let lblSize = 34;
+    setFont(ctx, lblSize, 600);
     if (lines.length > 1 && stackedBottom > h - CARD_TEXT_PAD_BOTTOM) {
-      let size = 25;
-      while (ctx.measureText(st.label).width > w - 88 && size > 19) {
-        size -= 1;
-        setFont(ctx, size, 600);
+      while (ctx.measureText(st.label).width > w - 88 && lblSize > 24) {
+        lblSize -= 1;
+        setFont(ctx, lblSize, 600);
       }
       lines = [st.label];
     }
@@ -1931,10 +1977,33 @@ export function recapSplitScene(g: SceneCtx): void {
   const pw = W * 0.36;
   const ph = H * 0.34;
   const py = H * 0.24;
-  // left mini panel: market
-  miniPanel(g, W * 0.09, py, pw, ph, 'MARKETS', 'near record highs', PALETTE.up, 0);
+  // PHASE-5 RE-STAGE (feed board: "two unlabeled squiggle lines pretending
+  // to be charts — re-stage with real thumbnails of the film's own charts"):
+  // the panels now plot the film's OWN series data — the Nasdaq's 12-month
+  // ride to the record and the Conference Board confidence arc — with
+  // draw-on reveal, endpoint dot, value badges and the film's real source
+  // tags. A labeled chart of real data, not a sine wave.
+  miniPanel(g, W * 0.09, py, pw, ph, 'MARKETS', PALETTE.up, 0, {
+    series: [
+      [0, 100], [3, 102], [5, 103], [7, 101], [9, 97.5], [11, 100.5],
+      [13, 104], [16, 107], [19, 110.5], [22, 114], [25, 117],
+      [28, 119.5], [31, 121.5], [34, 123], [37, 124.5], [40, 122],
+    ],
+    badge: '+22% · 12 mo',
+    endLabel: 'record',
+    src: 'Investing.com · Nasdaq Composite',
+  });
   // right mini panel: sentiment
-  miniPanel(g, W * 0.55, py, pw, ph, 'SENTIMENT', 'crashed — partly recovered', PALETTE.down, 260);
+  miniPanel(g, W * 0.55, py, pw, ph, 'SENTIMENT', PALETTE.down, 260, {
+    series: [
+      [0, 104], [2, 101], [4, 97], [6, 93], [8, 90.5], [10, 89],
+      [11, 88.2], [12, 88.9], [13, 90.4], [14, 91.6], [15, 92.3],
+    ],
+    badge: '104 → 88 low → 92',
+    endLabel: 'still weak',
+    lowLabel: 'spring low',
+    src: 'The Conference Board',
+  });
   // big = sign between them becoming K
   const kp = clamp01((t - 900) / 900);
   if (kp > 0) {
@@ -2024,9 +2093,15 @@ function miniPanel(
   w: number,
   h: number,
   title: string,
-  sub: string,
   tone: string,
-  delay: number
+  delay: number,
+  chart: {
+    series: [number, number][];
+    badge: string;
+    endLabel: string;
+    lowLabel?: string;
+    src: string;
+  }
 ): void {
   const { ctx, t } = g;
   const ap = clamp01((t - delay) / 600);
@@ -2039,25 +2114,125 @@ function miniPanel(
   ctx.fillStyle = tone;
   ctx.textAlign = 'left';
   ctx.fillText(title, x + 38, y + 62);
-  setFont(ctx, 34, 600);
-  ctx.fillStyle = PALETTE.inkSoft;
-  ctx.fillText(sub, x + 38, y + 108);
-  // sparkline
-  const rising = tone === PALETTE.up;
-  ctx.strokeStyle = tone;
-  ctx.lineWidth = 5;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  for (let i = 0; i <= 10; i++) {
-    const fx = x + 38 + (i / 10) * (w - 76);
-    const v = rising
-      ? Math.sin(i / 10 * Math.PI * 0.9) * 0.6 + i / 10 * 0.4
-      : 0.8 - Math.sin(i / 10 * Math.PI * 0.8) * 0.5 - i / 10 * 0.15;
-    const fy = y + h - 52 - v * (h - 150);
-    if (i === 0) ctx.moveTo(fx, fy);
-    else ctx.lineTo(fx, fy);
+  // the value badge — the chart's headline number, the film's own data
+  {
+    const bp2 = clamp01((t - delay - 200) / 450);
+    if (bp2 > 0) {
+      ctx.globalAlpha = ap * bp2;
+      setFont(ctx, 26, 700);
+      const bw = ctx.measureText(chart.badge).width;
+      const bx = x + w - 38 - bw - 36;
+      ctx.fillStyle = tone;
+      roundRect(ctx, bx, y + 34, bw + 36, 44, 22);
+      ctx.fill();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'left';
+      ctx.fillText(chart.badge, bx + 18, y + 65);
+      ctx.globalAlpha = ap;
+    }
   }
-  ctx.stroke();
+  // the plot — the film's real series, drawn on with the reveal grammar:
+  // ease with a terminal settle, endpoint dot 140ms scale-in, the low
+  // point ticked when the data has one (the sentiment panel)
+  const px0 = x + 38;
+  const px1 = x + w - 38;
+  const py0 = y + 118;
+  const py1 = y + h - 96;
+  const vals = chart.series.map((p) => p[1]);
+  const vmin = Math.min(...vals) - (chart.lowLabel ? 2.5 : 6);
+  const vmax = Math.max(...vals) + 6;
+  const mx = chart.series[chart.series.length - 1][0] || 1;
+  const fx = (u: number): number => px0 + (u / mx) * (px1 - px0);
+  const fy = (v: number): number => py1 - ((v - vmin) / (vmax - vmin)) * (py1 - py0);
+  // two hairline grid rows so it reads as a chart plane, not a squiggle
+  ctx.strokeStyle = rgba(PALETTE.grid, 0.55);
+  ctx.lineWidth = 2;
+  for (const gr of [0.25, 0.75]) {
+    const gy = py0 + (py1 - py0) * gr;
+    ctx.beginPath();
+    ctx.moveTo(px0, gy);
+    ctx.lineTo(px1, gy);
+    ctx.stroke();
+  }
+  // the draw-on: flat for the first 85%, then the easeOutQuad settle tail
+  // (the film's D-14 reveal grammar, applied to its own recap)
+  const dp = clamp01((t - delay - 420) / 950);
+  if (dp > 0) {
+    let reveal = dp;
+    if (reveal > 0.85) {
+      const u = (reveal - 0.85) / 0.15;
+      reveal = 0.85 + 0.15 * (1 - Math.pow(1 - u, 2));
+    }
+    const drawnU = reveal * mx;
+    ctx.strokeStyle = tone;
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    let endPoint: [number, number] | null = null;
+    let lowPoint: [number, number] | null = null;
+    for (let i = 0; i < chart.series.length; i++) {
+      const [u, v] = chart.series[i];
+      if (u > drawnU) break;
+      const pxy: [number, number] = [fx(u), fy(v)];
+      if (i === 0) ctx.moveTo(pxy[0], pxy[1]);
+      else ctx.lineTo(pxy[0], pxy[1]);
+      endPoint = pxy;
+      if (chart.lowLabel && v <= Math.min(...vals) + 1e-9) lowPoint = pxy;
+    }
+    ctx.stroke();
+    // endpoint dot — 140ms scale-in pop when the pen finishes
+    if (endPoint) {
+      const done = reveal >= 0.999;
+      const pop = done ? 0.6 + 0.4 * clamp01((t - delay - 420 - 950) / 140) : 0.6;
+      ctx.globalAlpha = ap;
+      ctx.fillStyle = tone;
+      ctx.beginPath();
+      ctx.arc(endPoint[0], endPoint[1], 7 * pop, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(endPoint[0], endPoint[1], 3 * pop, 0, Math.PI * 2);
+      ctx.fill();
+      // the endpoint value label — the chart says its last word out loud
+      const elp = done ? clamp01((t - delay - 420 - 950 - 120) / 300) : 0;
+      if (elp > 0) {
+        ctx.globalAlpha = ap * elp;
+        setFont(ctx, 26, 700);
+        ctx.fillStyle = PALETTE.ink;
+        ctx.textAlign = 'center';
+        ctx.fillText(chart.endLabel, endPoint[0], endPoint[1] - 20);
+      }
+    }
+    // the low tick — coral ring at the series' minimum (the crash the VO
+    // names), one small label under it
+    if (lowPoint) {
+      const llp = clamp01((t - delay - 1100) / 400);
+      if (llp > 0) {
+        ctx.globalAlpha = ap * llp;
+        ctx.strokeStyle = PALETTE.down;
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(lowPoint[0], lowPoint[1], 13, 0, Math.PI * 2);
+        ctx.stroke();
+        setFont(ctx, 24, 600);
+        ctx.fillStyle = PALETTE.down;
+        ctx.textAlign = 'center';
+        ctx.fillText(chart.lowLabel!, lowPoint[0], lowPoint[1] + 38);
+      }
+    }
+  }
+  // the source tag — the film's real sourcing discipline, at recap scale
+  {
+    const sp2 = clamp01((t - delay - 700) / 400);
+    if (sp2 > 0) {
+      ctx.globalAlpha = ap * sp2 * 0.8;
+      setFont(ctx, 24, 600);
+      ctx.fillStyle = PALETTE.inkSoft;
+      ctx.textAlign = 'left';
+      ctx.fillText(chart.src, x + 38, y + h - 34);
+    }
+  }
   ctx.restore();
 }
 
