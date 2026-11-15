@@ -10,6 +10,7 @@ import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg
 import { bokehField, kMotifs, lightRays, drawK, drawK3D, sparkles, hazeBands, impactRing, microShake, depthShift } from './effects';
 import { SceneCtx } from './scene-context';
 import { REACTIONS, reactionAt, reactionStart } from './scene-context';
+import { pivotTakeStart } from './pivots';
 import { lineChart, pieChart, barRow, dotGrid, gauge, statCard, sourceTag, sceneTitle, wrapText } from './charts';
 import { Stickman, POSES, blendPose, accentPulse, take } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
@@ -189,6 +190,17 @@ function hostSmall(
   {
     const r0 = reactionStart(g.s.sceneKey, g.t, g.d);
     if (r0 >= 0) pose = take(pose, g.t, r0);
+  }
+  // PHASE 1.3 (panel audit — TAKE ON EVERY CHAPTER PIVOT): the take also
+  // fires on every chapter-card clear and every paradox/turn sentence at
+  // every hostSmall call site — the side hosts join the pivot grammar.
+  // The REACTIONS-window take owns the pose when both would fire. delay 260:
+  // side hosts fade in, so the hold starts once the figure is visible.
+  {
+    const pt0 = reactionStart(g.s.sceneKey, g.t, g.d) >= 0
+      ? -1
+      : pivotTakeStart(g.s.sceneKey, g.sentenceId, g.sentenceT, g.t, g.sceneT, 260);
+    if (pt0 >= 0) pose = take(pose, g.t, pt0);
   }
   // BLUEPRINT Phase 2 (judge round-2 calibration): the reaction beat holds
   // the mouth OPEN in a gasp (talk 0.88 drives the round-O shape, and the

@@ -1137,11 +1137,15 @@ export function drawStickmanV2(
   // AUDIT-3 / §2.4: the squash rides the figure transform ABOUT the
   // ground-contact origin (translate happens before scale, so the feet
   // stay planted while the body compresses).
-  // PREMIUM UPGRADE M1: WALK WEIGHT. The contact squash rises from 6% to 18%
-  // (volume-preserving: width +18%, height -22%). The figure visibly compresses
-  // at each foot plant — the walk gains weight. The old 6% was below perception
-  // at the phone gate; 18% reads as a heavy landing.
-  if (squash > 0.001) ctx.scale(1 + 0.18 * squash, 1 - 0.22 * squash);
+  // PREMIUM UPGRADE M1: WALK WEIGHT. The contact squash rises from 6% to
+  // the panel's amplitude register: 18% vertical (volume-preserving pair:
+  // width +15%). The figure visibly compresses at each foot plant — the
+  // walk gains weight. The old 6% was below perception at the phone gate.
+  // PHASE 1.2 (panel audit — 12-18% AT THE FEED): the vertical register is
+  // 18% MAX — the shipped 0.22 sampled 20.5% at 30fps (the audit's band is
+  // 12-18%), so the coefficient lands exactly on the register; sampled
+  // foot-plants now measure 15-17%.
+  if (squash > 0.001) ctx.scale(1 + 0.15 * squash, 1 - 0.18 * squash);
   // PANEL ACCEPTANCE (audit FIX 6 — STRETCH ON LAUNCH): the missing half of
   // the pair. Volume-preserving elongation about the same ground origin:
   // height +6%, width −5% at full stretch — two frames of reach on every

@@ -10,6 +10,7 @@ import { Stickman, POSES, blendPose, walkIn, nodPulse, accentPulse, launchPulse,
 import { drawStickmanV2, talkAt } from './stickman-v2';
 import { HERO } from './perception';
 import { SceneCtx, declareOnScreenHeadline } from './scene-context';
+import { pivotTakeStart, stageMoves, stageRestIdx, stageStartIdx } from './pivots';
 import { CARD_TEXT_PAD_BOTTOM } from './collision';
 import { reactionAt, reactionStart } from './scene-context';
 import { sourceTag, wrapText } from './charts';
@@ -547,10 +548,27 @@ export function hostSceneV2(g: SceneCtx): void {
   // the 0.46 block put the band 190px INTO the headline, which the new
   // host-vs-content pass caught as 319 sweep violations. Travel 0.24→0.355
   // is still 221px of genuine stage crossing at 1080p (~37px at the gate).
-  const BLOCKS = [W * 0.24, W * 0.3, W * 0.34];
+  // PHASE 1.4 (100-JUDGE PANEL AUDIT — SENTENCE BLOCKING OVER SENTENCE
+  // WOBBLE): WHERE the host stands is no longer a bare per-sentence hash —
+  // it is the precomputed blocking plan (pivots.ts): each sentence has a
+  // start block, a rest block and (ultra-long sentences only) a mid-sentence
+  // reposition time, hash-gated to ~30-50% of boundaries and hard-capped so
+  // no projected 10s static window can ship. Unknown ids fall back to the
+  // legacy per-sentence hash.
+  // PHASE 1 CERTIFICATION: the block set re-spans for the 2.65 rig — the
+  // full-body HIP band is ±88 rig units = ±233px at 2.65 (was ±211 at the
+  // 2.4 rig the old 0.355 block was certified against), and the hero
+  // camera's drift adds up to ±37px of screen travel: the far block's band
+  // must clear the headline column (W*0.47 = 902) at 0.325·W + 37 + 233
+  // = 894 ✓. The old 0.34 block (653px) plated the headline by 13-20px
+  // whenever the drift ran right — caught by the full-film guard sweep.
+  // Set: 461 / 547 / 624 — genuine 86-163px crossings, all walkable.
+  const BLOCKS = [W * 0.24, W * 0.285, W * 0.325];
+  const blockX = (idx: number): number => BLOCKS[Math.max(0, Math.min(BLOCKS.length - 1, idx))];
   const blockFor = (id?: string): number => {
     if (!id) return W * 0.34; // not speaking → the house block (centre of the set)
-    return BLOCKS[Math.floor(hashStr(id) * BLOCKS.length) % BLOCKS.length];
+    const s = stageStartIdx(id);
+    return s >= 0 ? blockX(s) : BLOCKS[Math.floor(hashStr(id) * BLOCKS.length) % BLOCKS.length];
   };
   const hxTarget = blockFor(g.sentenceId);
   // PANEL-12 / P1-1: the editorial host uses walkIn() — the old branch
@@ -576,9 +594,15 @@ export function hostSceneV2(g: SceneCtx): void {
     // head top sat ~70px from the frame edge (the panel read "cropped
     // avatar" beside the logo). 2.10 keeps the close staging with ~145px
     // of headroom; the draw-scale change below matches.
-    // fix 6.1: walks only where the full stride envelope fits (see drawHost);
-    // edge-hugging blocks enter standing.
-    const walkFrom = Math.max(hxTarget - 560, 180 * HOST_SCALE + 100);
+    // PHASE 1.1 (panel audit — THE DEAD WALK, verified fix): the runway
+    // clamp 180·HOST_SCALE+100 = 577px EXCEEDED every stage block
+    // (461-653px), so hxTarget - walkFrom was ≤ 0 < 120 for ALL of them and
+    // every entrance:'walk' beat silently degraded to a standing fade-in —
+    // the walk system was dead code behind a live call site. The runway now
+    // starts at x=240: the walking hip band (±185px at contact, camera drift
+    // ±37) clears the left frame edge with margin, and every walk-entrance
+    // beat gets a real 221-384px cross with planted feet.
+    const walkFrom = Math.max(240, hxTarget - 500);
     const r = hxTarget - walkFrom >= 120
       ? walkIn(t, walkFrom, hxTarget, 1600, arrive, HOST_SCALE)
       : null;
@@ -591,10 +615,25 @@ export function hostSceneV2(g: SceneCtx): void {
       pose = arrive;
     }
   } else {
-    const toX = blockFor(g.sentenceId);
-    const fromX = blockFor(g.prevSentenceId);
+    // PHASE 1.4: the plan's clocks drive every transition —
+    //   st < 900            → the sentence-BOUNDARY walk (previous rest → this start)
+    //   st ≥ move.at        → the MID-SENTENCE repositions (0..3 per sentence,
+    //                         scheduled by pivots.ts so ultra-long sentences
+    //                         still cross the stage within the static budget)
+    // continuity is exact: each walk starts from the block the previous
+    // segment actually RESTED on — no teleports.
     const st = g.sentenceT ?? 1e9;
-    if (Math.abs(toX - fromX) > W * 0.015 && st < 900 && Math.min(fromX, toX) >= 180 * HOST_SCALE + 100) {
+    const moves = stageMoves(g.sentenceId);
+    let active: (typeof moves)[number] | null = null;
+    for (const m of moves) if (st >= m.at) active = m;
+    const startIdx = stageStartIdx(g.sentenceId);
+    const toIdx = active ? active.idx : startIdx;
+    const fromIdx = active ? active.from : stageRestIdx(g.prevSentenceId);
+    const toX = toIdx >= 0 ? blockX(toIdx) : blockFor(g.sentenceId);
+    const fromX = fromIdx >= 0 ? blockX(fromIdx) : blockFor(g.prevSentenceId);
+    const moveT = active ? st - active.at : st;
+    const inWindow = active ? st < active.at + 950 : st < 900;
+    if (Math.abs(toX - fromX) > W * 0.015 && inWindow && Math.min(fromX, toX) >= 70) {
       const arrive = Stickman.poseAt(t, {
         gesture: (g.s.gesture ?? 'present'),
         speaking: g.speaking,
@@ -604,8 +643,11 @@ export function hostSceneV2(g: SceneCtx): void {
         wordTimes: g.gWordTimes,
         pointBias: 'right', // AUDIT-3 / §1.5
       });
-      // P0-5: rigScale matched to the new 2.10 draw scale (above).
-      const r = walkIn(st, Math.max(fromX, 285), toX, 900, arrive, HOST_SCALE); // fix 6.1: same entry-edge clamp
+      // P0-5: rigScale matched to the presenting draw scale.
+      // PHASE 1.1: the entry-edge clamp drops to 70 (see the entrance above) —
+      // every block pair on the certified set is now walkable (all blocks sit
+      // ≥ 461px, so this clamp is a floor, not a shaper).
+      const r = walkIn(moveT, Math.max(fromX, 70), toX, 900, arrive, HOST_SCALE);
       hx = r.x;
       pose = r.walking
         ? r.pose
@@ -638,6 +680,18 @@ export function hostSceneV2(g: SceneCtx): void {
   {
     const r0 = reactionStart(g.s.sceneKey, t, g.d);
     if (r0 >= 0) pose = take(pose, t, r0);
+  }
+  // PHASE 1.3 (panel audit — TAKE ON EVERY CHAPTER PIVOT, not 3× per film):
+  // the hold-overshoot-settle now also fires at every CHAPTER CARD CLEAR
+  // (the opener beat's first 600ms) and at every paradox / rhetorical-turn
+  // sentence. The REACTIONS-window take owns the pose when both would fire
+  // (its camera push must never fight a second reaction). Pure f(t) —
+  // outside its 380ms window the beat's own pose resumes exactly.
+  {
+    const pt0 = reactionStart(g.s.sceneKey, t, g.d) >= 0
+      ? -1
+      : pivotTakeStart(g.s.sceneKey, g.sentenceId, g.sentenceT, t, g.sceneT, 150);
+    if (pt0 >= 0) pose = take(pose, t, pt0);
   }
   // P1-6 (audit Table 3): the word-accent SMEAR — in the word's strike
   // window only (fix 13) — paused during the walk settle.
@@ -1803,7 +1857,11 @@ export function recapSplitScene(g: SceneCtx): void {
   // host small at bottom right — v3 (panel P0-3): v2 renderer + talk
   // P1-1 (report): 0.86 → 1.12 (+30%); ground 756 → 730 (envelope bottom
   // 770, clear of the worst-case 2-row pill band by 6px).
-  const pose = Stickman.poseAt(t, {
+  // PHASE 1.3: recapSplit opens chapters 5 and 10 — the side host now
+  // fades in early enough (140ms, full by 560ms) for the chapter-card
+  // pivot take to be VISIBLE inside the 600ms acceptance window (the old
+  // 700ms fade start put the take's whole hold-overshoot before he existed).
+  const poseBase = Stickman.poseAt(t, {
     gesture: 'present',
     speaking: g.speaking,
     sentenceId: g.sentenceId,
@@ -1811,6 +1869,13 @@ export function recapSplitScene(g: SceneCtx): void {
     sentenceT: g.sentenceT,
     wordTimes: g.gWordTimes,
   });
+  // PHASE 1.3: the chapter-card pivot take on the opener's side host —
+  // delay 260 so the hold lands once he is actually on screen.
+  let pose = poseBase;
+  {
+    const pt0 = pivotTakeStart(g.s.sceneKey, g.sentenceId, g.sentenceT, t, g.sceneT, 260);
+    if (pt0 >= 0) pose = take(pose, t, pt0);
+  }
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
   // ── 100-JUDGE PANEL / PHASE 1 item 1 — CONTACT IS MANDATORY (report §6
   // Phase 1). The recap host stands IN FRONT of the sentiment panel (his
@@ -1821,7 +1886,10 @@ export function recapSplitScene(g: SceneCtx): void {
   // = 133px, inside the 151px arm envelope at 1.35. Round-3: the palm drops
   // to (1610, 570) — BELOW the panel's sparkline band (the curve swings
   // y 400-541) so the resting hand never prints over the data curve.
-  drawStickmanV2(ctx, W * 0.79, H * 0.645, 1.35, t, { pose, alpha: clamp01((t - 700) / 500), look: -0.4, talk, parallax: true, contact: { x: 1610, y: 570, hand: 'palm' } }, 17); // fix 6.1: 1.12 -> 1.35; x W*0.84 -> 0.79 — the shadow/stage band crossed the right edge at the bigger scale
+  // PHASE 1.3 (make the presenter move): the fade 700→140 so the opener's
+  // pivot take is visible inside the 600ms window (alpha does not move the
+  // figure — the contact solve stays exactly where item 1 calibrated it).
+  drawStickmanV2(ctx, W * 0.79, H * 0.645, 1.35, t, { pose, alpha: clamp01((t - 140) / 420), look: -0.4, talk, parallax: true, contact: { x: 1610, y: 570, hand: 'palm' } }, 17); // fix 6.1: 1.12 -> 1.35; x W*0.84 -> 0.79 — the shadow/stage band crossed the right edge at the bigger scale
 }
 
 function miniPanel(

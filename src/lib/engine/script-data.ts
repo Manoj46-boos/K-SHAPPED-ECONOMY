@@ -775,6 +775,11 @@ export const SCRIPT: ChapterSpec[] = [
           // v5 (audit P1-3): peak curiosity — the host leans into the twist
           gesture: 'leanIn',
           expression: 'curious',
+          // PHASE 1.1 (panel audit — LIVING ENTRANCES): the film's most
+          // important pivot now opens with the resurrected walk — the host
+          // crosses in from the wings as the twist card clears, the pivot
+          // take riding the walk (see pivots.ts + hostSceneV2).
+          entrance: 'walk',
           ribbon: 'THE TWIST',
         }),
       },

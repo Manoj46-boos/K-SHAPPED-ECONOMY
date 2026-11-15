@@ -382,12 +382,16 @@ export class Stickman {
         if (opts.wordTimes) {
           for (let wi = 0; wi < opts.wordTimes.length; wi++) {
             const wt = opts.wordTimes[wi];
-            if (t >= wt && t < wt + 300) {
+            if (t >= wt && t < wt + ACCENT_WINDOW_MS) {
               const w = opts.words?.[wi];
-              const tier = w
-                ? (w.length >= 3 && hashStr(w.toLowerCase()) < 0.42 ? 1 : 12 / 44)
-                : 1;
-              accent = Math.max(accent, Math.sin(((t - wt) / 300) * Math.PI) * tier);
+              // PHASE 1.5 (panel audit — ACCENT COVERAGE 1-in-4 → 1-in-2):
+              // full-amplitude strikes now land on every second CONTENT
+              // word (stopword-filtered, hash-gated at 0.52); connective
+              // tissue keeps the 12°-equivalent whisper, exactly as the
+              // two-tier design intended. The gate is shared with the
+              // smear system (accentPulse) so smears ride real strikes.
+              const tier = w ? (accentFire(w) ? 1 : 12 / 44) : 1;
+              accent = Math.max(accent, accentEnv(t - wt) * tier);
             }
           }
         }
@@ -1055,6 +1059,65 @@ export function riseIn(t: number, dur = 600): number {
   return easeOutCubic(clamp01(t / dur));
 }
 
+/**
+ * PHASE 1.5 (panel audit — the accent STRIKE needs a SETTLE): the accent
+ * envelope. The old pulse was one 300ms half-sine — the arm struck and then
+ * DRIFTED back down on the sine's mirrored slope, hitting the 300ms edge at
+ * maximum downward velocity that snapped to zero in one frame (the audit's
+ * "linear drift" read). The rebuilt envelope is the classical grammar:
+ *
+ *   0-90ms    STRIKE — ballistic rise to full amplitude (90ms, faster than
+ *             the old sine's 150ms climb — the hit reads as a hit)
+ *   90-306ms  RECOIL — the first 80% of the return travel, decelerating
+ *             into the settle point (easeOutQuad: the arm pulls back and
+ *             lands at 20% amplitude with zero residual velocity)
+ *   306-360ms SETTLE — the FINAL 20% of the return travel, sine-tapered
+ *             (velocity swells gently and decays to exactly zero at the
+ *             end — no snap, no drift)
+ *
+ * The settle covers 20% of the strike's return travel — the audit's "20%
+ * velocity-tapered settle added to each strike". Pure f(dt), scrub-safe.
+ */
+export const ACCENT_WINDOW_MS = 360;
+
+export function accentEnv(dt: number): number {
+  if (dt < 0 || dt > ACCENT_WINDOW_MS) return 0;
+  if (dt < 90) return Math.sin((dt / 90) * Math.PI * 0.5); // the strike
+  const p = (dt - 90) / 270; // the return, 0..1 over 270ms
+  const travel =
+    p < 0.8
+      ? 0.8 * (1 - Math.pow(1 - p / 0.8, 2)) // the recoil: decelerating into the settle point
+      : 0.8 + 0.2 * Math.pow(Math.sin(((p - 0.8) / 0.2) * Math.PI * 0.5), 2); // the settle: velocity-tapered
+  return 1 - travel;
+}
+
+/** The English function words that never carry a full-amplitude strike. */
+const ACCENT_STOPWORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'but', 'nor', 'so', 'yet', 'for', 'of', 'to', 'in', 'on', 'at',
+  'by', 'up', 'off', 'out', 'as', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'am', 'do',
+  'does', 'did', 'doing', 'have', 'has', 'had', 'will', 'would', 'can', 'could', 'should', 'shall',
+  'may', 'might', 'must', 'it', 'its', 'this', 'that', 'these', 'those', 'he', 'she', 'his', 'her',
+  'him', 'they', 'them', 'their', 'we', 'our', 'us', 'you', 'your', 'me', 'my', 'if', 'then',
+  'than', 'when', 'while', 'what', 'which', 'who', 'whom', 'whose', 'why', 'how', 'all', 'any',
+  'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'not', 'only', 'own', 'same',
+  'too', 'very', 'just', 'also', 'there', 'here', 'now', 'even', 'ever', 'into', 'over', 'under',
+  'about', 'from', 'with', 'without', 'within', 'because', 'after', 'before', 'between', 'through',
+  'during', 'against', 'one', 'two', 'get', 'got', 'gonna', 'going', 'want', 'like',
+]);
+
+/**
+ * PHASE 1.5 — the shared accent gate: does THIS word carry a full strike?
+ * Content words (stopword-filtered, ≥3 letters, hash-gated at 0.52) fire —
+ * ~1-in-2 content words, double the audit's measured 1-in-4 coverage.
+ * Deterministic per word, shared by the pose accent and the smear system.
+ */
+export function accentFire(word: string | undefined): boolean {
+  if (!word) return false;
+  const w = word.toLowerCase().replace(/[^a-z]/g, '');
+  if (w.length < 3 || ACCENT_STOPWORDS.has(w)) return false;
+  return hashStr(w) < 0.52;
+}
+
 /** P1-6 (100-judge audit, Table 3 — GRADUATED SMEARS): the word-onset
  * accent pulse that drives the arm's motion trail. Faster attack than
  * nodPulse — the smear reads as VELOCITY, not emphasis.
@@ -1065,7 +1128,9 @@ export function riseIn(t: number, dur = 600): number {
  * rendering bug. The strike window is now 60-160ms AFTER the word onset —
  * exactly the ballistic phase of the accent — so the smear exists only
  * while the limb is genuinely at speed and never pollutes a settled hold.
- * Scrub-safe. */
+ * PHASE 1.5: the gate is now the shared content-word rule (accentFire) so
+ * smears ride exactly the words that carry full strikes — 1-in-2 content
+ * words, not the old 1-in-4. Scrub-safe. */
 export function accentPulse(t: number, wordTimes: number[], words?: string[]): number {
   let p = 0;
   for (let i = 0; i < wordTimes.length; i++) {
@@ -1074,15 +1139,13 @@ export function accentPulse(t: number, wordTimes: number[], words?: string[]): n
     // EVERY word for 180ms — at 2-3 words/second the ghost trail was live
     // for ~60% of all speech, and two independent judges read it as a
     // rendering artifact ("a smearing artifact rather than motion", "an
-    // un-clipped alpha"). Now only ~1 word in 4 fires (content words,
-    // deterministically by hash) and the strike window is 40-120ms —
+    // un-clipped alpha"). Now only content words fire (deterministically
+    // by hash via accentFire) and the strike window is 40-120ms —
     // TWO FRAMES at 30fps, the ballistic peak of the gesture. A smear
     // that exists for 2 frames at peak velocity reads as velocity; a
     // smear that exists for 6 frames after every word reads as a dirty
     // render. Scrub-safe: pure function of (t, word data).
-    const gated = words && words[i]
-      ? (words[i].length >= 3 && hashStr(words[i].toLowerCase()) < 0.42)
-      : hash01(i * 7.31 + 0.5) < 0.28;
+    const gated = words && words[i] ? accentFire(words[i]) : hash01(i * 7.31 + 0.5) < 0.28;
     if (!gated) continue;
     if (t >= wt + 40 && t < wt + 120) {
       p = Math.max(p, Math.sin(((t - wt - 40) / 80) * Math.PI));

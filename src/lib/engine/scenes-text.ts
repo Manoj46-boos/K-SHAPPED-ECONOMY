@@ -8,7 +8,8 @@ import { PALETTE, TONE, card, rgba, roundRect, setFont, paintBg, scenePlate, glo
 import { bokehField, lightRays, softBloom, sparkles, drawK3D, kMotifs, floatCoins, impactRing, microShake, camState } from './effects';
 import { SceneCtx } from './scene-context';
 import { reactionAt } from './scene-context';
-import { Stickman, POSES, blendPose } from './stickman';
+import { Stickman, POSES, blendPose, take } from './stickman';
+import { pivotTakeStart } from './pivots';
 import { HERO } from './perception';
 import { drawStickmanV2 } from './stickman-v2';
 import { wrapText } from './charts';
@@ -562,10 +563,18 @@ export function takeawaysScene(g: SceneCtx): void {
       ctx.fillText(String(i + 1), x + W * 0.09, y + 130);
       ctx.restore();
     }
-    const pose = Stickman.poseAt(t, {
+    const poseBase = Stickman.poseAt(t, {
       gesture: t % 5000 < 2500 ? 'count1' : 'count2',
       speaking: false,
     });
+    // PHASE 1.3 (panel audit — TAKE ON EVERY CHAPTER PIVOT): chapter 9's
+    // opener IS this beat — the side host takes the card clear at 260ms,
+    // once his own fade (t/600) has him on screen.
+    let pose = poseBase;
+    {
+      const pt0 = pivotTakeStart(g.s.sceneKey, g.sentenceId, g.sentenceT, t, g.sceneT, 260);
+      if (pt0 >= 0) pose = take(pose, t, pt0);
+    }
     // v3 (panel P0-3): v2 renderer
     // P1-1 (report): +30% (1.0 → 1.3); ground → H*0.667 (envelope 767).
     // ── 100-JUDGE PANEL / PHASE 1 item 1 — CONTACT IS MANDATORY: the same
