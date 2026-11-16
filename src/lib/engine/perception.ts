@@ -120,8 +120,11 @@ export const AMP = {
    *  at the 320px feed. 100-JUDGE VISUAL AUDIT (Fix 1 — CHARACTER
    *  OWNERSHIP): 21 -> 34 — the brow arc is the face's main expression
    *  channel and it still sat inside the glasses wire's band at host scale;
-   *  34px puts the raise clearly above the frame at every rig. */
-  browTravelPx: 34,
+   *  34px puts the raise clearly above the frame at every rig.
+   *  100-JUDGE VISUAL AUDIT (Phase 1 — FACE CRAFT): 34 -> 40 — the
+   *  caricature band the engine's own audit prescribed: the raise now
+   *  clears the glasses frame with a full arc of air above it. */
+  browTravelPx: 40,
   /** Reaction window, ms. */
   reactionWindowMs: 1600,
   /** The whip-truck on scene entry.

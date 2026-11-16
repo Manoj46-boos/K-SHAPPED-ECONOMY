@@ -680,6 +680,106 @@ export function scenePlate(
     ctx.fillStyle = fg;
     ctx.fillRect(0, bandTop, W, H - bandTop);
   }
+  // ── 100-JUDGE VISUAL AUDIT (Phase 1 — OWNED ENVIRONMENT LANGUAGE) ───────
+  // Two or three RECURRING furniture elements per room family, riding the
+  // plate every frame — the change that makes a scrubbed frame recognizable
+  // as "the Data Desk" in a feed:
+  //   studio rooms ('up' / 'down'): the mullioned WINDOW top-right (which IS
+  //     the room's light source — the film's light is upper-right, the same
+  //     side every rim light already falls) + the DESK EDGE bottom-right;
+  //   data rooms ('gold'): the SHELF LINE top-left with book spines + the
+  //     FLOOR MATERIAL (sparse plank ticks over the floor band) + the shelf
+  //     LAMP's warm glow (the light prop);
+  //   neutral (statement rooms): the window light only — typography keeps
+  //     a clean stage.
+  // Whisper register (≤0.20 ink alpha), fixed geometry, pure function of
+  // (W, H) — static furniture, scrub-safe, background plane (behind every
+  // content rect by construction), never registered with the guard.
+  {
+    const inkW = rgba(PALETTE.ink, 0.16);
+    ctx.lineCap = 'round';
+    if (tone === 'up' || tone === 'down') {
+      // THE WINDOW (the light prop) — top-right, a 2×2 mullioned pane with
+      // a warm interior wash: the room's light source, matching the rim
+      // light's upper-right incidence.
+      const wx = W * 0.775, wy = H * 0.10, ww = W * 0.085, wh = H * 0.20;
+      ctx.save();
+      const wg = ctx.createLinearGradient(wx, wy, wx, wy + wh);
+      wg.addColorStop(0, rgba(PALETTE.gold, 0.10));
+      wg.addColorStop(1, rgba(PALETTE.gold, 0.03));
+      ctx.fillStyle = wg;
+      roundRect(ctx, wx, wy, ww, wh, 10);
+      ctx.fill();
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.09);
+      ctx.lineWidth = 2.5;
+      roundRect(ctx, wx, wy, ww, wh, 10);
+      ctx.stroke();
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.07);
+      ctx.beginPath();
+      ctx.moveTo(wx + ww / 2, wy);
+      ctx.lineTo(wx + ww / 2, wy + wh);
+      ctx.moveTo(wx, wy + wh / 2);
+      ctx.lineTo(wx + ww, wy + wh / 2);
+      ctx.stroke();
+      ctx.restore();
+      // THE DESK EDGE — one ink hairline + leg tick, bottom-right: the desk
+      // the presenter works at, at the frame's margin, under every card.
+      const dy2 = H * 0.905;
+      ctx.save();
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.18);
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(W * 0.60, dy2);
+      ctx.lineTo(W * 0.97, dy2);
+      ctx.stroke();
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(W * 0.855, dy2);
+      ctx.lineTo(W * 0.855, dy2 + H * 0.045);
+      ctx.stroke();
+      ctx.restore();
+    } else if (tone === 'gold') {
+      // THE SHELF LINE — top-left: two hairlines with five book spines of
+      // varying heights (the data room's library wall).
+      // (the lower shelf line rode the scene title's baseline — the stack
+      // sits ABOVE the 0.20H title band)
+      const sy1 = H * 0.075, sy2 = H * 0.145, sx0 = W * 0.055, sx1 = W * 0.17;
+      ctx.save();
+      ctx.strokeStyle = inkW;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(sx0, sy1); ctx.lineTo(sx1, sy1);
+      ctx.moveTo(sx0, sy2); ctx.lineTo(sx1, sy2);
+      ctx.stroke();
+      // the spines — deterministic heights, one material (ink whisper)
+      ctx.fillStyle = rgba(PALETTE.ink, 0.13);
+      const heights = [34, 26, 30, 22, 28];
+      heights.forEach((bh, i) => {
+        const bx = sx0 + 14 + i * (sx1 - sx0 - 34) / 5;
+        ctx.fillRect(bx, sy1 - bh, 9, bh);
+      });
+      ctx.restore();
+      // THE LAMP GLOW (the light prop) — the shelf lamp's warm pool
+      glowBlob(ctx, W * 0.105, H * 0.11, W * 0.09, PALETTE.gold, 0.14);
+      // THE FLOOR MATERIAL — sparse plank ticks over the floor band: the
+      // data room's boarded floor (the studio keeps its clean gradient).
+      ctx.save();
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.075);
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 14; i++) {
+        const px2 = ((i * 173) % W);
+        const py2 = H * 0.70 + ((i * 97) % Math.round(H * 0.24));
+        ctx.beginPath();
+        ctx.moveTo(px2 - 26, py2);
+        ctx.lineTo(px2 + 26, py2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    } else {
+      // neutral statement rooms — the window light only (clean stage)
+      glowBlob(ctx, W * 0.885, H * 0.155, W * 0.11, PALETTE.gold, 0.12);
+    }
+  }
   ctx.restore();
 }
 

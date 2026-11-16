@@ -591,7 +591,13 @@ export function limb2(
 // 100-JUDGE PANEL / Phase 1 — HAND VOCABULARY: 'point' joins the glyph
 // set (the contact/pointing hand); 'palm' survives as a call-site alias
 // that maps to it.
-type HandMode = 'fist' | 'count1' | 'count2' | 'count3' | 'palm' | 'point' | undefined;
+// 100-JUDGE VISUAL AUDIT (Phase 1 — HANDS TO FIVE GLYPHS): 'open' (the
+// fingers-separated open palm) and 'pinch' (the "let me show you exactly
+// this" hand) join the vocabulary. The tier rule below retires the bare
+// mitten at hero scales: rig ≥ 2 renders resting/presenting hands OPEN
+// and the count-one gesture as the PINCH — the close-up hand finally has
+// fingers; the feed keeps the readable mitten.
+type HandMode = 'fist' | 'count1' | 'count2' | 'count3' | 'palm' | 'point' | 'open' | 'pinch' | undefined;
 
 function handGlyph(
   ctx: CanvasRenderingContext2D,
@@ -618,6 +624,19 @@ function handGlyph(
   // fist/count.
   if (mode === 'palm') {
     mode = 'point';
+  }
+  // 100-JUDGE VISUAL AUDIT (Phase 1 — HANDS TO FIVE GLYPHS): the hero-tier
+  // swap. At rig ≥ 2 (the editorial and reaction stagings — the frames the
+  // panel studies) the bare mitten retires: a resting/presenting hand
+  // renders OPEN (fingers separated at close-up scale), and the count-one
+  // gesture renders as the PINCH — the thumb-and-index "exactly this" hand.
+  // Below rig 2 the feed-scale vocabulary is unchanged (mitten/count read
+  // at 320px; fingers would dissolve to noise).
+  if (!mode && rigScale >= 2) {
+    mode = 'open';
+  }
+  if (mode === 'count1' && rigScale >= 2) {
+    mode = 'pinch';
   }
   if (mode === 'fist' || mode === 'count1' || mode === 'count2' || mode === 'count3') {
     const n = mode === 'fist' ? 0 : Number(mode.slice(5));
@@ -731,6 +750,92 @@ function handGlyph(
     }
     ctx.fillStyle = col; // AFTER restore — the fix that un-lemons the hand
     ctx.fill();
+    return;
+  }
+  // ── 100-JUDGE VISUAL AUDIT (Phase 1) — THE OPEN PALM ──
+  // Five glyphs now: mitten, point, fist/count, OPEN, PINCH. The open palm
+  // is the hero-scale resting/presenting hand: a palm wedge whose FOUR
+  // fingers leave the mass as separated taper strokes (roots buried in the
+  // wedge, tips fanned on the re-grip clock) plus the thumb lobe. At rig ≥ 2
+  // the hand is ~44px on a 1080p frame — 5px fingers survive the transcode;
+  // the splay reads as a hand, not a paddle.
+  if (mode === 'open') {
+    const fa = a;
+    const pxn = Math.sin(fa + Math.PI / 2), pyn = Math.cos(fa + Math.PI / 2);
+    // the palm wedge — slightly longer than the mitten mass, the fingers'
+    // shared root (one subpath of the same filled path)
+    ctx.save();
+    ctx.translate(x + Math.sin(fa) * s * 0.30, y + Math.cos(fa) * s * 0.30);
+    ctx.rotate(fa);
+    ctx.beginPath();
+    roundRect(ctx, -s * 0.52, -s * 0.40, s * 1.04, s * 0.82, s * 0.32);
+    ctx.restore();
+    // four separated fingers — the count glyph's PROVEN finger path (roots
+    // buried in the wedge, quadratic-capped tips, fan ±0.30 rad breathing
+    // with the re-grip clock); drawn as ONE path so the union silhouette
+    // stays a single hand at every angle
+    ctx.beginPath();
+    for (let f = 0; f < 4; f++) {
+      const off = (f - 1.5) * 0.20 * grip;
+      const ffa = fa + off;
+      const bx = x + Math.sin(fa) * s * 0.48 + pxn * off * s * 1.1;
+      const by = y + Math.cos(fa) * s * 0.48 + pyn * off * s * 1.1;
+      const ex = x + Math.sin(ffa) * s * 1.10, ey = y + Math.cos(ffa) * s * 1.10;
+      const px2 = Math.sin(ffa + Math.PI / 2), py2 = Math.cos(ffa + Math.PI / 2);
+      const w0 = s * 0.19, w1 = s * 0.13, dx2 = Math.sin(ffa), dy2 = Math.cos(ffa);
+      ctx.moveTo(bx - px2 * w0, by - py2 * w0);
+      ctx.lineTo(ex - px2 * w1, ey - py2 * w1);
+      ctx.quadraticCurveTo(ex + dx2 * w1 * 0.9, ey + dy2 * w1 * 0.9, ex + px2 * w1, ey + py2 * w1);
+      ctx.lineTo(bx + px2 * w0, by + py2 * w0);
+      ctx.closePath();
+    }
+    ctx.fillStyle = col;
+    ctx.fill();
+    // the thumb lobe — the mitten's own grammar, one bump on the wrist side
+    taper(ctx, x + Math.sin(fa) * s * 0.14, y + Math.cos(fa) * s * 0.14,
+      x + Math.sin(fa + 1.1) * s * 0.72, y + Math.cos(fa + 1.1) * s * 0.72,
+      s * 0.26, s * 0.14, col);
+    return;
+  }
+  // ── THE PINCH  // ── THE PINCH — "let me show you exactly this" ──
+  // The hero-scale count-one gesture: index curls forward to meet the
+  // thumb tip (the teardrop loop at the tips reads as the precise hold),
+  // the remaining three fingers stay folded (knuckle scallops), the mass
+  // carries the volume. The gesture a presenter makes ON a detail.
+  if (mode === 'pinch') {
+    const fa = a;
+    // the folded mass — the fist capsule slightly shorter
+    ctx.save();
+    ctx.translate(x + Math.sin(fa) * s * 0.08, y + Math.cos(fa) * s * 0.08);
+    ctx.rotate(fa);
+    ctx.beginPath();
+    roundRect(ctx, -s * 0.4, -s * 0.34, s * 0.72, s * 0.72, s * 0.26);
+    ctx.restore();
+    // the index — curls from the mass to the pinch point (1.0s out)
+    taper(ctx, x + Math.sin(fa) * s * 0.18, y + Math.cos(fa) * s * 0.18,
+      x + Math.sin(fa) * s * 0.86, y + Math.cos(fa) * s * 0.86,
+      s * 0.22, s * 0.13, col);
+    // the pinch loop — the thumb meets the index tip: a small ring, the
+    // held-nothing circle that reads "this exact thing" at close-up
+    const tx = x + Math.sin(fa) * s * 0.98, ty = y + Math.cos(fa) * s * 0.98;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = s * 0.13;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.ellipse(tx, ty, s * 0.16, s * 0.19, fa, 0, Math.PI * 2);
+    ctx.stroke();
+    // two folded knuckles — the middle/ring read under the index root
+    if (rigScale >= 1.25) {
+      const pxk = Math.sin(fa + Math.PI / 2), pyk = Math.cos(fa + Math.PI / 2);
+      for (const koff of [-0.18, 0.04]) {
+        const kx = x + Math.sin(fa) * s * 0.30 + pxk * koff * s;
+        const ky = y + Math.cos(fa) * s * 0.30 + pyk * koff * s;
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.arc(kx, ky, s * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
     return;
   }
   // ── THE MITTEN — the film's single resting AND presenting hand ──
@@ -1683,7 +1788,15 @@ export function drawStickmanV2(
   // pose.shoulderDrop (the wry slouch +4.5px, the warm chest-open lift
   // −3px). A silhouette-level emotion term: the shoulder LINE tilts, the
   // whole read changes shape, not just a brow angle.
-  const shDrop = pose.shoulderDrop ?? 0;
+  // 100-JUDGE VISUAL AUDIT (Phase 1 — FACE CRAFT AT SILHOUETTE SCALE): the
+  // expression rig now drives the SHOULDERS too — skepticism sloughs the
+  // shoulder line (+6 units, the "unimpressed" read), surprise hunches it
+  // (−5, the flinch). The face's own channels (browRaise / browAngle) are
+  // the single source, so face and silhouette can never disagree.
+  const surpriseT = clamp01(((pose.browRaise ?? 0) - 0.55) / 0.45);
+  const concernedT = clamp01(((pose.browAngle ?? 0) - 8) / 12);
+  const exprDrop = concernedT * 6 - surpriseT * 5;
+  const shDrop = (pose.shoulderDrop ?? 0) + exprDrop;
   // ── CONTACT VERBS: solve the near arm onto the scene's touch point ──
   // The shoulder anchor here replicates limb2's own start point 1:1 (the
   // same neck + shoulder-tilt + drop terms), so the SOLVED angles land the
@@ -2126,7 +2239,13 @@ export function drawStickmanV2(
     ctx.rotate(yawR);
     ctx.translate(-neckX, -neckY);
   }
-  ctx.translate(headCX, headCY + nod);
+  // 100-JUDGE VISUAL AUDIT (Phase 1 — THE NECK BREAK): on look-turns the
+  // head TRANSLATES toward the look direction (up to 5 head-units at full
+  // yaw) on top of the neck-pivot rotation — the silhouette reads as the
+  // neck bending toward the content, the caricature turn a rigid pivot
+  // can never give. Pure function of the pose's own headYaw.
+  const neckBreak = Math.min(1, Math.abs(pose.headYaw ?? 0) / AMP.headYawDeg) * 5 * Math.sign((pose.headYaw ?? 0) || 1);
+  ctx.translate(headCX + neckBreak, headCY + nod);
   // PREMIUM UPGRADE 3D-3: PSEUDO-3D HEAD TURN. The head narrows as it turns
   // (scaleX squash proportional to yaw) — a cheap 2.5D read that the head is
   // rotating in 3D, not just pivoting in 2D. At full yaw (14°) the head

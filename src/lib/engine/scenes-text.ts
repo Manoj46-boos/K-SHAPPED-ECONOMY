@@ -393,6 +393,44 @@ export function stampCardScene(g: SceneCtx): void {
     ctx.fillStyle = PALETTE.inkSoft;
     ctx.fillText(s.sub as string, cx, cy + 180);
     ctx.restore();
+    // 100-JUDGE VISUAL AUDIT (Phase 1 — CUT-TO-VALUE PACING): the merged
+    // data chip — the neighboring journey chart's landing value, plated in
+    // the film's own chip grammar, fading in after the sub settles. The
+    // statement frame now carries the number behind its verdict: no
+    // typography-only window in the chapter.
+    const chip = s.dataChip as { big: string; label: string } | undefined;
+    if (chip) {
+      const dp = clamp01((t - 1200) / 600);
+      if (dp > 0) {
+        ctx.save();
+        ctx.globalAlpha = dp;
+        setFont(ctx, 56, 700);
+        const bw = ctx.measureText(chip.big).width;
+        setFont(ctx, 30, 600);
+        const lw2 = ctx.measureText(chip.label).width;
+        const cw = bw + lw2 + 96;
+        const chx = cx - cw / 2;
+        const chy = cy + 236;
+        ctx.fillStyle = PALETTE.white;
+        roundRect(ctx, chx, chy, cw, 74, 37);
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = rgba(PALETTE.up, 0.5);
+        roundRect(ctx, chx, chy, cw, 74, 37);
+        ctx.stroke();
+        ctx.fillStyle = PALETTE.gold;
+        roundRect(ctx, chx + 26, chy + 14, 46 * easeOutCubic(dp), 5, 2.5);
+        ctx.fill();
+        setFont(ctx, 56, 700);
+        ctx.fillStyle = PALETTE.up;
+        ctx.textAlign = 'left';
+        ctx.fillText(chip.big, chx + 30, chy + 52);
+        setFont(ctx, 30, 600);
+        ctx.fillStyle = PALETTE.inkSoft;
+        ctx.fillText(chip.label, chx + 30 + bw + 24, chy + 47);
+        ctx.restore();
+      }
+    }
     // P2-3: no sparkle burst on the stamp statement (see bigText note).
   }
   // PANEL-12 / P2-3 (report §14.3): THE IMPACT FRAME — the stamp SLAMS at

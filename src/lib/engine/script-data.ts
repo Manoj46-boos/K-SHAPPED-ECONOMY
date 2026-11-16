@@ -201,9 +201,16 @@ export const SCRIPT: ChapterSpec[] = [
             // row and overprinted each other AND the peak-band label. Rows
             // separated: the 30k crossing annotates BELOW its point, the
             // +30% payoff keeps the top row (below the band label).
-            { at: 11, label: 'low-23,000s · March', tone: 'down', dy: 40 },
-            { at: 20, label: 'crosses 30,000 · June — first time ever', tone: 'gold', dy: 46 },
-            { at: 30, label: '+30% off the low in ~10 weeks', tone: 'up', dy: -70 },
+            // 100-JUDGE VISUAL AUDIT (Phase 1 — ANNOTATION DISCIPLINE): the
+            // shipped clause-length pills (930px plates) had no clean row in
+            // the stroke-avoidance search — the 'crosses 30,000' pill shipped
+            // its least-harm fallback ON the climbing stroke, and both pills
+            // crowded the all-time-high band. Reminders, not sentences (the
+            // VO speaks the full clause); the search now finds stroke-clear
+            // rows, and the crossing pill moves ABOVE its dot.
+            { at: 11, label: 'low · March', tone: 'down', dy: 40 },
+            { at: 20, label: 'crosses 30,000 · June', tone: 'gold', dy: -46 },
+            { at: 30, label: '+30% in ~10 weeks', tone: 'up', dy: -70 },
           ],
           peakBand: { from: 26, to: 40, label: 'all-time-high zone' },
         }),
@@ -215,6 +222,14 @@ export const SCRIPT: ChapterSpec[] = [
           stamp: 'RECORD HIGHS',
           sub: 'not hype — accurate',
           expression: 'nod',
+          // 100-JUDGE VISUAL AUDIT (Phase 1 — CUT-TO-VALUE PACING): the
+          // sparsest statement beat in the film ran typography-only. The
+          // merge grammar the 12s-cap machinery already gave c3-bigtext
+          // (dotPayoff) applies here: the stamp carries its neighboring
+          // journey chart's own landing value — the statement frame states
+          // the verdict AND the number behind it. No new beat, no layout
+          // change; the data rides the existing chip grammar.
+          dataChip: { big: '+22%', label: 'Nasdaq · 12 mo to the record' },
         }),
       },
       {
@@ -358,7 +373,7 @@ export const SCRIPT: ChapterSpec[] = [
             [11, -45], [12, -44], [13, -41], [14, -37], [15, -33], [16, -35],
           ],
           annotations: [
-            { at: 15, label: '−33 · still worse than nearly every reading of the last 4 years', tone: 'gold', dy: 52 },
+            { at: 15, label: '−33 · still near 4-year lows', tone: 'gold', dy: 52 },
           ],
           band: { from: -40, to: -20, label: 'typical range · last four years' },
           chips: ['crashed by: gas & oil price spike · Iran conflict', 'recovered by: same prices easing'],
