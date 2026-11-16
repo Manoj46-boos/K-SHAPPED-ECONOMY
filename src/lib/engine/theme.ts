@@ -25,6 +25,15 @@ export interface Palette {
   grid: string;
   /** v8: bar tracks / inactive segments (cool). Was #C8C2B2 greige. */
   track: string;
+  /** PHASE 2 (100-Judge audit Table 6): the pie REMAINDER register — a
+   *  visible sage that reads against the gold wedge AND against the room
+   *  wash at 320px (the muted track at 0.62 measured "near-invisible"). */
+  sage: string;
+  /** PHASE 2: the chapter-card numeral gold — one register DEEPER than
+   *  goldDisplay: the audit's prescription ("the single most washed element
+   *  in the film... it should be the strongest gold in the frame"). The
+   *  460px fill numeral is not text — it is the card's hero mass. */
+  goldNumeral: string;
   gold: string;
   goldDeep: string;
   /** AA-safe gold for small gold TEXT (audit P0-4): 4.64:1 on white.
@@ -100,6 +109,8 @@ export const PALETTE: Palette = {
   shadow: '#5E6E68',   // was #8C8474 everywhere (warm taupe) — cool slate now
   grid: '#AABBB5',      // was #B9B4A6 (warm khaki) — chart grids, hairlines
   track: '#C7D2CD',     // was #C8C2B2 (warm greige) — bar tracks, inactive fills
+  sage: '#7E9C88',      // PHASE 2: visible sage — pie remainder, muted swatches
+  goldNumeral: '#B08414', // PHASE 2: chapter numeral — one register deeper than goldDisplay
   gold: '#C9A227',
   goldDeep: '#8F6E12',
   /** v8: the DISPLAY gold — bright gold for large fills, wedges and

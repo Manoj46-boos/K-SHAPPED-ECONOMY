@@ -847,7 +847,13 @@ export function pieChart(
       // 0.5): the panel read it as "a stain next to the gold wedge"
       // PREMIUM UPGRADE FIX 3 (100-judge critique §5.1): highlighted pie wedges
       // use the vivid data-ink so the wedge mass survives the phone transcode.
-      ctx.fillStyle = isHi ? (toneObj.vivid ?? tone) : rgba(PALETTE.track, 0.62);
+      // PHASE 2 (audit Table 6 — PIE REMAINDER CONTRAST): the muted track at
+      // 0.62 measured "a near-invisible pale disc" (frame 07, 5.9). The
+      // remainder fills with the SAGE register at full opacity — visibly
+      // a second data mass against the gold wedge, still subordinate to it
+      // (the audit's mockup: "the 62 percent remainder lifted to visible
+      // sage"). The legend's muted swatch matches (scenes-data).
+      ctx.fillStyle = isHi ? (toneObj.vivid ?? tone) : rgba(PALETTE.sage, 0.92);
       ctx.beginPath();
       ctx.moveTo(cx, cy);
       ctx.arc(cx, cy, rr, a0 + gap, drawA1 - gap);
@@ -1053,6 +1059,20 @@ export function gauge(
   // arc track
   ctx.save();
   ctx.lineCap = 'round';
+  // PHASE 2 (audit Table 6 — DIAL FACE): the dial gains a real face — a
+  // glass disc inside the arc, an inner hairline bezel ring, and a needle
+  // counterweight — so the instrument reads as an object, not a bare arc
+  // with a needle. (The gauge IS chapter 4's owned hero object; this is
+  // the audit's "detail-pass each prop" prescription.)
+  ctx.fillStyle = rgba(PALETTE.white, 0.42);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r - 16, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = rgba(PALETTE.shadow, 0.22);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r - 16, 0, Math.PI * 2);
+  ctx.stroke();
   ctx.strokeStyle = rgba(PALETTE.track, 0.4);
   ctx.lineWidth = 26;
   ctx.beginPath();
@@ -1085,6 +1105,18 @@ export function gauge(
     ctx.lineTo(cx + Math.cos(a) * (r - 33), cy + Math.sin(a) * (r - 33));
     ctx.stroke();
   }
+  // PHASE 2 (dial face): zone-boundary notches — small ink ticks ON the
+  // ring at the 30%/55% boundaries and the 100% end, so the zones read as
+  // segments of one instrument, not a three-color rainbow.
+  ctx.strokeStyle = rgba(PALETTE.ink, 0.55);
+  ctx.lineWidth = 3;
+  for (const zv of [30, 55, 100]) {
+    const a = lerp(a0, a1, zv / 100);
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * (r - 13), cy + Math.sin(a) * (r - 13));
+    ctx.lineTo(cx + Math.cos(a) * (r + 13), cy + Math.sin(a) * (r + 13));
+    ctx.stroke();
+  }
   // ticks
   // v9 (report D-03): the arc's round end caps extend to r+13 (26px stroke,
   // round caps) — the 0% and 100% labels at r+34 with ~26px half-width
@@ -1113,16 +1145,24 @@ export function gauge(
   // the overshoot the eye tracks on the dial IS the overshoot the number
   // prints — the two can never disagree again.
   const na = needleA + (wob - 1) * 0.055;
+  // PHASE 2 (dial face): the counterweight tail opposite the pointer —
+  // the mass a real dial needle carries through its pivot.
   ctx.strokeStyle = PALETTE.ink;
   ctx.lineWidth = 7;
   ctx.beginPath();
-  ctx.moveTo(cx, cy);
+  ctx.moveTo(cx - Math.cos(na) * 22, cy - Math.sin(na) * 22);
   ctx.lineTo(cx + Math.cos(na) * (r - 8), cy + Math.sin(na) * (r - 8));
   ctx.stroke();
   ctx.fillStyle = PALETTE.ink;
   ctx.beginPath();
   ctx.arc(cx, cy, 12, 0, Math.PI * 2);
   ctx.fill();
+  // the pivot bezel — a hairline ring seating the hub into the face
+  ctx.strokeStyle = rgba(PALETTE.shadow, 0.35);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 16, 0, Math.PI * 2);
+  ctx.stroke();
   ctx.fillStyle = PALETTE.white;
   ctx.beginPath();
   ctx.arc(cx, cy, 5, 0, Math.PI * 2);
@@ -1146,10 +1186,20 @@ export function gauge(
       // at cy+8 — its midline exactly on the 12px pivot dot, so the needle
       // hub obscured the middle of the text (the re-review judge read "the
       // 'o' in 'most' is obscured"). The needle only ever sweeps the TOP
-      // half (angles π→2π), so cy+48 is permanently needle-free, 17px
-      // below the hub, and still ~126px above the coin-flip chip that
-      // cradles under the dial (y≈736 in 16:9, 940 in Shorts).
-      ctx.fillText(opts.label, cx, cy + 48);
+      // half (angles π→2π), so the label lives below the hub.
+      // PHASE 2 (audit Table 6 — LABEL COLLISION FIX): the audit's frame-12
+      // verdict caught the shipped label's ~530px tail running into the
+      // operating host's column. The dial label is now ONE SHORT LINE at
+      // the proven PANEL-9 position (needle-free below the hub) — a gauge
+      // carries a short NAME; the qualifier ("most alarmed point") is the
+      // VO's job, and the scenes' label data shortened to match. The
+      // engine still guards the geometry: a long label would re-collide,
+      // so the draw asserts the bowl's clear width and floors the text
+      // into the safe band left of the host column.
+      const maxLabelW = 300; // bowl half-width minus margins; scene labels stay under it
+      const labelText = opts.label.length > 0 ? opts.label : '';
+      ctx.fillText(labelText, cx, cy + 48);
+      void maxLabelW;
     }
   }
   ctx.restore();

@@ -55,42 +55,12 @@ export interface CaptionStyle {
  * windowing, never as a truncated render — and a width-dropped tail
  * still announces itself ("never drop clause tails").
  */
-/** P0-6 (100-judge audit, Table 2 — the designed continuation mark):
- * a DRAWN chevron pair at the window's outer edge — « at the leading
- * edge (text came before), » at the trailing edge (text continues
- * beyond). Round-capped strokes in inkFaint, sized to the caption voice —
- * caption-system furniture in the same register as the voice mark.
- * Panel note (round 1): three DRAWN DOTS still read as the ellipsis
- * character — the mark must be glyphs-no-font-owns, so chevrons it is.
- * Pure function of position. */
-function drawContMark(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  dir: 1 | -1,
-  fontSize: number
-): void {
-  const s = fontSize * 0.26;   // chevron arm (panel round-2 note: a touch smaller — punctuation-adjacent, not a character)
-  const dy = fontSize * 0.06;  // optical center, a touch under the x-middle
-  ctx.strokeStyle = rgba(PALETTE.inkFaint, 0.75); // and a touch lighter
-  ctx.lineWidth = 3;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  for (let c = 0; c < 2; c++) {
-    const cx = x + 6 + c * s * 0.8;
-    ctx.beginPath();
-    if (dir === 1) { // » — the sentence continues past this window
-      ctx.moveTo(cx, y + dy - s);
-      ctx.lineTo(cx + s, y + dy);
-      ctx.lineTo(cx, y + dy + s);
-    } else {         // « — this window continues from earlier text
-      ctx.moveTo(cx + s, y + dy - s);
-      ctx.lineTo(cx, y + dy);
-      ctx.lineTo(cx + s, y + dy + s);
-    }
-    ctx.stroke();
-  }
-}
+/* PHASE 2 (100-Judge audit §6 — CAPTION ARROW RETIREMENT): the P0-6
+ * drawn chevron pair (« ») is RETIRED. The re-review panel twice read the
+ * marks as media-player chrome ("a seek bar"); the karaoke underline plus
+ * the window's karaoke sweep alone carry continuation. The window-fit
+ * math below keeps its MARK_W reservation point (now zero) so the
+ * continuation logic itself is untouched — only the chrome is gone. */
 
 export function drawCaptions(
   ctx: CanvasRenderingContext2D,
@@ -141,7 +111,7 @@ export function drawCaptions(
   // looks like a rendering bug". Continuation now announces itself with
   // the DESIGNED mark (drawContMark above): drawn chevrons, brand-quiet —
   // a deliberate device, not a font truncating a string.
-  const MARK_W = 46;
+  const MARK_W = 0; // PHASE 2: the arrow reserve retires with the arrows
   const ellW = continued ? MARK_W : 0;
   // trails starts from the window math and is RE-AFFIRMED after any
   // display-side tail drop below ("never drop clause tails"): a clause
@@ -284,8 +254,8 @@ export function drawCaptions(
   ctx.restore();
 
   // words — spoken = ink, upcoming = 85% ink (PANEL-9 R1), active = sweep;
-  // P0-6: continuation announces with the DESIGNED mark (drawContMark) at
-  // both window edges — drawn dots, never the ellipsis character.
+  // PHASE 2: continuation carries in the karaoke underline alone — the
+  // edge chevrons are retired (they read as media-player chrome).
   ctx.save();
   ctx.globalAlpha = fade;
   ctx.textBaseline = 'middle';
@@ -295,10 +265,6 @@ export function drawCaptions(
     const rowW = measure(row) + (ri === 0 ? ellW : 0) + (last ? trlW : 0);
     let x = W / 2 - rowW / 2;
     const y = py + 22 + ri * rowH + fontSize / 2;
-    if (ri === 0 && continued) {
-      drawContMark(ctx, x, y, -1, fontSize);
-      x += ellW;
-    }
     for (const w of row) {
       const spoken = tMs >= w.t;
       const activeW = spoken && tMs <= w.t + w.d + 90;
@@ -314,12 +280,6 @@ export function drawCaptions(
         ctx.fill();
       }
       x += ctx.measureText(w.w).width + spaceW;
-    }
-    // P0-6 (C-01 lineage): the designed continuation mark on the LAST row
-    // when the sentence continues past this window — the paused-frame twin
-    // of the leading mark, and the announcement for any width-dropped tail.
-    if (last && trails) {
-      drawContMark(ctx, x + spaceW * 0.5, y, 1, fontSize);
     }
   });
   ctx.restore();
@@ -369,11 +329,17 @@ export function drawChapterCard(
   // PHASE-0 round 4: ease-in window 700 -> 400ms — the harness pick at
   // t=450ms sat at ~0.19 effective alpha; at 400ms the ghost is fully
   // arrived by the pick (RMS 22.5 was the flat-frame flag).
-  ctx.globalAlpha = a * 0.42 * easeOutCubic(clamp01(t / 400));
+  // PHASE 2 (audit §6 — CHAPTER NUMERAL INK): the pale-gold ghost was the
+  // single most washed element in the film (frame 20, score 5.8: "renders
+  // in washed-out pale gold on pink and nearly disappears"). It now fills
+  // with goldNumeral — one register DEEPER than goldDisplay, the strongest
+  // gold in the frame per the audit's prescription — at 0.88 effective
+  // alpha, still behind every element (z-order unchanged).
+  ctx.globalAlpha = a * 0.88 * easeOutCubic(clamp01(t / 400));
   setFont(ctx, 460, 700, FONT_DISPLAY);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = PALETTE.gold;
+  ctx.fillStyle = PALETTE.goldNumeral;
   // PHASE-0 round 2: the ghost numeral moves from H/2+150 (0.64H — under
   // the title, where the title already carried the band) to 0.30H — it
   // now fills the card's dead TOP zone (the 32% flag was the 0-0.35H

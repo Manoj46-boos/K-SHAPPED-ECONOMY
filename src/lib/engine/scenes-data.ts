@@ -245,12 +245,17 @@ function hostSmall(
     }
   }
   if (shelf) {
+    // PHASE 2 (audit §6 — OWNED FURNITURE AT FUNCTIONAL ALPHA): the shelf
+    // was whisper-register (0.10/0.16) — "designed texture that cannot
+    // clear the transcode is decoration, by the pipeline's own two-tier
+    // mask logic." The owned furniture now renders at functional alpha
+    // (>=0.35 effective): a readable plinth the host OWNS.
     const sw = 210 * Math.min(1, scale / 1.45);
     g.ctx.save();
-    g.ctx.fillStyle = rgba(PALETTE.ink, 0.10);
+    g.ctx.fillStyle = rgba(PALETTE.ink, 0.38);
     roundRect(g.ctx, x - sw / 2, groundY2 + 4, sw, 38, 19);
     g.ctx.fill();
-    g.ctx.fillStyle = rgba(PALETTE.ink, 0.16);
+    g.ctx.fillStyle = rgba(PALETTE.ink, 0.46);
     roundRect(g.ctx, x - sw / 2 + 10, groundY2 + 30, sw - 20, 14, 7);
     g.ctx.fill();
     g.ctx.restore();
@@ -825,7 +830,10 @@ export function pieChartScene(g: SceneCtx): void {
         ctx.save();
         ctx.globalAlpha = ap;
         // swatch — the wedge's own tone, sized to the value line
-        ctx.fillStyle = TONE(sl.tone).main;
+        // PHASE 2: the muted remainder's swatch matches the pie's new SAGE
+        // fill (the legend and the disc must be one register — the old
+        // muted swatch was as pale as the disc it labelled)
+        ctx.fillStyle = sl.tone === 'muted' ? rgba(PALETTE.sage, 0.92) : TONE(sl.tone).main;
         roundRect(ctx, lx, ly + 6, 56, 56, 16);
         ctx.fill();
         // THE VALUE — the row's hero, first in reading order
@@ -1561,7 +1569,46 @@ export function gasPumpScene(g: SceneCtx): void {
   ctx.clip();
   ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
   ctx.fillRect(px + 78, py, 30, 306);
+  // PHASE 2 (audit Table 6 — PUMP DETAIL PASS): the body stops reading as
+  // "a phone card with a hat" once it carries the pump's own hardware.
+  // (a) waist seams — the two panel lines every dispenser body has, splitting
+  //     screen / price plate / receipt zones;
+  ctx.strokeStyle = rgba(PALETTE.shadow, 0.16);
+  ctx.lineWidth = 2;
+  for (const sy of [py + 22, py + 138]) {
+    ctx.beginPath();
+    ctx.moveTo(px - 104, sy);
+    ctx.lineTo(px + 104, sy);
+    ctx.stroke();
+  }
+  // (b) corner bolts — the machine's assembly hardware (reads at 320px as
+  //     "built object", not "card")
+  ctx.fillStyle = rgba(PALETTE.shadow, 0.30);
+  for (const [bx, by] of [[px - 92, py + 34], [px + 92, py + 34], [px - 92, py + 292], [px + 92, py + 292]]) {
+    ctx.beginPath();
+    ctx.arc(bx, by, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
+  // (c) the OPERATING HANDLE at the host's declared contact (880, 470):
+  //     px = W*0.5 = 960, so the palm at x 880 sits on the body's left
+  //     flank 24px inside the edge — the D-grip mounts THERE (grip bar at
+  //     x = px-80 = the contact x, standoffs reaching back to the body
+  //     edge), and the palm pad lands ON the bar: the audit's "a real prop
+  //     the host operates by the handle".
+  ctx.strokeStyle = rgba(PALETTE.shadow, 0.42);
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(px - 80, 470 - 26);
+  ctx.lineTo(px - 80, 470 + 26);
+  ctx.stroke();
+  ctx.lineWidth = 4;
+  for (const my of [470 - 26, 470 + 26]) {
+    ctx.beginPath();
+    ctx.moveTo(px - 104, my);
+    ctx.lineTo(px - 80, my);
+    ctx.stroke();
+  }
   // screen bezel + teal screen
   // PHASE-0 (panel report §7-D1 — THE TEXT-ON-OBJECT COLLISION): the label
   // "PRICE / GALLON" measured 268px at its 34px render size inside a 144px
@@ -1657,6 +1704,19 @@ export function gasPumpScene(g: SceneCtx): void {
   ctx.quadraticCurveTo(px + 140, py + 150, px + 118, py + 232);
   ctx.quadraticCurveTo(px + 128, py + 266, px + 96, py + 258);
   ctx.stroke();
+  // PHASE 2 (pump detail pass): hose-to-nozzle coil — the spring collar a
+  // real hose wears where the nozzle screws on (reads as hardware at 320px)
+  ctx.lineWidth = 3;
+  for (let c = 0; c < 3; c++) {
+    ctx.beginPath();
+    ctx.arc(px + 96 - c * 9, py + 258, 6 - c * 0.8, -1.1, 1.6);
+    ctx.stroke();
+  }
+  // the HOLSTER the nozzle seats in — a bracket ON the body's right skirt:
+  // the hose returns to the machine (the nozzle used to float in air)
+  ctx.fillStyle = rgba(PALETTE.shadow, 0.28);
+  roundRect(ctx, px + 84, py + 252, 30, 44, 8);
+  ctx.fill();
   // nozzle handle at the hose end
   ctx.save();
   ctx.translate(px + 96, py + 258);
@@ -1665,6 +1725,10 @@ export function gasPumpScene(g: SceneCtx): void {
   roundRect(ctx, -9, -26, 18, 34, 6);
   ctx.fill();
   roundRect(ctx, -5, 8, 10, 14, 4);
+  ctx.fill();
+  // the spout — the bent tip a nozzle inserts into the tank (one more
+  // silhouette cue that says "pump", not "walkie-talkie")
+  roundRect(ctx, -3, -34, 6, 10, 3);
   ctx.fill();
   ctx.restore();
   ctx.restore();
@@ -1986,7 +2050,7 @@ export function recessionGaugeScene(g: SceneCtx): void {
     value: (s.gaugeTo as number) || 48,
     p: clamp01((t - 1200) / 2200),
     t,
-    label: 'Zandi\u2019s model · most alarmed point',
+    label: 'Zandi\u2019s model', // PHASE 2: short dial name — the qualifier lives in the VO
   });
   // v8: the mid-roll engagement chip — asks for the viewer's guess WHILE
   // the gauge is still sweeping toward 48%. Comments during the video (not
@@ -2270,6 +2334,20 @@ export function aiDatacenterScene(g: SceneCtx): void {
     ctx.fillStyle = rgba('#FFFFFF', 0.06 + 0.2 * depth);
     roundRect(ctx, x - rw / 2, baseY - rh, rw, 3.5, 2);
     ctx.fill();
+    // PHASE 2 (audit Table 6 — RACK INTERIORS): the corridor slabs stop
+    // being "flat slabs" — each body carries UNIT SLATS (server chassis
+    // rows, scaled by depth) so the dark field reads as RACKS at feed.
+    // Slat count follows height; alpha follows depth (far rows stay hazy).
+    const slats = Math.max(3, Math.round(rh / (26 + 18 * (1 - depth))));
+    ctx.strokeStyle = rgba('#FFFFFF', 0.10 + 0.10 * depth);
+    ctx.lineWidth = 1.2;
+    for (let u = 1; u < slats; u++) {
+      const uy = baseY - rh + (rh * u) / slats;
+      ctx.beginPath();
+      ctx.moveTo(x - rw / 2 + 5, uy);
+      ctx.lineTo(x + rw / 2 - 5, uy);
+      ctx.stroke();
+    }
     // LED glints — fewer with distance, independent phases, OFF = dark
     const n = Math.max(2, Math.min(7, Math.round(rw / 24)));
     for (let k = 0; k < n * 2; k++) {
@@ -2385,7 +2463,13 @@ export function aiDatacenterScene(g: SceneCtx): void {
     ctx.strokeStyle = rgba(PALETTE.shadow, 0.45);
     roundRect(ctx, hx - hw / 2, hBase - hh, hw, hh, 10);
     ctx.stroke();
-    // chassis hairlines — eight units, light-on-dark
+    // PHASE 2 (audit Table 6 — RACK INTERIORS + LEDs): the audit's frame-13
+    // verdict — "flat slabs with no interior detail; LEDs and seams only."
+    // Each of the nine units now draws as a SERVER: a faceplate inset, two
+    // vent slots, and a 3-LED status rail with independent phases (on / dim
+    // / off states, not one blinking row). A cable tray runs the left
+    // margin. The room's hero object reads as the machine the film says
+    // it is — "AI infrastructure" with visible compute.
     ctx.strokeStyle = rgba('#FFFFFF', 0.13);
     ctx.lineWidth = 1.2;
     for (let u = 1; u <= 8; u++) {
@@ -2395,18 +2479,44 @@ export function aiDatacenterScene(g: SceneCtx): void {
       ctx.lineTo(hx + hw / 2 - 8, uy);
       ctx.stroke();
     }
-    // LED rails — two columns, independent phases, big enough to read
-    for (let k = 0; k < 14; k++) {
-      const col = k % 2;
-      const row = Math.floor(k / 2);
-      const on = Math.sin(t / (170 + col * 90) + k * 1.7) > 0.15;
-      ctx.fillStyle = on ? (k % 3 === 0 ? PALETTE.gold : PALETTE.upVivid) : rgba('#FFFFFF', 0.16);
-      const lx = hx - hw / 2 + 16 + col * (hw - 34);
-      const ly = hBase - hh + 16 + (row * (hh - 46)) / 6;
-      ctx.beginPath();
-      ctx.arc(lx, ly, 4, 0, Math.PI * 2);
-      ctx.fill();
+    const unitH = hh / 9;
+    for (let u = 0; u < 9; u++) {
+      const uy = hBase - hh + u * unitH;
+      // faceplate inset — the unit's front bezel
+      ctx.strokeStyle = rgba('#FFFFFF', 0.10);
+      ctx.lineWidth = 1;
+      roundRect(ctx, hx - hw / 2 + 14, uy + 5, hw - 42, unitH - 12, 3);
+      ctx.stroke();
+      // two vent slot pairs — the chassis' airflow face
+      ctx.strokeStyle = rgba('#FFFFFF', 0.085);
+      ctx.lineWidth = 2;
+      for (let vslot = 0; vslot < 2; vslot++) {
+        const vy = uy + 12 + vslot * 9;
+        ctx.beginPath();
+        ctx.moveTo(hx - hw / 2 + 52 + vslot * 4, vy);
+        ctx.lineTo(hx + hw / 2 - 58 - vslot * 4, vy);
+        ctx.stroke();
+      }
+      // 3-LED status rail — the audit's "LEDs" promoted to per-unit state:
+      // phases run per (unit, led), OFF LEDs print as dim sockets
+      for (let led = 0; led < 3; led++) {
+        const on = Math.sin(t / (150 + led * 70) + u * 2.3 + led * 1.1) > 0.1;
+        const lx = hx + hw / 2 - 30 - led * 11;
+        const ly = uy + unitH / 2;
+        ctx.fillStyle = on ? (led === 0 ? PALETTE.gold : PALETTE.upVivid) : rgba('#FFFFFF', 0.13);
+        ctx.beginPath();
+        ctx.arc(lx, ly, 3.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
+    // cable tray — the left margin's vertical service run (one owned line
+    // that makes the rack read as installed hardware, not a black monolith)
+    ctx.strokeStyle = rgba(PALETTE.shadow, 0.55);
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(hx - hw / 2 + 9, hBase - hh + 10);
+    ctx.lineTo(hx - hw / 2 + 9, hBase - 34);
+    ctx.stroke();
     // the load meter — gold, breathing
     const load = 0.35 + 0.3 * Math.sin(t / 640 + 1.9);
     ctx.fillStyle = rgba('#FFFFFF', 0.22);
