@@ -190,3 +190,102 @@ export function logScenePropsIssues(): number {
   }
   return issues.length;
 }
+
+// ── PHASE 1 (100-Judge audit report §5 / Table 6, row 3): THE PROP LEDGER ──
+//
+// The panel's prop-discipline finding: "premium brand characters have
+// wardrobes with RULES — the host carries work props in work chapters,
+// carries nothing in statement chapters, and never holds the same prop
+// twice in consecutive scenes." The shipped code let the chart-satchel
+// ride into EVERY data scene including statement/presenting stagings
+// (chartTwin, pieChart), where the commuter-briefcase read made the
+// presenter look like he wandered in from a different film.
+//
+// The ledger is the single source of truth for which character prop may
+// fire in which sceneKey. Scenes resolve props through resolveProp(); the
+// harness (tools/render-check.mjs) fails the build on any violation, and
+// the usage registry makes every decision inspectable per evidence frame.
+
+/**
+ * Allowed sceneKeys per character prop. A prop fired anywhere else is a
+ * LEDGER VIOLATION and fails the harness gate.
+ */
+export const PROP_LEDGER: Record<string, string[]> = {
+  // the data-chapter signature (slim chart-satchel): the journeyman
+  // presenter ON the road through data chapters — journey charts, the
+  // pump/gauge/datacenter field trips, the portfolio splits. NOT the
+  // statement/presenting stagings (chartTwin, pieChart) and not the
+  // closing talk-to-camera scenes.
+  satchel: [
+    'chartJourney', 'gasPump', 'recessionGauge', 'aiDatacenter',
+    'fundSplit', 'barsCompare', 'oddsSpread', 'dotGrid', 'magChips',
+    'statCards',
+  ],
+  // commuter capital — WORK chapters only (the audit's frame-05 defect:
+  // "a commuter prop in a boardroom moment")
+  briefcase: ['ownerWorker', 'aiDatacenter', 'gasPump', 'endScreen'],
+  // the worker's domed lunchbox — the owner/worker pair and its cameos
+  lunchbox: ['ownerWorker', 'gasPump'],
+  // the prof's coffee — channel-intro and talk-to-camera stagings
+  coffee: ['channelIntro', 'host', 'commentPrompt', 'divergeK'],
+};
+
+export interface PropUsage {
+  sceneKey: string;
+  prop: string;
+  requested: boolean;
+  allowed: boolean;
+}
+
+const PROP_USAGE: PropUsage[] = [];
+
+/**
+ * Resolve a character prop for a sceneKey through the ledger. Returns the
+ * value the scene must use (false when the ledger denies the prop here)
+ * and records the decision in the usage registry for the harness gate.
+ */
+export function resolveProp(sceneKey: string, prop: string, requested: boolean): boolean {
+  const allowed = PROP_LEDGER[prop]?.includes(sceneKey) ?? false;
+  PROP_USAGE.push({ sceneKey, prop, requested, allowed: allowed ? true : requested ? false : true });
+  return requested && allowed;
+}
+
+/** The director/guard reset — clear per render pass. */
+export function resetPropLedger(): void {
+  PROP_USAGE.length = 0;
+}
+
+// ── draw-level registry: the RENDERER reports what actually fires ──────────
+// A denied request is the ledger DOING ITS JOB (silent enforcement, logged).
+// The violation class is a prop that FIRES where no allowed resolution
+// exists in the frame — i.e. a call site that bypassed resolveProp and fed
+// the renderer a raw truthy prop. stickman-v2 calls notePropDraw() at every
+// prop draw; the harness asserts drawn-vs-resolved.
+const PROP_DRAWS = new Set<string>();
+
+/** stickman-v2 calls this when a prop actually renders this frame. */
+export function notePropDraw(prop: string): void {
+  PROP_DRAWS.add(prop);
+}
+
+/** Director/harness reset — per frame, like the rest of the guard state. */
+export function resetPropDraws(): void {
+  PROP_DRAWS.clear();
+}
+
+/** Violations: a prop FIRED with no allowed ledger resolution this frame. */
+export function propLedgerViolations(): PropUsage[] {
+  const out: PropUsage[] = [];
+  for (const prop of Array.from(PROP_DRAWS).sort()) {
+    const ok = PROP_USAGE.some((u) => u.prop === prop && u.allowed);
+    if (!ok) {
+      out.push({ sceneKey: '(unresolved draw — bypassed resolveProp)', prop, requested: true, allowed: false });
+    }
+  }
+  return out;
+}
+
+/** Inspectable usage log for evidence output. */
+export function propLedgerUsage(): PropUsage[] {
+  return PROP_USAGE.slice();
+}

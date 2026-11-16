@@ -32,7 +32,7 @@ if (!fs.existsSync(OUT)) fs.mkdirSync(OUT, { recursive: true });
 if (!fs.existsSync(path.join(BUILD, 'director.js'))) {
   const files = [
     'theme', 'easing', 'effects', 'particles', 'stickman', 'stickman-v2', 'charts', 'textfx',
-    'scene-context', 'scene-props', 'scenes-host', 'scenes-data', 'scenes-text',
+    'scene-context', 'scene-props', 'scale-law', 'scenes-host', 'scenes-data', 'scenes-text',
     'analytics', 'script-data', 'timeline', 'director', 'thumbnail', 'shorts',
   ].map((f) => path.join(REPO, 'src', 'lib', 'engine', f + '.ts'));
   execSync(
@@ -62,6 +62,18 @@ for (const [f, family, weight] of FONTS) {
 // ── browser shims the engine expects ─────────────────────────────────────────
 globalThis.document = { createElement: (tag) => createCanvas(192, 192) };
 globalThis.OffscreenCanvas = class { constructor(w, h) { const c = createCanvas(w, h); return c; } };
+
+// ── PHASE 1 (100-Judge audit Table 6): the scale-law + prop-ledger gates ────
+// Every figure registers its staging tier + height% and every character prop
+// resolves through the ledger at draw time (director resets both registries
+// per frame, alongside the collision guard). The harness asserts them per
+// evidence frame and FAILS the build on any violation — the audit's §5
+// prescription as a permanent gate, not a one-off fix.
+const { scaleLawViolations, figureRegistry } = require(path.join(BUILD, 'scale-law.js'));
+const ledger = require(path.join(BUILD, 'scene-props.js'));
+const SCALE_EVIDENCE = [];
+let scaleViolations = 0;
+let propViolations = 0;
 
 const { SCRIPT } = require(path.join(BUILD, 'script-data.js'));
 const { splitSentences } = require(path.join(BUILD, 'easing.js'));
@@ -125,6 +137,24 @@ function render(name, tMs) {
     guard.resetGuard(name);
   }
   drawFrame(ctx, tl, tMs, OPTS);
+  // PHASE 1 GATES — per-frame assertions (registries hold THIS frame only)
+  const figs = figureRegistry();
+  const slv = scaleLawViolations();
+  if (slv.length) {
+    scaleViolations += slv.length;
+    console.error(`  !! SCALE-LAW GATE — ${name}:`);
+    for (const v of slv) console.error(`     ${v.sceneKey}/${v.label}: ${v.reason}`);
+  }
+  const plv = ledger.propLedgerViolations();
+  if (plv.length) {
+    propViolations += plv.length;
+    console.error(`  !! PROP-LEDGER GATE — ${name}: ${plv.map((v) => `${v.prop}@${v.sceneKey}`).join(', ')}`);
+  }
+  SCALE_EVIDENCE.push({
+    name,
+    figures: figs.map((f) => `${f.label}:${f.tier}@${f.pctOfH}%H${f.contact ? '+contact' : '-NO-CONTACT'}`),
+    props: ledger.propLedgerUsage().filter((u) => u.requested).map((u) => `${u.prop}@${u.sceneKey}:${u.allowed ? 'allowed' : 'DENIED'}`),
+  });
   if (guard) {
     const vs = guard.collectViolations();
     if (vs.length) {
@@ -602,8 +632,19 @@ if (guard && !process.argv.includes('--no-sweep')) {
   );
 }
 
-if (guardViolations || metricViolations) {
-  console.error(`\n✗ RENDER CHECK FAILED: ${guardViolations} collision(s), ${metricViolations} metric violation(s) — fix the scene layout before rendering.`);
+// ── PHASE 1 evidence table: every registered figure staging + prop decision,
+// printable per evidence frame (the BEFORE/AFTER review reads this table).
+console.log('\n── PHASE 1 REGISTRIES (scale law + prop ledger) ──');
+for (const ev of SCALE_EVIDENCE) {
+  if (ev.figures.length || ev.props.length) {
+    console.log(`  ${ev.name}`);
+    for (const f of ev.figures) console.log(`    figure  ${f}`);
+    for (const p of ev.props) console.log(`    prop    ${p}`);
+  }
+}
+
+if (guardViolations || metricViolations || scaleViolations || propViolations) {
+  console.error(`\n✗ RENDER CHECK FAILED: ${guardViolations} collision(s), ${metricViolations} metric violation(s), ${scaleViolations} scale-law violation(s), ${propViolations} prop-ledger violation(s) — fix the scene layout before rendering.`);
   process.exit(1);
 }
 

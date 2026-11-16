@@ -14,6 +14,10 @@ import { Timeline, beatAt } from './timeline';
 import { SceneCtx, SceneDrawer, REACTIONS, reactionAt, resetHeadlineDedup } from './scene-context';
 import { collisionGuard, collisionGuard as guardRef, resetGuard, setGuardOverlay, setGuardCamera, collectViolations } from './collision';
 import { AMP, HERO } from './perception';
+// PHASE 1 (100-Judge audit Table 6): per-frame registry resets for the
+// scale law + the prop ledger (the harness asserts them per evidence frame).
+import { resetFigureRegistry } from './scale-law';
+import { resetPropLedger, resetPropDraws } from './scene-props';
 import { hostScene, splitNumbersScene, divergeKScene, channelIntroScene, recapSplitScene, paradoxResolveScene } from './scenes-host';
 import {
   chartTwinScene, chartJourneyScene, pieChartScene, dotGridScene, magChipsScene,
@@ -657,6 +661,12 @@ export function drawFrame(
   // v9 (report P0-1): per-frame collision-guard reset (no-op unless the
   // harness enabled it — zero cost in the studio render path)
   if (collisionGuard.enabled) resetGuard(`t=${Math.round(t)}ms`);
+  // PHASE 1 (100-Judge audit Table 6): the scale-law figure registry and
+  // the prop-ledger usage registry reset per frame alongside the guard —
+  // the harness asserts THIS frame's stagings and props, never stale ones.
+  resetFigureRegistry();
+  resetPropLedger();
+  resetPropDraws();
   // PHASE-0 (§7-D2): the caption-vs-headline registry resets per frame, so
   // a scene's declared headline only suppresses captions on its own frame.
   resetHeadlineDedup();

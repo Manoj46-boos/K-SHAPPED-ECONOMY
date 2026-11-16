@@ -29,6 +29,9 @@ import { clamp, clamp01, hash01, easeOutCubic } from './easing';
 import { registerRect } from './collision';
 import { camState } from './effects';
 import { AMP, INK } from './perception';
+// PHASE 1 PROP LEDGER: the renderer reports every prop that actually fires
+// so the harness gate can catch call sites that bypass resolveProp().
+import { notePropDraw } from './scene-props';
 
 const D2R = Math.PI / 180;
 
@@ -177,8 +180,24 @@ function drawMouthV2(
   viseme: Viseme = 'X'
 ): void {
   // AUDIT-ROUND-2 (fix 9): the width floor — 12px minimum in the
-  //  face-floor regime, scaled smoothly below it.
-  const wFloor = bigFace ? 12 : 7;
+  // face-floor regime, scaled smoothly below it.
+  // PHASE-1 FACE FILL (audit §7 — FILLED VISEME INTERIOR): the mouth is a
+  // filled cavity, and the cavity now READS as one: the width floors lift
+  // (12 → 15 hero / 7 → 9 compact), every open shape runs ~25% taller, and
+  // the interior gains a darker cavity wedge + warm tongue hint so the open
+  // mouth reads as depth (a cavity), not as a flat ink blob.
+  const wFloor = bigFace ? 15 : 9;
+  const mouthCavity = (cx: number, cy: number, rw: number, rh: number): void => {
+    ctx.fillStyle = 'rgba(28,22,16,0.5)';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + rh * 0.18, rw * 0.62, rh * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // the tongue hint — one warm arc at the cavity's floor
+    ctx.fillStyle = rgba(PALETTE.down, 0.38);
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + rh * 0.42, rw * 0.44, rh * 0.26, 0, 0, Math.PI * 2);
+    ctx.fill();
+  };
   const mx = eyeDX * 0.6;
   ctx.lineCap = 'round';
   ctx.strokeStyle = col;
@@ -207,8 +226,9 @@ function drawMouthV2(
       case 'C': // open (EH) — wide mid-height ellipse
         ctx.fillStyle = col;
         ctx.beginPath();
-        ctx.ellipse(mx, 15, w, h * 0.7 * jawX, 0, 0, Math.PI * 2);
+        ctx.ellipse(mx, 15, w, h * 0.875 * jawX, 0, 0, Math.PI * 2);
         ctx.fill();
+        mouthCavity(mx, 15, w, h * 0.875 * jawX);
         ctx.fillStyle = teethCol;
         ctx.beginPath();
         ctx.ellipse(mx, 15 - h * 0.3, w * 0.55, h * 0.2, 0, 0, Math.PI * 2);
@@ -227,8 +247,9 @@ function drawMouthV2(
       case 'E': // rounded (OW) — vertical ellipse, taller than wide
         ctx.fillStyle = col;
         ctx.beginPath();
-        ctx.ellipse(mx, 15, w * 0.6, h * 0.85 * jawX, 0, 0, Math.PI * 2);
+        ctx.ellipse(mx, 15, w * 0.6, h * 1.06 * jawX, 0, 0, Math.PI * 2);
         ctx.fill();
+        mouthCavity(mx, 15, w * 0.6, h * 1.06 * jawX);
         ctx.fillStyle = teethCol;
         ctx.beginPath();
         ctx.ellipse(mx, 15 - h * 0.35, w * 0.35, h * 0.2, 0, 0, Math.PI * 2);
@@ -251,8 +272,9 @@ function drawMouthV2(
       case 'H': // open wide (AH) — wide tall ellipse, full jaw drop
         ctx.fillStyle = col;
         ctx.beginPath();
-        ctx.ellipse(mx, 15, w * 0.9, h * 1.1 * jawX, 0, 0, Math.PI * 2);
+        ctx.ellipse(mx, 15, w * 0.9, h * 1.375 * jawX, 0, 0, Math.PI * 2);
         ctx.fill();
+        mouthCavity(mx, 15, w * 0.9, h * 1.375 * jawX);
         ctx.fillStyle = teethCol;
         ctx.beginPath();
         ctx.ellipse(mx, 15 - h * 0.45, w * 0.5, h * 0.25, 0, 0, Math.PI * 2);
@@ -274,18 +296,20 @@ function drawMouthV2(
     ctx.beginPath();
     ctx.ellipse(mx, 15, w, w * 1.3 * jawX, 0, 0, Math.PI * 2);
     ctx.fill();
+    mouthCavity(mx, 15, w, w * 1.3 * jawX);
     ctx.fillStyle = '#FDFCF8';
     ctx.beginPath();
     ctx.ellipse(mx, 15 - w * 0.55 * jawX, w * 0.5, w * 0.24 * jawX, 0, 0, Math.PI * 2);
     ctx.fill();
   } else if (talk > 0.55) {
-    // wide-open articulate jaw (the v3 shape, retuned)
+    // wide-open articulate jaw (the v3 shape, retuned + FACE FILL heights)
     const w = Math.max(wFloor, 7.5 + talk * 3);
-    const h = (4 + (talk - 0.55) * 16) * jawX;
+    const h = (5 + (talk - 0.55) * 20) * jawX;
     ctx.fillStyle = col;
     ctx.beginPath();
     ctx.ellipse(mx, 15, w, h, 0, 0, Math.PI * 2);
     ctx.fill();
+    mouthCavity(mx, 15, w, h);
     ctx.fillStyle = '#FDFCF8';
     ctx.beginPath();
     ctx.ellipse(mx, 15 - h * 0.45, w * 0.55, h * 0.28, 0, 0, Math.PI * 2);
@@ -293,27 +317,33 @@ function drawMouthV2(
   } else if (talk > 0.18) {
     // small-open — mid-energy speech: a modest rounded opening
     const w = Math.max(wFloor - 1, 6 + talk * 4);
-    const h = (2.5 + talk * 6.5) * jawX;
+    const h = (3 + talk * 8) * jawX;
     ctx.fillStyle = col;
     ctx.beginPath();
     ctx.ellipse(mx, 15, w, h, 0, 0, Math.PI * 2);
     ctx.fill();
+    mouthCavity(mx, 15, w, h);
     ctx.fillStyle = '#FDFCF8';
     ctx.beginPath();
     ctx.ellipse(mx, 15 - h * 0.45, w * 0.55, h * 0.26, 0, 0, Math.PI * 2);
     ctx.fill();
   } else if (smile > 0.05) {
-    ctx.lineWidth = 5;
+    // FACE FILL — the rest smile is a FILLED crescent now, not a 5px
+    // stroke: the mouth is the face's third mass (brows / eyes / mouth)
+    // and a thin line was the first thing the feed dissolved.
+    ctx.fillStyle = col;
     ctx.beginPath();
-    ctx.moveTo(-8 + mx, 14);
-    ctx.quadraticCurveTo(mx, 14 + smile * 10, 8 + mx, 14);
-    ctx.stroke();
+    ctx.moveTo(-9 + mx, 13);
+    ctx.quadraticCurveTo(mx, 14 + smile * 11, 9 + mx, 13);
+    ctx.quadraticCurveTo(mx, 16.5 + smile * 3, -9 + mx, 13);
+    ctx.closePath();
+    ctx.fill();
   } else {
-    ctx.lineWidth = 4.5;
+    // the neutral mouth — a filled soft slot (same fill logic at rest)
+    ctx.fillStyle = col;
     ctx.beginPath();
-    ctx.moveTo(-6 + mx, 15);
-    ctx.lineTo(6 + mx, 15);
-    ctx.stroke();
+    ctx.ellipse(mx, 14.5, 7, 2.2, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 
@@ -1958,6 +1988,7 @@ export function drawStickmanV2(
   // way a worn bag hangs. Rig-space, scrub-safe: a pure function of the
   // pose's own anchors (hip, neck) and the breathing cycle.
   if (r.satchel) {
+    notePropDraw('satchel');
     const bagW = 46, bagH = 36;
     const bagX = hipRX + 22, bagY = pelvisY + 30 + Math.sin(t / 2400 + seed * 3.1) * 1.2;
     // the strap: far shoulder to the bag's top edge — ink over the vest,
@@ -2082,6 +2113,7 @@ export function drawStickmanV2(
     ctx.stroke();
   }
   if (r.prop === 'coffee') {
+    notePropDraw('coffee');
     // the second character's mug — upright regardless of arm angle
     ctx.save();
     ctx.translate(hand.ex, hand.ey + 6);
@@ -2133,6 +2165,7 @@ export function drawStickmanV2(
     ctx.lineWidth = 4;
     ctx.strokeStyle = ink;
     if (r.briefcase) {
+      notePropDraw('briefcase');
       // the hard case — ink body, gold clasp, the handle at the hand
       ctx.fillStyle = PALETTE.ink;
       roundRect(ctx, -27, -6, 54, 40, 7);
@@ -2149,7 +2182,8 @@ export function drawStickmanV2(
       roundRect(ctx, -6, 5, 12, 9, 3);
       ctx.fill();
     } else {
-      // the lunchbox — cream body, coral lid, wire handle
+      notePropDraw('lunchbox');
+    // the lunchbox — cream body, coral lid, wire handle
       ctx.fillStyle = '#F6F1E3';
       roundRect(ctx, -22, -4, 44, 34, 6);
       ctx.fill();
@@ -2509,15 +2543,26 @@ export function drawStickmanV2(
   // The old construction — 6.6-7.6px rounded-rect rims with ink-dot eyes and
   // the brows overlapping the rim line — fused into the solid goggle-mask the
   // panel convicted ("robot / raccoon / panda", never "professor").
-  const lensR = Math.max(9.5, featureFloor(6));
+  // PHASE-1 FACE FILL (audit §7 — "features occupy a quarter of the face"):
+  // the lens radius carries the scale; sclera and pupil DERIVE from it
+  // (pupil ≈ one-third of the lens radius), and every term keeps a screen-
+  // space floor so the face never starves at the feed. The audit's face-area
+  // measurement put the shipped features at ~22% of the face — the fill pass
+  // raises every feature floor (lens 9.5 → 11, sclera hero 5.2 → 6.4, pupil
+  // share 0.52 → 0.55) toward the ~45% feature-area band the panel scored.
+  const lensR = Math.max(11, featureFloor(6.5));
   // 100-JUDGE VISUAL AUDIT (Fix 1 — CHARACTER OWNERSHIP): the googly read's
   // root cause was the white:sclera ratio — a 6.9-unit white oval inside a
   // 9.5 lens read as "eyes", not "glasses over eyes". The sclera runs HALF
   // the lens and the INK pupil dominates it (0.52 of the lens ≈ 55% of the
   // eye's area): the eye now reads ink-dominant with a thin white ring —
   // the drawn-caricature standard, not a googly meme.
-  const scleraR = Math.max(3.6, featureFloor(4.2), scale >= 2 ? 5.2 : 0);
-  const ivoryPupR = Math.max(2.6, featureFloor(3.2), lensR * 0.52);
+  // FACE FILL: sclera half the lens read as "glasses over nothing" at rest —
+  // the hero sclera lifts 5.2 → 6.4 and its screen floor 4.2 → 4.8 so the
+  // eye mass survives every rig; the INK pupil still dominates (0.55 of the
+  // lens): the drawn-caricature standard, not a googly meme.
+  const scleraR = Math.max(4.2, featureFloor(4.8), scale >= 2 ? 6.4 : 0);
+  const ivoryPupR = Math.max(3.0, featureFloor(3.8), lensR * 0.55);
   if (becker) {
     ctx.fillStyle = faceInk;
     ctx.beginPath();
@@ -2643,7 +2688,7 @@ export function drawStickmanV2(
     // ever — the sclera eyes drawn above show through the wire. The prof
     // cast variant stays silhouette-different by weight and its milky fill;
     // the host's thin temples + arc bridge are the Data Desk signature.
-    ctx.lineWidth = Math.max(0.9, featureFloor(3));
+    ctx.lineWidth = Math.max(1.0, featureFloor(3.4));
     ctx.lineCap = 'round';
     const gR = lensR;
     ctx.beginPath();
@@ -2680,11 +2725,17 @@ export function drawStickmanV2(
   // old brow line sat at y -17/-15, inside the rim's stroke, which is what
   // fused brow + frame into one dark band. 8 units of lift restores the
   // anatomy: brow above the frame, frame over the eye, eye inside the lens.
-  const browLift = ivory ? 8 : 0;
+  // FACE FILL — BROWS ANCHORED TO THE EYE LINE (audit §7): the 8-unit lift
+  // put the brows floating high on the egg ("brows moved" read as the only
+  // expression). The lift drops 8 → 5: the bold brow rides just above the
+  // lens rim (5 units of clear air — anchored to the eye line, never fused
+  // into the frame), and the hero stroke widens 7.6 → 9.5 so the brow mass
+  // carries the emotion at feed scale.
+  const browLift = ivory ? 5 : 0;
   ctx.strokeStyle = ink;
-  // fix 6.1: screen-px floor — the brows never thin below ~6px at 1080p
-  // FIX 4 parity: hero rigs draw the thumbnail's bolder 7.6px brow
-  ctx.lineWidth = Math.max(6, featureFloor(6), scale >= 2 ? 7.6 : 0);
+  // fix 6.1: screen-px floor — the brows never thin below ~6.5px at 1080p
+  // FIX 4 parity: hero rigs draw the thumbnail's bolder 9.5px brow
+  ctx.lineWidth = Math.max(6.5, featureFloor(7), scale >= 2 ? 9.5 : 0);
   ctx.lineCap = 'round';
   const browSide = (dir: number): void => {
     const x0 = dir * (6 + eyeDX), x1 = dir * (20 + eyeDX);

@@ -15,6 +15,10 @@ import { CARD_TEXT_PAD_BOTTOM } from './collision';
 import { reactionAt, reactionStart } from './scene-context';
 import { sourceTag, wrapText } from './charts';
 import { registerRect, registerText } from './collision';
+// PHASE 1 (100-Judge audit Table 6): the HOST_SCALE rule + the figure
+// registry — companion rig derives from the tier law, the harness asserts it.
+import { registerFigure, hostScaleRig } from './scale-law';
+import { resolveProp } from './scene-props';
 
 // BLUEPRINT Phase 1 (report Table 7 — "the plant must LAND"): the contact
 // strike pulse that drives the squash-on-landing transform. Fires at each
@@ -1757,6 +1761,28 @@ export function divergeKScene(g: SceneCtx): void {
     const sp2 = clamp01((t - 3000) / 700);
     if (sp2 > 0 && growP > 0.55) {
       const pose2 = Stickman.poseAt(t, { gesture: 'close', speaking: false, seed: 9 });
+      // ── PHASE 1 (audit §5, FIX 4 — THE REACTION ROLE) ──
+      // The panel convicted the companion as "a figure parked on a line":
+      // standing ON the K's lower diagonal with no interaction, no eyeline
+      // and no narrative reason. He is now a CAST MEMBER watching the same
+      // shock the viewer watches: from his entrance he runs a base point
+      // toward the K formation (the K IS his object — the declared contact
+      // verb), and when the tear lands (t 4800, the same clock the twist
+      // chip rides) the point intensifies with raised brows and a settling
+      // nod. Pure function of t; scrub-safe like every envelope here.
+      const REACT_T0 = 4800;
+      const reactIn = clamp01((t - REACT_T0) / 450);
+      const reactOut = clamp01((t - (REACT_T0 + 1800)) / 600);
+      const react = reactIn * (1 - reactOut);
+      const basePose = { ...POSES.pointR, browRaise: 0.3, smile: 0.35, headTilt: -1 };
+      const reactPose = { ...POSES.pointR, browRaise: 0.72, smile: 0.5, headTilt: -2 };
+      const poseR = blendPose(blendPose(pose2, basePose, clamp01((t - 3450) / 450)), reactPose, Math.min(1, react * 1.25));
+      const nod = nodPulse(t, [REACT_T0 + 1500, REACT_T0 + 1560, REACT_T0 + 1620]) * (0.35 + 0.65 * react);
+      const poseF = { ...poseR, headTilt: (poseR.headTilt ?? 0) + nod * 5 };
+      // HOST_SCALE RULE (audit Table 6): the companion's rig derives from
+      // the participant tier floor at this frame height — the staging can
+      // never silently drop under 5% of the frame.
+      const compRig = Math.max(0.9, hostScaleRig('participant', g.H).min);
       // v10.1: +22 → +48 along the arm — the arm tip's glow blob crowded
       // his mug/arm region ("the small figure's mug/arm crowds the K's lower
       // arm tip and its red cap", vision-verified); 26px more clearance.
@@ -1766,8 +1792,11 @@ export function divergeKScene(g: SceneCtx): void {
       // language") — the 'prof' variant gives him round glasses and a
       // wider torso: a second PERSON with his own silhouette, reading
       // as cast, not copy-paste.
-      drawStickmanV2(ctx, kx + S * 1.15 + 48, ky + S * 1.05 + 6 + bob, 0.9, t,
-        { pose: pose2, alpha: sp2 * 0.96, flip: true, look: -0.7, scarf: false, prop: 'coffee', variant: 'prof' }, 9);
+      drawStickmanV2(ctx, kx + S * 1.15 + 48, ky + S * 1.05 + 6 + bob, compRig, t,
+        { pose: poseF, alpha: sp2 * 0.96, flip: true, look: -0.7, scarf: false, prop: resolveProp(g.beat.scene.type, 'coffee', true) ? 'coffee' : undefined, variant: 'prof' }, 9);
+      // PHASE 1 SCALE LAW: the companion registers as a participant; his
+      // contact verb is the tear-point (declared while the reaction is live).
+      registerFigure(g.beat.scene.sceneKey, 'k-companion', 'participant', compRig, g.H, true);
     }
   }
 
