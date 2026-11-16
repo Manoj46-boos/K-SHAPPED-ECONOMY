@@ -1007,7 +1007,12 @@ export function dotGrid(
     // FIX 3 (density payloads): 0.62 -> 0.8 — the wall of dots must READ
     // as mass at the 320px feed (the 0.62 register measured 2.2% info — the
     // phone gate read the field as gray mush). The gold highlight dots stay.
-    ctx.fillStyle = isHi ? PALETTE.gold : rgba(PALETTE.grid, 0.8);
+    // 100-JUDGE VISUAL AUDIT (Fix 2 — THE WASHED FIELD): rgba(grid, 0.8) on
+    // the teal data plate measured near-invisible at the 320px gate — the
+    // 500-company field, the scene's whole point, washed to nothing. The
+    // field now draws in INK-SOFT at 0.5: clearly-readable dot mass at feed
+    // scale, still one full register behind the ten gold highlights.
+    ctx.fillStyle = isHi ? PALETTE.gold : rgba(PALETTE.inkSoft, 0.5);
     ctx.beginPath();
     ctx.arc(cx, cy, dotR * (isHi ? hiScale : 1) * pop * pulse * appear, 0, Math.PI * 2);
     ctx.fill();

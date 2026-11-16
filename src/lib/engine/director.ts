@@ -897,7 +897,20 @@ export function drawFrame(
   // camX = camState.dx/sc because camState publishes dx = camX·sc), and
   // the disc/veil radii tracking the push so the sharp zone stays ON the
   // face at the new close-up register.
+  // 100-JUDGE VISUAL AUDIT (Fix 2): the register's value is published as
+  // reactionNow so the group-exit block can yield its K-wipe while a
+  // reaction is live — one transition owns the frame at a time.
+  let reactionNow = 0;
   {
+    // 100-JUDGE VISUAL AUDIT (Fix 2 — THE REACTION REGISTER): the reaction
+    // window stacked THREE value treatments on one frame — DOF blur at full
+    // strength, a 0.34 white veil, and (when the window touched the group
+    // exit) the K-wipe sweep + its own ivory cap. The recapSplit twist frame
+    // measured every content pixel at ~25% alpha: "a loading screen" at the
+    // feed, on the film's most important beat class. One register now owns
+    // the close-up: the reaction veil. DOF recedes to 0.8, the veil to 0.22
+    // (still a true close-up read — the face-zone disc stays sharp), and the
+    // exit K-wipe YIELDS while a reaction is live (one transition at a time).
     const rP = reactionAt(beat.beat.scene.sceneKey, gt, groupDur);
     if (rP > 0.04) {
       const spec = REACTIONS[beat.beat.scene.sceneKey];
@@ -915,16 +928,16 @@ export function drawFrame(
       // gains literal focus), the room behind him collapses. Strength
       // rides the same reactionAt() clock as the camera push and the
       // veil; drawn BEFORE the veil so the value recede stacks on top.
-      // PLAYBOOK D2: full close-up register — strength to 1.0, the clear
-      // disc to 420px so the face zone stays sharp at the 0.9-1.1 push
-      // amplitudes.
-      dofPass(ctx, W, H, rP * 1.0, { x: cx, y: cy, r: 420 * (W / 1920) * k });
+      // PLAYBOOK D2: full close-up register — the clear disc to 420px so
+      // the face zone stays sharp at the 0.9-1.1 push amplitudes.
+      dofPass(ctx, W, H, rP * 0.8, { x: cx, y: cy, r: 420 * (W / 1920) * k });
       const veil = ctx.createRadialGradient(cx, cy, 340 * (W / 1920) * k, cx, cy, 1250 * (W / 1920) * k);
       veil.addColorStop(0, 'rgba(255,255,255,0)');
-      veil.addColorStop(1, rgba('#FFFFFF', 0.34 * rP));
+      veil.addColorStop(1, rgba('#FFFFFF', 0.22 * rP));
       ctx.fillStyle = veil;
       ctx.fillRect(0, 0, W, H);
     }
+    reactionNow = rP;
   }
 
   // P1-2 (report) + PANEL-12/P2-2: the exit/enter dissolves — grammar-aware.
@@ -954,9 +967,15 @@ export function drawFrame(
       const exitP = clamp01((gt - (groupDur - 420)) / 420);
       // the ivory veil ONLY at chapter boundaries (and the K-wipe close
       // keeps its reduced 0.22 breath — the sweep carries it)
-      const cap = isChapterBoundary ? (exitStyle === 0 ? 0.5 : 0.22) : exitStyle === 2 ? 0.22 : 0;
+      // 100-JUDGE VISUAL AUDIT (Fix 2): the exit yields to a live reaction
+      // window — veil cap 0 for the non-chapter styles and NO K-wipe while
+      // reactionNow > 0.04. The twist close-up never again dissolves under
+      // a transition sweep.
+      const reactive = reactionNow > 0.04;
+      const cap = reactive ? 0
+        : isChapterBoundary ? (exitStyle === 0 ? 0.5 : 0.22) : exitStyle === 2 ? 0.22 : 0;
       white = Math.max(white, cap * Math.pow(exitP, 1.6));
-      if (exitStyle === 2 && exitP > 0) {
+      if (exitStyle === 2 && exitP > 0 && !reactive) {
         // the brand sweep closes a scene instead of only opening chapters
         kWipe(ctx, W, H, exitP * 420 * 1.6, 672);
       }

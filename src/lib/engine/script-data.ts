@@ -836,6 +836,16 @@ export const SCRIPT: ChapterSpec[] = [
         pauseAfter: 600,
         scene: P('takeaways', 'c9-intro', {
           focus: 0,
+          // 100-JUDGE VISUAL AUDIT (Fix 2 — THE PLACEHOLDER CARDS): the
+          // intro beat drew three cards carrying only the numerals 1, 2, 3 —
+          // placeholder grammar on screen for 6.6 seconds. The cards now
+          // carry each takeaway's real title (the same three the focused
+          // beats headline), sourced content-true from this script.
+          titles: [
+            'Know what you actually own',
+            'Don\u2019t confuse \u201Cthe market\u201D with \u201Cthe economy\u201D',
+            'Be skeptical of single-number narratives',
+          ],
         }),
       },
       {

@@ -1054,16 +1054,19 @@ export function splitNumbersScene(g: SceneCtx): void {
     const delay = 300;
     drawNumberPanel(g, W * 0.06, py - 22, vsW, panelH, 'THE MARKET', marketStats, t, 0);
     drawNumberPanel(g, W * 0.545, py + 22, vsW, panelH, 'THE MOOD', moodStats, t, delay);
-    // the host — on the freed right column, touching the panel he narrates
-    // (0.94W / 0.95 rig: his raised arm's envelope stays 30px clear of the
-    // frame edge — the "host cropped" read never ships again)
-    drawStickmanV2(ctx, W * 0.94, H * 0.645, 0.95, t, {
+    // the host — beside the mood panel he narrates, palm ON its right edge.
+    // 100-JUDGE VISUAL AUDIT (Fix 3 — HOST-SCALE HIERARCHY): 0.94W/0.95 rig
+    // was the film's second-smallest host — a cropped speck at the frame
+    // edge. 0.87W at 1.5 rig: the premium area band, the palm solve onto
+    // the panel edge holds (reach at 1.5 covers the gap), and the raised
+    // arm's envelope stays clear of the frame edge. Guard sweep re-arbitrates.
+    drawStickmanV2(ctx, W * 0.87, H * 0.645, 1.5, t, {
       pose: Stickman.poseAt(t, { gesture: 'present', speaking: g.speaking, sentenceId: g.sentenceId, sentenceT: g.sentenceT, wordTimes: g.gWordTimes }),
       alpha: clamp01((t - 500) / 500),
       look: -0.8,
       talk: g.speaking ? talkAt(g.beatT, g.wordTimes) : 0,
       parallax: true,
-      contact: { x: W * 0.545 + vsW + 10, y: py + 260, hand: 'palm' },
+      contact: { x: W * 0.545 + vsW + 22, y: py + 100, hand: 'palm' },
     }, 27);
   } else if (mode === 'left' || mode === 'right') {
     // single-panel modes: the host owns the empty half — presenting at the
@@ -2083,7 +2086,10 @@ export function recapSplitScene(g: SceneCtx): void {
   // PHASE 1.3 (make the presenter move): the fade 700→140 so the opener's
   // pivot take is visible inside the 600ms window (alpha does not move the
   // figure — the contact solve stays exactly where item 1 calibrated it).
-  drawStickmanV2(ctx, W * 0.79, H * 0.645, 1.35, t, { pose, alpha: clamp01((t - 140) / 420), look: -0.4, talk, parallax: true, contact: { x: 1610, y: 570, hand: 'palm' } }, 17); // fix 6.1: 1.12 -> 1.35; x W*0.84 -> 0.79 — the shadow/stage band crossed the right edge at the bigger scale
+  // 100-JUDGE VISUAL AUDIT (Fix 3 — HOST-SCALE HIERARCHY): 1.35 → 1.5 — the
+  // premium area band; x holds at W*0.79 (the wider core keeps the palm
+  // solve and stays off the frame edge; the guard sweep re-arbitrates).
+  drawStickmanV2(ctx, W * 0.79, H * 0.645, 1.5, t, { pose, alpha: clamp01((t - 140) / 420), look: -0.4, talk, parallax: true, contact: { x: 1610, y: 570, hand: 'palm' } }, 17);
 }
 
 function miniPanel(

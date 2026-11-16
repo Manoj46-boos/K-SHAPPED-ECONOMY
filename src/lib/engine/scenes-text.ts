@@ -614,6 +614,13 @@ export function takeawaysScene(g: SceneCtx): void {
   sceneTitleLocal(ctx, focus === 0 ? 'Three things worth sitting with' : `Takeaway ${focus}`, 180, 220, clamp01(t / 600), W);
   if (focus === 0) {
     // intro: three cards float + host counting
+    // 100-JUDGE VISUAL AUDIT (Fix 2 — THE PLACEHOLDER CARDS): each card now
+    // carries its takeaway's REAL title under the numeral — measured, wrapped
+    // to two lines at the card's inner width, set at the read floor (28px).
+    // The 6.6s intro frame stops reading as an unfinished template and starts
+    // previewing the three payoffs (the retention grammar: show the list, then
+    // pay each item).
+    const introTitles = (s.titles as string[] | undefined) || [];
     for (let i = 0; i < 3; i++) {
       const ap = clamp01((t - 300 - i * 380) / 700);
       if (ap <= 0) continue;
@@ -625,7 +632,22 @@ export function takeawaysScene(g: SceneCtx): void {
       setFont(ctx, 92, 700, FONT_DISPLAY);
       ctx.fillStyle = i === 1 ? PALETTE.goldDeep : PALETTE.ink;
       ctx.textAlign = 'center';
-      ctx.fillText(String(i + 1), x + W * 0.09, y + 130);
+      ctx.fillText(String(i + 1), x + W * 0.09, y + 108);
+      const tl0 = introTitles[i];
+      if (tl0) {
+        // fit-to-two-lines: the title shrinks (28 → 22 floor) until the wrap
+        // fits two lines INSIDE the card — a dropped tail word is a defect,
+        // never a windowing choice (the house "never truncate" law).
+        let ts = 28;
+        let lines = wrapText(ctx, tl0, W * 0.18 - 44, ts, 600);
+        while (lines.length > 2 && ts > 22) {
+          ts -= 1;
+          lines = wrapText(ctx, tl0, W * 0.18 - 44, ts, 600);
+        }
+        setFont(ctx, ts, 600);
+        ctx.fillStyle = PALETTE.inkSoft;
+        lines.slice(0, 2).forEach((ln, j) => ctx.fillText(ln, x + W * 0.09, y + 152 + j * 34));
+      }
       ctx.restore();
     }
     const poseBase = Stickman.poseAt(t, {
@@ -645,7 +667,12 @@ export function takeawaysScene(g: SceneCtx): void {
     // ── 100-JUDGE PANEL / PHASE 1 item 1 — CONTACT IS MANDATORY: the same
     // palm-on-the-quote-card verb on the soft variant (shoulder (1499, 476)
     // → edge (1453, 480) = 46px, lands with elbow bend).
-    drawStickmanV2(ctx, 1495, H * 0.667, 1.3, t, { pose, alpha: clamp01(t / 600), look: -0.5, contact: { x: 1453, y: 480, hand: 'palm' } }, 34);
+    // 100-JUDGE VISUAL AUDIT (Fix 2 regression sweep — TITLES NEED AIR): the
+    // intro cards now carry their takeaway titles, and the old perch put the
+    // host's head ON card 3's text. He steps right to 1620 (clear of card 3's
+    // right edge 1574 by the guard's plating threshold) and the palm solves
+    // onto that edge — the contact verb holds, the title reads.
+    drawStickmanV2(ctx, 1620, H * 0.667, 1.3, t, { pose, alpha: clamp01(t / 600), look: -0.5, contact: { x: 1566, y: 480, hand: 'palm' } }, 34);
   } else {
     // focused card zooms; other two minimized to the left rail
     for (let i = 1; i <= 3; i++) {

@@ -117,8 +117,11 @@ export const AMP = {
   headYawDeg: 14,
   /** Brow-raise travel, px. PHASE-5 (report §11 Phase 5): 14 -> 21 (+50%)
    *  — the brow's vertical travel is a silhouette emotion; at 14px it died
-   *  at the 320px feed. */
-  browTravelPx: 21,
+   *  at the 320px feed. 100-JUDGE VISUAL AUDIT (Fix 1 — CHARACTER
+   *  OWNERSHIP): 21 -> 34 — the brow arc is the face's main expression
+   *  channel and it still sat inside the glasses wire's band at host scale;
+   *  34px puts the raise clearly above the frame at every rig. */
+  browTravelPx: 34,
   /** Reaction window, ms. */
   reactionWindowMs: 1600,
   /** The whip-truck on scene entry.
