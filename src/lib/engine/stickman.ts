@@ -1012,13 +1012,22 @@ export function walkIn(
    *  length in screen px is stridePx × scale — without this term the
    *  planted foot slides at every scaled call site (the editorial host
    *  at 1.85× under-strided ~46%). Default 1. */
-  rigScale = 1
+  rigScale = 1,
+  /** P10 (100-judge audit §13 — WALK PERSONALITY): a stable seed for the
+   *  walk's tempo identity — stride ±8%, cadence ±11%, and a slow cruise
+   *  wobble, all derived from the seed so ONE character keeps ONE walk
+   *  everywhere (workers amble, owners stride). Omitted: the personality
+   *  derives from the route itself (from→to), so every walk on the same
+   *  path still matches — scrub-stable either way. */
+  pSeed?: number
 ): { x: number; pose: Pose; walking: boolean; phase: number } {
   const p = dur > 0 ? clamp01(t / dur) : 1;
   const e = walkEase(p);
   const x = lerp(from, to, e);
   const walking = p < 0.995;
-  const speed = 1.15;
+  // P10: the seed — explicit, or route-derived (stable per path).
+  const seedN = pSeed !== undefined ? hash01(pSeed) : hash01(from * 0.0137 + to * 0.0073);
+  const speed = 1.15 * (0.90 + 0.22 * seedN);
   // phase advances with EASED DISTANCE, not time — feet plant, never slide.
   // stridePx = ground distance per full stride pair (2 steps) at rig speed,
   // expressed in SCREEN px (× rigScale) so the plant is exact at any scale.
@@ -1026,11 +1035,17 @@ export function walkIn(
   // (contact +26 local x to toe-off -50 local x = -76 per half-cycle)
   // now matches the ground advance per half-cycle (152 × 0.5 = 76): the
   // planted foot's residual slide drops to <1px per step at rig 1.
-  const stridePx = 152 * speed * Math.max(0.1, rigScale);
+  // P10: stride ±8% per seed; the cruise wobble rides the phase (a ±3%
+  // tempo drift over ~0.9s — nobody walks like a metronome).
+  const stridePx = 152 * (0.92 + 0.16 * seedN) * speed * Math.max(0.1, rigScale);
+  // P10: the cruise wobble rides the CADENCE (the speed term walkPose
+  // consumes), never the planted phase — phase modulation would slide the
+  // feet the keyed-walk machinery exists to prevent.
+  const cruiseWob = Math.sin(t / 900 + seedN * 6.28) * 0.03;
   const phase = ((to - from) * e) / stridePx;
   let pose: Pose;
   if (walking) {
-    pose = Stickman.walkPose(phase, speed);
+    pose = Stickman.walkPose(phase, speed * (1 + cruiseWob));
     // PREMIUM UPGRADE M1: WALK ACCELERATION LEAN. The torso leans forward
     // during the first 22% of the walk (acceleration), returns to neutral
     // in the cruise, and leans back -4° in the last 22% (deceleration). A

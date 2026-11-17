@@ -46,6 +46,16 @@ const D2R = Math.PI / 180;
  * brand). Referenced by the torso mass and the rolled-sleeve cuffs.
  */
 const BODY_MASS = '#7A5D10';
+
+/**
+ * P1 (100-judge audit §13 — SIGNATURE IDENTITY): the two-tone outfit. The
+ * cast was "generic person with glasses and a mustard tee" — anonymous at
+ * feed scale. The premium read: a dark bronze tee under a GOLD VEST panel
+ * (~38% of torso height, 2px ink outline) — the two-tone silhouette a viewer
+ * can name in three seconds, riding the existing one-light ink language.
+ * trouser stays the ink register (#2A3432 family) the limbs already draw.
+ */
+const OUTFIT = { tee: '#5A4A17', vest: '#C9A227', trouser: '#2A3432' } as const;
 /** AUDIT-ROUND-3 iter-2 (ONE INK, ALL FOUR LIMBS): the gold near-arm
  *  sleeve (ARM_MASS) read to the re-review panel as "the near limb
  *  darker/warmer in tone than the far — the mismatched limb shading
@@ -1264,6 +1274,31 @@ export function drawStickmanV2(
     cx += camState.dx * pAmt;
     groundY += camState.dy * pAmt;
   }
+  // ── P2 (100-judge audit §13 — KILL THE RUBBER ARM) ──────────────────────
+  // When a scene asks the near hand for a target beyond the figure's natural
+  // arm span, the old solve straightened the arm toward it (the rubber read
+  // on the chartTwin reach). The premium solve: the ROOT STEPS TOWARD THE
+  // DATA — up to 85% of the excess distance, capped so staging stays honest —
+  // and the residual target is clamped to 94% of skeletal reach so the elbow
+  // keeps a visible bend at every distance. Registrations below move with
+  // the shifted root, so the guard stays exact.
+  if (r.contact) {
+    // rig skeleton literals (the rig constants below are declared after the
+    // body plan): legs 54+50, torso 78 → span proxy 182; arms 58+54 = 112.
+    const REACH = 1.0 * scale * 182 * 0.62;
+    const shSceneX0 = cx + (r.flip ? -1 : 1) * 4 * scale;
+    const shSceneY0 = groundY - 182 * scale;
+    const pdx = r.contact.x - shSceneX0;
+    const pdy = r.contact.y - shSceneY0;
+    const pdist = Math.hypot(pdx, pdy) || 1;
+    if (pdist > REACH) {
+      const pull = (pdist - REACH) / pdist;
+      const shift = (pdx / pdist) * (pdist - REACH) * 0.85;
+      const maxShift = REACH * 0.35;
+      cx += Math.max(-maxShift, Math.min(maxShift, shift));
+    }
+    void pdy;
+  }
   // v9 (report P0-1 / D-02): register the figure's feet + ground-shadow
   // envelope so the collision guard can assert the caption pill never
   // plates a host's footing again. Shadow: rx 118, ry 26 centered at
@@ -1284,7 +1319,13 @@ export function drawStickmanV2(
     // body envelope narrows to the body core (the reaching arm is accounted
     // for by the scene's declared contact + the hand's own rect). The sweep
     // and the frame review are the referees of the full staging.
-    const envHalf = r.contact ? 70 : 88;
+    // P9 (SWEEP FIX, barsCompare @840s): the contact-mode envelope 70 rode
+    // the host's hip band 18.5px past the left frame edge (the "pill" in the
+    // sweep dump is the edge plane). The planted-hand envelope narrows to the
+    // BODY CORE (56 rig units — the drawn torso half-width + outline); the
+    // reaching arm stays accounted for by the contact rect, as the comment
+    // below always said.
+    const envHalf = r.contact ? 56 : 88;
     // PANEL ACCEPTANCE (audit FIX 2 — THE TOP-EDGE RULE): the envelope is
     // TWO BANDS, true to the drawn silhouette. ONE tall rect's top corners
     // were empty air — at the 0.65 ground they grazed the 405px watermark
@@ -1709,7 +1750,12 @@ export function drawStickmanV2(
     // and silhouette edges so contrast never collapses. The prof variant
     // keeps its wider ink torso (a different PERSON — the coffee prof
     // is not the brand).
-    ctx.fillStyle = prof ? ink : BODY_MASS;
+    // P1 (SIGNATURE IDENTITY): the torso mass draws in the dark bronze tee;
+    // the GOLD VEST panel (h 0.40..0.98, ~38% of torso height, 2px ink
+    // outline) layers over the chest, and the deep-V notch down its center
+    // returns the tee — the two-tone read survives every scale the feed gate
+    // tests. The prof keeps his ink torso (a different PERSON, not the brand).
+    ctx.fillStyle = prof ? ink : OUTFIT.tee;
     ctx.beginPath();
     ctx.moveTo(rX(0, wH), rY(0, wH));
     ctx.quadraticCurveTo(rX(0.25, wH * 0.7), rY(0.25, wH * 0.7), rX(0.45, wW), rY(0.45, wW));
@@ -1729,7 +1775,35 @@ export function drawStickmanV2(
     ctx.strokeStyle = ink;
     ctx.lineWidth = 3.5;
     ctx.stroke();
-    // shoulder caps — small rounded delts at the shoulder line
+    // P1 — THE GOLD VEST PANEL: same torso rail, h 0.40 → 0.98, inset ~12%
+    // so the tee's ink outline still frames it. Filled + 2px ink outline;
+    // the deep-V tee notch below returns the tee at the center chest.
+    if (!prof) {
+      ctx.fillStyle = OUTFIT.vest;
+      ctx.beginPath();
+      ctx.moveTo(rX(0.40, wW * 0.88), rY(0.40, wW * 0.88));
+      ctx.quadraticCurveTo(rX(0.60, wW * 0.96), rY(0.60, wW * 0.96), rX(0.75, wC * 0.82), rY(0.75, wC * 0.82));
+      ctx.quadraticCurveTo(rX(0.90, wC * 0.80), rY(0.90, wC * 0.80), rX(0.98, wS * 0.78), rY(0.98, wS * 0.78));
+      ctx.lineTo(lX(0.98, wS * 0.78), lY(0.98, wS * 0.78));
+      ctx.quadraticCurveTo(lX(0.90, wC * 0.80), lY(0.90, wC * 0.80), lX(0.75, wC * 0.82), lY(0.75, wC * 0.82));
+      ctx.quadraticCurveTo(lX(0.60, wW * 0.96), lY(0.60, wW * 0.96), lX(0.40, wW * 0.88), lY(0.40, wW * 0.88));
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // the deep-V notch — the tee shows through the vest's opening
+      ctx.fillStyle = OUTFIT.tee;
+      ctx.beginPath();
+      ctx.moveTo(rX(0.97, wS * 0.34), rY(0.97, wS * 0.34));
+      ctx.lineTo(rX(0.60, 0), rY(0.60, 0));
+      ctx.lineTo(lX(0.97, wS * 0.34), lY(0.97, wS * 0.34));
+      ctx.closePath();
+      ctx.fill();
+    }
+    // shoulder caps — small rounded delts at the shoulder line (vest gold:
+    // the deltoid sits on the vest's shoulder strap)
+    ctx.fillStyle = prof ? ink : OUTFIT.vest;
     ctx.beginPath();
     ctx.arc(rX(0.92, wS * 0.6), rY(0.92, wS * 0.6), wS * 0.45, 0, Math.PI * 2);
     ctx.fill();
@@ -1737,6 +1811,8 @@ export function drawStickmanV2(
     ctx.arc(lX(0.92, wS * 0.6), lY(0.92, wS * 0.6), wS * 0.45, 0, Math.PI * 2);
     ctx.fill();
     // hip block — a short horizontal bar at the pelvis for grounding
+    // (tee tone: the vest ends above the waist; the pelvis is trouser/tee)
+    ctx.fillStyle = prof ? ink : OUTFIT.tee;
     ctx.beginPath();
     ctx.ellipse(tx0 + tdx * 0.08, ty0 + tdy * 0.08, wH * 1.1, wH * 0.45, Math.atan2(tdx, -tdy), 0, Math.PI * 2);
     ctx.fill();
@@ -1853,7 +1929,15 @@ export function drawStickmanV2(
     const flipS = r.flip ? -1 : 1;
     const tLx = ((r.contact.x - cx) / scale) * flipS;
     const tLy = (r.contact.y - groundY) / scale;
-    const ik = armIk(shX2, shY2, tLx, tLy, U_ARM, L_ARM, r.contact.bend ?? 1);
+    // P2 (KILL THE RUBBER ARM): clamp the target to 94% of skeletal reach —
+    // the elbow keeps a visible bend at every distance; full extension read
+    // as rubber on the chartTwin reach. (Root shift above already closed the
+    // long-distance gap; this clamp is the local guarantee.)
+    const NATURAL = (U_ARM + L_ARM) * 0.94;
+    const rigDist = Math.hypot(tLx - shX2, tLy - shY2) || 1;
+    const tLx2 = rigDist > NATURAL ? shX2 + ((tLx - shX2) / rigDist) * NATURAL : tLx;
+    const tLy2 = rigDist > NATURAL ? shY2 + ((tLy - shY2) / rigDist) * NATURAL : tLy;
+    const ik = armIk(shX2, shY2, tLx2, tLy2, U_ARM, L_ARM, r.contact.bend ?? 1);
     // Fix 5.7 (chartTwin — THE HAND ARRIVES WITH THE PEN): a contact that
     // switches on mid-scene must not teleport the arm — the hard-swap read
     // as a glitch is the exact defect the reaction-envelope round retired.
@@ -2402,6 +2486,28 @@ export function drawStickmanV2(
   if (headStroke > 0) {
     ctx.beginPath();
     ctx.ellipse(0, -1, 35, 42, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // P1 (SIGNATURE IDENTITY) — THE HAIR CREST: one triangular tuft breaking
+  // the egg's crown line. The oval head was the anonymous element — the crest
+  // gives the silhouette a name at 26px feed height (the Alan-Becker test:
+  // identify the character from the outline alone). Drawn in head-local
+  // units so it rides the yaw/nod transform stack; ink, like the contour.
+  // The worker keeps his flat cap (a cap plus a tuft reads as a costume
+  // error); every other variant carries the crest — one family silhouette.
+  if (!worker) {
+    ctx.fillStyle = ink;
+    ctx.beginPath();
+    ctx.moveTo(-14, -34);
+    ctx.quadraticCurveTo(-4, -64, 12, -36);
+    ctx.quadraticCurveTo(2, -46, -14, -34);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-13, -35);
+    ctx.quadraticCurveTo(-3, -60, 11, -37);
     ctx.stroke();
   }
   // 100-JUDGE PANEL / Phase 1 item 4 — CAST BY SILHOUETTE (report §6

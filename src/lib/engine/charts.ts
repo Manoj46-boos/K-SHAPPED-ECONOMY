@@ -7,6 +7,11 @@
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, easeOutQuad, hashStr, lerp, springTo } from './easing';
 import { PALETTE, TONE, card, chip, rgba, roundRect, setFont, fitText, TYPE_FLOOR, LABEL_FLOOR, toneRoom, deskRule, ValuePlane } from './theme';
 import { registerRect, registerFixed, registerText } from './collision';
+// P4 (100-judge audit §13 — CHART IMPACT GRAMMAR): bars and lines land as
+// EVENTS — the engine's own shake + ring + sparkle vocabulary, fired at the
+// exact instant the data arrives. Imports are stateless (pure functions of
+// t), so scrub-safety is preserved.
+import { impactRing, microShake, sparkles } from './effects';
 
 export interface Pt {
   x: number;
@@ -460,6 +465,12 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
         ctx.arc(last.x, last.y, Math.max(0.4, 6.5 * scale), 0, Math.PI * 2);
         ctx.fill();
       }
+      // P4 (CHART IMPACT GRAMMAR): the pen finishing the line is an EVENT —
+      // ONE gold sparkle burst from the endpoint inside the 900ms window
+      // after doneAt. Stateless (pure function of t) — scrub-safe.
+      if (opts.doneAt !== undefined) {
+        sparkles(ctx, last.x, last.y, t, opts.doneAt, { count: 8, gold: true, radius: 90 });
+      }
     }
     void si;
   });
@@ -906,6 +917,13 @@ export function barRow(
     tone?: string;
     tag?: string;
     suffix?: string;
+    /** P4 (CHART IMPACT GRAMMAR): the absolute scene ms (g.t) and the ms the
+     *  bar's growth completes (start + growDur·0.55). When both arrive, the
+     *  bar LANDS as an event: a 60ms micro-shake on the row + one expanding
+     *  ring from the bar cap. Optional — callers without them keep the
+     *  silent legacy render. */
+    t?: number;
+    landT?: number;
   }
 ): number {
   const { x, y, w, rowH, label, value, maxV, p, tone = 'up', suffix = '%' } = opts;
@@ -918,7 +936,11 @@ export function barRow(
   // the bar survives the platform re-encode on a phone. Gradient alpha raised
   // 0.78 → 0.92 so the fill reads as solid mass, not watercolor.
   const cVivid = TONE(tone).vivid ?? c;
+  // P4: the land event — shake the row while the impact ring opens.
+  const landAge = opts.t !== undefined && opts.landT !== undefined ? opts.t - opts.landT : -1;
+  const shake = landAge >= 0 && landAge < 60 ? microShake(opts.t as number, opts.landT as number, 5) : { dx: 0, dy: 0 };
   ctx.save();
+  if (shake.dx || shake.dy) ctx.translate(shake.dx, shake.dy);
   // label
   ctx.textBaseline = 'alphabetic';
   setFont(ctx, 34, 600);
@@ -938,6 +960,12 @@ export function barRow(
   ctx.fillStyle = g;
   roundRect(ctx, x, by, Math.max(30, bw), 30, 15);
   ctx.fill();
+  // P4 — the ring fires from the bar CAP the instant the growth completes:
+  // the record bar arriving is an EVENT the camera acknowledges (furniture
+  // register — 60px radius, tone color; the guard layout is untouched).
+  if (landAge >= 0 && landAge < 380) {
+    impactRing(ctx, x + (value / maxV) * w, by + 15, opts.t as number, opts.landT as number, 60, 1, c);
+  }
   // value text
   const isGold = tone === 'gold';
   setFont(ctx, 34, 700);

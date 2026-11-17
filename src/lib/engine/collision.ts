@@ -198,7 +198,11 @@ export function registerText(id: string, x: number, y: number, w: number, h: num
 /** Register the caption pill's rect (called by drawCaptions itself). */
 export function registerPill(x: number, y: number, w: number, h: number): void {
   const g = collisionGuard;
-  if (!g.enabled) return;
+  // P9 (GUARD FIX): between caption lines the pill computes to a degenerate
+  // 0×0 rect — a host band grazing x=0 then flagged a phantom 17px "pill
+  // overlap" (sweep evidence: barsCompare @840s, depth 17 vs w:0,h:0).
+  // Degenerate pills are no-ops, same rule registerRect/registerFixed use.
+  if (!g.enabled || w <= 0 || h <= 0) return;
   g.pill = { x, y, w, h };
 }
 

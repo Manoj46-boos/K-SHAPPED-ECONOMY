@@ -126,6 +126,23 @@ export function hash01(n: number): number {
   return x;
 }
 
+/**
+ * P7 (100-judge audit §12 — THE 50% SEAM SECOND ARRIVAL): the group-local ms
+ * at which a scene's DEMOTED element reveals. Long holds (≥9.5s groups — the
+ * long-stage register the camera's own reframe uses) earn one extra content
+ * arrival at ~half the hold (±3% jitter keyed to the scene, scrub-stable);
+ * shorter groups keep their original timing unchanged. `demoteMs` is the
+ * element's legacy fixed arrival — the fallback that keeps every short group
+ * exactly as certified. Reveal, never a new layout: the element uses its
+ * existing entrance machinery, just later.
+ */
+export function seamArrival(sceneKey: string, groupDur: number, demoteMs: number): number {
+  if (!(groupDur >= 9500)) return demoteMs;
+  let h = 0;
+  for (let i = 0; i < sceneKey.length; i++) h += sceneKey.charCodeAt(i) * (i + 7);
+  return (0.5 + 0.06 * hash01(h)) * groupDur;
+}
+
 export function hashRange(n: number, min: number, max: number): number {
   return min + hash01(n) * (max - min);
 }

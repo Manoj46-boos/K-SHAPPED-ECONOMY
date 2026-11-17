@@ -5,7 +5,7 @@
  * odds spread.
  */
 
-import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, hash01, hashStr, lerp, springTo } from './easing';
+import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, hash01, hashStr, lerp, seamArrival, springTo } from './easing';
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, chapterFamily, CAPTION_ZONE_TOP, TYPE_FLOOR, LABEL_FLOOR, FONT_DISPLAY, toneRoom, deskRule, valuePlaneFor, roomFill } from './theme';
 import { bokehField, kMotifs, lightRays, drawK, drawK3D, sparkles, hazeBands, impactRing, microShake, depthShift } from './effects';
 import { SceneCtx } from './scene-context';
@@ -85,7 +85,10 @@ function hostSmall(
   // the panel's premium band is 8-15% frame area and the side hosts sat at
   // ~1.5%. Every call site that passes an explicit scale is re-tuned
   // individually (the guard sweep arbitrates each one).
-  scale = 1.45,
+  // P6 (SCALE THE CAST, 100-judge audit §13): the side-host default
+  // 1.45 → 1.7 (+17% linear) — the audit's flagged default; explicit call
+  // sites keep their individually certified values (the sweep arbitrates).
+  scale = 1.7,
   // PANEL-12 / P2-6: reaction opts — during the reaction window the side
   // host swaps to a reaction gesture, the face enlarges and the talk
   // envelope pauses (the camera push lives in director.cameraV2, driven
@@ -732,10 +735,10 @@ export function chartJourneyScene(g: SceneCtx): void {
     if (g.sceneT < 1700) {
       // THE DRAW-ON ENTRANCE — the walkway read itself: he paces the axis
       // from the left edge as the chart draws in above him.
-      const r = walkIn(Math.min(g.sceneT, 1700), 250, STN[cur], 1700, arriveJ, 0.8);
+      const r = walkIn(Math.min(g.sceneT, 1700), 250, STN[cur], 1700, arriveJ, 0.8, 11);
       hxJ = r.x; poseJ = r.walking ? r.pose : arriveJ; phaseJ = r.walking ? r.phase : undefined;
     } else if (stT < 900 && Math.abs(STN[cur] - STN[prev]) >= 120) {
-      const r = walkIn(stT, STN[prev], STN[cur], 900, arriveJ, 0.8);
+      const r = walkIn(stT, STN[prev], STN[cur], 900, arriveJ, 0.8, 11);
       hxJ = r.x; poseJ = r.walking ? r.pose : arriveJ; phaseJ = r.walking ? r.phase : undefined;
     } else {
       hxJ = STN[cur]; poseJ = arriveJ;
@@ -1100,6 +1103,10 @@ export function barsCompareScene(g: SceneCtx): void {
       x: 190, y: H * 0.24 + i * 130, w: barW, rowH: 120,
       label: b.label, value: b.value, maxV: yMax,
       p: bp, tone: b.tone, tag: b.tag,
+      // P4 (CHART IMPACT GRAMMAR): each bar LANDS — shake + ring from the
+      // cap at the exact grow-complete instant (row start + 55% of the
+      // 900ms grow envelope).
+      t, landT: 400 + i * 450 + 495,
     });
   });
   // flip counter (ownership rate)
@@ -1134,7 +1141,13 @@ export function barsCompareScene(g: SceneCtx): void {
   }
   const rc = s.rememberChip as string | undefined;
   if (rc) {
-    const ap = clamp01((t - 3600) / 800);
+    // P7 (THE 50% SEAM SECOND ARRIVAL): the remember chip IS the demoted
+    // element — it now reveals at the group's own seam (~50% of the hold,
+    // ±3% keyed to the scene) instead of a fixed 3.6s, so the second half
+    // of every long hold carries a real content event. Short groups keep
+    // the certified 3.6s (seamArrival falls back to it).
+    const seamMs = seamArrival(String(s.title ?? 'barsCompare'), g.d, 3600);
+    const ap = clamp01((t - seamMs) / 800);
     if (ap > 0) {
       ctx.save();
       ctx.globalAlpha = ap;
@@ -1184,7 +1197,16 @@ export function barsCompareScene(g: SceneCtx): void {
   // (guard round 2/3: certified at 1.25 on the left margin — the fist ON
   // the bar cap holds, the hip band clears the barRow register and the
   // exit camera. +29% area over the shipped 1.1.)
-  hostSmall(g, 112, 'present', 13, H * 0.66, 1.25, 0, 'aha', 1.4, 1, true, 0.4,
+  // P6 (SCALE THE CAST, 100-judge audit §13): the flagged speck scene gains
+  // +8% — 1.25 → 1.35 (sweep-arbitrated: the contact-mode hip band from
+  // this stage plated the barRow label register at 1.45 from x=112, then
+  // crossed the left frame edge at 1.45/1.35 from x=76 — 4 rounds of sweep
+  // evidence). The fix is BOTH: the planted-hand envelope narrows to the
+  // body core (56, in stickman-v2) and the stage sits at x=84 — band
+  // [8.4, 159.6], a 30px gap to the label register and 8px inside the
+  // frame edge. The fist-on-the-cap contact at (198, 458) stays inside
+  // natural reach (no P2 root pull needed).
+  hostSmall(g, 84, 'present', 13, H * 0.66, 1.35, 0, 'aha', 1.4, 1, true, 0.4,
     undefined, undefined, { x: 198, y: 458, hand: 'fist' as const }, 'right');
 }
 
@@ -1865,7 +1887,7 @@ export function gasPumpScene(g: SceneCtx): void {
       const ap = clamp01((t - walkAt) / 600); // the walker EXISTS from his sentence on
       if (ap <= 0) return;
       const arrive = opts.pose as import('./stickman').Pose;
-      const wr = walkIn(Math.max(0, t - walkAt), from, to, dur, arrive, 0.8);
+      const wr = walkIn(Math.max(0, t - walkAt), from, to, dur, arrive, 0.8, seedN);
       const gx = wr.x;
       const gy = roadAt(roadPts, gx);
       const slope = (roadAt(roadPts, gx + 40) - roadAt(roadPts, gx - 40)) / 80;
@@ -2098,7 +2120,11 @@ export function recessionGaugeScene(g: SceneCtx): void {
   // inside the caption-pill band (top ≈ 808), colliding with the subtitle.
   // Now cradled inside the gauge bowl, under the value + model label, clear
   // of both the arc and the caption zone.
-  const cp = clamp01((t - 3200) / 700);
+  // P7 (THE 50% SEAM SECOND ARRIVAL): the coin chip is the dial's demoted
+  // element — it reveals at the group's seam on long holds (the gauge ran
+  // 22s on one staging; the second half now carries its own event). Short
+  // groups keep the certified 3.2s.
+  const cp = clamp01((t - seamArrival(String(s.title ?? 'recessionGauge'), g.d, 3200)) / 700);
   if (cp > 0 && s.coinChip) {
     ctx.save();
     ctx.globalAlpha = cp;
@@ -3909,7 +3935,13 @@ export function oddsSpreadScene(g: SceneCtx): void {
     ctx.textAlign = 'center';
     setFont(ctx, 40, 700);
     ctx.fillStyle = PALETTE.goldDeep;
-    ctx.fillText(s.kicker as string, W / 2, H * 0.68);
+    // P9 (DEFECT FIX — TEXT ON TEXT): the kicker sat at H*0.68 (baseline
+    // ≈734) and the closer landed at CAPTION_ZONE_TOP-48 (baseline ≈752) —
+    // from 5.2s on, two centered text layers printed through each other
+    // (the audit's exhibit: "an average ≠ a consensus" struck through by
+    // the closer). The kicker lifts to H*0.585 (baseline ≈632) — a clean
+    // 120px gap to the closer, clear of the below-row marker cards.
+    ctx.fillText(s.kicker as string, W / 2, H * 0.585);
     ctx.restore();
   }
   const cl = clamp01((t - 5200) / 800);

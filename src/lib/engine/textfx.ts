@@ -3,7 +3,7 @@
  * chapter transition cards, corner watermark, thin gold progress bar.
  */
 
-import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad } from './easing';
+import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, springTo } from './easing';
 import { PALETTE, FONT_UI, FONT_DISPLAY, rgba, roundRect, setFont, TYPE_FLOOR } from './theme';
 import { Stickman } from './stickman';
 import { drawStickmanV2 } from './stickman-v2';
@@ -224,11 +224,20 @@ export function drawCaptions(
   const fadeIn = clamp01((tMs - (active.start - 120)) / 120);
   const fadeOut = 1 - clamp01((tMs - active.end) / 260);
   const fade = Math.min(fadeIn, fadeOut);
+  // P5 (100-judge audit §13 — THE CAPTION PILL MOVES): the only element on
+  // screen for all 35,000 frames entered with alpha only. The pill now
+  // slides up 14px on the engine's own soft spring (200/24 — ~7% overshoot)
+  // and settles; the exit keeps its dissolve. Pure function of tMs —
+  // scrub-safe.
+  const enterMs = tMs - (active.start - 120);
+  const enterE = springTo(0, 1, Math.min(Math.max(enterMs, 0), 420), 200, 24);
+  const enterDy = (1 - enterE) * 14;
   registerPill(W / 2 - widest / 2 - 34, baseY - totalH + 4, widest + 68, totalH);
   ctx.save();
   const px = W / 2 - widest / 2 - 34;
   const py = baseY - totalH + 4;
   ctx.globalAlpha = fade;
+  ctx.translate(0, enterDy);
   // PHASE-0 (panel report §7-D4 — ONE LIGHT): the pill's whisper shadow
   // used to fall (+1, +4) — LOWER-RIGHT, the one shadow in the film that
   // contradicted the upper-right key light, on the element that appears in
@@ -256,8 +265,12 @@ export function drawCaptions(
   // words — spoken = ink, upcoming = 85% ink (PANEL-9 R1), active = sweep;
   // PHASE 2: continuation carries in the karaoke underline alone — the
   // edge chevrons are retired (they read as media-player chrome).
+  // P5: the active word PUNCHES — a 6% scale bell over the word's first
+  // 260ms with a gold fill (goldInk, the AA-safe register), then hands back
+  // to ink as the teal sweep carries the duration.
   ctx.save();
   ctx.globalAlpha = fade;
+  ctx.translate(0, enterDy);
   ctx.textBaseline = 'middle';
   setFont(ctx, fontSize, 700, FONT_UI);
   rows.forEach((row, ri) => {
@@ -270,8 +283,22 @@ export function drawCaptions(
       const activeW = spoken && tMs <= w.t + w.d + 90;
       // PANEL-9 R1: 0.85 blends to ≈4.8:1 on white (WCAG AA) for pre-read
       // text; the spoken state stays ink at ≈9.6:1.
-      ctx.fillStyle = spoken ? PALETTE.ink : rgba('#4F5D59', 0.85);
-      ctx.fillText(w.w, x, y);
+      const since = tMs - w.t;
+      const punch = activeW && since >= 0 && since < 260;
+      if (punch) {
+        // the punch: scale the word about its own center, gold fill
+        const k = 1 + 0.06 * Math.sin(clamp01(since / 260) * Math.PI);
+        const ww = ctx.measureText(w.w).width;
+        ctx.save();
+        ctx.translate(x + ww / 2, y);
+        ctx.scale(k, k);
+        ctx.fillStyle = PALETTE.goldInk;
+        ctx.fillText(w.w, -ww / 2, 0);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = spoken ? PALETTE.ink : rgba('#4F5D59', 0.85);
+        ctx.fillText(w.w, x, y);
+      }
       if (style.mode === 'karaoke' && activeW) {
         const ww = ctx.measureText(w.w).width;
         const sweep = clamp01((tMs - w.t) / Math.max(w.d, 80));

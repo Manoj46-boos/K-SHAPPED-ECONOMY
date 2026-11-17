@@ -3,7 +3,7 @@
  * film grain tile, soft vignette (bright edges), sparkle bursts, K motif glow.
  */
 
-import { clamp01, drift, easeOutCubic, hash01, hashRange } from './easing';
+import { clamp01, drift, easeOutCubic, hash01, hashRange, springTo } from './easing';
 import { PALETTE, rgba, glowBlob, hexLerp } from './theme';
 import { AMP, K3D } from './perception';
 
@@ -1052,14 +1052,22 @@ export function drawK3D(
 }
 
 // ── Scene entry helpers (consistent motion grammar) ──────────────────────────
+// P3 (100-judge audit §13 — THE ENTRANCES GET A POP): every card/element
+// entrance previously decelerated to a dead stop at exactly 1.0 — "shrink-in,
+// not arrival" was the panel's read, and the film's rhythm ran metronomic on
+// it. Both helpers now land on the engine's own spring: the element rises
+// ~10% PAST its final position and settles back (slide), or overshoots to
+// ~1.04 and settles (pop) — the settle that separates premium motion from
+// template motion. Scrub-safe: springTo is a pure function of elapsed ms.
 export function slideUp(t: number, dur = 620, dist = 46): { dy: number; a: number } {
   const p = clamp01(t / dur);
-  return { dy: (1 - easeOutCubic(p)) * dist, a: Math.min(1, p * 2.2) };
+  const e = springTo(0, 1, Math.min(Math.max(t, 0), dur), 200, 18);
+  return { dy: (1 - e) * dist, a: Math.min(1, p * 2.2) };
 }
 
 export function popIn(t: number, dur = 560): { s: number; a: number } {
   const p = clamp01(t / dur);
-  return { s: 0.86 + 0.14 * easeOutCubic(p), a: Math.min(1, p * 2) };
+  return { s: 0.86 + 0.14 * springTo(0, 1, Math.min(Math.max(p, 0) * dur, dur), 170, 21), a: Math.min(1, p * 2) };
 }
 
 /** Soft radial flash used on hard cuts / reveals.

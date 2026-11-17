@@ -714,6 +714,14 @@ export function scenePlate(
   // Whisper register (≤0.20 ink alpha), fixed geometry, pure function of
   // (W, H) — static furniture, scrub-safe, background plane (behind every
   // content rect by construction), never registered with the guard.
+  // P8 (SHORTS STAGING, 100-judge audit §13): the furniture geometry was
+  // authored for 16:9 — in a 9:16 portrait room the window/shelf land as a
+  // clipped pale slab in the top corner (the audit measured it in every
+  // vertical frame). Portrait rooms are ARCHITECTURE-FREE: the plate, the
+  // floor band and the light stay; the furniture block is skipped.
+  if (H > W) {
+    // portrait: keep only the floor band drawn above, skip furniture
+  } else {
   {
     const inkW = rgba(PALETTE.ink, 0.16);
     ctx.lineCap = 'round';
@@ -827,6 +835,8 @@ export function scenePlate(
       glowBlob(ctx, W * 0.885, H * 0.155, W * 0.11, PALETTE.gold, 0.24);
     }
   }
+  } // P8: end of the landscape-only furniture wrapper (portrait rooms are
+    // architecture-free — the 9:16 crop clipped the window into a slab)
 
   // ── PHASE 4 (audit §7 — ROOM ARCHITECTURE PER CHAPTER FAMILY) ──────────
   // "Every scene sits in the same room: one gradient wash, one floor band

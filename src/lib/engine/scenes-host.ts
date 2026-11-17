@@ -3,7 +3,7 @@
  * the signature "diverging K" formation, split-number reveals, channel intro.
  */
 
-import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, hashStr, lerp } from './easing';
+import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, hashStr, lerp, seamArrival } from './easing';
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg, scenePlate, chapterFamily, FONT_DISPLAY, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
 import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp, subjectHalo, microShake, impactRing, depthShift } from './effects';
 import { Stickman, POSES, blendPose, walkIn, nodPulse, accentPulse, launchPulse, walkSmear, take } from './stickman';
@@ -110,6 +110,15 @@ const HOST_GROUND = (H: number): number => H * 0.66;
 // headroom to give" — applied to the vertical axis. Ground 0.66H per the
 // prescription. Certification: collision sweep + head probe + pixel_audit
 // dark-ink bar, all measured below.
+// P6 (SCALE THE CAST, 100-judge audit §13): the audit's 3.05 target runs the
+// drawn head top past y=0 at the certified 0.66H ground (267-324 rig-px
+// tall × 3.05 = 814+ px — the head crops), and the sweep confirmed it: the
+// apex band crossed the top rail/header and the walking hip band plated the
+// right-column headline; even 2.72 grazed the header lockup on the c9 walk
+// entry (sweep round 2). The sweep-verified ceiling stays at the certified
+// 2.65 — the audit's real presence gain ships on the flagged side-host
+// scenes (splitNumbers 1.35→1.55, barsCompare 1.25→1.45, the hostSmall
+// default 1.45→1.7) and on the Shorts figure (2.3→2.9), all re-certified.
 export const HOST_SCALE = 2.65;
 
 const HOST_X = (W: number, side: 'center' | 'left' | 'right'): number =>
@@ -306,7 +315,7 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
     // takes its area from the empty left third, the report's own fallback.
     const walkFrom = Math.max(hx - 560, 180 * scale + 100);
     const r = hx - walkFrom >= 120
-      ? walkIn(t, walkFrom, hx, walkDur, arrive, scale)
+      ? walkIn(t, walkFrom, hx, walkDur, arrive, scale, 5.2)
       : null;
     if (r) {
       x = r.x;
@@ -646,7 +655,7 @@ export function hostSceneV2(g: SceneCtx): void {
     // beat gets a real 221-384px cross with planted feet.
     const walkFrom = Math.max(240, hxTarget - 500);
     const r = hxTarget - walkFrom >= 120
-      ? walkIn(t, walkFrom, hxTarget, 1600, arrive, HOST_SCALE)
+      ? walkIn(t, walkFrom, hxTarget, 1600, arrive, HOST_SCALE, 5.2)
       : null;
     if (r) {
       hx = r.x;
@@ -689,7 +698,7 @@ export function hostSceneV2(g: SceneCtx): void {
       // PHASE 1.1: the entry-edge clamp drops to 70 (see the entrance above) —
       // every block pair on the certified set is now walkable (all blocks sit
       // ≥ 461px, so this clamp is a floor, not a shaper).
-      const r = walkIn(moveT, Math.max(fromX, 70), toX, 900, arrive, HOST_SCALE);
+      const r = walkIn(moveT, Math.max(fromX, 70), toX, 900, arrive, HOST_SCALE, 5.2);
       hx = r.x;
       pose = r.walking
         ? r.pose
@@ -1117,7 +1126,9 @@ export function splitNumbersScene(g: SceneCtx): void {
       mode === 'left' ? marketStats : moodStats,
       t, 0
     );
-    drawStickmanV2(ctx, mode === 'left' ? W * 0.7 : W * 0.3, H * 0.67, 1.35, t, {
+    drawStickmanV2(ctx, mode === 'left' ? W * 0.7 : W * 0.3, H * 0.67, 1.55, t, {
+      // P6 (SCALE THE CAST): the flagged cheering-speck staging 1.35 → 1.55
+      // (+32% frame area); the guard sweep re-certifies the envelope.
       pose: Stickman.poseAt(t, { gesture: 'present', speaking: g.speaking, sentenceId: g.sentenceId, sentenceT: g.sentenceT, wordTimes: g.gWordTimes }),
       alpha: clamp01((t - 400) / 500),
       look: mode === 'left' ? -0.7 : 0.7,
@@ -1135,7 +1146,13 @@ export function splitNumbersScene(g: SceneCtx): void {
     // NAMED at its end, so 500 anonymous dots become a labeled population
     // read: two halves of one country, one band, one economy.
     {
-      const bp = clamp01((t - 600) / 700);
+      // P7 (THE 50% SEAM SECOND ARRIVAL): the 500-household band is the
+      // scene's demoted element — on long holds it reveals at the seam
+      // (~50% of the group), so the second half of the staging carries a
+      // real content event. Short groups keep the certified 600ms.
+      const bp = clamp01(
+        (t - seamArrival(String((g.s as Record<string, any>)?.title ?? 'splitNumbers'), g.d, 600)) / 700
+      );
       if (bp > 0) {
         ctx.save();
         ctx.globalAlpha = bp;

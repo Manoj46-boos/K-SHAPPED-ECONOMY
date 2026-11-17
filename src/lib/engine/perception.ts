@@ -189,14 +189,19 @@ export const INK = {
   /** Near arm taper: shoulder → elbow → wrist.
    *  100-JUDGE REPORT fix C2 (INK MASS): 17/13/10 → 20/15/11 — the figure
    *  must carry the frame's value structure (dark ink was 2.3% of frame;
-   *  the target band is 4-5%). */
-  armNear: [20, 15, 11] as [number, number, number],
-  /** Far arm taper (C2: 13/10/8 → 15/12/9). */
-  armFar: [15, 12, 9] as [number, number, number],
-  /** Near leg taper (C2: 21/16/12 → 25/19/14 — the report's number). */
-  legNear: [25, 19, 14] as [number, number, number],
-  /** Far leg taper (C2: 17/13/10 → 20/15/11). */
-  legFar: [20, 15, 11] as [number, number, number],
+   *  the target band is 4-5%).
+   *  P1 (100-judge audit §13 — SIGNATURE IDENTITY, +18% INK WEIGHT): every
+   *  limb taper ×1.18 — at feed scale the 320px twin reads the heavier
+   *  contour as "a drawn character", not "a thin line person". Torso mass
+   *  and the head's screen-space 4.5px contour are unchanged (they are
+   *  masses, not strokes — the identity pass lives on the limbs). */
+  armNear: [23.6, 17.7, 13] as [number, number, number],
+  /** Far arm taper (C2: 13/10/8 → 15/12/9; P1 ×1.18). */
+  armFar: [17.7, 14.2, 10.6] as [number, number, number],
+  /** Near leg taper (C2: 21/16/12 → 25/19/14; P1 ×1.18). */
+  legNear: [29.5, 22.4, 16.5] as [number, number, number],
+  /** Far leg taper (C2: 17/13/10 → 20/15/11; P1 ×1.18). */
+  legFar: [23.6, 17.7, 13] as [number, number, number],
   /** Torso taper: hips → shoulders (was 15/22). */
   torso: [19, 30] as [number, number],
   /** Head outline stroke (was 9). AUDIT-PHASE-2: 12 -> 14 — the face's

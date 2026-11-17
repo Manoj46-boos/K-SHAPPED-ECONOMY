@@ -26,7 +26,7 @@ import { Timeline } from './timeline';
 import { paintBg, scenePlate, PALETTE, TONE, card, rgba, roundRect, setFont, FONT_DISPLAY, FONT_UI } from './theme';
 import { renderVideo } from './encode';
 import { getSharedAudioContext } from './audio';
-import { clamp01, easeOutCubic, lerp } from './easing';
+import { clamp01, easeOutCubic, lerp, springTo } from './easing';
 import { bokehField, drawK3D, lightRays, sparkles } from './effects';
 import { Stickman, blendPose, POSES } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
@@ -176,8 +176,14 @@ const CAPTION_BASE_NATIVE = 1260;
  *  grammar; the opaque backing keeps every word legible. */
 const HOST_GROUND = 1640;
 /** The re-staged host's persistent scale: 1.12 → 2.3 (2.05× — inside the
- *  audit's 2-3x band). The entry close-up (below) rides 2.6. */
-const HOST_SCALE_SHORTS = 2.3;
+ *  audit's 2-3x band). The entry close-up (below) rides 2.6.
+ *  P8 (SHORTS STAGING, 100-judge audit §13): the figure was one static
+ *  postage-stamp pose across every Short — the audit's fix: a bigger,
+ *  staged cast. 2.3 → 2.9 (+26% linear): the head top sits ≈1640 − 241×2.9
+ *  ≈ 941, still clearing the caption pill's top (1164) by 220px; the body
+ *  core envelope (±88×2.9 ≈ ±255 → x 285-795) stays inside the frame. The
+ *  per-mode gesture/reaction system below is the staged-pose pass. */
+const HOST_SCALE_SHORTS = 2.9;
 
 /** v6: the host — CENTER-WEIGHTED, 2.05× the old postage stamp, feet on
  *  HOST_GROUND, clear of the pill (face above), clear of the bottom band
@@ -954,6 +960,11 @@ function drawNativeVerticalBars(
   }
 
   // remember chip — the scene's kicker, gold language, centred
+  // P9 (DEFECT FIX — CHIP vs CAPTION PILL): the chip rode y 1040 — its
+  // bottom (1094) grazed the 2-row caption pill's top (~1100) and the
+  // audit's short-1 exhibit caught it clipped mid-word behind the pill.
+  // It rides 60px higher (y 980, bottom 1034 — 66px clear of the worst
+  // 2-row pill) and enters on the P5 spring instead of a hard alpha.
   const rc = s.rememberChip as string | undefined;
   if (rc) {
     const ap = clamp01((t - 3600) / 800);
@@ -961,9 +972,11 @@ function drawNativeVerticalBars(
       setFont(ctx, 28, 600, FONT_UI); // v9 (D-07): floor
       const tw = ctx.measureText(rc).width;
       const cx = W / 2 - tw / 2 - 28;
-      const cy = 1040;
+      const cy = 980;
+      const enterE = springTo(0, 1, Math.min(Math.max(t - 3600, 0), 420), 200, 24);
       ctx.save();
       ctx.globalAlpha = ap;
+      ctx.translate(0, (1 - enterE) * 14);
       ctx.fillStyle = PALETTE.goldWash;
       roundRect(ctx, cx, cy, tw + 56, 54, 27);
       ctx.fill();
