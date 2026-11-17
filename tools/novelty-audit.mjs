@@ -188,6 +188,44 @@ const report = {
 const outPath = arg('out', path.join(REPO, 'novelty-report.json'));
 fs.writeFileSync(outPath, JSON.stringify(report, null, 2));
 console.log(`dead windows (≥${DEAD_WINDOW_SEC}s of no visible change): ${dead.length}`);
+
+// ── 3. PHASE 3 (audit §8 — THE HERO AMPLITUDE REGISTER): sub-floor windows.
+// The audit's prescription: "every scene group must contain at least one
+// body-action event inside each 6-second window, with the hero amplitude
+// at 2-3x ambient — and the harness should measure it (extend the
+// novelty-audit to flag windows whose 90th-percentile inter-frame delta
+// falls under the static-perception floor)." The static-perception floor
+// is 2x the dead threshold — a window whose 90th-percentile 1s delta
+// never crosses it is a window where NOTHING acted (a slide, not a film).
+const HERO_WINDOW_SEC = 6;
+const SUBFLOOR = THRESH * 2; // 1.10 mean abs 0..255
+const subfloor = [];
+for (let t0 = 0; t0 + HERO_WINDOW_SEC * 1000 <= tl.durationMs; t0 += HERO_WINDOW_SEC * 1000) {
+  const win = diffs.filter((x) => x.t >= t0 && x.t < t0 + HERO_WINDOW_SEC * 1000).map((x) => x.d);
+  if (win.length < 3) continue;
+  const sorted = [...win].sort((a, b2) => a - b2);
+  const p90 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.9) - 1)] ?? sorted[sorted.length - 1];
+  if (p90 < SUBFLOOR) subfloor.push({ t: t0, p90: p90.toFixed(2) });
+}
+console.log(`sub-floor 6s windows (p90 delta < ${SUBFLOOR.toFixed(2)}): ${subfloor.length}`);
+// the continuous register read: the median window p90 IS the film's
+// ambient-motion register as the feed sees it — the hero-amplitude
+// prescription raises it (weight shift, strike amplitudes, exits).
+const allP = [];
+for (let t0 = 0; t0 + HERO_WINDOW_SEC * 1000 <= tl.durationMs; t0 += HERO_WINDOW_SEC * 1000) {
+  const win = diffs.filter((x) => x.t >= t0 && x.t < t0 + HERO_WINDOW_SEC * 1000).map((x) => x.d);
+  if (win.length < 3) continue;
+  const sorted = [...win].sort((a, b2) => a - b2);
+  allP.push(sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.9) - 1)] ?? sorted[sorted.length - 1]);
+}
+allP.sort((a, b2) => a - b2);
+if (allP.length) {
+  const med = allP[Math.floor(allP.length / 2)];
+  console.log(`window p90 register: median ${med.toFixed(2)} · max ${allP[allP.length - 1].toFixed(2)} · min ${allP[0].toFixed(2)}`);
+}
+if (subfloor.length) {
+  for (const w of subfloor.slice(0, 12)) console.log(`  @${(w.t / 1000).toFixed(0)}s p90=${w.p90}`);
+}
 for (const r of dead) {
   console.log(`  ⚠ ${(r[0] / 1000).toFixed(0)}s → ${((r[r.length - 1] + step) / 1000).toFixed(0)}s (${(r.length * step / 1000).toFixed(0)}s) — swipe risk: fix with a chart draw, prop pop, camera move or cut`);
 }

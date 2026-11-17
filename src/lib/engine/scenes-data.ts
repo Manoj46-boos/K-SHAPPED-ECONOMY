@@ -274,6 +274,10 @@ function hostSmall(
       // a 12s-cap re-split group no longer replays the fade mid-count) and
       // commits to the 0.85 floor / 180ms ramp: arrive, don't condense.
       pose, alpha: 0.85 + 0.15 * clamp01((g.beatT - 20) / 180), look: dir === 'right' ? 0.5 : -0.5, talk, smear,
+      // PHASE 3: the drawn three-speedline arm smear — same two-tier
+      // accent envelope (accentPulse, content-word strikes, reaction-
+      // paused): the audit's restored smear rides the film's real strikes.
+      armSmear: smear,
       // PHASE-5: the chart-satchel — the data chapters' signature silhouette
       scarf: false, hostBody: true,
       // PHASE 1 round 5 (the panel's four-round diagnosis, confirmed): the
@@ -744,6 +748,8 @@ export function chartJourneyScene(g: SceneCtx): void {
       stretch: phaseJ !== undefined ? walkPush(phaseJ) : 0,
       // PHASE 1 audit Part 8.2: the viseme wiring on the walking presenter.
       wordTexts: g.wordTexts, wordTimes: g.wordTimes, beatT: g.beatT,
+      // PHASE 3: the drawn arm smear — two-tier accent envelope only.
+      armSmear: g.speaking ? accentPulse(g.beatT, g.wordTimes, g.wordTexts) : 0,
       parallax: false,
     }, 25);
     // PHASE 1 SCALE LAW: the axis walker registers as a participant — he
@@ -3886,6 +3892,8 @@ export function oddsSpreadScene(g: SceneCtx): void {
       look: -0.5, scarf: true, hostBody: true,
       talk: talkO,
       wordTexts: g.wordTexts, wordTimes: g.wordTimes, beatT: g.beatT,
+      // PHASE 3: the drawn arm smear — two-tier accent envelope only.
+      armSmear: g.speaking ? accentPulse(g.beatT, g.wordTimes, g.wordTexts) : 0,
       parallax: false,
       pointAt: pointRect ? { ...pointRect, hand: 'point', strength: 1 } : undefined,
     }, 26);

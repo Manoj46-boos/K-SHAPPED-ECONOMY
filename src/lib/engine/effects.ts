@@ -14,7 +14,16 @@ import { AMP, K3D } from './perception';
 // camera — instant depth, deterministically. Written by director.cameraV2
 // once per frame BEFORE the scene drawer runs; a pure function of (gt,
 // groupDur) so scrub-determinism is preserved exactly.
-export const camState = { dx: 0, dy: 0, scale: 1 };
+export const camState = {
+  dx: 0, dy: 0, scale: 1,
+  /** PHASE 3 (audit §8 — THE CHARACTER EXIT): the fourth exit grammar.
+   *  director.cameraV2 publishes the exit progress (0..1) when the group's
+   *  rotation lands on exitStyle 3; scenes-host walks the host OFF the
+   *  stage on it (the host walks the scene, taking the last word with
+   *  him) while the camera HOLDS — camera-only exits are why scene changes
+   *  felt like slide transitions. 0 = no character exit this frame. */
+  exitCharP: 0,
+};
 // BLUEPRINT Phase 5: the GUARD camera — the steady-state transform the
 // collision guard asserts against (pre-reaction: the 1.2s emotional beats
 // are punch-class transients, exempt exactly like scalePunch). Published

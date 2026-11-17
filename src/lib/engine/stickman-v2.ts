@@ -1113,8 +1113,18 @@ export function drawStickmanV2(
     shadowRot?: number;
     /** AUDIT-2 / §10.3 (report §4.2): word-onset accent pulse 0..1 — above
      *  0.25 the near arm draws a 0.35-alpha motion-blur ghost (the
-     *  generalized text smear, on the fastest limb in the frame). */
+     *  generalized text smear, on the fastest limb in the frame). Drives
+     *  the counter-arm + boil reset only — the DRAWN trail moved to
+     *  armSmear. */
     smear?: number;
+    /** PHASE 3 (audit §8 — EVENT SMEARS RESTORED): the near arm's drawn
+     *  trail, 0..1. THREE SPEEDLINES along the swept strike arc (the leg
+     *  smear's Preston-Blair grammar — velocity by line structure, never
+     *  the old translucent ghost mass). The source MUST be the two-tier
+     *  accent envelope (accentPulse — content-word strikes only), per the
+     *  audit: "restore the arm smear ONLY on two-tier content-word
+     *  strikes... the restored three-speedline version." */
+    armSmear?: number;
     /** 100-JUDGE PANEL / Phase 2 item 2 — SMEARS AS EVENTS (report §6
      *  Phase 2): the LEG smear channel — 0..1, above 0.12 the near leg
      *  draws a one-taper streak along its swept swing arc. Driven on the
@@ -1393,7 +1403,11 @@ export function drawStickmanV2(
   // drop 60% for one cycle — the contrast makes the alive cycles read
   // as alive. Pure function of t; scrub-safe.
   const holdCycle = ((t / 4600 + seed * 0.31) % 3) / 3; // 0..1 within the 3-cycle group
-  const holdK = holdCycle > 0.667 ? 0.4 : 1;             // the last cycle of every 3 runs quiet
+  // PHASE 3 (audit §8 — HOLD-LIFE RE-RAISE): the quiet-cycle dip 0.4 -> 0.8.
+  // At 0.4 the third of every three weight cycles fell under the feed's
+  // static-perception floor — the audit measured "a breathing statue". 0.8
+  // keeps the CONTRAST (the alive cycles read as alive) without dying.
+  const holdK = holdCycle > 0.667 ? 0.8 : 1;             // the last cycle of every 3 runs quieter
   const weight = Math.sin(t / 4600 + seed * 2.3) * AMP.weightShift * holdK;
   const counter = Math.sin(t / 4600 + seed * 2.3) * holdK;
   ctx.translate(weight, 0);
@@ -2030,6 +2044,40 @@ export function drawStickmanV2(
   // AUDIT-ROUND-3 iter-2: ONE INK on every limb — the gold sleeve routing
   // is retired (see the note at ARM_MASS's grave above).
   const nearArmCol = ink;
+  // PHASE 3 (audit §8 — RESTORED ARM SMEAR): the three-speedline trail on
+  // the strike arc, drawn BEFORE the arm so the ink limb stays on top.
+  // The hand's position one strike-phase ago is reconstructed from the
+  // same angles (rAU/rAL minus the swept arc), three thin tapers ride the
+  // arc's normal offsets with gaps — the leg smear's grammar (PHASE-5
+  // D-09 fix) applied to the accent strike. Fires ONLY when the caller
+  // passes armSmear from the two-tier accent envelope (accentPulse —
+  // content-word strikes only). Total ink is a fraction of the retired
+  // ghost mass; the velocity read is stronger.
+  if ((r.armSmear ?? 0) > 0.12) {
+    const asm = clamp01(r.armSmear ?? 0);
+    const aU5 = (pose.rAU - 24 * asm) * D2R;
+    const aL5 = (pose.rAL - 26 * asm) * D2R;
+    const shX3 = neckX + 4 + Math.sin(shT) * 4;
+    const shY3 = neckY + 3 - Math.sin(shT) * 9 + shDrop;
+    // the hand NOW
+    const hex = shX3 + Math.sin(pose.rAU * D2R) * U_ARM + Math.sin((pose.rAU + pose.rAL) * D2R) * L_ARM;
+    const hey = shY3 + Math.cos(pose.rAU * D2R) * U_ARM + Math.cos((pose.rAU + pose.rAL) * D2R) * L_ARM;
+    // the hand one strike-phase ago
+    const hpX = shX3 + Math.sin(aU5) * U_ARM + Math.sin(aU5 + aL5) * L_ARM;
+    const hpY = shY3 + Math.cos(aU5) * U_ARM + Math.cos(aU5 + aL5) * L_ARM;
+    ctx.save();
+    const nx2 = -(hey - hpY), ny2 = (hex - hpX);
+    const nl2 = Math.hypot(nx2, ny2) || 1;
+    for (const k of [-1, 0, 1]) {
+      const off = k * 10;
+      ctx.globalAlpha = alpha * (k === 0 ? 0.30 : 0.18) * asm;
+      taper(ctx,
+        hpX + nx2 / nl2 * off, hpY + ny2 / nl2 * off,
+        hex + (hex - hpX) * 0.12 + nx2 / nl2 * off, hey + (hey - hpY) * 0.12 + ny2 / nl2 * off,
+        INK.armNear[1] * 0.5, INK.armNear[2] * 0.25, nearArmCol);
+    }
+    ctx.restore();
+  }
   const hand = limb2(ctx, neckX + 4 + Math.sin(shT) * 4, neckY + 3 - Math.sin(shT) * 9 + shDrop, pose.rAU, pose.rAL, U_ARM, L_ARM, INK.armNear[0], INK.armNear[1], INK.armNear[2], nearArmCol, 0, 0.92); // iter-3: elbow mass
   // 100-JUDGE PANEL REPORT (fix A3 — THE ROLLED SLEEVE, near arm): same
   // band as the far arm — the near limb is the one the camera reads.

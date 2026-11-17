@@ -31,8 +31,14 @@ export const AMP = {
    *  100-JUDGE DOSSIER (P3 — motion contrast): 1.6 -> 0.8 — quiet scenes
    *  become genuinely still (2.1px screen at rig 2.6, under the feed's
    *  static-perception floor, so ambient ink stops shimmering); hero
-   *  moments carry the film's motion through the keyed poses instead. */
-  boilPx: 0.8,
+   *  moments carry the film's motion through the keyed poses instead.
+   *  PHASE 3 (audit §8 — HOLD-LIFE RE-RAISE): 0.8 -> 1.6 — the audit's
+   *  re-review found the 0.8 register DEAD at feed scale ("holds read as
+   *  still; the breath-hold multipliers are sub-perceptual") and
+   *  prescribed re-raising the hold-life TO the feed-perception floor.
+   *  1.6 local x 2.6 rig = 4.2px screen — at the floor, alive-but-calm
+   *  (boilOff's 4px screen cap still bounds it). */
+  boilPx: 1.6,
   /** Contrapposto idle weight shift, px.
    *  AUDIT-ROUND-3: 15 -> 8 — the hip settle reads without the sway of a
    *  boat.
@@ -40,11 +46,18 @@ export const AMP = {
    *  audit's 280ms speech strip measured the holds at motion 2.42 (mean
    *  inter-frame diff), a breathing statue. 14px at rig 2.4 is ~12px of
    *  visible hip travel per cycle: the hold breathes again while staying
-   *  far under the hero windows' ratio. */
-  weightShift: 14,
+   *  far under the hero windows' ratio.
+   *  PHASE 3 (audit §8 — HOLD-LIFE RE-RAISE): 14 -> 20 — the audit's
+   *  frame strips measured the re-damped holds as "a breathing statue"
+   *  at feed; 20px restores the visible settle (17px hip travel at rig
+   *  2.4) while the hero windows still run 2-3x this register. */
+  weightShift: 20,
   /** Shoulder counter-rotation, deg.
-   *  AUDIT-ROUND-3: 7.0 -> 4.5 — a counter-line, not a shrug. */
-  shoulderCounterDeg: 4.5,
+   *  AUDIT-ROUND-3: 7.0 -> 4.5 — a counter-line, not a shrug.
+   *  PHASE 3 (hold-life re-raise): 4.5 -> 6.0 — the counter-line rides
+   *  the weight shift's re-raised register (the pair moves together or
+   *  the torso reads as sliding, not settling). */
+  shoulderCounterDeg: 6.0,
   /** Walk pelvis bob, px (informational — the keyed walk derives its bob
    *  from the pose keys themselves; see stickman.ts WALK_KEYS).
    *  AUDIT-ROUND-3: 24 -> 14. */
@@ -156,6 +169,17 @@ export const HERO = {
   /** Statement block overshoot: the slam text travels from 0.90 (not 0.94)
    *  to 1.10 (not 1.06) — double the arrival travel. */
   blockTravel: 0.1,
+  /** PHASE 3 (audit §8 — THE HERO AMPLITUDE REGISTER): the BODY-action
+   *  hero terms the register was missing. The audit's verdict: "the
+   *  extreme register fires mostly as camera scale, not as body action."
+   *  contact strikes / prop arrivals / head-lead takes now run at
+   *  strikeMul x the ambient accent amplitude (2.4x = inside the audit's
+   *  2-3x band), the head LEADS its take by headLeadDeg before the body
+   *  follows (the follow-through lag already ships), and arrival snaps
+   *  feed the event smear. Measured by the novelty-audit extension:
+   *  every 6s window must rise above the static-perception floor. */
+  strikeMul: 2.4,
+  headLeadDeg: 8,
 };
 
 /** Phase 2 ink register (report §11 Phase 2): the phone feed rewards dark

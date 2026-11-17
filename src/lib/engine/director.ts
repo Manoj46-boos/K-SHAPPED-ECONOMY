@@ -316,7 +316,12 @@ function cameraV2(
   sceneType: string,
   chapterIdx: number,
   groupIdx: number,
-  sceneKey: string
+  sceneKey: string,
+  /** PHASE 3: the timeline's FINAL group skips the exit grammar entirely —
+   *  the film ENDS on its host; an exit animation on the outro both crops
+   *  the full-figure close-up (the lift pushed the apex band past the top
+   *  edge, sweep-verified) and animates a cut to nothing. */
+  isFinalGroup = false
 ): void {
   const p = clamp01(gt / Math.max(1, groupDur));
   // scenes that present a single subject push in; comparison scenes pull out
@@ -522,7 +527,7 @@ function cameraV2(
     camY = camY * rs + (540 - spec.py) * (rs - 1);
     camScale *= rs;
   }
-  // P1-2 + PANEL-12/P2-2 (report §14.2): scene EXIT — a 3-GRAMMAR
+  // P1-2 + PANEL-12/P2-2 (report §14.2): scene EXIT — a 4-GRAMMAR
   // ROTATION, stable and ordered by group index (deterministic):
   //   0 — the ivory lift (the house style; kept)
   //   1 — truck-out: the camera slides left and breathes out as the scene
@@ -530,26 +535,55 @@ function cameraV2(
   //   2 — the K-wipe-through: the brand's own sweep CLOSES a scene (it
   //       already opens every chapter) — drawn over the frame in
   //       drawFrame's exit block; the camera itself holds still.
+  //   3 — THE CHARACTER EXIT (PHASE 3, audit §8): the host WALKS the
+  //       scene out, taking the last word with him — camera HOLDS while
+  //       camState.exitCharP carries the exit progress to scenes-host,
+  //       which plays the keyed walk cycle toward the stage edge. The
+  //       audit: "camera-only exits are why scene changes feel like
+  //       slide transitions."
   // The exit-lift monotony was the panel's finding: one repeated gesture
   // is not a rotation, and the visual interrupt cadence must match the
   // score's. Short groups (< 1.4s) never exit-animate (no flicker).
-  if (groupDur > 1400) {
+  let charExit = 0;
+  if (groupDur > 1400 && !isFinalGroup) {
     const exitP = clamp01((gt - (groupDur - 420)) / 420);
+    const exitStyle = ((groupIdx % 4) + 4) % 4;
     if (exitP > 0) {
       const e = Math.pow(exitP, 1.5);
-      const exitStyle = ((groupIdx % 3) + 3) % 3;
       if (exitStyle === 0) {
         // the house lift — lift 34px, recede 1.5%
-        camY -= 34 * e;
-        camScale *= 1 - 0.015 * e;
+        // PHASE 3 sweep finding: on FULL-FIGURE HOST scenes (type 'host')
+        // the lift's camY pushes the registered apex band past the top
+        // edge (c9-close: apex design top 59.7 at rig 2.64, groundY 696;
+        // screen top = 30.9 + camY·1.06 -> -5px at e=1 — a crop the old
+        // %3 rotation never landed on this group). The audit's own rule
+        // — "the exit stack yields when it would crop" — applied to the
+        // lift: host scenes take the TRUCK (side motion, apex-safe).
+        if (sceneType === 'host') {
+          camX -= 26 * easeInQuad(exitP);
+          camScale *= 1 - 0.012 * exitP;
+        } else {
+          camY -= 34 * e;
+          camScale *= 1 - 0.015 * e;
+        }
       } else if (exitStyle === 1) {
         // truck-out — slide 26px left, breathe out 1.2%
         camX -= 26 * easeInQuad(exitP);
         camScale *= 1 - 0.012 * exitP;
       }
       // exitStyle 2: the K-wipe closes the scene; camera holds
+      // exitStyle 3: the character walks the scene out AND the camera
+      // carries the apex-safe truck — groups whose only host cannot walk
+      // (perched side hosts, the close-up outro) still get a visible exit,
+      // never a dead hold; walkable hosts compound the walk on top.
+      if (exitStyle === 3) {
+        charExit = e;
+        camX -= 26 * easeInQuad(exitP);
+        camScale *= 1 - 0.012 * exitP;
+      }
     }
   }
+  camState.exitCharP = charExit;
   // PLAYBOOK D3 (report §8.3 — KILL THE EDGE-VIOLATION CLASS): the
   // sweep's 1,227 edge violations were exit-window content pushed past
   // the frame bound by the exit grammar + max push scale compounding.
@@ -776,8 +810,10 @@ export function drawFrame(
   // P1-2: + chapter hero moves, bigText anticipation, scene exits
   // PANEL-12 / P2-2+P2-6: + exit-grammar rotation (groupIdx) and the
   // reaction-shot push (sceneKey) — both deterministic in (gt, groupDur)
-  const groupIdx = groupsFor(tl).indexOf(group);
-  cameraV2(ctx, gt, groupDur, beat.beat.scene.type, beat.chapter, groupIdx, beat.beat.scene.sceneKey);
+  const allGroups = groupsFor(tl);
+  const groupIdx = allGroups.indexOf(group);
+  cameraV2(ctx, gt, groupDur, beat.beat.scene.type, beat.chapter, groupIdx, beat.beat.scene.sceneKey,
+    groupIdx === allGroups.length - 1);
   // 1-2% scale punch that decays over 160ms right after each hard cut
   // PANEL-12 / P2-3 (report §14.3): bigText and stampCard land the film's
   // loudest words — their punch amplifies 0.035 → 0.05 so the cut itself

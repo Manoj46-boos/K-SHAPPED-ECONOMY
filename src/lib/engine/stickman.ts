@@ -7,7 +7,7 @@
 
 import { clamp01, drift, easeOutCubic, hash01, hashStr, lerp, mix, springTo } from './easing';
 import { PALETTE, rgba } from './theme';
-import { AMP } from './perception';
+import { AMP, HERO } from './perception';
 
 const D2R = Math.PI / 180;
 
@@ -379,6 +379,14 @@ export class Stickman {
         // envelope, so every downstream term — lean, counter-arm, shoulder
         // — scales with the tier). Key words hit, connective tissue glides.
         let accent = 0;
+        // PHASE 3 (audit §8 — HERO AMPLITUDE REGISTER): tier-1 (content
+        // word) strikes ALSO drive the hero terms — the strike runs at
+        // HERO.strikeMul x the ambient accent amplitude (2.4x, inside the
+        // audit's 2-3x band) and the head LEADS the take (headLeadDeg)
+        // before the body follows. `full` carries the tier-1 envelope
+        // separately so the hero increment is exactly the strike tier,
+        // never the whisper tier.
+        let full = 0;
         if (opts.wordTimes) {
           for (let wi = 0; wi < opts.wordTimes.length; wi++) {
             const wt = opts.wordTimes[wi];
@@ -390,8 +398,10 @@ export class Stickman {
               // tissue keeps the 12°-equivalent whisper, exactly as the
               // two-tier design intended. The gate is shared with the
               // smear system (accentPulse) so smears ride real strikes.
-              const tier = w ? (accentFire(w) ? 1 : 12 / 44) : 1;
+              const isFull = w ? accentFire(w) : false;
+              const tier = w ? (isFull ? 1 : 12 / 44) : 1;
               accent = Math.max(accent, accentEnv(t - wt) * tier);
+              if (isFull) full = Math.max(full, accentEnv(t - wt));
             }
           }
         }
@@ -415,16 +425,22 @@ export class Stickman {
         // them through every downstream blend.
         pose = {
           ...pose,
-          rAL: pose.rAL + accent * 44 + arc * 20,
-          lAU: pose.lAU - accent * 26 - arc * 14,
+          // PHASE 3: the hero strike rides ON TOP of the two-tier accent —
+          // the tier-1 envelope drives the 2.4x increment, the whisper tier
+          // stays at the ambient register (motion contrast, not louder noise).
+          rAL: pose.rAL + accent * 44 + full * 44 * (HERO.strikeMul - 1) + arc * 20,
+          lAU: pose.lAU - accent * 26 - full * 26 * (HERO.strikeMul - 1) - arc * 14,
           lean: pose.lean + (accent * 2 + arc * 1.2),
           headTilt: pose.headTilt - accent * 1.6,
-          shoulderTilt: (pose.shoulderTilt ?? 0) + accent * 6,
+          shoulderTilt: (pose.shoulderTilt ?? 0) + accent * 6 + full * 4,
           // PANEL ACCEPTANCE (audit FIX 5 — THE HEAD LEAD): the head answers
           // the voice INSIDE the sentence — a small yaw into the presenting
           // side on every accent, on top of the content-bias yaw. The body
           // follows the emphasis instead of waiting for the next sentence.
-          headYaw: (pose.headYaw ?? 0) + accent * 3.5,
+          // PHASE 3 (hero register): on tier-1 strikes the head LEADS the
+          // take by HERO.headLeadDeg — the head-lead take the audit lists
+          // as one of the three body-action hero events.
+          headYaw: (pose.headYaw ?? 0) + accent * 3.5 + full * HERO.headLeadDeg,
         };
       } else {
         // legacy fallback (no sentence data — e.g. the shorts cutter):

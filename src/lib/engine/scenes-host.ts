@@ -7,6 +7,7 @@ import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, hashStr, lerp } from
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg, scenePlate, FONT_DISPLAY, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
 import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp, subjectHalo, microShake, impactRing, depthShift } from './effects';
 import { Stickman, POSES, blendPose, walkIn, nodPulse, accentPulse, launchPulse, walkSmear, take } from './stickman';
+import { camState } from './effects';
 import { drawStickmanV2, talkAt } from './stickman-v2';
 import { HERO } from './perception';
 import { SceneCtx, declareOnScreenHeadline } from './scene-context';
@@ -345,11 +346,41 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   // one envelope, whichever event is live.
   const reactionEntry = clamp01((t - reactionStart(g.s.sceneKey, t, g.d)) / 240) > 0
     && t - reactionStart(g.s.sceneKey, t, g.d) < 240 ? 1 - (t - reactionStart(g.s.sceneKey, t, g.d)) / 240 : 0;
+  // PHASE 3 (audit §8 — HERO AMPLITUDE REGISTER): the PROP ARRIVAL — the
+  // figure's entrance snap settles INTO its prop inside the first 320ms of
+  // the scene; the body receiving the prop is a body-action event and
+  // feeds the same event envelope (counter-arm + boil reset). Max of the
+  // four sources — one envelope, whichever event is live.
+  const propArrival = g.sceneT < 320 ? (1 - g.sceneT / 320) * 0.9 : 0;
   const smr = Math.max(
     g.speaking ? accentPulse(g.beatT, g.wordTimes, g.wordTexts) : 0,
     walkSmear(walkPhase),
-    0.8 * reactionEntry
+    0.8 * reactionEntry,
+    propArrival
   );
+  // PHASE 3 (audit §8 — EVENT SMEARS RESTORED): the DRAWN arm trail's
+  // source is the TWO-TIER ACCENT ENVELOPE ONLY — content-word strikes,
+  // never the walk or the reaction (the audit: "restore the arm smear
+  // ONLY on two-tier content-word strikes"). accentPulse is already the
+  // hash-gated content-word rule.
+  const armSmr = g.speaking ? accentPulse(g.beatT, g.wordTimes, g.wordTexts) : 0;
+  // PHASE 3 (audit §8 — THE CHARACTER EXIT): the fourth exit grammar.
+  // When the director's rotation lands on exitStyle 3, the host WALKS
+  // the scene out on the exit progress (camera holds): position slides
+  // toward the stage edge (bounded inside the certified frame envelope),
+  // the keyed walk cycle plays (walkPose), gaze commits forward. He
+  // takes the last word with him — talk and captions keep running.
+  const exitCharP = camState.exitCharP || 0;
+  let exitWalkX = 0;
+  // PHASE 3 guard: the walk-out belongs to FULL-FIGURE hosts. A close-up
+  // host (the c9-close outro runs rig ~2.9 — his head owns the frame) can
+  // neither walk nor should he: the film ENDS on him. The grammar applies
+  // only where the figure has the headroom and the scale a walk reads at.
+  const canWalkOut = exitCharP > 0 && scale <= 2.2 && hy - 251 * scale > 10;
+  if (canWalkOut) {
+    exitWalkX = Math.min(520, 1830 - (x + 95)) * exitCharP;
+    walkPhase = (walkPhase ?? 0.45) + exitCharP * 2.6;
+  }
   // AUDIT-3 / §1.5 round 2 (panel: "eye-line should follow the gesture"):
   // the side hosts now commit their full gaze toward their content.
   const lookRight = g.s.lookRight ? 1 : g.s.lookLeft ? -1 : side === 'left' ? 1 : side === 'right' ? -1 : 0;
@@ -366,9 +397,11 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   // BLUEPRINT Phase 1: walkPhase now also drives the SQUASH-ON-LANDING
   // (walkStrike) — the volume-preserving compress about the planted feet
   // that makes each footfall land (see stickman-v2's squash transform).
+  const drawnX = x + exitWalkX;
+  const drawnPose = canWalkOut ? Stickman.walkPose(walkPhase ?? 0.45) : pose;
   drawStickmanV2(
-    ctx, x, hy, scale, t,
-    { pose, alpha: fade, look: lookRight, nod: nodP, scarf: true, talk, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true,
+    ctx, drawnX, hy, scale, t,
+    { pose: drawnPose, alpha: fade, look: canWalkOut ? 0 : lookRight, nod: nodP, scarf: true, talk, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true,
       // PANEL ACCEPTANCE (audit FIX 2 — THE TOP-EDGE RULE): the presenting
       // host registers its FULL-BODY envelope (cls 'host'). The feet-only
       // band is why nine audit rounds of sweeps stayed green while the head
@@ -387,6 +420,9 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
       // never driven" — twice now). Passed here, the elongated smear body
       // + ghost finger-stubs render in the 60-160ms strike window.
       smear: smr,
+      // PHASE 3: the drawn three-speedline trail — content-word strikes
+      // only (armSmr), the audit's restored arm smear.
+      armSmear: armSmr,
       // 100-JUDGE AUDIT (Part 8.2): word texts + times for the viseme —
       // ALIGNED 1:1 (same filter, same order), both in the BEAT clock to
       // match beatT. (The first wiring passed gWordTimes — the GROUP
