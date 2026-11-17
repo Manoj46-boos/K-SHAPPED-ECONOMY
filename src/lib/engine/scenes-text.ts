@@ -1261,28 +1261,77 @@ export function endScreenScene(g: SceneCtx): void {
     if (sp > 0) {
       ctx.save();
       ctx.globalAlpha = sp * 0.95;
-      const sx = 150;
-      const sy = 1006;
-      // small gold K mark
+      // PHASE 4 (audit Table 3, 19-endScreen): "the SUBSCRIBE affordance is
+      // plain text with no target box — a lost click at the exact moment
+      // clicks matter most." The strip becomes a real CLICK TARGET: the
+      // platform's end-screen subscribe element is a BOX, so the film draws
+      // one — a gold plate with an ink border (the clickable read), the
+      // channel's K avatar, the SUBSCRIBE label and the bell affordance,
+      // all in the film's own flat language (the WATCH NEXT chip's
+      // sibling, one-light shadow lower-left like every shadow here).
+      // the box sits in the certified-free band (below the WATCH NEXT chip
+      // at y<=803, above the caption pill at y>=965) — the caption never
+      // plates the click target.
+      const bx = 150, by = 850, bw = 470, bh = 108;
+      // PANEL-12 / P3-3: one-light rule — the box's shadow falls
+      // lower-left like the CTA chip's.
+      ctx.fillStyle = rgba(PALETTE.shadow, 0.16);
+      roundRect(ctx, bx - 6, by + 12, bw, bh, 18);
+      ctx.fill();
+      ctx.fillStyle = PALETTE.gold;
+      roundRect(ctx, bx, by, bw, bh, 18);
+      ctx.fill();
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.78);
+      ctx.lineWidth = 3.5;
+      roundRect(ctx, bx, by, bw, bh, 18);
+      ctx.stroke();
+      // the avatar — an ivory circle with the channel's gold K mark
+      const avY = by + 44;
+      ctx.fillStyle = '#FFFCF4';
+      ctx.beginPath();
+      ctx.arc(bx + 52, avY, 30, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.5);
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(bx + 52, avY, 30, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.strokeStyle = PALETTE.gold;
-      ctx.lineWidth = 5;
+      ctx.lineWidth = 6;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(sx, sy - 15); ctx.lineTo(sx, sy + 13);
-      ctx.moveTo(sx, sy - 1); ctx.lineTo(sx + 13, sy - 14);
-      ctx.moveTo(sx, sy - 1); ctx.lineTo(sx + 13, sy + 12);
+      ctx.moveTo(bx + 52 - 10, avY - 14); ctx.lineTo(bx + 52 - 10, avY + 13);
+      ctx.moveTo(bx + 52 - 10, avY); ctx.lineTo(bx + 52 + 4, avY - 14);
+      ctx.moveTo(bx + 52 - 10, avY); ctx.lineTo(bx + 52 + 4, avY + 12);
       ctx.stroke();
-      setFont(ctx, 34, 700);
+      // the label + the bell affordance
+      setFont(ctx, 38, 700, FONT_UI);
       ctx.fillStyle = PALETTE.ink;
       ctx.textAlign = 'left';
-      ctx.fillText('SUBSCRIBE', sx + 34, sy - 4);
-      // PHASE-5 (declutter): the strip repeated the top band's tagline
-      // verbatim — two identical lines on one frame. The strip now says
-      // the one thing the top band doesn't (the film's own sourcing
-      // promise, true per the description text).
-      setFont(ctx, 34, 600);
-      ctx.fillStyle = PALETTE.inkFaint;
-      ctx.fillText('— every source, linked in the description', sx + 34 + ctx.measureText('SUBSCRIBE').width + 76, sy - 4);
+      ctx.fillText('SUBSCRIBE', bx + 104, avY + 13);
+      const bellX = bx + 104 + ctx.measureText('SUBSCRIBE').width + 32;
+      const bellY = avY - 7;
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.72);
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(bellX - 12, bellY + 10);
+      ctx.quadraticCurveTo(bellX - 12, bellY - 14, bellX, bellY - 14);
+      ctx.quadraticCurveTo(bellX + 12, bellY - 14, bellX + 12, bellY + 10);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(bellX - 15, bellY + 10);
+      ctx.lineTo(bellX + 15, bellY + 10);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(bellX, bellY + 16, 4.5, 0, Math.PI * 2);
+      ctx.stroke();
+      // the sourcing promise — the box's second line (it rides INSIDE the
+      // target now: the caption band below runs the whole end beat, and a
+      // promise under the pill was a promise nobody reads).
+      setFont(ctx, 24, 600);
+      ctx.fillStyle = rgba(PALETTE.ink, 0.62);
+      ctx.fillText('every source, linked below', bx + 104, by + 86);
       ctx.restore();
     }
   }

@@ -188,7 +188,13 @@ export function drawThumbnail(
     ctx.scale(SC, SC);
     drawStickmanV2(ctx, 0, 0, 1, 4000, {
       pose: POSES.shock,
-      talk: 0.8, jaw2x: 1.6, faceScale: 1.35,
+      // PHASE 4 (audit §7 — THUMBNAIL PARITY PASS): "the host's thumbnail
+      // face = the film face." The thumbnail ran its own face register
+      // (1.35 / jaw 1.6) — a face the film never shows. The film's shock
+      // close-up register (the gasp: jaw2x 2, faceScale 1.8) is the face
+      // the viewer actually meets in the first frames — the thumbnail now
+      // renders THAT face, so the click lands on the same character read.
+      talk: 0.8, jaw2x: 2, faceScale: 1.8,
       look: 0.15, parallax: false, scarf: true,
     }, 7);
     ctx.restore();

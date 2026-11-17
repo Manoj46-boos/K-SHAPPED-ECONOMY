@@ -6,7 +6,7 @@
  */
 
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, hash01, hashStr, lerp, springTo } from './easing';
-import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, CAPTION_ZONE_TOP, TYPE_FLOOR, LABEL_FLOOR, FONT_DISPLAY, toneRoom, deskRule, valuePlaneFor, roomFill } from './theme';
+import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, chapterFamily, CAPTION_ZONE_TOP, TYPE_FLOOR, LABEL_FLOOR, FONT_DISPLAY, toneRoom, deskRule, valuePlaneFor, roomFill } from './theme';
 import { bokehField, kMotifs, lightRays, drawK, drawK3D, sparkles, hazeBands, impactRing, microShake, depthShift } from './effects';
 import { SceneCtx } from './scene-context';
 import { REACTIONS, reactionAt, reactionStart } from './scene-context';
@@ -28,7 +28,9 @@ import { registerFigure, STICK_BASE_HEIGHT, HOST_SCALE_TIERS } from './scale-law
 // chapter's tone (the color journey), so the whole film carries a field.
 function bg(g: SceneCtx, seed: number, gold = 0.4, plate?: 'up' | 'down' | 'gold' | 'neutral'): void {
   paintBg(g.ctx, g.W, g.H, g.t, g.chapterTone);
-  scenePlate(g.ctx, g.W, g.H, plate ?? g.chapterTone ?? 'up');
+  // PHASE 4: the chapter family's OWNED room furniture rides the plate
+  // (room architecture per chapter family, not re-tints — audit §7).
+  scenePlate(g.ctx, g.W, g.H, plate ?? g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
   // PLAYBOOK T2 (report §8.5 — A FLOOR FOR THE FLAT ROOMS): every data
   // room gains a 1-POINT FLOOR — 6 receding hairlines converging on a
   // horizon at 0.66H (the same grammar the datacenter's corridor uses,
@@ -2183,7 +2185,9 @@ export function aiDatacenterScene(g: SceneCtx): void {
   paintBg(ctx, W, H, t, g.chapterTone);
   // P1-2 (report §12.2): the datacenter room plate — the biggest build-out
   // scene was the last raw-white room in the film.
-  scenePlate(ctx, W, H, g.chapterTone ?? 'up');
+  // the aiDatacenter's RACKS are this chapter's scene-level owned object
+  // (the audit's own example) — the room keeps its clean top band here.
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, null);
   // P0-4 panel re-review: bokeh trimmed 1.15→0.95 / gold 0.5→0.4 — the
   // corner discs read as "stray decorative circles" at full strength; at
   // 0.95 they stay atmosphere without asserting themselves.

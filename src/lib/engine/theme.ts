@@ -606,7 +606,15 @@ export function scenePlate(
   // judge's account; the rooms must meet the datacenter). Multiply at
   // 0.475 alpha lands 6-10 points deeper than the 0.82 blend while the
   // white card foregrounds keep their deliberate pop.
-  strength = 0.95
+  strength = 0.95,
+  // PHASE 4 (audit §7 — ROOM ARCHITECTURE PER CHAPTER FAMILY): the
+  // chapter family key from chapterFamily(). "A re-tint is not a new
+  // room" — the chapter tones rotate the hue but not the ARCHITECTURE;
+  // the fix is per-family OWNED furniture (the audit's own pattern: the
+  // gauge IS chapter c5's owned object; the racks are c6's). Each family
+  // that lacks a scene-level owned object gets ONE bold top-edge rail
+  // — architecture the feed can read, never a re-tint.
+  family: string | null = null
 ): void {
   // PHASE-0 (report §6, Fix 1): default plate strength 0.72 -> 0.82 — the
   // audit measured data/host rooms still washing out under the 0.72 blend
@@ -715,29 +723,44 @@ export function scenePlate(
       // light's upper-right incidence.
       const wx = W * 0.775, wy = H * 0.10, ww = W * 0.085, wh = H * 0.20;
       ctx.save();
+      // PHASE 4 (audit §7): the whisper register (0.07-0.10 alpha) was
+      // INVISIBLE at feed scale — "designed texture that cannot clear the
+      // transcode is decoration, by the pipeline's own two-tier mask
+      // logic." The window rises to functional alpha with real mass:
+      // warm pane fill, a 3.5px frame, a sill — architecture, not hairlines.
       const wg = ctx.createLinearGradient(wx, wy, wx, wy + wh);
-      wg.addColorStop(0, rgba(PALETTE.gold, 0.10));
-      wg.addColorStop(1, rgba(PALETTE.gold, 0.03));
+      wg.addColorStop(0, rgba(PALETTE.gold, 0.34));
+      wg.addColorStop(1, rgba(PALETTE.gold, 0.16));
       ctx.fillStyle = wg;
       roundRect(ctx, wx, wy, ww, wh, 10);
       ctx.fill();
-      ctx.strokeStyle = rgba(PALETTE.ink, 0.09);
-      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.34);
+      ctx.lineWidth = 3.5;
       roundRect(ctx, wx, wy, ww, wh, 10);
       ctx.stroke();
-      ctx.strokeStyle = rgba(PALETTE.ink, 0.07);
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.24);
+      ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(wx + ww / 2, wy);
       ctx.lineTo(wx + ww / 2, wy + wh);
       ctx.moveTo(wx, wy + wh / 2);
       ctx.lineTo(wx + ww, wy + wh / 2);
       ctx.stroke();
+      // the sill — a filled ledge under the window (owned architecture)
+      ctx.fillStyle = rgba(PALETTE.ink, 0.26);
+      roundRect(ctx, wx - 10, wy + wh, ww + 20, 9, 4);
+      ctx.fill();
       ctx.restore();
       // THE DESK EDGE — one ink hairline + leg tick, bottom-right: the desk
       // the presenter works at, at the frame's margin, under every card.
       const dy2 = H * 0.905;
       ctx.save();
-      ctx.strokeStyle = rgba(PALETTE.ink, 0.18);
+      // PHASE 4: the desk gains its top FACE (a filled plank) — one
+      // hairline was whisper-invisible; a desk reads as a desk with mass.
+      ctx.fillStyle = rgba(PALETTE.ink, 0.14);
+      roundRect(ctx, W * 0.60, dy2 - 10, W * 0.37, 12, 6);
+      ctx.fill();
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.34);
       ctx.lineWidth = 5;
       ctx.beginPath();
       ctx.moveTo(W * 0.60, dy2);
@@ -756,26 +779,39 @@ export function scenePlate(
       // sits ABOVE the 0.20H title band)
       const sy1 = H * 0.075, sy2 = H * 0.145, sx0 = W * 0.055, sx1 = W * 0.17;
       ctx.save();
-      ctx.strokeStyle = inkW;
-      ctx.lineWidth = 3;
+      // PHASE 4: the shelf rises to functional alpha — filled spines with
+      // title bands (books, not whiskers), a bracket under each shelf end.
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.32);
+      ctx.lineWidth = 3.5;
       ctx.beginPath();
       ctx.moveTo(sx0, sy1); ctx.lineTo(sx1, sy1);
       ctx.moveTo(sx0, sy2); ctx.lineTo(sx1, sy2);
       ctx.stroke();
-      // the spines — deterministic heights, one material (ink whisper)
-      ctx.fillStyle = rgba(PALETTE.ink, 0.13);
+      ctx.fillStyle = rgba(PALETTE.ink, 0.30);
       const heights = [34, 26, 30, 22, 28];
+      const widths = [10, 8, 11, 8, 9];
       heights.forEach((bh, i) => {
-        const bx = sx0 + 14 + i * (sx1 - sx0 - 34) / 5;
-        ctx.fillRect(bx, sy1 - bh, 9, bh);
+        const bx = sx0 + 14 + i * (sx1 - sx0 - 40) / 5;
+        ctx.fillRect(bx, sy1 - bh, widths[i], bh);
+        // the spine's title band (gold on ink — the library wall reads)
+        ctx.fillStyle = rgba(PALETTE.gold, 0.42);
+        ctx.fillRect(bx + 1, sy1 - bh + 5, widths[i] - 2, 4);
+        ctx.fillStyle = rgba(PALETTE.ink, 0.30);
       });
+      // the shelf brackets
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.30);
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(sx0 + 4, sy1); ctx.lineTo(sx0 + 4, sy1 + 8);
+      ctx.moveTo(sx1 - 4, sy1); ctx.lineTo(sx1 - 4, sy1 + 8);
+      ctx.stroke();
       ctx.restore();
       // THE LAMP GLOW (the light prop) — the shelf lamp's warm pool
-      glowBlob(ctx, W * 0.105, H * 0.11, W * 0.09, PALETTE.gold, 0.14);
+      glowBlob(ctx, W * 0.105, H * 0.11, W * 0.09, PALETTE.gold, 0.30);
       // THE FLOOR MATERIAL — sparse plank ticks over the floor band: the
       // data room's boarded floor (the studio keeps its clean gradient).
       ctx.save();
-      ctx.strokeStyle = rgba(PALETTE.ink, 0.075);
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.16);
       ctx.lineWidth = 3;
       for (let i = 0; i < 14; i++) {
         const px2 = ((i * 173) % W);
@@ -788,10 +824,235 @@ export function scenePlate(
       ctx.restore();
     } else {
       // neutral statement rooms — the window light only (clean stage)
-      glowBlob(ctx, W * 0.885, H * 0.155, W * 0.11, PALETTE.gold, 0.12);
+      glowBlob(ctx, W * 0.885, H * 0.155, W * 0.11, PALETTE.gold, 0.24);
     }
   }
+
+  // ── PHASE 4 (audit §7 — ROOM ARCHITECTURE PER CHAPTER FAMILY) ──────────
+  // "Every scene sits in the same room: one gradient wash, one floor band
+  // ... the chapter tones rotate the hue but not the ARCHITECTURE. A
+  // re-tint is not a new room." Each family that lacks a scene-level
+  // owned object gets ONE bold top-edge rail — the family's own
+  // architecture, drawn at FUNCTIONAL alpha (>= 0.35 effective), pure
+  // function of (W, H), background plane, never registered with the
+  // guard. The top-edge band (y 14-52 of 1080) is certified empty in
+  // every layout (title rails start at ~0.06H). Families whose scenes
+  // already own big props (charts, machines, datacenter) or whose frames
+  // are full-bleed compositions (takeaways, end screen) keep the clean
+  // stage — fewer, bolder, not more.
+  if (family) {
+    ctx.save();
+    ctx.lineCap = 'round';
+    const fy = 20; // the rail's centerline (design space, 1080 grid)
+    if (family === 'market') {
+      // THE TICKER RAIL — the market room's own architecture: an ink tape
+      // line with live price tags (up teal / down coral) and a LIVE dot.
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.36);
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(W * 0.06, fy + 16);
+      ctx.lineTo(W * 0.94, fy + 16);
+      ctx.stroke();
+      // the rail starts past the channel lockup (x >= 0.17W — the
+      // lockup owns 0.02-0.14W; the rail never plates it)
+      const tags: [number, string, string][] = [
+        [0.17, '+18%', PALETTE.up], [0.36, '+20%', PALETTE.up],
+        [0.56, '-7%', PALETTE.down], [0.76, '+11%', PALETTE.up],
+      ];
+      tags.forEach(([fx, label, col]) => {
+        const tx = W * fx;
+        ctx.fillStyle = rgba(col, 0.42);
+        roundRect(ctx, tx, fy - 10, 86, 34, 8);
+        ctx.fill();
+        ctx.strokeStyle = rgba(PALETTE.ink, 0.34);
+        ctx.lineWidth = 2.5;
+        roundRect(ctx, tx, fy - 10, 86, 34, 8);
+        ctx.stroke();
+        ctx.fillStyle = rgba(PALETTE.ink, 0.62);
+        ctx.font = '700 20px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(label, tx + 43, fy + 14);
+      });
+      // the LIVE dot — the tape is alive
+      ctx.fillStyle = rgba(PALETTE.down, 0.55);
+      ctx.beginPath();
+      ctx.arc(W * 0.905, fy + 16, 6, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (family === 'charts') {
+      // THE PEGBOARD STRIP — the analyst's wall: a dotted peg row with two
+      // hanging tools (ruler, pencil) silhouettes.
+      ctx.fillStyle = rgba(PALETTE.ink, 0.30);
+      for (let i = 0; i < 12; i++) {
+        ctx.beginPath();
+        ctx.arc(W * 0.175 + i * (W * 0.022), fy + 8, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // the ruler (a wide slat with tick marks) + the pencil (a tapered
+      // stick), hanging from the pegs
+      ctx.fillStyle = rgba(PALETTE.gold, 0.46);
+      roundRect(ctx, W * 0.180, fy + 14, 150, 26, 5);
+      ctx.fill();
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.38);
+      ctx.lineWidth = 2.5;
+      for (let i = 1; i < 6; i++) {
+        ctx.beginPath();
+        ctx.moveTo(W * 0.180 + i * 24, fy + 14);
+        ctx.lineTo(W * 0.180 + i * 24, fy + 22);
+        ctx.stroke();
+      }
+      ctx.fillStyle = rgba(PALETTE.ink, 0.36);
+      ctx.beginPath();
+      ctx.moveTo(W * 0.360, fy + 16);
+      ctx.lineTo(W * 0.360 + 118, fy + 16);
+      ctx.lineTo(W * 0.360 + 130, fy + 27);
+      ctx.lineTo(W * 0.360 + 118, fy + 38);
+      ctx.lineTo(W * 0.360, fy + 38);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = rgba(PALETTE.gold, 0.52);
+      ctx.beginPath();
+      ctx.moveTo(W * 0.360 + 118, fy + 16);
+      ctx.lineTo(W * 0.360 + 130, fy + 27);
+      ctx.lineTo(W * 0.360 + 118, fy + 38);
+      ctx.closePath();
+      ctx.fill();
+    } else if (family === 'survey') {
+      // THE POLL RAIL — the survey room: four mini poll bars with tick
+      // bases, the chapter's own data-shape as architecture.
+      const polls: [number, number, string][] = [
+        [0.17, 34, PALETTE.up], [0.28, 22, PALETTE.up],
+        [0.39, 30, PALETTE.down], [0.50, 16, PALETTE.ink],
+      ];
+      polls.forEach(([fx, bh, col]) => {
+        const bx = W * fx;
+        ctx.fillStyle = rgba(col, 0.44);
+        roundRect(ctx, bx, fy + 30 - bh, 26, bh, 5);
+        ctx.fill();
+        ctx.strokeStyle = rgba(PALETTE.ink, 0.32);
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(bx - 6, fy + 30);
+        ctx.lineTo(bx + 32, fy + 30);
+        ctx.stroke();
+      });
+    } else if (family === 'machines') {
+      // THE PIPE RAIL — the machine room's architecture: a pressure pipe
+      // with a valve wheel and a capped end.
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.36);
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      ctx.moveTo(W * 0.175, fy + 16);
+      ctx.lineTo(W * 0.90, fy + 16);
+      ctx.stroke();
+      // the pipe's highlight line (the cylinder read)
+      ctx.strokeStyle = rgba('#FFFFFF', 0.30);
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(W * 0.175, fy + 12);
+      ctx.lineTo(W * 0.90, fy + 12);
+      ctx.stroke();
+      // the valve wheel — a spoked gold wheel on a stem
+      const vx = W * 0.30;
+      ctx.strokeStyle = rgba(PALETTE.gold, 0.62);
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(vx, fy - 6, 16, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 3.5;
+      for (const a of [0, Math.PI / 3, (2 * Math.PI) / 3]) {
+        ctx.beginPath();
+        ctx.moveTo(vx - Math.cos(a) * 14, fy - 6 - Math.sin(a) * 14);
+        ctx.lineTo(vx + Math.cos(a) * 14, fy - 6 + Math.sin(a) * 14);
+        ctx.stroke();
+      }
+      // the capped end
+      ctx.fillStyle = rgba(PALETTE.ink, 0.40);
+      roundRect(ctx, W * 0.895, fy + 6, 14, 20, 4);
+      ctx.fill();
+    } else if (family === 'data') {
+      // THE RACK RAIL — the data room: six mini rack cells with LED dots,
+      // the datacenter's own motif echoed in the room's architecture.
+      for (let i = 0; i < 6; i++) {
+        const rx = W * 0.175 + i * (W * 0.046);
+        ctx.fillStyle = rgba(PALETTE.ink, 0.34);
+        roundRect(ctx, rx, fy - 6, 40, 46, 5);
+        ctx.fill();
+        ctx.fillStyle = rgba(PALETTE.up, 0.62);
+        ctx.beginPath();
+        ctx.arc(rx + 10, fy + 4, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = rgba(PALETTE.gold, 0.62);
+        ctx.beginPath();
+        ctx.arc(rx + 22, fy + 12, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = rgba(PALETTE.ink, 0.30);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(rx + 6, fy + 24);
+        ctx.lineTo(rx + 34, fy + 24);
+        ctx.moveTo(rx + 6, fy + 32);
+        ctx.lineTo(rx + 34, fy + 32);
+        ctx.stroke();
+      }
+    } else if (family === 'debt') {
+      // THE COIN-STACK RAIL — the debt room: descending stacks of coin
+      // blocks, the balance draining left to right.
+      const stacks: [number, number][] = [[0.17, 5], [0.26, 4], [0.35, 3], [0.44, 2], [0.53, 1]];
+      stacks.forEach(([fx, n]) => {
+        const bx = W * fx;
+        for (let k = 0; k < n; k++) {
+          ctx.fillStyle = rgba(PALETTE.gold, 0.52);
+          roundRect(ctx, bx, fy + 24 - k * 12, 44, 10, 4);
+          ctx.fill();
+          ctx.strokeStyle = rgba(PALETTE.ink, 0.34);
+          ctx.lineWidth = 2;
+          roundRect(ctx, bx, fy + 24 - k * 12, 44, 10, 4);
+          ctx.stroke();
+        }
+      });
+    } else if (family === 'odds') {
+      // THE ODDS BOARD RAIL — the odds room: percent chips with direction
+      // arrows, the bookmaker's board as architecture.
+      const chips: [number, string, string][] = [
+        [0.17, '1 IN 4', PALETTE.down], [0.34, '72 ODDS', PALETTE.ink],
+        [0.52, 'x1.8', PALETTE.up], [0.68, '-3x', PALETTE.down],
+      ];
+      chips.forEach(([fx, label, col]) => {
+        const tx = W * fx;
+        ctx.fillStyle = rgba(col, 0.40);
+        roundRect(ctx, tx, fy - 10, 118, 36, 9);
+        ctx.fill();
+        ctx.strokeStyle = rgba(PALETTE.ink, 0.36);
+        ctx.lineWidth = 2.5;
+        roundRect(ctx, tx, fy - 10, 118, 36, 9);
+        ctx.stroke();
+        ctx.fillStyle = rgba(PALETTE.ink, 0.62);
+        ctx.font = '700 19px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(label, tx + 59, fy + 15);
+      });
+    }
+    // families 'close' and 'end' keep the clean stage on purpose.
+    ctx.restore();
+  }
   ctx.restore();
+}
+
+/** PHASE 4: the chapter index -> its room-architecture family. The film's
+ *  nine chapters map to eight families; close/end keep the clean stage
+ *  (their frames are full-bleed compositions that own the wall already). */
+export function chapterFamily(chapterIdx: number): string | null {
+  return ([
+    'market',   // c1 — the market split
+    'charts',   // c3 — the charts chapter
+    'survey',   // c4 — the survey chapter
+    'machines', // c5 — pump / gauge / the machine room
+    'data',     // c6 — the datacenter / margins
+    'debt',     // c7 — the debt / paradox chapter
+    'odds',     // c8 — fund / odds
+    null,       // c9 — takeaways / the close: clean stage
+    null,       // c10 — the end screen: clean stage
+  ] as (string | null)[])[chapterIdx] ?? null;
 }
 
 /** Paints the standard scene background: pure white base + breathing wash.

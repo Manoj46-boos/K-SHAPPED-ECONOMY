@@ -4,7 +4,7 @@
  */
 
 import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, hashStr, lerp } from './easing';
-import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg, scenePlate, FONT_DISPLAY, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
+import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg, scenePlate, chapterFamily, FONT_DISPLAY, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
 import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp, subjectHalo, microShake, impactRing, depthShift } from './effects';
 import { Stickman, POSES, blendPose, walkIn, nodPulse, accentPulse, launchPulse, walkSmear, take } from './stickman';
 import { camState } from './effects';
@@ -135,7 +135,7 @@ function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   // P1-2 (report §12.2): the host lives in a room too — the stage gets the
   // same full-bleed tone plate as the data scenes, so the presenter stands
   // in a lit space instead of on a lightbox.
-  scenePlate(ctx, W, H, g.chapterTone ?? 'up');
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
   bokehField(ctx, W, H, g.t, { intensity: 0.9, seed: 7 });
   kMotifs(ctx, W, H, g.t, 0.18);
 
@@ -536,7 +536,7 @@ export function hostSceneV2(g: SceneCtx): void {
   // ── stage: bg + soft bokeh + faint editorial column grid ──
   paintBg(ctx, W, H, t, g.chapterTone);
   // P1-2 (report §12.2): the editorial host's room — same plate, his tone.
-  scenePlate(ctx, W, H, g.chapterTone ?? 'up');
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
   bokehField(ctx, W, H, t, { intensity: 0.85, seed: 7 });
   lightRays(ctx, W, H, t, { alpha: 0.45 });
   kMotifs(ctx, W, H, t, 0.18);
@@ -1031,7 +1031,7 @@ export function splitNumbersScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   paintBg(ctx, W, H, t, g.chapterTone);
   // P1-2 (report §12.2): every scene sits in a room — full-bleed tone plate.
-  scenePlate(ctx, W, H, g.chapterTone ?? 'up');
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
   bokehField(ctx, W, H, t, { intensity: 0.7, seed: 12 });
   const mode = (s.mode as string) || 'left';
 
@@ -1354,7 +1354,7 @@ export function divergeKScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
   paintBg(ctx, W, H, t, g.chapterTone);
   // P1-2 (report §12.2): every scene sits in a room — full-bleed tone plate.
-  scenePlate(ctx, W, H, g.chapterTone ?? 'up');
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
   bokehField(ctx, W, H, t, { intensity: 1.1, seed: 21, gold: 0.6 });
   lightRays(ctx, W, H, t, { alpha: 0.8 });
 
@@ -1964,7 +1964,7 @@ export function channelIntroScene(g: SceneCtx): void {
   const { ctx, W, H, t, channelName } = g;
   paintBg(ctx, W, H, t, g.chapterTone);
   // P1-2 (report §12.2): every scene sits in a room — full-bleed tone plate.
-  scenePlate(ctx, W, H, g.chapterTone ?? 'up');
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
   bokehField(ctx, W, H, t, { intensity: 1, seed: 33, gold: 0.6 });
   const cx = W / 2;
   const cy = H * 0.4;
@@ -2040,7 +2040,7 @@ export function recapSplitScene(g: SceneCtx): void {
   const { ctx, W, H, t } = g;
   paintBg(ctx, W, H, t, g.chapterTone);
   // P1-2 (report §12.2): every scene sits in a room — full-bleed tone plate.
-  scenePlate(ctx, W, H, g.chapterTone ?? 'up');
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
   bokehField(ctx, W, H, t, { intensity: 0.8, seed: 44 });
   const pw = W * 0.36;
   const ph = H * 0.34;
@@ -2312,7 +2312,7 @@ export function paradoxResolveScene(g: SceneCtx): void {
   const { ctx, W, H, t } = g;
   paintBg(ctx, W, H, t, g.chapterTone);
   // P1-2 (report §12.2): every scene sits in a room — full-bleed tone plate.
-  scenePlate(ctx, W, H, g.chapterTone ?? 'up');
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
   bokehField(ctx, W, H, t, { intensity: 0.9, seed: 55, gold: 0.55 });
   const cx = W / 2;
   // the word "PARADOX" appears, then strikes through
