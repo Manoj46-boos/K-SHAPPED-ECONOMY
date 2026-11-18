@@ -70,8 +70,8 @@ export interface Pose {
    *  and every contact-verb scene), and the fist/count set. 'palm'
    *  survives as a call-site alias that the renderer maps to 'point'.
    *  The four-finger splay fan is retired. */
-  lHand?: 'fist' | 'count1' | 'count2' | 'count3' | 'palm' | 'point';
-  rHand?: 'fist' | 'count1' | 'count2' | 'count3' | 'palm' | 'point';
+  lHand?: 'fist' | 'grip' | 'count1' | 'count2' | 'count3' | 'palm' | 'point';
+  rHand?: 'fist' | 'grip' | 'count1' | 'count2' | 'count3' | 'palm' | 'point';
   /** 100-JUDGE PANEL / Phase 1 item 3 — TAKE GRAMMAR (report §6 Phase 1):
    * 0..1 blink closure the take() helper drives through its overshoot
    * (closed → opening across the settle). The v2 renderer multiplies it
@@ -120,7 +120,16 @@ export const POSES: Record<string, Pose> = {
   count1: { ...base(), lAU: -96, lAL: -110, rAU: 10, rAL: 8, headTilt: -2, lHand: 'count1' },
   count2: { ...base(), lAU: -96, lAL: -110, rAU: 104, rAL: 120, headTilt: -2, lHand: 'count2' },
   count3: { ...base(), lAU: -96, lAL: -110, rAU: 104, rAL: 120, headTilt: -2, smile: 0.4, lHand: 'count3' },
-  climb: { ...base(), lAU: -104, lAL: -128, rAU: 134, rAL: 156, lLU: -22, lLL: -52, rLU: 24, rLL: 54, lean: 10, browRaise: 0.3, smile: 0.3 },
+  // PHASE-1 VISUAL AUDIT (report Phase 1 — poses re-keyed AS SILHOUETTES;
+  // frame evidence BEFORE_fix3-poses_climb): the old key had BOTH arms
+  // overhead (lAU -104 / rAU 134) — the silhouette read as a cheer, not
+  // an ascent. A climb silhouette is a DIAGONAL: ONE arm reaching up the
+  // slope (right, forearm near-straight to the next rung), ONE arm
+  // pulling low behind (left — the ownerWorker call site already forced
+  // this with its lAU override; the key now agrees), the trailing leg
+  // extended off the rung, the near knee driven high, the torso leaning
+  // INTO the ascent. One shape: ascending.
+  climb: { ...base(), lAU: -30, lAL: -14, rAU: 128, rAL: 152, lLU: -30, lLL: -58, rLU: 40, rLL: 68, lean: 14, browRaise: 0.35, smile: 0.25 },
   serious: { ...base(), lAU: -14, lAL: -12, rAU: 16, rAL: 12, browAngle: 14, smile: 0 },
   aha: { ...base(), rAU: 96, rAL: 140, lAU: -40, lAL: -60, browRaise: 0.8, smile: 0.6 },
   close: { ...base(), lAU: -30, lAL: -46, rAU: 34, rAL: 48, smile: 0.55, browRaise: 0.15 },
@@ -156,7 +165,15 @@ export const POSES: Record<string, Pose> = {
   // after the formation completes (the round-5 panel: "proximity ≠
   // contact — you moved the presenter to the object and forgot the
   // pointing").
-  leanOnK: { ...base(), lean: 10, headTilt: -4, lLU: -9, lLL: 6, rLU: 11, rLL: -7, lAU: -20, lAL: -26, rAU: 84, rAL: 102, browRaise: 0.25, smile: 0.5, rHand: 'fist' }, // P1 hands: the fist GRIPS the stem
+  // PHASE-1 VISUAL AUDIT (pose re-key AS SILHOUETTE, evidence
+  // BEFORE_fix3-poses_leanOnK): the old key leaned 10° with the brace arm
+  // at a 24° elbow bend and both legs parallel — the silhouette read as
+  // "standing near the letter". The re-key: the lean deepens to 14° (the
+  // weight visibly shifts INTO the letter), the brace arm straightens to
+  // a 16° bend (a column he rests ON, not a wave), the free arm hangs
+  // lower-back, and the brace-side shin tucks back (the crossed-ankle
+  // casual lean). One shape: leaning-on.
+  leanOnK: { ...base(), lean: 14, headTilt: -4, lLU: -12, lLL: 2, rLU: 13, rLL: -14, lAU: -16, lAL: -22, rAU: 78, rAL: 94, browRaise: 0.25, smile: 0.5, rHand: 'grip' }, // P1 hands: the hand GRIPS the stem
   // ── BLUEPRINT Phase 2 (report §11): the three REACTION pose keys the
   // film's emotional beats were missing — the twist, the resolve and the
   // final takeaway shared the presenting smile before (“a static mask
@@ -177,7 +194,7 @@ export const POSES: Record<string, Pose> = {
   // recoils LOW with the elbow bent, the head rocks back with the weight
   // settling onto the back foot (pelvisTilt flips), shoulders dropped.
   // Reads as recoil with zero motion — the test a hero shock must pass.
-  shock: { ...base(), lean: -4, headTilt: -6, rootY: 5, lAU: -95, lAL: -115, rAU: -30, rAL: -75, lLU: -11, lLL: 4, rLU: 12, rLL: -8, browRaise: 0.95, smile: 0.02, pelvisTilt: -6, shoulderTilt: -3.5, shoulderDrop: 8, eyeL: 1.45, eyeR: 1.45 },
+  shock: { ...base(), lean: -6, headTilt: -6, rootY: 7, lAU: -102, lAL: -124, rAU: -26, rAL: -70, lLU: -11, lLL: 4, rLU: 12, rLL: -8, browRaise: 0.95, smile: 0.02, pelvisTilt: -6, shoulderTilt: -3.5, shoulderDrop: 10, eyeL: 1.45, eyeR: 1.45 }, // PHASE-1 re-key: deeper recoil (lean -6, rootY 7, drop 10) — the flinch silhouette
   // wry: the paradox resolve (c7-paradox) — the knowing half-smile: one brow
   // up, one down, head tilted, hand low like “well, actually”.
   // P1-4: + silhouette terms — the near eye squints to 0.55 while the far
@@ -199,7 +216,7 @@ export const POSES: Record<string, Pose> = {
   // from the pelvis, knees below); rootY drops the pelvis to the seat
   // height (the card edge lives ~92px above the ground line at host
   // scale — rootY +58 sinks the hip onto it).
-  sitBack: { ...base(), rootY: 58, lean: 8, headTilt: 4, lLU: 82, lLL: 6, rLU: 86, rLL: 10, lAU: -20, lAL: -36, rAU: 26, rAL: 30, smile: 0.3, browRaise: 0.2, pelvisTilt: 2, shoulderTilt: -1.5 },
+  sitBack: { ...base(), rootY: 58, lean: 8, headTilt: 4, lLU: 74, lLL: 4, rLU: 94, rLL: 14, lAU: -24, lAL: -40, rAU: 30, rAL: 26, smile: 0.3, browRaise: 0.2, pelvisTilt: 2, shoulderTilt: -1.5 }, // PHASE-1 re-key: thighs separate (74/94) so the two legs read as two, not one tangle
   // sitRise: the push-up off the edge — weight driving through the
   // planted feet, hands pressing the card, the body at 60% between
   // sitBack and standing. The rise reads as EFFORT: arms straight,
@@ -229,7 +246,15 @@ export const POSES: Record<string, Pose> = {
   //   level, left and 9px up — the fist lands at (−2, −154), the sternum.
   //   The far arm mirrors (lAU −55, lAL 105 — 6px higher): two fists
   //   stacked at the sternum, the forearms crossing the whole chest.
-  crossed: { ...base(), lean: 2, headTilt: 4, lAU: -55, lAL: 105, rAU: 55, rAL: -99, lLU: -6, rLU: 8, rLL: 4, browAngle: 12, smile: 0.06, browRaise: 0.14, pelvisTilt: -2, shoulderDrop: 4, lHand: 'fist', rHand: 'fist' },
+  // PHASE-1 VISUAL AUDIT (pose re-key AS SILHOUETTE, evidence
+  // BEFORE_fix3-poses_crossed): the round-4 fold stacked BOTH fists at
+  // the sternum (-2,-154)/(6,-160) — one dark lump across the chest.
+  // The re-key separates the fold: the near fist tucks UNDER at the far
+  // elbow (rAL -99 → -80, fist rises to -136), the far fist wraps OVER
+  // past the near elbow (lAL 105 → 118, fist climbs to -171) — two
+  // separated fist masses, two elbow points, a readable X. Hands are the
+  // GRIP glyph (closed contact).
+  crossed: { ...base(), lean: 2, headTilt: 4, lAU: -55, lAL: 118, rAU: 55, rAL: -80, lLU: -6, rLU: 8, rLL: 4, browAngle: 12, smile: 0.06, browRaise: 0.14, pelvisTilt: -2, shoulderDrop: 4, lHand: 'grip', rHand: 'grip' },
 };
 
 export function blendPose(a: Pose, b: Pose, t: number): Pose {

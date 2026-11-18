@@ -3126,7 +3126,7 @@ export function ownerWorkerScene(g: SceneCtx): void {
     // bag. One glance: a man climbing WITH his case, a man stuck with his
     // lunchbox — the divergence in two held objects.
     const pose = side === 'left'
-      ? { ...POSES.climb, headYaw: 6, lAU: -18, lAL: -14 }
+      ? { ...POSES.climb, headYaw: 6 } // PHASE-1: the climb re-key owns the low pull arm — override retired
       : { ...POSES.facepalm, headYaw: -9 };
     if (side === 'left') {
       const mp = clamp01((g.sceneT - 1600) / 800);

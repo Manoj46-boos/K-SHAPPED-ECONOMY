@@ -212,13 +212,16 @@ function drawMouthV2(
   ctx.lineCap = 'round';
   ctx.strokeStyle = col;
 
-  // 100-JUDGE AUDIT (Part 8.2): when a viseme is active and the talk
-  // envelope is above the small-open threshold, use the 9-shape Preston
-  // Blair system; otherwise fall back to the 4-shape envelope (back-compat).
+  // 100-JUDGE AUDIT (Part 8.2) retired — PHASE-1 VISUAL AUDIT (Fix 4 —
+  // MOUTH SHAPES REDUCED TO 4 THAT READ AT FEED): the 9-shape Preston
+  // Blair viseme system produced distinctions (FV vs TH vs KST slots)
+  // that collapse into the same 2-3px slot at the 320px gate — nine
+  // shapes of mush. The mouth now runs FOUR open registers only — the
+  // closed line, the small-open slot, the wide-open jaw, the round-O —
+  // mapped by viseme class, then the proven 4-shape talk envelope below.
   if (viseme !== 'X' && talk > 0.15) {
     const w = Math.max(wFloor, 6 + talk * 4);
     const h = (2.5 + talk * 6.5) * jawX;
-    const teethCol = '#FDFCF8';
     switch (viseme) {
       case 'A': // closed (MBP) — flat line, slightly compressed
         ctx.lineWidth = 5;
@@ -227,70 +230,55 @@ function drawMouthV2(
         ctx.lineTo(mx + w * 0.7, 15);
         ctx.stroke();
         return;
-      case 'B': // slightly open (KST) — small horizontal slot
-        ctx.fillStyle = col;
-        ctx.beginPath();
-        ctx.ellipse(mx, 15, w * 0.7, h * 0.35 * jawX, 0, 0, Math.PI * 2);
-        ctx.fill();
-        return;
-      case 'C': // open (EH) — wide mid-height ellipse
-        ctx.fillStyle = col;
-        ctx.beginPath();
-        ctx.ellipse(mx, 15, w, h * 0.875 * jawX, 0, 0, Math.PI * 2);
-        ctx.fill();
-        mouthCavity(mx, 15, w, h * 0.875 * jawX);
-        ctx.fillStyle = teethCol;
-        ctx.beginPath();
-        ctx.ellipse(mx, 15 - h * 0.3, w * 0.55, h * 0.2, 0, 0, Math.PI * 2);
-        ctx.fill();
-        return;
-      case 'D': // wide (FV) — wide low ellipse with teeth
-        ctx.fillStyle = col;
-        ctx.beginPath();
-        ctx.ellipse(mx, 15, w * 1.1, h * 0.5 * jawX, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = teethCol;
-        ctx.beginPath();
-        ctx.ellipse(mx, 15 - h * 0.18, w * 0.6, h * 0.18, 0, 0, Math.PI * 2);
-        ctx.fill();
-        return;
-      case 'E': // rounded (OW) — vertical ellipse, taller than wide
-        ctx.fillStyle = col;
-        ctx.beginPath();
-        ctx.ellipse(mx, 15, w * 0.6, h * 1.06 * jawX, 0, 0, Math.PI * 2);
-        ctx.fill();
-        mouthCavity(mx, 15, w * 0.6, h * 1.06 * jawX);
-        ctx.fillStyle = teethCol;
-        ctx.beginPath();
-        ctx.ellipse(mx, 15 - h * 0.35, w * 0.35, h * 0.2, 0, 0, Math.PI * 2);
-        ctx.fill();
-        return;
-      case 'F': // pursed (UW) — small tight circle
-        ctx.fillStyle = col;
-        ctx.beginPath();
-        ctx.ellipse(mx, 15, w * 0.45, h * 0.5 * jawX, 0, 0, Math.PI * 2);
-        ctx.fill();
-        return;
-      case 'G': // teeth-on-lip (TH) — slot with teeth bar
-        ctx.fillStyle = col;
-        ctx.beginPath();
-        ctx.ellipse(mx, 15, w * 0.8, h * 0.4 * jawX, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = teethCol;
-        ctx.fillRect(mx - w * 0.6, 14, w * 1.2, 2.5);
-        return;
-      case 'H': // open wide (AH) — wide tall ellipse, full jaw drop
-        ctx.fillStyle = col;
-        ctx.beginPath();
-        ctx.ellipse(mx, 15, w * 0.9, h * 1.375 * jawX, 0, 0, Math.PI * 2);
-        ctx.fill();
-        mouthCavity(mx, 15, w * 0.9, h * 1.375 * jawX);
-        ctx.fillStyle = teethCol;
-        ctx.beginPath();
-        ctx.ellipse(mx, 15 - h * 0.45, w * 0.5, h * 0.25, 0, 0, Math.PI * 2);
-        ctx.fill();
-        return;
-      // 'X' (rest) and any unmapped viseme fall through to the 4-shape envelope below
+      case 'C': // wide-open register (EH)
+      case 'H': // wide-open register (AH) — full jaw drop
+        {
+          const rw = w * (viseme === 'H' ? 0.9 : 1.0);
+          const rh = h * (viseme === 'H' ? 1.375 : 0.875) * jawX;
+          ctx.fillStyle = col;
+          ctx.beginPath();
+          ctx.ellipse(mx, 15, rw, rh, 0, 0, Math.PI * 2);
+          ctx.fill();
+          mouthCavity(mx, 15, rw, rh);
+          ctx.fillStyle = '#FDFCF8';
+          ctx.beginPath();
+          ctx.ellipse(mx, 15 - rh * 0.32, rw * 0.55, rh * 0.22, 0, 0, Math.PI * 2);
+          ctx.fill();
+          return;
+        }
+      case 'E': // round-O register (OW)
+      case 'F': // round-O register (UW) — small tight circle
+        {
+          const rw = w * (viseme === 'E' ? 0.6 : 0.45);
+          const rh = h * (viseme === 'E' ? 1.06 : 0.5) * jawX;
+          ctx.fillStyle = col;
+          ctx.beginPath();
+          ctx.ellipse(mx, 15, rw, rh, 0, 0, Math.PI * 2);
+          ctx.fill();
+          if (viseme === 'E') {
+            mouthCavity(mx, 15, rw, rh);
+            ctx.fillStyle = '#FDFCF8';
+            ctx.beginPath();
+            ctx.ellipse(mx, 15 - rh * 0.35, rw * 0.55, rh * 0.2, 0, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          return;
+        }
+      // B / D / G — the small-open slot register (one shape; G keeps its
+      // single teeth bar — the only viseme-specific detail that survives
+      // the transcode)
+      default:
+        {
+          ctx.fillStyle = col;
+          ctx.beginPath();
+          ctx.ellipse(mx, 15, w * 0.75, h * 0.4 * jawX, 0, 0, Math.PI * 2);
+          ctx.fill();
+          if (viseme === 'G') {
+            ctx.fillStyle = '#FDFCF8';
+            ctx.fillRect(mx - w * 0.55, 13.8, w * 1.1, 2.5);
+          }
+          return;
+        }
     }
   }
 
@@ -595,21 +583,28 @@ export function limb2(
              ex + n2x * ls2 * w1 * t1 * 0.15, ey + n2y * ls2 * w1 * t1 * 0.15,
              wJ * t1 * 0.55, w1 * t1 * 0.25, inner, side2 * BOW * 0.85);
   // the knuckle — the joint mass (elbow/knee) that kills the miter read.
-  // 100-JUDGE PANEL REPORT (fix A4 — THE KNEE PADS): the disc drew at
-  // 0.72×wJ×1.14 on EVERY joint at EVERY pose — wider than the limb on
-  // rest-pose legs, reading as "black leggings with knee pads". The disc
-  // now draws ONLY on a real bend (raw cross-product bend > sin 35° —
-  // the angle where a knee visually articulates) and caps at 0.55×wJ so
-  // even a deep bend never outgrows the limb it belongs to.
-  if (rawBend > 0.574) {
+  // 100-JUDGE PANEL REPORT (fix A4): the disc draws ONLY on a real bend.
+  // PHASE-1 VISUAL AUDIT (report Phase 1 — Joints, frame evidence
+  // BEFORE_fix2-joints): the audit's "lumps" verdict — the disc fired on
+  // EVERY mid bend (sin 35°) at 0.55×wJ, so ordinary poses carried beads
+  // at the elbows. The gate TIGHTENS to sin 45° (0.707 — the bend where a
+  // knee/elbow VISUALLY articulates) and the radius SHRINKS 40%
+  // (0.55 → 0.33×wJ): a knuckle is a hinge hint, not a pad.
+  if (rawBend > 0.707) {
     ctx.fillStyle = col;
     ctx.beginPath();
-    ctx.arc(jx, jy, wJ * 0.55 * jointK, 0, Math.PI * 2);
+    ctx.arc(jx, jy, wJ * 0.33 * jointK, 0, Math.PI * 2);
     ctx.fill();
   }
+  // PHASE-1 VISUAL AUDIT (Fix 1 — the WRIST TAPER): the end disc was
+  // 0.72×w1 — as wide as the hand mass root, so forearm met hand at full
+  // width ("a mitten welded to a tube"). The disc shrinks to a WRIST BALL
+  // (0.46×w1): the forearm now visibly narrows before the hand glyph's
+  // mass flares past it — the drawn-character wrist every glyph below
+  // inherits for free.
   ctx.fillStyle = col;
   ctx.beginPath();
-  ctx.arc(ex, ey, w1 * 0.72 * t1, 0, Math.PI * 2);
+  ctx.arc(ex, ey, w1 * 0.46 * t1, 0, Math.PI * 2);
   ctx.fill();
   return { ex, ey };
 }
@@ -637,9 +632,35 @@ export function limb2(
 // mitten at hero scales: rig ≥ 2 renders resting/presenting hands OPEN
 // and the count-one gesture as the PINCH — the close-up hand finally has
 // fingers; the feed keeps the readable mitten.
-type HandMode = 'fist' | 'count1' | 'count2' | 'count3' | 'palm' | 'point' | 'open' | 'pinch' | undefined;
+type HandMode = 'fist' | 'grip' | 'count1' | 'count2' | 'count3' | 'palm' | 'point' | 'open' | 'pinch' | undefined;
 
-function handGlyph(
+/** roundRect as a SUBPATH of the CURRENT path — identical geometry to
+ *  theme.roundRect (same arcTo corner sequence, same <10px rect fallback)
+ *  but WITHOUT the internal beginPath. PHASE-1 VISUAL AUDIT (Fix 1): the
+ *  pre-inked hand glyphs are multi-part masses (palm + separated finger
+ *  bars) unioned in ONE nonzero-winding fill; the theme helper's internal
+ *  beginPath wiped the palm subpath, leaving only the last bar on the
+ *  path — the hands drew as bare fingers. */
+function rrSub(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number, w: number, h: number, r: number
+): void {
+  if (w < 10 || h < 10) {
+    ctx.rect(x, y, w, h);
+    ctx.closePath();
+    return;
+  }
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr); // top-right corner
+  ctx.arcTo(x + w, y + h, x, y + h, rr); // bottom-right corner
+  ctx.arcTo(x, y + h, x, y, rr);         // bottom-left corner
+  ctx.arcTo(x, y, x + w, y, rr);         // top-left corner
+  ctx.closePath();
+}
+
+// exported for tools/pose-sheet.mjs — the character model-sheet renderer
+export function handGlyph(
   ctx: CanvasRenderingContext2D,
   x: number, y: number,          // hand position from limb2()
   forearmAngle: number,          // the pose's lower-arm angle, degrees
@@ -664,6 +685,12 @@ function handGlyph(
   // fist/count.
   if (mode === 'palm') {
     mode = 'point';
+  }
+  // PHASE-1 VISUAL AUDIT (report Phase 1 — Hands): 'grip' joins as the
+  // canonical closed-contact glyph name ('fist' survives as its alias) —
+  // the poses say grip because the hand GRIPS an object.
+  if (mode === 'grip') {
+    mode = 'fist';
   }
   // 100-JUDGE VISUAL AUDIT (Phase 1 — HANDS TO FIVE GLYPHS): the hero-tier
   // swap. At rig ≥ 2 (the editorial and reaction stagings — the frames the
@@ -696,22 +723,20 @@ function handGlyph(
     ctx.translate(x + Math.sin(a) * s * 0.1, y + Math.cos(a) * s * 0.1);
     ctx.rotate(a);
     ctx.beginPath();
-    roundRect(ctx, -s * 0.4, -s * 0.32, s * 0.8, s * 0.74, s * 0.28);
-    ctx.restore();
-    // PHASE-5 (D-09 — ARTICULATION): at close-up rig scales the plain
-    // capsule reads as a lemon. Two knuckle scallops on the leading edge
-    // (same clockwise winding as the capsule — nonzero winding unions
-    // them into one silhouette) give the fist its finger read without any
-    // interior line: silhouette articulation, safe on every plane.
+    // PHASE-1 VISUAL AUDIT (Fix 1 — THE PRE-INKED GRIP): the capsule ran
+    // the FULL hand (-0.4s..+0.4s) with two unioned scallops — a mitten
+    // with lumps. The mass now stops at the palm (+0.14s) and the FOUR
+    // fingers wrap as SEPARATE rounded bars rooted in it, real gaps
+    // between them: the drawn-character grip the report prescribes
+    // ("pre-inked glyphs drawn with finger breaks"), reading at close-up;
+    // below rig 1.25 the plain mass silhouette holds (feed).
+    roundRect(ctx, -s * 0.42, -s * 0.34, s * 0.56, s * 0.7, s * 0.26);
     if (rigScale >= 1.25) {
-      const fx1 = x + Math.sin(a) * s * 0.38, fy1 = y + Math.cos(a) * s * 0.38;
-      const pxk = Math.sin(a + Math.PI / 2), pyk = Math.cos(a + Math.PI / 2);
-      for (const koff of [-0.17, 0.17]) {
-        const kx = fx1 + pxk * koff * s, ky = fy1 + pyk * koff * s;
-        ctx.moveTo(kx + Math.sin(a) * s * 0.16 + s * 0.13, ky + Math.cos(a) * s * 0.16 + 0);
-        ctx.arc(kx + Math.sin(a) * s * 0.16, ky + Math.cos(a) * s * 0.16, s * 0.13, 0, Math.PI * 2);
+      for (const fy of [-0.32, -0.115, 0.09, 0.295]) {
+        rrSub(ctx, s * 0.05, fy * s, s * 0.46, s * 0.13, s * 0.055);
       }
     }
+    ctx.restore();
     // the N extended fingers — PHASE-1: roots buried DEEP in the fist mass
     // (0.30s → 0.14s along the axis, base width 0.30s → 0.34s) so the
     // fingers leave the mass as one webbed bundle — never as separate
@@ -751,26 +776,19 @@ function handGlyph(
     taper(ctx, x + Math.sin(a) * s * 0.06, y + Math.cos(a) * s * 0.06,
       x + Math.sin(a) * s * 1.38, y + Math.cos(a) * s * 1.38,
       s * 0.34, s * 0.15, col);
-    // the thickened mitten mass — the palm wedge +30% across the axis
-    // (PHASE-5 D-09: fill moved AFTER restore — see the fist note)
+    // the palm mass — stops at the index root; the folded pair leave it
+    // as SEPARATE bars with real gaps (the pre-inked finger breaks)
     ctx.save();
     ctx.translate(x + Math.sin(a) * s * 0.36, y + Math.cos(a) * s * 0.36);
     ctx.rotate(a);
     ctx.beginPath();
-    roundRect(ctx, -s * 0.65, -s * 0.46, s * 1.3, s * 0.98, s * 0.44);
-    ctx.restore();
-    // PHASE-5 (D-09 — ARTICULATION): two folded-finger scallops tucked
-    // under the index root at close-up — the pointing hand's read comes
-    // from the folded pair, not from the finger alone.
+    roundRect(ctx, -s * 0.62, -s * 0.44, s * 0.84, s * 0.9, s * 0.4);
     if (rigScale >= 1.25) {
-      const pxk = Math.sin(a + Math.PI / 2), pyk = Math.cos(a + Math.PI / 2);
-      for (const koff of [-0.34, -0.06]) {
-        const kx = x + Math.sin(a) * s * 0.52 + pxk * koff * s;
-        const ky = y + Math.cos(a) * s * 0.52 + pyk * koff * s;
-        ctx.moveTo(kx + s * 0.12, ky);
-        ctx.arc(kx, ky, s * 0.12, 0, Math.PI * 2);
+      for (const fy of [-0.33, -0.15, 0.03]) {
+        rrSub(ctx, s * 0.02, fy * s, s * 0.44, s * 0.13, s * 0.055);
       }
     }
+    ctx.restore();
     // the thumb lobe — a rounded bump on the wrist side, ONE subpath of
     // the mass's own path (PHASE-5 D-09: the stale beginPath here used to
     // wipe the palm mass before its fill — the point hand drew as a bare
@@ -844,12 +862,18 @@ function handGlyph(
   // carries the volume. The gesture a presenter makes ON a detail.
   if (mode === 'pinch') {
     const fa = a;
-    // the folded mass — the fist capsule slightly shorter
+    // the folded mass — stops at the palm; the three folded fingers leave
+    // it as separate bars with gaps (the pre-inked breaks)
     ctx.save();
     ctx.translate(x + Math.sin(fa) * s * 0.08, y + Math.cos(fa) * s * 0.08);
     ctx.rotate(fa);
     ctx.beginPath();
-    roundRect(ctx, -s * 0.4, -s * 0.34, s * 0.72, s * 0.72, s * 0.26);
+    roundRect(ctx, -s * 0.4, -s * 0.34, s * 0.62, s * 0.7, s * 0.26);
+    if (rigScale >= 1.25) {
+      for (const fy of [-0.2, -0.02, 0.16]) {
+        rrSub(ctx, s * 0.02, fy * s, s * 0.4, s * 0.13, s * 0.05);
+      }
+    }
     ctx.restore();
     // the index — curls from the mass to the pinch point (1.0s out)
     taper(ctx, x + Math.sin(fa) * s * 0.18, y + Math.cos(fa) * s * 0.18,
@@ -864,18 +888,8 @@ function handGlyph(
     ctx.beginPath();
     ctx.ellipse(tx, ty, s * 0.16, s * 0.19, fa, 0, Math.PI * 2);
     ctx.stroke();
-    // two folded knuckles — the middle/ring read under the index root
-    if (rigScale >= 1.25) {
-      const pxk = Math.sin(fa + Math.PI / 2), pyk = Math.cos(fa + Math.PI / 2);
-      for (const koff of [-0.18, 0.04]) {
-        const kx = x + Math.sin(fa) * s * 0.30 + pxk * koff * s;
-        const ky = y + Math.cos(fa) * s * 0.30 + pyk * koff * s;
-        ctx.fillStyle = col;
-        ctx.beginPath();
-        ctx.arc(kx, ky, s * 0.12, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
+    // (the folded finger bars live in the mass path above — the old
+    // knuckle-dot pair retired with the pre-inked break rebuild)
     return;
   }
   // ── THE MITTEN — the film's single resting AND presenting hand ──
@@ -2674,7 +2688,14 @@ export function drawStickmanV2(
   // THUMBNAIL's values: eye radius 8.6 units, so the character who earns
   // the click is the character who appears. Below hero the existing
   // screen-space floor governs unchanged.
-  const eyeR = Math.max(5.2, featureFloor(7.0), scale >= 2 ? 8.6 : 0);
+  // PHASE-1 VISUAL AUDIT (Fix 4 — EYE MASS +30%, report Phase 1 "Face"):
+  // the face's single biggest feed lever. Every eye term scales 1.3×:
+  // hero dot eye 8.6 → 11.2 units, hero sclera 6.4 → 8.3, lens 11 → 13.5,
+  // becker cast eyes 5.4/4.6 → 7.0/6.0, pupils up with them — and the
+  // spacing widens ±11 → ±14 so the bigger masses still breathe. The
+  // screen-space floors scale with the same factor so the feed never
+  // starves the face again.
+  const eyeR = Math.max(5.2, featureFloor(9.1), scale >= 2 ? 11.2 : 0);
   // 100-JUDGE PANEL REPORT (defect D12 — THE SKULL READ): below rig scale
   // 1.0 the becker head's PURE-WHITE features (sclera, brows, mouth) on
   // the solid ink read as a grinning skull at feed scale (the coffee
@@ -2689,7 +2710,7 @@ export function drawStickmanV2(
   // heads (prof / worker) now take the same screen-space floor the ivory
   // host has — below ~6px of sclera at 1080p the eyes grow instead of
   // shrinking with the rig, so the cast reads as faces at side-host scale.
-  const beckerEyeR = Math.max(smallHead ? 4.6 : 5.4, featureFloor(6.0));
+  const beckerEyeR = Math.max(smallHead ? 6.0 : 7.0, featureFloor(7.8));
   // PHASE-0 (100-judge report §11 Phase 0 — THE FACE REBUILD): wire-frame
   // professor proportions. The lens radius carries the scale; sclera and
   // pupil DERIVE from it (pupil ≈ one-third of the lens radius), and every
@@ -2704,7 +2725,7 @@ export function drawStickmanV2(
   // measurement put the shipped features at ~22% of the face — the fill pass
   // raises every feature floor (lens 9.5 → 11, sclera hero 5.2 → 6.4, pupil
   // share 0.52 → 0.55) toward the ~45% feature-area band the panel scored.
-  const lensR = Math.max(11, featureFloor(6.5));
+  const lensR = Math.max(13.5, featureFloor(8.5));
   // 100-JUDGE VISUAL AUDIT (Fix 1 — CHARACTER OWNERSHIP): the googly read's
   // root cause was the white:sclera ratio — a 6.9-unit white oval inside a
   // 9.5 lens read as "eyes", not "glasses over eyes". The sclera runs HALF
@@ -2715,21 +2736,21 @@ export function drawStickmanV2(
   // the hero sclera lifts 5.2 → 6.4 and its screen floor 4.2 → 4.8 so the
   // eye mass survives every rig; the INK pupil still dominates (0.55 of the
   // lens): the drawn-caricature standard, not a googly meme.
-  const scleraR = Math.max(4.2, featureFloor(4.8), scale >= 2 ? 6.4 : 0);
-  const ivoryPupR = Math.max(3.0, featureFloor(3.8), lensR * 0.55);
+  const scleraR = Math.max(5.5, featureFloor(6.2), scale >= 2 ? 8.3 : 0);
+  const ivoryPupR = Math.max(3.9, featureFloor(4.9), lensR * 0.55);
   if (becker) {
     ctx.fillStyle = faceInk;
     ctx.beginPath();
-    ctx.ellipse(-11 + eyeDX, -6, beckerEyeR * eyeSL, beckerEyeR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
-    ctx.ellipse(11 + eyeDX, -6, beckerEyeR * eyeSR, beckerEyeR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
+    ctx.ellipse(-14 + eyeDX, -6, beckerEyeR * eyeSL, beckerEyeR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
+    ctx.ellipse(14 + eyeDX, -6, beckerEyeR * eyeSR, beckerEyeR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
     ctx.fill();
     // D-8: ink pupils inside the sclera — the missing focus point was the
     // googly read's root cause
     ctx.fillStyle = ink;
-    const pupR = 2.9 * (1 + surprise * 0.28);
+    const pupR = 3.8 * (1 + surprise * 0.28); // PHASE-1: +30% with the eye mass
     ctx.beginPath();
-    ctx.ellipse(-11 + eyeDX, -6, pupR * eyeSL, pupR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
-    ctx.ellipse(11 + eyeDX, -6, pupR * eyeSR, pupR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
+    ctx.ellipse(-14 + eyeDX, -6, pupR * eyeSL, pupR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
+    ctx.ellipse(14 + eyeDX, -6, pupR * eyeSR, pupR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
     ctx.fill();
   } else if (ivory) {
     // PHASE-0: the ivory host ALWAYS wears its eyes — white sclera ovals
@@ -2739,37 +2760,37 @@ export function drawStickmanV2(
     // ride the same ellipse math as every other branch.
     ctx.fillStyle = '#FFFFFF';
     ctx.beginPath();
-    ctx.ellipse(-11 + eyeDX, -6, scleraR * eyeSL, scleraR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
-    ctx.ellipse(11 + eyeDX, -6, scleraR * eyeSR, scleraR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
+    ctx.ellipse(-14 + eyeDX, -6, scleraR * eyeSL, scleraR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
+    ctx.ellipse(14 + eyeDX, -6, scleraR * eyeSR, scleraR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = ink;
     const pup = ivoryPupR * (1 + surprise * 0.28); // AUDIT-2 dilation, kept
     ctx.beginPath();
-    ctx.ellipse(-11 + eyeDX, -6, pup * eyeSL, pup * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
-    ctx.ellipse(11 + eyeDX, -6, pup * eyeSR, pup * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
+    ctx.ellipse(-14 + eyeDX, -6, pup * eyeSL, pup * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
+    ctx.ellipse(14 + eyeDX, -6, pup * eyeSR, pup * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
     ctx.fill();
     // pupil glints — the alive eye. Fix 1 keeps them but shrinks the share
     // (0.3 → 0.22 of the pupil) so the whites never re-dominate the eye.
     ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath(); ctx.arc(-11 + eyeDX - pup * 0.38, -6 - pup * 0.42, Math.max(0.8, pup * 0.22), 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(11 + eyeDX + pup * 0.38, -6 - pup * 0.42, Math.max(0.8, pup * 0.22), 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-14 + eyeDX - pup * 0.38, -6 - pup * 0.42, Math.max(0.8, pup * 0.22), 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(14 + eyeDX + pup * 0.38, -6 - pup * 0.42, Math.max(0.8, pup * 0.22), 0, Math.PI * 2); ctx.fill();
   } else if (pose.browRaise > 0.55) {
     ctx.fillStyle = '#FFFFFF';
     ctx.beginPath();
-    ctx.ellipse(-11 + eyeDX, -6, eyeR * 1.19 * eyeSL, eyeR * 1.19 * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
-    ctx.ellipse(11 + eyeDX, -6, eyeR * 1.19 * eyeSR, eyeR * 1.19 * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
+    ctx.ellipse(-14 + eyeDX, -6, eyeR * 1.19 * eyeSL, eyeR * 1.19 * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
+    ctx.ellipse(14 + eyeDX, -6, eyeR * 1.19 * eyeSR, eyeR * 1.19 * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = ink;
-    const pupR = 3.4 * (1 + surprise * 0.28); // AUDIT-2: pupil dilation
+    const pupR = 4.4 * (1 + surprise * 0.28); // AUDIT-2: pupil dilation; PHASE-1: +30% with the eye mass
     ctx.beginPath();
-    ctx.ellipse(-11 + eyeDX, -6, pupR * eyeSL, pupR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
-    ctx.ellipse(11 + eyeDX, -6, pupR * eyeSR, pupR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
+    ctx.ellipse(-14 + eyeDX, -6, pupR * eyeSL, pupR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
+    ctx.ellipse(14 + eyeDX, -6, pupR * eyeSR, pupR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
     ctx.fill();
   } else {
     ctx.fillStyle = ink;
     ctx.beginPath();
-    ctx.ellipse(-11 + eyeDX, -6, eyeR * eyeSL, eyeR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
-    ctx.ellipse(11 + eyeDX, -6, eyeR * eyeSR, eyeR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
+    ctx.ellipse(-14 + eyeDX, -6, eyeR * eyeSL, eyeR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
+    ctx.ellipse(14 + eyeDX, -6, eyeR * eyeSR, eyeR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
     ctx.fill();
   }
   // AUDIT-2 / 1.2: the eyelid line — when a lid is active, an ink stroke
@@ -2781,48 +2802,44 @@ export function drawStickmanV2(
     ctx.lineCap = 'round';
     const lidY = -6 - 5.2 * (1 - lid);
     ctx.beginPath();
-    ctx.moveTo(-16 + eyeDX, lidY);
-    ctx.lineTo(-6 + eyeDX, lidY - 1.5);
-    ctx.moveTo(6 + eyeDX, lidY - 1.5);
-    ctx.lineTo(16 + eyeDX, lidY);
+    ctx.moveTo(-19 + eyeDX, lidY);
+    ctx.lineTo(-7.5 + eyeDX, lidY - 1.5);
+    ctx.moveTo(7.5 + eyeDX, lidY - 1.5);
+    ctx.lineTo(19 + eyeDX, lidY);
     ctx.stroke();
   }
-  // AUDIT-ROUND-2 (fix 9 — the bold white brow arcs on the becker head):
-  // the solid-ink head carried "zero interior clutter" right up to the
-  // point where it carried NO expression hardware above the eyes — the
-  // audit's prescription: "one bold white brow arc on becker head (reads
-  // at distance, carries surprise)". TWO arcs now — one per eye — bold,
-  // white, arching with browRaise (the surprise read) and kinking with
-  // browAngle (the concern read). They live ABOVE the enlarged eyes,
-  // still inside the head's silhouette: the face gains its last
-  // expression channel without surrendering the silhouette-first design.
-  // Phase 1 item 2 (report §6): brow arcs widen 4.6 -> 6px — "brow arcs
-  // widen to 6px"; with the 9-unit eyes the whole face caricature reads
-  // at the 320px gate.
-  if (becker) {
+  // PHASE-1 VISUAL AUDIT (Fix 4 — ONE DOMINANT BROW CHANNEL, report
+  // Phase 1 "Face"): the face carried THREE competing brow systems — the
+  // becker white double-arc, the 3-shape switch (neutral / surprise-arch /
+  // concerned-kink) — brows that fought each other for shape authority.
+  // ONE channel now: a single bold arc per side whose curvature is driven
+  // by ONE scalar, the dominant emotion (surprise − concerned): positive
+  // arches toward surprise, negative flattens toward the concern kink,
+  // zero sits at the house line. browRaise still lifts the pair,
+  // browAngle still tilts it — but the SHAPE authority is one channel,
+  // the same geometry on every head type (ink, ivory, becker).
+  const browEmo = surprise - concerned;
+  const drawBrow = (dir: number): void => {
     const bRaise = pose.browRaise * AMP.browTravelPx;
     const bAng = pose.browAngle * D2R;
-    ctx.strokeStyle = faceInk;
-    ctx.lineWidth = Math.max(smallHead ? 5 : 6, featureFloor(5));
+    const x0 = dir * (8 + eyeDX), x1 = dir * (24 + eyeDX);
+    const lift = ivory ? 5 : 0;
+    const y0 = -18 - lift - bRaise - dir * Math.tan(bAng) * 7;
+    const y1 = -16 - lift - bRaise + dir * Math.tan(bAng) * 7;
+    ctx.strokeStyle = becker ? faceInk : ink;
+    ctx.lineWidth = Math.max(smallHead ? 5.5 : 6.5, featureFloor(7), scale >= 2 ? 9.5 : 0);
     ctx.lineCap = 'round';
-    const browArc = (dir: number): void => {
-      const x0 = dir * (6 + eyeDX), x1 = dir * (19 + eyeDX);
-      const y0 = -19 - bRaise - dir * Math.tan(bAng) * 6;
-      const y1 = -17 - bRaise + dir * Math.tan(bAng) * 6 * -1;
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      // the ARCH — quadratic lift keyed to browRaise (surprise curves,
-      // calm stays near-straight)
-      ctx.quadraticCurveTo((x0 + x1) / 2, (y0 + y1) / 2 - 4.5 - 7 * clamp01(pose.browRaise), x1, y1);
-      ctx.stroke();
-    };
-    browArc(-1);
-    browArc(1);
-  }
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.quadraticCurveTo((x0 + x1) / 2, (y0 + y1) / 2 - 12 * browEmo, x1, y1);
+    ctx.stroke();
+  };
+  drawBrow(-1);
+  drawBrow(1);
   if (!becker && !ivory) {
     ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath(); ctx.arc(-9.5 + eyeDX, -7.5, 1.9, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(12.5 + eyeDX, -7.5, 1.9, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-12 + eyeDX, -7.5, 2.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(15.5 + eyeDX, -7.5, 2.3, 0, Math.PI * 2); ctx.fill();
   } // P1-1 'becker': no glints — zero interior clutter
     // PHASE-0 'ivory': glints moved ONTO the pupils inside the sclera branch
   // 100-JUDGE AUDIT / fix 6.1 — THE SIGNATURE FEATURE (round ink glasses).
@@ -2846,74 +2863,28 @@ export function drawStickmanV2(
     ctx.lineCap = 'round';
     const gR = lensR;
     ctx.beginPath();
-    ctx.arc(-11 + eyeDX, -6, gR, 0, Math.PI * 2);
+    ctx.arc(-14 + eyeDX, -6, gR, 0, Math.PI * 2);
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(11 + eyeDX, -6, gR, 0, Math.PI * 2);
+    ctx.arc(14 + eyeDX, -6, gR, 0, Math.PI * 2);
     ctx.stroke();
     // the bridge — a short saddle arc between the lenses
     ctx.beginPath();
-    ctx.moveTo(-11 + gR + eyeDX, -8.5);
-    ctx.quadraticCurveTo(eyeDX, -12.5, 11 - gR + eyeDX, -8.5);
+    ctx.moveTo(-14 + gR + eyeDX, -8.5);
+    ctx.quadraticCurveTo(eyeDX, -13, 14 - gR + eyeDX, -8.5);
     ctx.stroke();
     // the temples — short ink stubs to the head's edge
     ctx.beginPath();
-    ctx.moveTo(-11 - gR + eyeDX, -7);
-    ctx.lineTo(-33 + eyeDX * 0.4, -11);
-    ctx.moveTo(11 + gR + eyeDX, -7);
-    ctx.lineTo(33 + eyeDX * 0.4, -11);
+    ctx.moveTo(-14 - gR + eyeDX, -7);
+    ctx.lineTo(-36 + eyeDX * 0.4, -11);
+    ctx.moveTo(14 + gR + eyeDX, -7);
+    ctx.lineTo(36 + eyeDX * 0.4, -11);
     ctx.stroke();
   }
-  // brows (existing semantics) — AUDIT-2 / 1.2: THREE SHAPES per side.
-  //   neutral    straight stroke (the house brow);
-  //   raised     quadratic ARCH on surprise — the brow lifts and curves,
-  //              which the straight line could never communicate;
-  //   concerned  inner-end-up kink at browAngle > 10 — worry reads in the
-  //              angle break, not just the lift.
-  // P1-1 'becker': no brows — the eye scale + head tilt + mouth carry the
-  // emotion (zero interior clutter is the whole point of the solid head).
-  if (!becker) {
-  const bRaise = pose.browRaise * AMP.browTravelPx;
-  const bAngle = pose.browAngle * D2R;
-  // PHASE-0: on the ivory host the brows ride CLEAR of the wire rims — the
-  // old brow line sat at y -17/-15, inside the rim's stroke, which is what
-  // fused brow + frame into one dark band. 8 units of lift restores the
-  // anatomy: brow above the frame, frame over the eye, eye inside the lens.
-  // FACE FILL — BROWS ANCHORED TO THE EYE LINE (audit §7): the 8-unit lift
-  // put the brows floating high on the egg ("brows moved" read as the only
-  // expression). The lift drops 8 → 5: the bold brow rides just above the
-  // lens rim (5 units of clear air — anchored to the eye line, never fused
-  // into the frame), and the hero stroke widens 7.6 → 9.5 so the brow mass
-  // carries the emotion at feed scale.
-  const browLift = ivory ? 5 : 0;
-  ctx.strokeStyle = ink;
-  // fix 6.1: screen-px floor — the brows never thin below ~6.5px at 1080p
-  // FIX 4 parity: hero rigs draw the thumbnail's bolder 9.5px brow
-  ctx.lineWidth = Math.max(6.5, featureFloor(7), scale >= 2 ? 9.5 : 0);
-  ctx.lineCap = 'round';
-  const browSide = (dir: number): void => {
-    const x0 = dir * (6 + eyeDX), x1 = dir * (20 + eyeDX);
-    // BLUEPRINT Phase 1: the arch/kink amplitudes scale with the x2.8
-    // brow travel so the SHAPES read at the new height (a 5.5px arch on
-    // a 14px raise would flatten back into a line).
-    const y0 = -17 - browLift - bRaise - dir * Math.tan(bAngle) * 7;
-    const y1 = -15 - browLift - bRaise + dir * Math.tan(bAngle) * 7 * -1;
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    if (surprise > 0.35) {
-      ctx.quadraticCurveTo((x0 + x1) / 2, (y0 + y1) / 2 - 12 * surprise, x1, y1);
-    } else if (concerned > 0.35) {
-      const kx = x0 + (x1 - x0) * 0.34;
-      ctx.lineTo(kx, y0 - 5.5 * concerned);
-      ctx.lineTo(x1, y1);
-    } else {
-      ctx.lineTo(x1, y1);
-    }
-    ctx.stroke();
-  };
-  browSide(-1);
-  browSide(1);
-  }
+  // (the old 3-shape brow switch retired — PHASE-1 VISUAL AUDIT: the ONE
+  // DOMINANT BROW CHANNEL above is the single brow system on every head
+  // type; the surprise-arch / concerned-kink shapes now live as the two
+  // extremes of its one curvature scalar, not as competing branches.)
   // AUDIT-3 / §3.1 (report Phase 3.1 — DIFFERENTIATE CHARACTER TWO): the
   // 'prof' variant's round glasses. Two BOLD stroked circles with a light
   // lens fill + a bridge — sized to survive the 320px feed (the round-5
@@ -2925,20 +2896,20 @@ export function drawStickmanV2(
     // not as two more face lines
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
     ctx.beginPath();
-    ctx.arc(-11 + eyeDX, -5.5, 13, 0, Math.PI * 2);
+    ctx.arc(-14 + eyeDX, -5.5, 15.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.beginPath();
-    ctx.arc(11 + eyeDX, -5.5, 13, 0, Math.PI * 2);
+    ctx.arc(14 + eyeDX, -5.5, 15.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = ink;
     ctx.lineWidth = 4;
     ctx.lineCap = 'round';
     // lenses — centered on the eye line, oversized on purpose
     ctx.beginPath();
-    ctx.arc(-11 + eyeDX, -5.5, 13, 0, Math.PI * 2);
+    ctx.arc(-14 + eyeDX, -5.5, 15.5, 0, Math.PI * 2);
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(11 + eyeDX, -5.5, 13, 0, Math.PI * 2);
+    ctx.arc(14 + eyeDX, -5.5, 15.5, 0, Math.PI * 2);
     ctx.stroke();
     // the bridge
     ctx.beginPath();
