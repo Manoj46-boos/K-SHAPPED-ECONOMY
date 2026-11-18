@@ -1620,23 +1620,27 @@ export function gasPumpScene(g: SceneCtx): void {
     ctx.fill();
   }
   ctx.restore();
-  // (c) the OPERATING HANDLE at the host's declared contact (880, 470):
-  //     px = W*0.5 = 960, so the palm at x 880 sits on the body's left
-  //     flank 24px inside the edge — the D-grip mounts THERE (grip bar at
-  //     x = px-80 = the contact x, standoffs reaching back to the body
-  //     edge), and the palm pad lands ON the bar: the audit's "a real prop
-  //     the host operates by the handle".
+  // (c) the OPERATING HANDLE at the host's declared contact (866, 545):
+  //     PHASE-0 VISUAL AUDIT (frame evidence BEFORE_fix3): the old handle
+  //     mounted at (880, 470) — ON the screen's bottom-left corner. The
+  //     palm pad plated the bezel's lower edge and clipped the gold price
+  //     plate's left edge (plate 896-1024 × 466-508): the hand destroyed
+  //     the readout it rested beside. The D-grip now mounts on the TRUE
+  //     left flank BELOW the screen: bar at x = px-94 = 866 (10px inside
+  //     the body edge 856), y = 545 — 53px clear of the bezel bottom
+  //     (466) and 18px clear of the price plate — the palm operates the
+  //     machine, never its glass. Standoffs reach back to the body edge.
   ctx.strokeStyle = rgba(PALETTE.shadow, 0.42);
   ctx.lineWidth = 7;
   ctx.beginPath();
-  ctx.moveTo(px - 80, 470 - 26);
-  ctx.lineTo(px - 80, 470 + 26);
+  ctx.moveTo(px - 94, 545 - 26);
+  ctx.lineTo(px - 94, 545 + 26);
   ctx.stroke();
   ctx.lineWidth = 4;
-  for (const my of [470 - 26, 470 + 26]) {
+  for (const my of [545 - 26, 545 + 26]) {
     ctx.beginPath();
     ctx.moveTo(px - 104, my);
-    ctx.lineTo(px - 80, my);
+    ctx.lineTo(px - 94, my);
     ctx.stroke();
   }
   // screen bezel + teal screen
@@ -2026,7 +2030,7 @@ export function gasPumpScene(g: SceneCtx): void {
         parallax: false,
         // CONTACT VERB: the palm RESTING on the pump's left flank —
         // the audit's "rests on the pump".
-        contact: { x: 880, y: 470, hand: 'palm' },
+        contact: { x: 866, y: 545, hand: 'palm' },
       }, 30);
   }
   sourceTag(ctx, W, s.source as string, H - 60);
@@ -2076,7 +2080,14 @@ export function recessionGaugeScene(g: SceneCtx): void {
   });
   // gauge on right
   gauge(ctx, {
-    cx: W * 0.74, cy: H * 0.52, r: 240,
+    // PHASE-0 VISUAL AUDIT (frame evidence BEFORE_fix4): the dial sat at
+    // W*0.74 and the presenter at x 1770 — the "100%" end label (centered
+    // cx+r+58 ≈ 1719) landed INSIDE the host torso band (1705-1835): the
+    // frame read "–100" with the "%" plated by his body. The dial moves to
+    // its own column (W*0.70): the 100% label now clears the host torso by
+    // ~28px and the arm corridor passes above the whole label band. The
+    // coin chip below tracks the same constant.
+    cx: W * 0.70, cy: H * 0.52, r: 240,
     value: (s.gaugeTo as number) || 48,
     p: clamp01((t - 1200) / 2200),
     t,
@@ -2131,7 +2142,7 @@ export function recessionGaugeScene(g: SceneCtx): void {
     setFont(ctx, 34, 700);
     const txt = s.coinChip as string;
     const tw = ctx.measureText(txt).width;
-    const gx = W * 0.74;
+    const gx = W * 0.70;
     const x = gx - tw / 2 - 28;
     // Guard sweep (356s): the chip's bottom grazed the caption pill band at
     // the 34px label floor — it rides 36px higher, clear under the worst
@@ -2185,18 +2196,20 @@ export function recessionGaugeScene(g: SceneCtx): void {
         // dial. Edge margin: band right 1850.5 survives the beat's base
         // push (s 1.052 → 1896 < 1910).
         parallax: false,
-        // CONTACT VERB: the palm ON the gauge bowl's ring at (1652, 514) —
-        // the HIGH-ODDS end of the dial (between the 75% and 100% ticks,
-        // the red zone the needle sweeps toward — the beat's whole story
-        // under his palm). Reach: 126.3 scene px from the shoulder at
-        // (1774, 475) — the envelope boundary, so the arm arrives nearly
-        // extended but the 19px palm pad + the press shadow land ON the
-        // ring (r≈244). Label-free BY GEOMETRY: the whole arm crosses the
-        // 100% tick label's x-range (1689-1747) at y 484-501 — 53px ABOVE
-        // the glyph band (554-568); the coin-flip chip and the prompt chip
-        // sit far below-left. The 48% needle points straight up (x 1421),
-        // 230px clear of the palm — no needle ambiguity.
-        contact: { x: 1652, y: 514, hand: 'palm' },
+        // CONTACT VERB: the palm ON the gauge bowl's right ring at (1575,
+        // 514) — the HIGH-ODDS end of the dial (between the 75% and 100%
+        // ticks, the red zone the needle sweeps toward — the beat's whole
+        // story under his palm). PHASE-0 VISUAL AUDIT (frame evidence
+        // BEFORE_fix4): the old contact (1652, 514) plus the x-1770 staging
+        // put BOTH the forearm and the torso inside the "100%" label's box
+        // (the frame read "–100" with "%" plated). The dial's move to
+        // W*0.70 re-solves the same rim point (old center 1420.8 → new
+        // 1344, the contact keeps its +231,-48 rim offset → 1575, 514):
+        // the arm now crosses the label's x-range ~45px ABOVE its glyph
+        // band and the torso clears the label's right edge by ~28px. Reach
+        // unchanged (~126 scene px from the shoulder); the 48% needle
+        // (x ≈ 1345) stays far left of the palm.
+        contact: { x: 1575, y: 514, hand: 'palm' },
       }, 29);
     // PHASE 1 SCALE LAW: the gauge host registers as a subject — his palm
     // ON the dial's ring is the declared contact verb.

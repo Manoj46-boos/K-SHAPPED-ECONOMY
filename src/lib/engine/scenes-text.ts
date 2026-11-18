@@ -6,7 +6,7 @@
 import { clamp01, easeInOutSine, easeOutBack, easeOutCubic, easeOutQuad } from './easing';
 import { PALETTE, TONE, card, rgba, roundRect, setFont, paintBg, scenePlate, glowBlob, FONT_DISPLAY, FONT_UI } from './theme';
 import { bokehField, lightRays, softBloom, sparkles, drawK3D, kMotifs, floatCoins, impactRing, microShake, camState } from './effects';
-import { SceneCtx } from './scene-context';
+import { SceneCtx, declareOnScreenHeadline } from './scene-context';
 import { reactionAt } from './scene-context';
 import { Stickman, POSES, blendPose, take } from './stickman';
 import { pivotTakeStart } from './pivots';
@@ -15,12 +15,15 @@ import { drawStickmanV2 } from './stickman-v2';
 import { wrapText } from './charts';
 import { registerRect } from './collision';
 
-function bg(g: SceneCtx, seed: number, gold = 0.4, strength = 0.72, bokeh = 0.85): void {
+function bg(g: SceneCtx, seed: number, gold = 0.4, strength = 0.72, bokeh = 0.85, furniture = true): void {
   paintBg(g.ctx, g.W, g.H, g.t, g.chapterTone);
   // P1-2 (report §12.2): statement scenes live in a room too — the plate
   // lands behind every text beat (stamp/quote/takeaways/comment), so a
   // full-bleed tint carries the frame instead of raw white.
-  scenePlate(g.ctx, g.W, g.H, g.chapterTone ?? 'up', strength);
+  // PHASE-0 VISUAL AUDIT (frame evidence BEFORE_fix1-2): statement beats pass
+  // furniture=false — typography-first frames get the clean stage (the
+  // window/desk/shelf props read as ghost UI over the type).
+  scenePlate(g.ctx, g.W, g.H, g.chapterTone ?? 'up', strength, undefined, { furniture });
   // P2-3 (100-judge audit, Table 4 — "no bokeh on statement beats":
   // "why bubbles, in a data film?"): the bokeh level is now a per-scene
   // param. Statement beats (the stamp slam) pass 0 — typography owns the
@@ -38,7 +41,12 @@ export function bigTextScene(g: SceneCtx): void {
   // the 118px statement reads louder against a tinted field than against
   // 90% near-white. Panel re-review: statement scenes run the plate at 0.88
   // (the 0.72 default read as "a whisper of a wash" under a 118px slam).
-  scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.88);
+  // PHASE-0 VISUAL AUDIT (Fix 2 — the statement frame stops sabotaging
+  // itself): the per-tone furniture (window + desk edge) read on the slam
+  // frame as a ghost UI panel top-right and a stray hairline through the
+  // composition; the 0.1-alpha K-motif field added a second ghost outline.
+  // A statement beat is typography + room tone — furniture OFF, kMotifs OFF.
+  scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.88, null, { furniture: false });
   softBloom(ctx, W, H, t, 180); // v2: warm 12% bloom, not a white strobe (PATCH 5)
   // AUDIT-ROUND-3 iter-2 (Fix 4 — STATEMENT ATMOSPHERE): the re-review
   // read the statement room as "a flat gradient void with no atmosphere,
@@ -47,8 +55,9 @@ export function bigTextScene(g: SceneCtx): void {
   // film's atmosphere: a soft one-light shaft from the upper right (the
   // same light the shadows obey) and the K-motif field at furniture
   // alpha — the words sit IN the brand's room, not on a slide.
+  // PHASE-0 VISUAL AUDIT: kMotifs retired here (the stray K outline on a
+  // typography-only frame read as an artifact, not as branding).
   lightRays(ctx, W, H, t, { alpha: 0.22 });
-  kMotifs(ctx, W, H, t, 0.1);
   // AUDIT-2 / §10.4 (report Phase 3): THE IMPACT GRAMMAR — the slam fires
   // the full triple: a 2px/80ms MICRO-SHAKE (applied here at the TOP of the
   // scene draw so every element — block, underline, host — rides the
@@ -64,6 +73,13 @@ export function bigTextScene(g: SceneCtx): void {
     if (shake.dx !== 0 || shake.dy !== 0) ctx.translate(shake.dx, shake.dy);
   }
   const lines = (s.lines as string[]) || [];
+  // PHASE-0 VISUAL AUDIT (Fix 1 — CAPTION NO LONGER REPEATS THE STATEMENT):
+  // the karaoke pill used to print the same words the serif block had just
+  // slammed ("Out of five hundred." under "OUT OF FIVE HUNDRED.") — the
+  // dedup registry existed but only hostScene declared into it. Statement
+  // beats declare their on-screen lines; drawCaptions stands down for any
+  // window whose words are already on screen in the serif.
+  declareOnScreenHeadline(lines.join(' '));
   // P2 density payload (100-judge dossier, Prototype 8-2 — THE STATEMENT
   // PAYOFF): the beat's dotPayoff prop draws the index field the statement
   // DESCRIBES — 500 whisper dots with the 7 gold members bracketed and
@@ -92,11 +108,13 @@ export function bigTextScene(g: SceneCtx): void {
       const cx = fx + col * pitchX + 8;
       const cy = fy + row * pitchY + 8;
       const isGold = i < goldN;
-      // FIX 3 (density payloads): 0.5 -> 0.72, r 6 -> 7 — the field must
-      // READ at the 320px feed (the whisper register measured +0.1% info —
-      // invisible by the metric AND by the eye; texture that cannot survive
-      // the transcode is decoration, not density).
-      ctx.fillStyle = isGold ? PALETTE.gold : rgba(PALETTE.grid, 0.78);
+      // PHASE-0 VISUAL AUDIT: the 493 non-gold dots rode rgba(grid, 0.78) —
+      // a pale wash that measured as an EMPTY band at the 320px gate once
+      // the caption pill stopped breaking it up (Fix 1's dedup). The audit's
+      // own two-tier doctrine: texture that cannot survive the transcode is
+      // decoration. The field now draws in inkSoft at 0.95 — ink-tier at the
+      // gate, the "seven gold among 493 ink" mass the statement describes.
+      ctx.fillStyle = isGold ? PALETTE.gold : rgba(PALETTE.inkSoft, 0.95);
       ctx.beginPath();
       ctx.arc(cx, cy, isGold ? 10 : 7, 0, Math.PI * 2);
       ctx.fill();
@@ -270,7 +288,11 @@ export function stampCardScene(g: SceneCtx): void {
   // P1-2 + panel re-review: the stamp SLAMS — it gets the deep room (0.88)
   // P2-3: and NO bokeh — the stamp is a statement beat, typography owns
   // the frame alone.
-  bg(g, 221, 0.55, 0.88, 0);
+  // PHASE-0 VISUAL AUDIT: furniture OFF (same ghost-UI defect as bigText on
+  // a typography-first frame) + the stamp/sub declared so the caption pill
+  // stops printing the words already on screen.
+  bg(g, 221, 0.55, 0.88, 0, false);
+  declareOnScreenHeadline(((s.stamp as string) || 'RECORD HIGHS') + ' ' + ((s.sub as string) || ''));
   // P3 hero register: the stamp SLAM shakes at HERO.shakePx (ambient
   // scenes had no shake at all here — the stamp now flinches like the
   // bigText block does).
@@ -465,9 +487,16 @@ export function stampCardScene(g: SceneCtx): void {
 // the hairline like a hand on a desk. Editorial furniture, not a box.
 export function quoteCardScene(g: SceneCtx): void {
   const { ctx, W, H, t, s } = g;
-  bg(g, 231, 0.4, 0.72, 0.45); // P2-3: typography-forward beat — bokeh whisper, not 0.85
+  bg(g, 231, 0.4, 0.72, 0.45, false); // P2-3: typography-forward beat — bokeh whisper, not 0.85; PHASE-0: furniture OFF
   const soft = !!s.soft;
   const lines = (s.lines as string[]) || [];
+  // PHASE-0 VISUAL AUDIT (Fix 1 — CAPTION NO LONGER REPEATS THE STATEMENT):
+  // the karaoke pill used to print the same words the serif block had just
+  // slammed ("Out of five hundred." under "OUT OF FIVE HUNDRED.") — the
+  // dedup registry existed but only hostScene declared into it. Statement
+  // beats declare their on-screen lines; drawCaptions stands down for any
+  // window whose words are already on screen in the serif.
+  declareOnScreenHeadline(lines.join(' '));
   const ap = clamp01(t / 700);
   // the pull-quote plane's fixed furniture (fixed = the host's contact
   // target stays put no matter how many rows the quote wraps to)

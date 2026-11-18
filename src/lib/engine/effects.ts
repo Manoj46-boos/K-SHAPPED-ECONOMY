@@ -899,6 +899,23 @@ export function drawK3D(
     ctx.globalAlpha *= 1 - turnE;
     // the one-light depth wall — one flat tone, one offset, no gradient
     drawK(ctx, x - s * 0.055, y + s * 0.075, s, W_K, colShadow, grow);
+    // PHASE-0 VISUAL AUDIT (Fix 5 — THE RESTING K STOPS WASHING INTO THE
+    // ROOM; frame evidence BEFORE_fix5): the pale #F5E6A8 lit zone covered
+    // most of the letter's visible mass, so on the mint rooms the brand
+    // object sat one step above the background and effectively vanished
+    // (the editorial host beat). Two changes, both in the film's own ink
+    // language:
+    //   • INK OUTLINE — the letterform is contoured in the film's ink
+    //     (W_K+7 under the face): a silhouette edge that survives any room
+    //     tone AND the entrance windows where the letter still rides
+    //     partial alpha — the printed-ink read the thumbnail K tag and
+    //     every pill shadow already speak.
+    //   • TWO-TONE REBALANCE — the lit zone drops from the pastel #F5E6A8
+    //     to the ramp's own bright gold #E9C94A: two values with a hard
+    //     edge (base goldDisplay / lit #E9C94A), keyed to the SAME light
+    //     the depth wall obeys — the Kurzgesagt flat-gold read without the
+    //     wash.
+    drawK(ctx, x, y, s, W_K + 7, PALETTE.ink, grow);
     // the painted face — base gold
     drawK(ctx, x, y, s, W_K, colLit, grow);
     // the lit zone — one flat tone clipped to the light's half-plane
@@ -919,7 +936,7 @@ export function drawK3D(
     ctx.lineTo(cxS - uxS * L + nxS * L * 3, cyS - uyS * L + nyS * L * 3);
     ctx.closePath();
     ctx.clip();
-    drawK(ctx, x, y, s, W_K, '#F5E6A8', grow);
+    drawK(ctx, x, y, s, W_K, '#E9C94A', grow);
     ctx.restore();
     ctx.restore();
   }

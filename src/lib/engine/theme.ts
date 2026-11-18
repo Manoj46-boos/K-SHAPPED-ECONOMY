@@ -614,7 +614,14 @@ export function scenePlate(
   // gauge IS chapter c5's owned object; the racks are c6's). Each family
   // that lacks a scene-level owned object gets ONE bold top-edge rail
   // — architecture the feed can read, never a re-tint.
-  family: string | null = null
+  family: string | null = null,
+  // PHASE-0 VISUAL AUDIT (this repo, frame evidence BEFORE_fix1-2): statement
+  // beats (bigText / stampCard / quoteCard) are typography-first frames — the
+  // per-tone furniture (window + desk edge / shelf wall) reads there as ghost
+  // UI panels floating over the type, and the desk hairline cuts the slam.
+  // Callers pass { furniture: false } for a clean stage: plate, wash, floor
+  // band and family rails stay; only the window/shelf/desk props skip.
+  opts: { furniture?: boolean } = {}
 ): void {
   // PHASE-0 (report §6, Fix 1): default plate strength 0.72 -> 0.82 — the
   // audit measured data/host rooms still washing out under the 0.72 blend
@@ -721,7 +728,7 @@ export function scenePlate(
   // floor band and the light stay; the furniture block is skipped.
   if (H > W) {
     // portrait: keep only the floor band drawn above, skip furniture
-  } else {
+  } else if (opts.furniture !== false) {
   {
     const inkW = rgba(PALETTE.ink, 0.16);
     ctx.lineCap = 'round';
