@@ -70,7 +70,12 @@ function bg(g: SceneCtx, seed: number, gold = 0.4, plate?: 'up' | 'down' | 'gold
   }
   bokehField(g.ctx, g.W, g.H, g.t, { intensity: 0.75, seed, gold });
   lightRays(g.ctx, g.W, g.H, g.t, { alpha: 0.45 });
-  kMotifs(g.ctx, g.W, g.H, g.t, 0.18);
+  // 100-JUDGE REPORT (fix D13 — THE GHOST WATERMARK): the 0.18-alpha K
+  // outline floated in every data room — visible enough to read as a smudge,
+  // invisible enough to carry no brand weight. The codebase's own rule:
+  // declare or disappear. It disappears here — the chapter cards and the
+  // 3D K object carry the brand; the rooms stop bleeding ghost noise.
+  // kMotifs(g.ctx, g.W, g.H, g.t, 0.18);
 }
 
 function hostSmall(
@@ -532,7 +537,13 @@ export function chartJourneyScene(g: SceneCtx): void {
   // v3 (panel P0-2 follow-up): with 2 stat rows the v2 stack reached
   // y 883-949 — under the caption pill. The chart yields a little height on
   // 2-stat beats so both rows sit fully above CAPTION_ZONE_TOP.
-  const chartH = H * (extraStats.length >= 2 ? 0.355 : 0.42);
+  // 100-JUDGE REPORT (fix D10 — THE STRIKING CHIP): with 1+ stat rows the
+  // chips' plates crossed the plot floor / the x-label band / the axis
+  // walker's hip band (the sweep proved all three). The chart yields the
+  // lower band on ANY stat beat (floor ~497, labels clear by ~553) so the
+  // camera-safe stat row below (bottoms 730) and the walker's hips own
+  // separate lanes.
+  const chartH = H * (extraStats.length >= 1 ? 0.24 : 0.42);
   // PHASE 2 item 4 (report §6 Phase 2 — TERRAIN STAGING): the plot floor is
   // the host's walkway — feet ON the axis while the pen draws. The
   // annotation pills yield ABOVE his crown (crownTopY below).
@@ -546,25 +557,36 @@ export function chartJourneyScene(g: SceneCtx): void {
   })) || [{ name: '', tone: 'up', points: s.points as [number, number][] }];
 
   // legend
+  // 100-JUDGE REPORT (fix D19/D20 — THE OVERPRINTED TITLE): the legend
+  // swatches rendered at chartY-34 (y≈204) — inside the sceneTitle's
+  // registered band (170-246) — so "prime & super-prime / near-prime &
+  // subprime" printed straight across the serif title glyphs on every
+  // multi-series journey chart. The legend now owns its OWN band between
+  // the title and the plot (swatch 251, text 265), the plot drops 18px to
+  // make room, and the band registers with the guard so the next legend
+  // regression fails the sweep instead of shipping.
   if (series.length > 1) {
     series.forEach((sr, i) => {
       const lx = chartX + i * 560;
       const ap = clamp01((t - 300 - i * 200) / 500);
+      if (ap <= 0) return;
       ctx.save();
       ctx.globalAlpha = ap;
       ctx.fillStyle = TONE(sr.tone).main;
-      roundRect(ctx, lx, chartY - 34, 46, 12, 6);
+      roundRect(ctx, lx, chartY + 26, 46, 12, 6);
       ctx.fill();
       setFont(ctx, 34, 600);
       ctx.fillStyle = PALETTE.inkSoft;
       ctx.textAlign = 'left';
-      ctx.fillText(sr.name, lx + 60, chartY - 20);
+      registerRect(`journey:legend${i}`, lx, chartY + 14, 60 + ctx.measureText(sr.name).width, 44);
+      registerText(`journey:legendTxt${i}`, lx, chartY + 14, 60 + ctx.measureText(sr.name).width, 44);
+      ctx.fillText(sr.name, lx + 60, chartY + 40);
       ctx.restore();
     });
   }
 
   lineChart(ctx, {
-    x: chartX, y: chartY + (series.length > 1 ? 40 : 0), w: chartW, h: chartH,
+    x: chartX, y: chartY + (series.length > 1 ? 66 : 0), w: chartW, h: chartH,
     series,
     annotations: (s.annotations as any[]) || [],
     band: s.band as any,
@@ -621,11 +643,27 @@ export function chartJourneyScene(g: SceneCtx): void {
       const lines = labelW > innerW ? wrapText(ctx, label, innerW, 34, 600).slice(0, 2) : [label];
       return { label, plateW, lines, chipH: lines.length > 1 ? 100 : 66 };
     });
-    const bottoms: number[] = new Array(metas.length);
-    let yBottom = 798;
-    for (let i = metas.length - 1; i >= 0; i--) {
-      bottoms[i] = yBottom;
-      yBottom = yBottom - metas[i].chipH - 18;
+    // 100-JUDGE REPORT (fix D10/D12 — THE CAMERA-SAFE CHIP ROW): the old
+    // stack bottom-anchored at 798 sat INSIDE the caption pill's
+    // exact-camera envelope (proving it was the first thing the guard did
+    // once the plates registered), and its 18px row gap merged two rows
+    // into one text strip. The plates now sit SIDE BY SIDE under the axis
+    // band — bottoms at 730 (screen bottom ≤776 under the worst ch4
+    // camera), a 22px gutter, wrapping at the 1590 camera-safe right
+    // bound — each plate registered so the guard polices the row forever.
+    const rowBottoms: number[] = new Array(metas.length);
+    const rowXs: number[] = new Array(metas.length);
+    {
+      let cx = 330;
+      let rb = 730;
+      let rowMaxH = 0;
+      metas.forEach((m, i) => {
+        if (cx + m.plateW > 1590 && cx > 330) { cx = 330; rb -= rowMaxH + 22; rowMaxH = 0; }
+        rowXs[i] = cx;
+        rowBottoms[i] = rb;
+        rowMaxH = Math.max(rowMaxH, m.chipH);
+        cx += m.plateW + 22;
+      });
     }
     extraStats.forEach((st: any, i: number) => {
       const ap = clamp01((bt - 1400 - i * 500) / 700);
@@ -634,25 +672,32 @@ export function chartJourneyScene(g: SceneCtx): void {
       const m = metas[i];
       ctx.save();
       ctx.globalAlpha = ap;
-      const cyy = (bottoms[i] - m.chipH) / 1080 * H;
-      const pw = (m.plateW / 1080) * W;
+      const cyy = (rowBottoms[i] - m.chipH) / 1080 * H;
+      // 100-JUDGE REPORT (fix D10, guard receipt): plateW is ALREADY in
+      // 1920-design px (measured from setFont-measured label widths) — the
+      // old /1080*W rescale inflated every plate 1.78x, drawing the stat
+      // chips as full-frame translucent bands that struck the plot. The
+      // width passes through as-designed; only the Y is H-scaled.
+      const pw = m.plateW;
+      const px = rowXs[i];
+      registerRect(`journey:stat${i}`, px, cyy, pw, m.chipH);
       ctx.fillStyle = c.soft;
-      roundRect(ctx, 330, cyy, pw, m.chipH, 33); // PLAYBOOK D3: ride the chart column
+      roundRect(ctx, px, cyy, pw, m.chipH, 33); // PLAYBOOK D3: ride the chart column
       ctx.fill();
       ctx.lineWidth = 2;
       ctx.strokeStyle = rgba(c.main, 0.4);
-      roundRect(ctx, 330, cyy, pw, m.chipH, 33);
+      roundRect(ctx, px, cyy, pw, m.chipH, 33);
       ctx.stroke();
       setFont(ctx, 36, 700);
       ctx.fillStyle = c.main;
       ctx.textAlign = 'left';
-      ctx.fillText(st.big, 366, cyy + (m.lines.length > 1 ? 62 : 46));
+      ctx.fillText(st.big, px + 36, cyy + (m.lines.length > 1 ? 62 : 46));
       setFont(ctx, 34, 600);
       ctx.fillStyle = PALETTE.inkSoft;
       if (m.lines.length > 1) {
-        m.lines.forEach((ln, j) => ctx.fillText(ln, 440, cyy + 42 + j * 40));
+        m.lines.forEach((ln: string, j: number) => ctx.fillText(ln, px + 110, cyy + 42 + j * 40));
       } else {
-        ctx.fillText(m.lines[0], 440, cyy + 43);
+        ctx.fillText(m.lines[0], px + 110, cyy + 43);
       }
       ctx.restore();
     });
@@ -671,14 +716,20 @@ export function chartJourneyScene(g: SceneCtx): void {
   // screen-space (never rides the camera), so this is the exact math the
   // guard's camera-exact pass asserts.
   const chipsY = Math.min(H * 0.76 + extraStats.length * 84, 690);
+  // 100-JUDGE REPORT (fix D21 — THE RUN-TOGETHER CHIPS): the row advanced
+  // at a fixed 600px pitch while chip plates are MEASURED widths — a long
+  // chip left 6px to its neighbor, a short one 200px of dead air. The row
+  // now advances by each chip's own measured width + a 26px gutter.
+  let chipCursor = 330;
   chips.forEach((c, i) => {
     const ap = clamp01((g.beatT - 2200 - i * 450) / 600);
     if (ap <= 0) return;
     ctx.save();
     ctx.globalAlpha = ap;
-    chip(ctx, c, 330 + i * 600, chipsY, { // PLAYBOOK D3: ride the chart column
+    chip(ctx, c, chipCursor, chipsY, { // PLAYBOOK D3: ride the chart column
       size: 24, iconDot: PALETTE.gold, alpha: 0.95,
     });
+    chipCursor += chipWidth(ctx, c, { size: 24, iconDot: true }) + 26;
     ctx.restore();
   });
 

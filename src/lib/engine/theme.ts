@@ -208,6 +208,13 @@ export const TONE = (tone?: string): { main: string; soft: string; vivid?: strin
       // v8: display gold for fills + big numerals (was goldDeep — read
       // as brown on the pie; see goldDisplay note above)
       return { main: PALETTE.goldDisplay, soft: PALETTE.goldWash, vivid: PALETTE.goldDisplay };
+    case 'muted':
+      // 100-JUDGE REPORT (fix D23 — THE BLACK BARS): the default branch
+      // mapped every unknown tone to INK, so barsCompare's 'muted'
+      // remainder rendered as near-black rods on the light field — heavy,
+      // dirty, off the value ladder. 'muted' now owns the sage the pie's
+      // remainder swatch already ships (one family, one tone).
+      return { main: PALETTE.sage, soft: rgba(PALETTE.sage, 0.16) };
     default:
       return { main: PALETTE.ink, soft: PALETTE.bgSoft };
   }

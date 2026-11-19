@@ -129,7 +129,14 @@ export const POSES: Record<string, Pose> = {
   // this with its lAU override; the key now agrees), the trailing leg
   // extended off the rung, the near knee driven high, the torso leaning
   // INTO the ascent. One shape: ascending.
-  climb: { ...base(), lAU: -30, lAL: -14, rAU: 128, rAL: 152, lLU: -30, lLL: -58, rLU: 40, rLL: 68, lean: 14, browRaise: 0.35, smile: 0.25 },
+  // 100-JUDGE REPORT (fix D17 — THE SPLITS SCARECROW): the previous key
+  // (lLU -30/lLL -58 with rLU 40/rLL 68) still rendered both legs at a
+  // ~100-degree total spread — a full split under the 128° reach arm, a
+  // skydiving scarecrow at hero scale. A climb is a COMPACT diagonal: the
+  // reach arm stays up the slope, the pull arm stays low behind, and BOTH
+  // legs stay under the body (near knee driven up, trailing shin extended
+  // but inside the shoulder line). One shape: ascending, grounded.
+  climb: { ...base(), lAU: -36, lAL: -52, rAU: 128, rAL: 148, lLU: -14, lLL: -34, rLU: 18, rLL: -6, lean: 12, browRaise: 0.35, smile: 0.25 },
   serious: { ...base(), lAU: -14, lAL: -12, rAU: 16, rAL: 12, browAngle: 14, smile: 0 },
   aha: { ...base(), rAU: 96, rAL: 140, lAU: -40, lAL: -60, browRaise: 0.8, smile: 0.6 },
   close: { ...base(), lAU: -30, lAL: -46, rAU: 34, rAL: 48, smile: 0.55, browRaise: 0.15 },

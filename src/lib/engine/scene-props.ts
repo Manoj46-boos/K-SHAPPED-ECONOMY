@@ -20,7 +20,7 @@ import { SCRIPT } from './script-data';
  */
 export const SCENE_PROPS: Record<string, string[]> = {
   host: ['stage', 'gesture', 'expression', 'entrance', 'headline', 'sub',
-         'kicker', 'ribbon', 'chip', 'lookRight', 'lookLeft'],
+         'kicker', 'ribbon', 'chip', 'lookRight', 'lookLeft', 'walkMs'], // walkMs: 100-JUDGE REPORT fix D25 — per-beat entrance crossing time
   channelIntro: [],
   splitNumbers: ['mode', 'cornerNote', 'stats'],
   divergeK: ['twistChip', 'opening'], // v4 (audit P0-6): opening mode hides the

@@ -15,7 +15,7 @@ import { pivotTakeStart, stageMoves, stageRestIdx, stageStartIdx } from './pivot
 import { CARD_TEXT_PAD_BOTTOM } from './collision';
 import { reactionAt, reactionStart } from './scene-context';
 import { sourceTag, wrapText } from './charts';
-import { registerRect, registerText } from './collision';
+import { registerRect, registerText, declareHostContact } from './collision';
 // PHASE 1 (100-Judge audit Table 6): the HOST_SCALE rule + the figure
 // registry — companion rig derives from the tier law, the harness asserts it.
 import { registerFigure, hostScaleRig } from './scale-law';
@@ -293,7 +293,10 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
     // entrances are 1.5–2.5s of readable walk. 1600ms ≈ 2.1 steps/sec —
     // a committed, human cadence — and Walk 3.0's profile ends it on a
     // completed settle step into the arrival gesture.
-    const walkDur = 1600;
+    // 100-JUDGE REPORT (fix D25): per-beat override — the twist beat's own
+    // walkMs (900) plants the presenter inside the promise's first second
+    // instead of mid-stride at 1.6s.
+    const walkDur = (g.s.walkMs as number | undefined) ?? 1600;
     // AUDIT-3 / §1.5: directional gesture bias — present TOWARD the content
     const bias = side === 'left' ? 'right' : side === 'right' ? 'left' : undefined;
     const arrive = Stickman.poseAt(t, {
@@ -723,7 +726,16 @@ export function hostSceneV2(g: SceneCtx): void {
   // 100-JUDGE PANEL / PHASE 2 item 2 — THE HEADLINE COLUMN, hoisted: the
   // type column's left edge is needed by the host draw below (the
   // pointing-hand clearance rule targets the headline's bounding box).
-  const hx2 = W * 0.47;
+  // 100-JUDGE REPORT (fix D18 — THE HEADLINE-ARM PLATE): on the kflip /
+  // kclimb / kdescend stages the host's raised presentation arm (reach
+  // ~878px + smear) crossed INTO the 902px text column — the serif
+  // headline printed over the figure's hand and scarf. The editorial
+  // column shifts to the half-line on those stages only — enough to clear
+  // the gesture cone without worsening the column's own worst-camera edge
+  // envelope (the sweep is the referee).
+  const hx2 = (g.s.stage === 'kflip' || g.s.stage === 'kclimb' || g.s.stage === 'kdescend')
+    ? W * 0.50
+    : W * 0.47;
   const nodP = g.speaking ? nodPulse(g.beatT, g.wordTimes) : 0;
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
   // 100-JUDGE PANEL / Phase 2 item 4 — TAKE GRAMMAR WIRING (report §6
@@ -1139,7 +1151,48 @@ export function splitNumbersScene(g: SceneCtx): void {
       mode === 'left' ? marketStats : moodStats,
       t, 0
     );
-    drawStickmanV2(ctx, mode === 'left' ? W * 0.7 : W * 0.3, H * 0.67, 1.55, t, {
+    // 100-JUDGE REPORT (fix D05 — THE 85% FRAME): the single-panel mode
+    // shipped one card, one host and nothing else — the audit measured the
+    // right half at ~85% plate. Two payloads: (1) the population band —
+    // the same 500-household motif the vs mode carries, drawn for the
+    // beat's OWN half under the panel with its label; (2) the CONTACT
+    // verb — the host steps adjacent to the panel and palms its edge
+    // instead of pointing across dead air.
+    const halfTone = mode === 'left' ? PALETTE.up : PALETTE.down;
+    const bandLabel = mode === 'left' ? 'THE MARKET HALF' : 'THE MOOD HALF';
+    {
+      const bandP = clamp01((t - 700) / 700);
+      if (bandP > 0) {
+        ctx.save();
+        ctx.globalAlpha = bandP * 0.85;
+        const byY = py + panelH + 44;
+        const cols = 25;
+        const pit = 30;
+        const startX = mode === 'left' ? lx : rx + panelW - cols * pit - 8;
+        for (let di = 0; di < 50; di++) {
+          const col = di % cols;
+          const row = Math.floor(di / cols);
+          ctx.fillStyle = rgba(halfTone, 0.55);
+          ctx.beginPath();
+          ctx.arc(startX + col * pit + 6, byY + row * 26 + 6, 6.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        setFont(ctx, 28, 700);
+        ctx.fillStyle = PALETTE.inkSoft;
+        ctx.textAlign = 'left';
+        ctx.fillText(bandLabel, startX, byY + 76);
+        ctx.restore();
+      }
+    }
+    const hxSingle = mode === 'left' ? W * 0.52 : W * 0.475;
+    // the contact verb is a DESIGNED touch — declare the touched panel's
+    // registered stat rows so the hand-vs-text pass exempts them (the same
+    // grammar chartJourney's walker uses for the plot and axis bands).
+    declareHostContact(
+      'splitNum:THE MARKET:0', 'splitNum:THE MARKET:1', 'splitNum:THE MARKET:2',
+      'splitNum:THE MOOD:0', 'splitNum:THE MOOD:1', 'splitNum:THE MOOD:2',
+    );
+    drawStickmanV2(ctx, hxSingle, H * 0.67, 1.55, t, {
       // P6 (SCALE THE CAST): the flagged cheering-speck staging 1.35 → 1.55
       // (+32% frame area); the guard sweep re-certifies the envelope.
       // PHASE 3 COMPOSITION: single-panel mode — the panel system is the
@@ -1149,6 +1202,10 @@ export function splitNumbersScene(g: SceneCtx): void {
       look: mode === 'left' ? -0.7 : 0.7,
       talk: g.speaking ? talkAt(g.beatT, g.wordTimes) : 0,
       parallax: true,
+      // 100-JUDGE REPORT (fix D05): the contact verb — palm ON the panel edge.
+      contact: mode === 'left'
+        ? { x: lx + panelW + 16, y: py + 110, hand: 'palm' }
+        : { x: rx - 16, y: py + 110, hand: 'palm' },
     }, 28);
   }
   if (mode === 'vs' || mode === 'vs-punch') {
@@ -1417,6 +1474,23 @@ export function divergeKScene(g: SceneCtx): void {
   // payoff before the question. The naming beat (c1-k, non-opening) keeps
   // the original fast clock.
   const growP = opening ? clamp01((t - 4800) / 2300) : clamp01((t - 120) / 2300);
+  // 100-JUDGE REPORT (fix D01/D03/D07 — THE ANCHOR OBJECT): the hook frame
+  // opened on two numerals and 78% of nothing, and the pre-tear host
+  // gestured into empty air. The ghost K is the room's tenant from the
+  // FIRST frame: in opening mode the intact letter sits as a whisper (13%,
+  // warming to 23% as the shock resolves) so the colliding numbers land
+  // inside its two halves and the host's pre-tear point targets it; in
+  // naming mode it covers the growth clock's first beat. It hands off to
+  // the real K as the arms grow.
+  const ghostA = opening
+    ? (t < 5150 ? 0.13 + 0.10 * clamp01((t - 3200) / 1600) : 0)
+    : (t < 900 ? 0.16 * (1 - clamp01((t - 500) / 400)) : 0);
+  if (ghostA > 0.01) {
+    ctx.save();
+    ctx.globalAlpha = ghostA;
+    drawK3D(ctx, kx, ky, S, 0.4, t, false);
+    ctx.restore();
+  }
   // v10.1 (panel 11 re-review): the overlay arms used their OWN growth
   // curves (upP/dnP over 1900ms) while drawK3D's inner arms follow
   // grow*2-0.6 / grow*2-1.1 — the overlay kept growing ~300ms past the K's
@@ -2430,7 +2504,7 @@ export function paradoxResolveScene(g: SceneCtx): void {
     // strikes — the same 30°→95° sweep the cold open and kDef run, once,
     // 600ms after the K appears.
     const turnP = clamp01((t - 2800) / 900);
-    drawK3D(ctx, W * 0.4, H * 0.47, 115, 1, t, true, turnP);
+    drawK3D(ctx, W * 0.4, H * 0.47, 150, 1, t, true, turnP); // 100-JUDGE REPORT (fix D24): 115 → 150
     ctx.restore();
   }
   // AUDIT-ROUND-2 (fix 3 — KILL BODY PARAGRAPHS ON FRAMES): three stacked
@@ -2532,7 +2606,15 @@ export function paradoxResolveScene(g: SceneCtx): void {
     // same leanOnK grammar the cold open owns, now solver-true here.
     // Reach check: shoulder (664, 483) → (772, 565) = 135px, inside the
     // 146px envelope at 1.3. The contact hand registers cls 'contact'.
-    ctx, W * 0.344, H * 0.667, 1.3, t,
+    // 100-JUDGE REPORT (fix D24 — THE TINY PRESENTER AT THE PIVOT): the
+    // paradox resolve staged its host at the 1.3 side rig while the 96px
+    // word and the empty room dwarfed him — the film's emotional pivot
+    // rendered 85% empty. The host steps up to the 1.5 participant band
+    // (x holds 0.34W — the reaction push's left edge envelope re-measured
+    // by the sweep) and the K itself grows 115 → 150: the resolve frame
+    // now carries a presenter, a letter and a focal line instead of a
+    // word in a void.
+    ctx, W * 0.34, H * 0.667, 1.5, t,
     {
       pose, alpha: clamp01((t - 600) / 500), look: 0.5, talk,
       // AUDIT-PHASE-3: faceScale peak 1.65 -> 1.8 — the paradox reaction

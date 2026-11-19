@@ -1001,14 +1001,19 @@ export function commentPromptScene(g: SceneCtx): void {
   comments.forEach((c, i) => {
     const bp = clamp01((t - 600 - i * 500) / 800);
     if (bp <= 0) return;
-    const x = W * (0.14 + (i % 3) * 0.3) + Math.sin(t / 1300 + i * 2.1) * 14;
+    setFont(ctx, 34, 600); // v9 (D-07): floor
+    const tw = ctx.measureText(c).width;
+    const AV = 30; // avatar column
+    // 100-JUDGE REPORT (fix D29 — THE EDGE-CLIPPED BUBBLE): bubble 0's
+    // center at 0.14W put its left edge at x≈3 — the plate ran off the
+    // frame ("the market side, honestly" clipped mid-word). Every bubble
+    // now clamps INSIDE the safe margins after its own measured width.
+    const halfBW = tw / 2 + 26 + AV;
+    const x = Math.max(halfBW + 34, Math.min(W * (0.14 + (i % 3) * 0.3) + Math.sin(t / 1300 + i * 2.1) * 14, W - halfBW - 34));
     const y = H * (0.52 + (i % 2) * 0.14) + Math.cos(t / 1100 + i) * 10;
     const toneCol = i % 2 ? PALETTE.up : PALETTE.gold;
     ctx.save();
     ctx.globalAlpha = bp * 0.95;
-    setFont(ctx, 34, 600); // v9 (D-07): floor
-    const tw = ctx.measureText(c).width;
-    const AV = 30; // avatar column
     ctx.fillStyle = i % 2 ? PALETTE.upSoft : PALETTE.goldWash;
     roundRect(ctx, x - tw / 2 - 26 - AV, y - 34, tw + 52 + AV, 62, 30);
     ctx.fill();
@@ -1301,7 +1306,14 @@ export function endScreenScene(g: SceneCtx): void {
       // the box sits in the certified-free band (below the WATCH NEXT chip
       // at y<=803, above the caption pill at y>=965) — the caption never
       // plates the click target.
-      const bx = 150, by = 850, bw = 470, bh = 108;
+      // 100-JUDGE REPORT (fix D30 — THE PLATED CLICK TARGET): the 108-tall
+      // box at y 850-958 sat INSIDE the caption pill's band (top ≈864) —
+      // the karaoke pill plated the box's right end every wide-caption
+      // frame. The target compacts to 80px and drops INTO the below-pill
+      // gap (974-1054, shadow to 1066 — clear of the progress bar at
+      // 1072), where the v10 strip originally lived.
+      const bx = 150, by = 974, bw = 440, bh = 80;
+      registerRect('endScreen:subscribe', bx - 6, by, bw + 6, bh + 14);
       // PANEL-12 / P3-3: one-light rule — the box's shadow falls
       // lower-left like the CTA chip's.
       ctx.fillStyle = rgba(PALETTE.shadow, 0.16);
@@ -1315,30 +1327,30 @@ export function endScreenScene(g: SceneCtx): void {
       roundRect(ctx, bx, by, bw, bh, 18);
       ctx.stroke();
       // the avatar — an ivory circle with the channel's gold K mark
-      const avY = by + 44;
+      const avY = by + 40;
       ctx.fillStyle = '#FFFCF4';
       ctx.beginPath();
-      ctx.arc(bx + 52, avY, 30, 0, Math.PI * 2);
+      ctx.arc(bx + 48, avY, 26, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = rgba(PALETTE.ink, 0.5);
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(bx + 52, avY, 30, 0, Math.PI * 2);
+      ctx.arc(bx + 48, avY, 26, 0, Math.PI * 2);
       ctx.stroke();
       ctx.strokeStyle = PALETTE.gold;
-      ctx.lineWidth = 6;
+      ctx.lineWidth = 5;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(bx + 52 - 10, avY - 14); ctx.lineTo(bx + 52 - 10, avY + 13);
-      ctx.moveTo(bx + 52 - 10, avY); ctx.lineTo(bx + 52 + 4, avY - 14);
-      ctx.moveTo(bx + 52 - 10, avY); ctx.lineTo(bx + 52 + 4, avY + 12);
+      ctx.moveTo(bx + 48 - 9, avY - 12); ctx.lineTo(bx + 48 - 9, avY + 11);
+      ctx.moveTo(bx + 48 - 9, avY); ctx.lineTo(bx + 48 + 4, avY - 12);
+      ctx.moveTo(bx + 48 - 9, avY); ctx.lineTo(bx + 48 + 4, avY + 10);
       ctx.stroke();
       // the label + the bell affordance
-      setFont(ctx, 38, 700, FONT_UI);
+      setFont(ctx, 34, 700, FONT_UI);
       ctx.fillStyle = PALETTE.ink;
       ctx.textAlign = 'left';
-      ctx.fillText('SUBSCRIBE', bx + 104, avY + 13);
-      const bellX = bx + 104 + ctx.measureText('SUBSCRIBE').width + 32;
+      ctx.fillText('SUBSCRIBE', bx + 92, avY + 12);
+      const bellX = bx + 92 + ctx.measureText('SUBSCRIBE').width + 30;
       const bellY = avY - 7;
       ctx.strokeStyle = rgba(PALETTE.ink, 0.72);
       ctx.lineWidth = 4;
