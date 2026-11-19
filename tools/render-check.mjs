@@ -82,7 +82,9 @@ let scaleViolations = 0;
 let propViolations = 0;
 let occupancyViolations = 0;
 let valueViolations = 0;
+let feedViolations = 0;
 const VALUE_EVIDENCE = [];
+const FEED_EVIDENCE = [];
 
 const { SCRIPT } = require(path.join(BUILD, 'script-data.js'));
 const { splitSentences } = require(path.join(BUILD, 'easing.js'));
@@ -126,6 +128,52 @@ const W = 1920, H = 1080;
 const canvas = createCanvas(W, H);
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingQuality = 'high';
+// PHASE 4 (Visual Audit — FEED THUMB-STOP): the scroller's actual view —
+// every evidence frame also renders to the 320×180 feed gate and its
+// DESIGNED CONTENT SHARE is asserted per family. "A mascot, a letter and
+// a big empty field" fails this gate; a fundSplit-grade frame passes.
+const FEED_W = 320, FEED_H = 180;
+const feedCanvas = createCanvas(FEED_W, FEED_H);
+const feedCtx = feedCanvas.getContext('2d');
+// floors calibrated against the shipped film: the certified-dense cluster
+// (recapSplit 87%, statCards 74%, host editorial 75%) clears them with
+// margin; the previously-diagnosed sparse set (c1 rest 40.4, bigText 34.8,
+// chartJourney 37.2 pre-stage) now clears them AFTER the stage system.
+const FEED_FLOORS = { host: 45, data: 45, statement: 32 };
+function feedContentPct() {
+  feedCtx.drawImage(canvas, 0, 0, FEED_W, FEED_H);
+  const img = feedCtx.getImageData(0, 0, FEED_W, FEED_H).data;
+  const buckets = new Map();
+  for (let i = 0; i < img.length; i += 4) {
+    const key = ((img[i] >> 4) << 8) | ((img[i + 1] >> 4) << 4) | (img[i + 2] >> 4);
+    buckets.set(key, (buckets.get(key) || 0) + 1);
+  }
+  let domKey = 0, domN = 0;
+  for (const [k, n] of buckets) if (n > domN) { domN = n; domKey = k; }
+  const dr = ((domKey >> 8) & 15) * 17, dg = ((domKey >> 4) & 15) * 17, db = (domKey & 15) * 17;
+  let field = 0, total = 0;
+  for (let y = 2; y < FEED_H - 2; y++) {
+    for (let x = 2; x < FEED_W - 2; x++) {
+      const o = (y * FEED_W + x) * 4;
+      const r = img[o], g = img[o + 1], b = img[o + 2];
+      let mx = 0, mr = 0, mg = 0, mb = 0;
+      for (let dy = -2; dy <= 2; dy += 2) {
+        for (let dx = -2; dx <= 2; dx += 2) {
+          const q = ((y + dy) * FEED_W + (x + dx)) * 4;
+          mr += img[q]; mg += img[q + 1]; mb += img[q + 2];
+          const d = Math.abs(img[q] - r) + Math.abs(img[q + 1] - g) + Math.abs(img[q + 2] - b);
+          if (d > mx) mx = d;
+        }
+      }
+      mr /= 9; mg /= 9; mb /= 9;
+      // locally flat AND inside the field family = empty field; grain
+      // averages out at the downsample (residual ±6-9), structure is steeper
+      if (mx < 14 && Math.abs(mr - dr) + Math.abs(mg - dg) + Math.abs(mb - db) < 72) field++;
+      total++;
+    }
+  }
+  return Math.round((1 - field / total) * 1000) / 10;
+}
 
 const OPTS = {
   captions: 'karaoke',
@@ -187,6 +235,20 @@ function render(name, tMs) {
   if (vvv.length) {
     valueViolations += vvv.length;
     console.error(`  !! VALUE-MASS GATE — ${name} (${ocx.family}): ${vvv.join(' | ')}`);
+  }
+  // PHASE 4 GATE — the feed thumb-stop density: the scroller's view of
+  // THIS frame must carry designed structure (the fundSplit system, not
+  // a mascot in an empty field).
+  const feedPct = feedContentPct();
+  // the chapter divider is a certified ROOM CHANGE (a transition plate by
+  // design, not a content frame) — its floor is its own: the audit's bar
+  // is "never a letter in an empty field", and 28% = numeral + title +
+  // stage world + progress dots (the pre-stage divider measured 13.5%).
+  const floor = name.includes('chaptercard') ? 28 : FEED_FLOORS[ocx.family];
+  FEED_EVIDENCE.push({ name, family: ocx.family, pct: feedPct, floor });
+  if (feedPct < floor) {
+    feedViolations++;
+    console.error(`  !! FEED-DENSITY GATE — ${name} (${ocx.family}): the 320px feed reads ${feedPct}% designed content (floor ${floor}%) — a mascot-and-letter frame, not a story`);
   }
   SCALE_EVIDENCE.push({
     name,
@@ -681,8 +743,8 @@ for (const ev of SCALE_EVIDENCE) {
   }
 }
 
-if (guardViolations || metricViolations || scaleViolations || propViolations || occupancyViolations || valueViolations) {
-  console.error(`\n✗ RENDER CHECK FAILED: ${guardViolations} collision(s), ${metricViolations} metric violation(s), ${scaleViolations} scale-law violation(s), ${propViolations} prop-ledger violation(s), ${occupancyViolations} occupancy violation(s), ${valueViolations} value-mass violation(s) — fix the scene layout before rendering.`);
+if (guardViolations || metricViolations || scaleViolations || propViolations || occupancyViolations || valueViolations || feedViolations) {
+  console.error(`\n✗ RENDER CHECK FAILED: ${guardViolations} collision(s), ${metricViolations} metric violation(s), ${scaleViolations} scale-law violation(s), ${propViolations} prop-ledger violation(s), ${occupancyViolations} occupancy violation(s), ${valueViolations} value-mass violation(s), ${feedViolations} feed-density violation(s) — fix the scene layout before rendering.`);
   process.exit(1);
 }
 

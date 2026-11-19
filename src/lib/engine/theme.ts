@@ -8,6 +8,10 @@
 // harness enables it — every plated-through defect (D-01, D-02, the R7
 // family) was content a guard like this would have caught at render time.
 import { registerRect } from './collision';
+// PHASE 4 (Visual Audit — FEED THUMB-STOP): the per-family stage world
+// (floor plane, architecture band, desk edge) paints inside paintBg so
+// EVERY scene inherits the fundSplit-grade depth system.
+import { drawStageWorld } from './stage';
 
 export interface Palette {
   bgTop: string;
@@ -1141,6 +1145,11 @@ export function paintBg(
           : 0.215;
   glowBlob(ctx, W * 0.82, H * 0.16 + driftY(t), W * 0.5, wash, strength + 0.012 * pulse);
   glowBlob(ctx, W * 0.1, H * 0.9, W * 0.42, wash, strength * 0.73 + 0.010 * (1 - pulse));
+  // PHASE 4 (FEED THUMB-STOP): the stage world — the flat field becomes
+  // THE DATA DESK (floor plane + architecture band + desk edge). Painted
+  // here so every family inherits it; the family comes from the frame
+  // context the director sets per frame. Under the vignette + grain.
+  drawStageWorld(ctx, W, H, t);
 }
 
 const driftY = (t: number): number => Math.sin(t / 5200) * 26;

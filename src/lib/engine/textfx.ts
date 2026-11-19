@@ -9,6 +9,8 @@ import { Stickman } from './stickman';
 import { drawStickmanV2 } from './stickman-v2';
 import { registerPill, registerFixed } from './collision';
 import { captionDuplicatesHeadline } from './scene-context';
+// PHASE 4 (FEED THUMB-STOP): the chapter divider joins the stage system.
+import { drawStageWorld } from './stage';
 
 export interface CaptionWord {
   t: number; // ms, absolute timeline time
@@ -344,6 +346,13 @@ export function drawChapterCard(
   // worst empty-band flag: 32%).
   ctx.fillStyle = rgba(soft, 1.0);
   ctx.fillRect(0, 0, W, H);
+  // PHASE 4 (Visual Audit — FEED THUMB-STOP): the divider JOINS the stage
+  // system — the flat room tone was the film's emptiest frame at the feed
+  // (13.5% designed content: "a letter and a big empty field" made
+  // literal). The same floor plane + architecture band every scene now
+  // owns paints INSIDE the card, in the card's own room: the transition
+  // becomes a designed poster, not a disclaimer slide.
+  drawStageWorld(ctx, W, H, t);
   // v4 (audit P1-5): ghost chapter number behind the title — the vision
   // panel called the bare card “a legal disclaimer slide”; a 10%-gold serif
   // numeral gives the card scale and brand without stealing legibility
