@@ -29,11 +29,36 @@ import { clamp, clamp01, hash01, easeOutCubic } from './easing';
 import { registerRect } from './collision';
 import { camState } from './effects';
 import { AMP, INK } from './perception';
+// PHASE 3 COMPOSITION (Visual Audit — Composition & value): subject
+// figures self-measure their drawn bbox and register the frame-area
+// occupancy they own; the harness asserts the family floors.
+import { frameContext, registerFigureArea } from './composition';
 // PHASE 1 PROP LEDGER: the renderer reports every prop that actually fires
 // so the harness gate can catch call sites that bypass resolveProp().
 import { notePropDraw } from './scene-props';
 
 const D2R = Math.PI / 180;
+
+/**
+ * PHASE 3 (Composition & value) — the figure's drawn-bbox tracker. One
+ * figure at a time: drawStickmanV2 resets it at entry, the joint/anchor
+ * sites touch it as they compute positions, and the subject registers
+ * its frame-area occupancy at exit. Local (rig) units — the registrant
+ * scales by the staging rig to screen px.
+ */
+const FIG_BB = { on: false, minX: 0, maxX: 0, minY: 0, maxY: 0 };
+function bbReset(): void {
+  FIG_BB.on = true;
+  FIG_BB.minX = 1e9; FIG_BB.maxX = -1e9;
+  FIG_BB.minY = 1e9; FIG_BB.maxY = -1e9;
+}
+function bbTouch(x: number, y: number, pad = 0): void {
+  if (!FIG_BB.on) return;
+  if (x - pad < FIG_BB.minX) FIG_BB.minX = x - pad;
+  if (x + pad > FIG_BB.maxX) FIG_BB.maxX = x + pad;
+  if (y - pad < FIG_BB.minY) FIG_BB.minY = y - pad;
+  if (y + pad > FIG_BB.maxY) FIG_BB.maxY = y + pad;
+}
 
 /**
  * 100-JUDGE PANEL / Phase 1 item 1 — THE CHOSEN-ONE COLOR (report §6
@@ -1236,6 +1261,19 @@ export function drawStickmanV2(
      *  presenter visibly CARRIES the data he narrates. The data-chapter
      *  hosts pass it; the host scene stays clean. */
     satchel?: boolean;
+    /** PHASE 3 (Visual Audit — Composition & value): the staging declares
+     *  this figure the BEAT'S SUBJECT (the dedicated editorial staging).
+     *  Subject figures self-measure their drawn bbox and register the
+     *  frame-area occupancy they own; the harness asserts the 10%
+     *  host-beat floor (composition.ts). Participants/markers stay
+     *  governed by the height tiers only. */
+    subject?: boolean;
+    /** The occupancy-registry label for the subject (defaults to 'subject'). */
+    figureTag?: string;
+    /** PHASE 3: multi-figure subjects — a two-shot or an occlusion-split
+     *  draw shares ONE group tag; the harness unions the group's bboxes
+     *  and floors the SUBJECT GROUP (what actually owns the frame). */
+    subjectGroup?: string;
     /** PANEL ACCEPTANCE (audit FIX 6 — THE LAUNCH HALF): 0..1 body STRETCH
      *  about the ground contact — the volume-preserving inverse of squash
      *  (height +6%, width −5%). Driven by the walk's push-off window and
@@ -1325,6 +1363,11 @@ export function drawStickmanV2(
   const pose0 = r.pose;
   const alpha = r.alpha ?? 1;
   if (alpha <= 0.001) return;
+  // PHASE 3 (Composition & value): arm the drawn-bbox tracker — the joint
+  // sites below touch it; a subject registers its frame-area occupancy at
+  // the end of the draw.
+  bbReset();
+  const isSubject = r.subject === true;
   // AUDIT-2 / 1.1: arm the boil clock for this draw — every limb2() call
   // from here down jitters on the quantized 3-phase clock (pure function of
   // t, so scrub-determinism survives).
@@ -1667,6 +1710,7 @@ export function drawStickmanV2(
     // the frame's identity at 320px (far leg 12/10/9 -> 17/13/10, far arm
     // 9/8/7 -> 13/10/8).
     farFoot = limb2(ctx, hipLX, hipLY, pose.lLU, pose.lLL, U_LEG, L_LEG, INK.legFar[0], INK.legFar[1], INK.legFar[2], farInk, pose.lLift ?? 0, 1.14); // iter-3: knee mass
+    if (farFoot) bbTouch(farFoot.ex, farFoot.ey, 24); // PHASE 3 bbox: far shoe
     // 100-JUDGE AUDIT (Part 9.3 — COUNTER-ARM SECONDARY MOTION). When the
     // near arm gestures (smear > 0), the far arm should counter-balance —
     // a small opposite-direction movement that maintains body balance.
@@ -1678,6 +1722,7 @@ export function drawStickmanV2(
     const farAL = pose.lAL - counterSmear * 12;  // small outward counter
     const farHand = limb2(ctx, neckX - 4 + Math.sin(shT) * -4, neckY + 3 + Math.sin(shT) * 9 - (pose.shoulderDrop ?? 0) * 0.6, farAU, farAL, U_ARM, L_ARM, INK.armFar[0], INK.armFar[1], INK.armFar[2], farInk, 0, 0.92); // iter-3: elbow mass
     farHandRef = farHand;
+    bbTouch(farHand.ex, farHand.ey, 18); // PHASE 3 bbox: far hand glyph
     // 100-JUDGE PANEL REPORT (fix A3 — THE ROLLED SLEEVE, far arm): the
     // torso gold runs out mid-upper-arm in a slightly wider #A8851B band —
     // the silhouette reads "gold workshirt with pushed-up sleeves" over an
@@ -1708,6 +1753,7 @@ export function drawStickmanV2(
   // BLUEPRINT Phase 2 (INK): near leg 15/12/10 -> 21/16/12 — the support
   // leg is the figure's anchor mass.
   const nearFoot = limb2(ctx, hipRX, hipRY, pose.rLU, pose.rLL, U_LEG, L_LEG, INK.legNear[0], INK.legNear[1], INK.legNear[2], ink, pose.rLift ?? 0, 1.14); // iter-3: knee mass
+  bbTouch(nearFoot.ex, nearFoot.ey, 24); // PHASE 3 bbox: near shoe
   shoeWedge(nearFoot, ink, pose.rToe ?? 0);
 
   // 100-JUDGE PANEL / Phase 2 item 2 — LEG SMEARS ON THE RUN (report §6
@@ -2258,6 +2304,7 @@ export function drawStickmanV2(
     ctx.restore();
   }
   const hand = limb2(ctx, neckX + 4 + Math.sin(shT) * 4, neckY + 3 - Math.sin(shT) * 9 + shDrop, pose.rAU, pose.rAL, U_ARM, L_ARM, INK.armNear[0], INK.armNear[1], INK.armNear[2], nearArmCol, 0, 0.92); // iter-3: elbow mass
+  bbTouch(hand.ex, hand.ey, 18); // PHASE 3 bbox: near hand glyph
   // 100-JUDGE PANEL REPORT (fix A3 — THE ROLLED SLEEVE, near arm): same
   // band as the far arm — the near limb is the one the camera reads.
   if (!prof) {
@@ -2443,6 +2490,7 @@ export function drawStickmanV2(
   const yawR = (pose.headYaw ?? 0) * D2R;
   const headCX = neckX + Math.sin(tiltR) * (10 + 33 * 0.9);
   const headCY = neckY - Math.cos(tiltR) * (10 + 33 * 0.9);
+  bbTouch(headCX, headCY, 42 * (r.faceScale ?? 1) + 6); // PHASE 3 bbox: the head egg + crest
   // AUDIT-ROUND-2 (fix 14): nod pulse 4 → 7px — the word-accent nod
   // survives the 320px gate.
   const nod = (r.nod ?? 0) * 7;
@@ -3036,4 +3084,17 @@ export function drawStickmanV2(
   }
   ctx.restore();
   ctx.restore();
+  // PHASE 3 (Composition & value): the subject registers the frame-area
+  // occupancy it actually drew (bbox measured from the joints above,
+  // scaled to screen px, positioned at the draw's translate). Only
+  // subject-tagged stagings register — participants/markers stay governed
+  // by the height tiers. Group-tagged figures merge in the registry.
+  if (isSubject && FIG_BB.maxX > FIG_BB.minX) {
+    const fc = frameContext();
+    const bbX0 = r.flip ? cx - FIG_BB.maxX * scale : cx + FIG_BB.minX * scale;
+    const bbX1 = r.flip ? cx - FIG_BB.minX * scale : cx + FIG_BB.maxX * scale;
+    registerFigureArea(fc.sceneKey, r.figureTag ?? 'subject',
+      bbX0, groundY + FIG_BB.minY * scale, bbX1 - bbX0, (FIG_BB.maxY - FIG_BB.minY) * scale,
+      fc.W, fc.H, r.subjectGroup);
+  }
 }

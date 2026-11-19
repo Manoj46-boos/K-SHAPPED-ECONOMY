@@ -141,8 +141,11 @@ export function bokehField(
   t: number,
   opts: { intensity?: number; seed?: number; gold?: number } = {}
 ): void {
-  const { intensity = 1, seed = 3, gold = 0.22 } = opts;
-  const goldRatio = Math.min(0.18, gold);
+  const { intensity = 1, seed = 3 } = opts;
+  // PHASE 3 (Fix 3): the `gold` param is accepted for call-site
+  // compatibility but RETIRED — the gold bokeh lived in the sub-gate far
+  // band (deleted below) and the frame's bright mass is its ONE gold hero
+  // accent (the value-structure rule), never bokeh confetti.
   // BLUEPRINT Phase 4 (report §11): HALVE the count again (17 -> 9) and
   // DOUBLE the speed — few, confident, MOVING discs read as a lens;
   // many slow rings read as stamped confetti. The ring alpha floor
@@ -153,7 +156,10 @@ export function bokehField(
   // which a lens-artifact field reads as a lens rather than confetti. Each disc
   // still gets a depth band, still camera-scaled, still varies by hash; only
   // the count rises.
-  const N = 36;
+  // PHASE 3 (Fix 3 — THE FURNITURE WHITELIST): 36 → 24 — the far-band third
+  // (12 sub-gate fragments) is deleted; the two surviving bands still read
+  // as a lens (≈8 visible at the 320px feed) without the noise tier.
+  const N = 24;
   // v3 (panel P1-2): motes counter-shift by the camera motion the background
   // did NOT follow, so the bokeh slides against the scene plane at ~0.45×.
   const camX2 = camState.dx * (1 - BG_PARALLAX);
@@ -165,10 +171,19 @@ export function bokehField(
   // motion". THREE explicit depth bands now — NEAR (r≈60, alpha 0.75,
   // slight blur fill), MID (r≈40, alpha 0.50), FAR (r≈22, alpha 0.25, gold
   // rare) — one texture becomes a legible depth stack.
+  // PHASE 3 VISUAL AUDIT (Fix 3 — THE FURNITURE WHITELIST): "any background
+  // element that cannot survive the 320px gate is deleted." The FAR band
+  // measures r 19-25px at 1080p → 3-4px at the 320px feed at 0.07 alpha —
+  // sub-gate by every measure (size AND value): after the transcode it is
+  // codec noise shaped like circles. DELETED, not faded — the field keeps
+  // its two legible depth bands (near/mid) and drops 36 → 24 fragments.
+  // The gold bokeh dies with the far band it lived in; the frame's bright
+  // mass is the ONE gold hero accent (Fix 2's value structure — bokeh
+  // never competes for brightness).
   for (let i = 0; i < N; i++) {
-    const band = i % 3;                    // 0 near · 1 mid · 2 far — deterministic mix
-    const depth = band === 0 ? 0.95 : band === 1 ? 0.62 : 0.3;
-    const speed = 16 + (2 - band) * 40;
+    const band = i % 2;                    // 0 near · 1 mid — the whitelist keeps two bands
+    const depth = band === 0 ? 0.95 : 0.62;
+    const speed = 16 + (1 - band) * 40;
     const bx = (hash01(i * 3.7 + seed) * W + drift(t / 9000 + i * 3, i) * 40 * depth - camX2 * depth + W) % W;
     const by =
       (hash01(i * 7.1 + seed * 5) * H - (t / 1000) * speed - camY2 * depth + Math.sin(t / 5000 + i) * 20 + H * 4) % H;
@@ -178,14 +193,15 @@ export function bokehField(
     // cap drops to 0.18 AND gold motes render at 0.72× radius with a
     // dimmer alpha ceiling: gold is a rare sparkle, never a stain. The
     // field itself is carried by teal-white.
-    // AUDIT-ROUND-2 (fix 23): gold lives ONLY in the far band — a distant
-    // sparkle, never a near-field stain (the v8 'aged paper' lesson, kept).
-    const isGold = band === 2 && hash01(i * 5.3 + seed) < goldRatio * 2.6;
+    // PHASE 3 (Fix 3): gold bokeh RETIRED with the far band — the `gold`
+    // param stays accepted for call-site compatibility but no longer draws
+    // (the one-bright-mass rule: gold belongs to the frame's hero accent).
+    const isGold = false;
     // AUDIT-2: every radius multiplies by camState.scale — the field now
     // participates in the camera (the "world zooms and the effects do
     // not" flat-read, fixed at every call site from one factor).
     const r = Math.min(
-      (band === 0 ? 54 + hash01(i * 2.3) * 14 : band === 1 ? 36 + hash01(i * 2.3) * 10 : 19 + hash01(i * 2.3) * 6)
+      (band === 0 ? 54 + hash01(i * 2.3) * 14 : 36 + hash01(i * 2.3) * 10)
         * (isGold ? 0.72 : 1),
       isGold ? 14 : 1e9
     ) * camState.scale;
@@ -194,9 +210,9 @@ export function bokehField(
     // contour. Three judges independently convicted the rings as "soap
     // bubbles... swap for grid lines, chart ticks, or actual data
     // artifacts to earn the Data Desk branding". The depth-band alpha
-    // ladder survives as the fragment alpha (near reads, far whispers);
+    // ladder survives as the fragment alpha (near reads, mid whispers);
     // render cost DROPS (open strokes, no fills, no highlight arcs).
-    const fragA = (band === 0 ? 0.16 : band === 1 ? 0.12 : 0.07) * intensity;
+    const fragA = (band === 0 ? 0.16 : 0.12) * intensity;
     const fragCol = isGold ? PALETTE.gold : '#7FB8AC';
     const kind = i % 3;                    // 0 sparkline · 1 ruler · 2 K
     const rot = (hash01(i * 11.7 + seed * 3) - 0.5) * 0.6;

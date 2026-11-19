@@ -19,6 +19,8 @@ import { registerRect, registerText } from './collision';
 // PHASE 1 (100-Judge audit Table 6): the HOST_SCALE rule + the figure
 // registry — companion rig derives from the tier law, the harness asserts it.
 import { registerFigure, hostScaleRig } from './scale-law';
+// PHASE 3 COMPOSITION: the data-beat hero registration (Fix 1).
+import { registerHeroObject, scaleForFigureArea } from './composition';
 import { resolveProp } from './scene-props';
 
 // BLUEPRINT Phase 1 (report Table 7 — "the plant must LAND"): the contact
@@ -145,7 +147,7 @@ function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   // same full-bleed tone plate as the data scenes, so the presenter stands
   // in a lit space instead of on a lightbox.
   scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
-  bokehField(ctx, W, H, g.t, { intensity: 0.9, seed: 7 });
+  bokehField(ctx, W, H, g.t, { intensity: 1.2, seed: 7 });
   kMotifs(ctx, W, H, g.t, 0.18);
 
   const stage = g.s.stage as string;
@@ -546,7 +548,7 @@ export function hostSceneV2(g: SceneCtx): void {
   paintBg(ctx, W, H, t, g.chapterTone);
   // P1-2 (report §12.2): the editorial host's room — same plate, his tone.
   scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
-  bokehField(ctx, W, H, t, { intensity: 0.85, seed: 7 });
+  bokehField(ctx, W, H, t, { intensity: 1.1, seed: 7 });
   lightRays(ctx, W, H, t, { alpha: 0.45 });
   kMotifs(ctx, W, H, t, 0.18);
   // P1-6 (report): the editorial host's halo — the close-up composition
@@ -1041,7 +1043,7 @@ export function splitNumbersScene(g: SceneCtx): void {
   paintBg(ctx, W, H, t, g.chapterTone);
   // P1-2 (report §12.2): every scene sits in a room — full-bleed tone plate.
   scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
-  bokehField(ctx, W, H, t, { intensity: 0.7, seed: 12 });
+  bokehField(ctx, W, H, t, { intensity: 0.9, seed: 12 });
   const mode = (s.mode as string) || 'left';
 
   const panelW = W * 0.38;
@@ -1103,12 +1105,23 @@ export function splitNumbersScene(g: SceneCtx): void {
     const delay = 300;
     drawNumberPanel(g, W * 0.06, py - 22, vsW, panelH, 'THE MARKET', marketStats, t, 0);
     drawNumberPanel(g, W * 0.545, py + 22, vsW, panelH, 'THE MOOD', moodStats, t, delay);
+    // PHASE 3 COMPOSITION (Fix 1 — DATA-BEAT HERO FLOOR): the vs beat's
+    // hero object is the two-panel data system — x 0.06W→0.905W × panelH:
+    // 1622×~370 = 28.7% of the frame, over the 18% floor (the harness
+    // asserts it).
+    registerHeroObject(g.beat.scene.sceneKey ?? g.beat.scene.type, 'vs-panel-system',
+      W * 0.845, panelH, W, H);
     // the host — beside the mood panel he narrates, palm ON its right edge.
     // 100-JUDGE VISUAL AUDIT (Fix 3 — HOST-SCALE HIERARCHY): 0.94W/0.95 rig
     // was the film's second-smallest host — a cropped speck at the frame
     // edge. 0.87W at 1.5 rig: the premium area band, the palm solve onto
     // the panel edge holds (reach at 1.5 covers the gap), and the raised
     // arm's envelope stays clear of the frame edge. Guard sweep re-arbitrates.
+    // PHASE 3 COMPOSITION (Fix 1 — DATA-BEAT HERO FLOOR): the splitNumbers
+    // vs beat's hero is the TWO-PANEL DATA SYSTEM (registered below at
+    // 32%) — the host is its presenter at the certified 1.5 side band
+    // (the 1.9 subject raise broke the frame-edge envelope the guard
+    // certified at 1.5).
     drawStickmanV2(ctx, W * 0.87, H * 0.645, 1.5, t, {
       pose: Stickman.poseAt(t, { gesture: 'present', speaking: g.speaking, sentenceId: g.sentenceId, sentenceT: g.sentenceT, wordTimes: g.gWordTimes }),
       alpha: clamp01((t - 500) / 500),
@@ -1129,6 +1142,8 @@ export function splitNumbersScene(g: SceneCtx): void {
     drawStickmanV2(ctx, mode === 'left' ? W * 0.7 : W * 0.3, H * 0.67, 1.55, t, {
       // P6 (SCALE THE CAST): the flagged cheering-speck staging 1.35 → 1.55
       // (+32% frame area); the guard sweep re-certifies the envelope.
+      // PHASE 3 COMPOSITION: single-panel mode — the panel system is the
+      // hero; the host presents at the certified 1.55 participant band.
       pose: Stickman.poseAt(t, { gesture: 'present', speaking: g.speaking, sentenceId: g.sentenceId, sentenceT: g.sentenceT, wordTimes: g.gWordTimes }),
       alpha: clamp01((t - 400) / 500),
       look: mode === 'left' ? -0.7 : 0.7,
@@ -1372,7 +1387,7 @@ export function divergeKScene(g: SceneCtx): void {
   paintBg(ctx, W, H, t, g.chapterTone);
   // P1-2 (report §12.2): every scene sits in a room — full-bleed tone plate.
   scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
-  bokehField(ctx, W, H, t, { intensity: 1.1, seed: 21, gold: 0.6 });
+  bokehField(ctx, W, H, t, { intensity: 1.45, seed: 21, gold: 0.6 });
   lightRays(ctx, W, H, t, { alpha: 0.8 });
 
   const kx = W * 0.58;
@@ -1505,6 +1520,10 @@ export function divergeKScene(g: SceneCtx): void {
       drawStickmanV2(ctx, W * 0.30, H * 0.605, HOST_SCALE, t, {
         pose: shk, alpha: shIn, look: 0.72,
         talk: gasp, jaw2x: 2, faceScale: 1.8, parallax: true,
+        // PHASE 3 COMPOSITION: the cold-open shock is a subject staging —
+        // it registers its frame-area occupancy (HOST_SCALE 2.65 clears
+        // the 10% floor with the shock's wide pose).
+        subject: true, figureTag: 'coldopen-shock',
         // P2-4 (audit Table 4): hero moment — the cold-open shock close-up
         // rides the deep 0.55 parallax differential.
         parallaxAmt: 0.55,
@@ -1697,7 +1716,12 @@ export function divergeKScene(g: SceneCtx): void {
     // elbow slack) with the hip band (742-1078) still 18px clear of it.
     let hx = 910;
     let hy = H * 0.645; // fix 6.1: ground tuned so the 2.4x head clears the naming title and the envelope clears the pill band
-    let hScale = 2.4; // fix 6.1: the settled presenting scale 2.05 -> 2.4 (+37% area) — the host is the frame's subject, not its stamp
+    // PHASE 3 COMPOSITION (Fix 1 — SUBJECT-OCCUPANCY FLOOR): the settle
+    // rig rides the floor — the measured rest-pass bbox at 2.4 owned 9.5%
+    // of the frame (the far pass is alpha-gated on some frames, so the
+    // visible footprint is the rest pass's); 2.5 puts the drawn figure
+    // at 10.2% while staying under the 2.65 head-band limit.
+    let hScale = 2.5; // fix 6.1: 2.05 -> 2.4 (+37% area); PHASE 3: 2.4 -> 2.5 (the 10% occupancy floor)
     let hFace = 1;
     let hAlpha = clamp01(t / 400);
     let pose = settlePose;
@@ -1706,7 +1730,7 @@ export function divergeKScene(g: SceneCtx): void {
       const tp = clamp01((t - 4800) / 700);
       hx = lerp(W * 0.30, 910, tp);
       hy = lerp(H * 0.605, H * 0.645, tp);
-      hScale = lerp(HOST_SCALE, 2.4, tp);
+      hScale = lerp(HOST_SCALE, 2.5, tp);
       hFace = 1 + 0.8 * (1 - tp);
       hAlpha = 1;
       pose = blendPose(POSES.shock, settlePose, tp);
@@ -1717,9 +1741,17 @@ export function divergeKScene(g: SceneCtx): void {
     const hParallax = !opening || t <= 5500;
     // FAR pass — shadow + far limbs, drawn BEFORE the K (behind the letter)
     drawStickmanV2(ctx, hx, hy, hScale, t,
-      { pose, alpha: hAlpha, look: 0.9, talk, faceScale: hFace, parallax: hParallax, phase: 'far' }, 5);
+      // PHASE 3 COMPOSITION: BOTH occlusion passes declare the subject and
+      // share one group tag — the registry unions the group's bboxes into
+      // the ONE figure's true footprint (the far pass carries the far
+      // hand/leg the rest pass never draws).
+      { pose, alpha: hAlpha, look: 0.9, talk, faceScale: hFace, parallax: hParallax, phase: 'far',
+        subject: true, figureTag: 'leanK-host', subjectGroup: 'leanK-host' }, 5);
     // (the REST pass — near leg, torso, scarf, NEAR ARM, head — draws after
     // the K, the labels and the second character; see the end of the scene)
+    // PHASE 3 COMPOSITION: only the REST pass declares subject (the two
+    // occlusion passes draw ONE figure — registering both would
+    // double-count the occupancy; the rest pass carries the fuller bbox).
     hostRestPass = { hx, hy, hScale, hFace, hAlpha, pose, talk, kHand, kPoint, hParallax };
   }
 
@@ -1869,6 +1901,11 @@ export function divergeKScene(g: SceneCtx): void {
     drawStickmanV2(ctx, hostRestPass.hx, hostRestPass.hy, hostRestPass.hScale, t,
       { pose: hostRestPass.pose, alpha: hostRestPass.hAlpha, look: 0.9, talk: hostRestPass.talk,
         faceScale: hostRestPass.hFace, parallax: hostRestPass.hParallax, phase: 'rest', kContact: true,
+        // PHASE 3 COMPOSITION (Fix 1 — SUBJECT-OCCUPANCY FLOOR): the
+        // signature scene's subject registers here (2.4-2.65 rig clears
+        // the 10% frame-area floor with the gesture span) — same group as
+        // the far pass so the union is the ONE figure's true bbox.
+        subject: true, figureTag: 'leanK-host', subjectGroup: 'leanK-host',
         // PHASE 2 item 2: the solved hand — fist ON the stem (leanOnK) or
         // the 40-60px conviction point (heroPoint, pre-formation).
         contact: hostRestPass.kHand,
@@ -1982,7 +2019,7 @@ export function channelIntroScene(g: SceneCtx): void {
   paintBg(ctx, W, H, t, g.chapterTone);
   // P1-2 (report §12.2): every scene sits in a room — full-bleed tone plate.
   scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
-  bokehField(ctx, W, H, t, { intensity: 1, seed: 33, gold: 0.6 });
+  bokehField(ctx, W, H, t, { intensity: 1.3, seed: 33, gold: 0.6 });
   const cx = W / 2;
   const cy = H * 0.4;
 
@@ -2049,7 +2086,11 @@ export function channelIntroScene(g: SceneCtx): void {
     rAL: pose.rAL + Math.sin(t / 560) * 14,
   };
   const talk = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-  drawStickmanV2(ctx, W * 0.84, H * 0.645, 1.5, t, { pose: wavePose, alpha: clamp01((t - 600) / 500), look: -0.6, talk, parallax: true }, 9); // fix 6.1: 1.27 -> 1.5 (side-host area bump, guard-swept)
+  // PHASE 3 COMPOSITION (Fix 1 — SUBJECT-OCCUPANCY FLOOR): the channel
+  // intro's host IS the beat's subject — 1.5 → 1.8 toward the 10%
+  // frame-area floor (the wave envelope stays inside the frame edge:
+  // 0.84W + half-span ≈ 1775 < 1920).
+  drawStickmanV2(ctx, W * 0.84, H * 0.645, 1.8, t, { pose: wavePose, alpha: clamp01((t - 600) / 500), look: -0.6, talk, parallax: true, subject: true, figureTag: 'intro-host' }, 9); // fix 6.1: 1.27 -> 1.5; PHASE 3: 1.5 -> 1.8
 }
 
 // ── recapSplit (used at ch5 open and ch10 open) ─────────────────────────────
@@ -2058,7 +2099,7 @@ export function recapSplitScene(g: SceneCtx): void {
   paintBg(ctx, W, H, t, g.chapterTone);
   // P1-2 (report §12.2): every scene sits in a room — full-bleed tone plate.
   scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
-  bokehField(ctx, W, H, t, { intensity: 0.8, seed: 44 });
+  bokehField(ctx, W, H, t, { intensity: 1.05, seed: 44 });
   const pw = W * 0.36;
   const ph = H * 0.34;
   const py = H * 0.24;
@@ -2330,7 +2371,7 @@ export function paradoxResolveScene(g: SceneCtx): void {
   paintBg(ctx, W, H, t, g.chapterTone);
   // P1-2 (report §12.2): every scene sits in a room — full-bleed tone plate.
   scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
-  bokehField(ctx, W, H, t, { intensity: 0.9, seed: 55, gold: 0.55 });
+  bokehField(ctx, W, H, t, { intensity: 1.2, seed: 55, gold: 0.55 });
   const cx = W / 2;
   // the word "PARADOX" appears, then strikes through
   // P3 hero register: the strike flinches the frame at HERO.shakePx — the

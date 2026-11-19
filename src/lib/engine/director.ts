@@ -17,6 +17,10 @@ import { AMP, HERO } from './perception';
 // PHASE 1 (100-Judge audit Table 6): per-frame registry resets for the
 // scale law + the prop ledger (the harness asserts them per evidence frame).
 import { resetFigureRegistry } from './scale-law';
+// PHASE 3 COMPOSITION (Visual Audit — Composition & value): the per-frame
+// family context (scene drawers read it to register occupancy) + the
+// occupancy registry reset beside the scale-law reset.
+import { setFrameContext, resetOccupancy, familyOf } from './composition';
 import { resetPropLedger, resetPropDraws } from './scene-props';
 import { hostScene, splitNumbersScene, divergeKScene, channelIntroScene, recapSplitScene, paradoxResolveScene } from './scenes-host';
 import {
@@ -699,6 +703,7 @@ export function drawFrame(
   // the prop-ledger usage registry reset per frame alongside the guard —
   // the harness asserts THIS frame's stagings and props, never stale ones.
   resetFigureRegistry();
+  resetOccupancy(); // PHASE 3: the area-occupancy registry resets with the rest
   resetPropLedger();
   resetPropDraws();
   // PHASE-0 (§7-D2): the caption-vs-headline registry resets per frame, so
@@ -717,6 +722,19 @@ export function drawFrame(
   const groupDur = Math.max(1, group.endMs - group.startMs);
   const bt = t - beat.startMs;
   const beatDur = Math.max(1, beat.endMs - beat.startMs);
+  // PHASE 3 COMPOSITION: the frame's family context — scene drawers read
+  // it to register figure/hero-object occupancy against the family floors
+  // (composition.ts). Pure per-frame state, reset with the registries.
+  {
+    const sceneType = beat.beat.scene.type as string;
+    setFrameContext({
+      W, H,
+      sceneKey: (beat.beat.scene as { sceneKey?: string }).sceneKey ?? sceneType,
+      sceneType,
+      family: familyOf(sceneType),
+      t,
+    });
+  }
   // v8: this chapter's ambient tone rides the background wash
   const chapterTone = CHAPTER_TONES[Math.min(beat.chapter, CHAPTER_TONES.length - 1)];
 
@@ -1130,11 +1148,20 @@ export function drawFrame(
     // PREMIUM UPGRADE V6: GRAIN HALVED. Premium film grain runs at 0.15-0.25
     // — felt, not seen. The old 0.3-0.6 textured the figure's limbs and the
     // small type, fighting the reading surfaces. Halved across all tiers.
+    // PHASE 3 VISUAL AUDIT (Fix 4 — THE TEXTURE PASS): "grain and bokeh
+    // raised to transcode-visible on figure frames only." The V6 halving
+    // over-corrected for the transcode: at 0.3 the host-family grain
+    // measured under the codec's noise floor at the 320px feed — the
+    // texture died in delivery. FIGURE frames return to 0.55 (the
+    // transcode-visible register, present ON the figure where the ink
+    // mass carries it), while the data (0.25) and statement (0.15)
+    // registers stay put — the report's "on figure frames only": the
+    // reading surfaces stay clean.
     const sceneType = beat.beat.scene.type;
     const grainAlpha =
       sceneType === 'bigText' || sceneType === 'stampCard' ? 0.15
       : ['host', 'divergeK', 'channelIntro', 'recapSplit', 'paradoxResolve',
-         'ownerWorker', 'endScreen', 'commentPrompt', 'takeaways'].includes(sceneType) ? 0.3
+         'ownerWorker', 'endScreen', 'commentPrompt', 'takeaways'].includes(sceneType) ? 0.55
       : 0.25;
     drawGrain(ctx, W, H, grainAlpha, t);
   }

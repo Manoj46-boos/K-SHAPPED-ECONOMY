@@ -71,9 +71,18 @@ globalThis.OffscreenCanvas = class { constructor(w, h) { const c = createCanvas(
 // prescription as a permanent gate, not a one-off fix.
 const { scaleLawViolations, figureRegistry } = require(path.join(BUILD, 'scale-law.js'));
 const ledger = require(path.join(BUILD, 'scene-props.js'));
+// PHASE 3 (Visual Audit — Composition & value): the occupancy + value-mass
+// gates. Subject figures and hero objects register their frame-area
+// occupancy (composition.ts); the harness also samples each evidence
+// frame's dark/bright pixel shares against the family's value bands —
+// ONE dark mass + ONE bright mass per frame, or the frame fails.
+const composition = require(path.join(BUILD, 'composition.js'));
 const SCALE_EVIDENCE = [];
 let scaleViolations = 0;
 let propViolations = 0;
+let occupancyViolations = 0;
+let valueViolations = 0;
+const VALUE_EVIDENCE = [];
 
 const { SCRIPT } = require(path.join(BUILD, 'script-data.js'));
 const { splitSentences } = require(path.join(BUILD, 'easing.js'));
@@ -149,6 +158,35 @@ function render(name, tMs) {
   if (plv.length) {
     propViolations += plv.length;
     console.error(`  !! PROP-LEDGER GATE — ${name}: ${plv.map((v) => `${v.prop}@${v.sceneKey}`).join(', ')}`);
+  }
+  // PHASE 3 GATES — occupancy floors + the value structure.
+  const ocx = composition.frameContext();
+  const ovv = composition.occupancyViolations();
+  if (ovv.length) {
+    occupancyViolations += ovv.length;
+    console.error(`  !! OCCUPANCY GATE — ${name}:`);
+    for (const v of ovv) console.error(`     ${v.sceneKey}/${v.label}: ${v.reason}`);
+  }
+  // the value sample: dark share (luma < 70 — the ink mass) and bright
+  // share (gold hue, or the cream data surfaces) over a 4px sample grid
+  const img = ctx.getImageData(0, 0, W, H).data;
+  let dark = 0, bright = 0, total = 0;
+  for (let py = 0; py < H; py += 4) {
+    for (let px2 = 0; px2 < W; px2 += 4) {
+      const o = (py * W + px2) * 4;
+      const r = img[o], gch = img[o + 1], b = img[o + 2];
+      const luma = 0.2126 * r + 0.7152 * gch + 0.0722 * b;
+      if (luma < 70) dark++;
+      else if ((r > 180 && gch > 120 && gch < 200 && b < 140) || (r > 232 && gch > 228 && b > 216)) bright++;
+      total++;
+    }
+  }
+  const sample = { darkPct: (dark / total) * 100, brightPct: (bright / total) * 100 };
+  const vvv = composition.valueMassViolations(sample, ocx.family);
+  VALUE_EVIDENCE.push({ name, family: ocx.family, ...sample });
+  if (vvv.length) {
+    valueViolations += vvv.length;
+    console.error(`  !! VALUE-MASS GATE — ${name} (${ocx.family}): ${vvv.join(' | ')}`);
   }
   SCALE_EVIDENCE.push({
     name,
@@ -643,8 +681,8 @@ for (const ev of SCALE_EVIDENCE) {
   }
 }
 
-if (guardViolations || metricViolations || scaleViolations || propViolations) {
-  console.error(`\n✗ RENDER CHECK FAILED: ${guardViolations} collision(s), ${metricViolations} metric violation(s), ${scaleViolations} scale-law violation(s), ${propViolations} prop-ledger violation(s) — fix the scene layout before rendering.`);
+if (guardViolations || metricViolations || scaleViolations || propViolations || occupancyViolations || valueViolations) {
+  console.error(`\n✗ RENDER CHECK FAILED: ${guardViolations} collision(s), ${metricViolations} metric violation(s), ${scaleViolations} scale-law violation(s), ${propViolations} prop-ledger violation(s), ${occupancyViolations} occupancy violation(s), ${valueViolations} value-mass violation(s) — fix the scene layout before rendering.`);
   process.exit(1);
 }
 
