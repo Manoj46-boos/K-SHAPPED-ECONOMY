@@ -385,16 +385,100 @@ export class Stickman {
         // 15-25% on accents. Damping drops 14 → 11 (more underdamped =
         // ~18% overshoot) and stiffness 170 → 140 (slower settle, 2-3
         // visible bounces). The clamp01 stays off; the floor at 0 stays.
-        const anti = st < 150 ? Math.sin((st / 150) * Math.PI) * 0.45 : 0;
-        const sT = Math.max(0, st - 150);
-        const fUp = Math.max(0, springTo(0, 1, sT, 150, 11) - anti);
+        // PHASE 2 VISUAL AUDIT (Fix 2 — THE 200MS HERO HOLD): the rig's
+        // hero strikes are the tier-1 (full) word accents. Before each one
+        // the gesture transition HOLDS — the spring input freezes at its
+        // value 200ms before the onset (closed form: stEff = st − (200 − d)
+        // while the time-to-onset d ∈ (0,200]), so the figure reads the
+        // wind-up beat the motion grammar prescribes ("acted, not
+        // tweened"). The accent envelope itself stays onset-keyed — the
+        // strike still lands ON the word, 200ms of held anticipation
+        // ahead of it. Pure function of (t, word data) — scrub-safe.
+        let holdD: number | null = null;
+        if (opts.wordTimes && opts.words) {
+          for (let wi = 0; wi < opts.wordTimes.length; wi++) {
+            const d = opts.wordTimes[wi] - t;
+            if (d > 0 && d <= 200 && accentFire(opts.words[wi] ?? '')) {
+              holdD = holdD === null ? d : Math.min(holdD, d);
+            }
+          }
+        }
+        const stEff = holdD !== null ? st - (200 - holdD) : st;
+        const anti = stEff < 150 ? Math.sin((stEff / 150) * Math.PI) * 0.45 : 0;
+        const sT = Math.max(0, stEff - 150);
+        // PHASE 2 VISUAL AUDIT (Fix 3 — OVERSHOOT IN THE 20-25% HERO BAND):
+        // damping 11 → 10.5 (ζ = 0.4287 → 22.5% overshoot, the middle of
+        // the report's band); stiffness 150 (settle unchanged).
+        const fUp = Math.max(0, springTo(0, 1, sT, 150, 10.5) - anti);
         // AUDIT-ROUND-2 (fix 14): elbow cascade 70 → 90ms behind the
         // shoulder — a wave that visibly travels DOWN the limb at phone
         // scale (70ms downsampled to a snap at 320px).
-        const fLo = Math.max(0, springTo(0, 1, Math.max(0, sT - 90), 150, 11) - anti * 0.7);
+        const fLo = Math.max(0, springTo(0, 1, Math.max(0, sT - 90), 150, 10.5) - anti * 0.7);
         const up = blendPose(prevPose, cyc, fUp);
         const lo = blendPose(prevPose, cyc, fLo);
         pose = { ...up, lAL: lo.lAL, rAL: lo.rAL };
+        // PHASE 2 VISUAL AUDIT (Fix 1 — GESTURE ARCS): the angle-lerp above
+        // carries the hand in a STRAIGHT line between poses. The motion
+        // grammar: gesture springs interpolate joint POSITIONS through a
+        // spline. Closed-form on the existing rig: FK the gesture hand at
+        // both pose endpoints, build a quadratic spline whose control
+        // point lifts perpendicular to the travel (18% of the distance,
+        // capped 20 units, biased outward of the torso), evaluate it at
+        // the spring's progress, and solve the two bone angles (2-bone IK,
+        // law of cosines) so the HAND RIDES THE ARC. The elbow-side
+        // solution nearest the straight blend is kept (continuity). The
+        // arc weight is sin(π·fUp) — zero at both endpoints, so pose
+        // continuity is exact; the accent terms below still ride on top.
+        {
+          const dArmR = Math.abs(cyc.rAU - prevPose.rAU) + Math.abs(cyc.rAL - prevPose.rAL);
+          const dArmL = Math.abs(cyc.lAU - prevPose.lAU) + Math.abs(cyc.lAL - prevPose.lAL);
+          const side: 'r' | 'l' = dArmR >= dArmL ? 'r' : 'l';
+          const U = 58, L = 54; // RIG.upperArm / RIG.lowerArm — the drawn rig
+          const fkHand = (au: number, al: number): { x: number; y: number } => {
+            const ex = Math.sin(au * D2R) * U, ey = Math.cos(au * D2R) * U;
+            return { x: ex + Math.sin(al * D2R) * L, y: ey + Math.cos(al * D2R) * L };
+          };
+          const A = side === 'r' ? fkHand(prevPose.rAU, prevPose.rAL) : fkHand(prevPose.lAU, prevPose.lAL);
+          const B = side === 'r' ? fkHand(cyc.rAU, cyc.rAL) : fkHand(cyc.lAU, cyc.lAL);
+          const dist = Math.hypot(B.x - A.x, B.y - A.y);
+          if (dist > 26) {
+            const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+            const nx = -(B.y - A.y) / dist, ny = (B.x - A.x) / dist;
+            const lift = Math.min(dist * 0.18, 20) * (mx >= 0 ? 1 : -1);
+            const C = { x: mx + nx * lift, y: my + ny * lift };
+            const w = Math.max(fUp, fLo);
+            const k = Math.max(0, 1 - w);
+            // the spline point — the hand's arc target this frame
+            const px = k * k * A.x + 2 * k * w * C.x + w * w * B.x;
+            const py = k * k * A.y + 2 * k * w * C.y + w * w * B.y;
+            // 2-bone IK, law of cosines — target relative to the shoulder
+            const dc = Math.min(Math.hypot(px, py), U + L - 1);
+            const cosE = Math.min(1, Math.max(-1, (U * U + L * L - dc * dc) / (2 * U * L)));
+            const cosA = Math.min(1, Math.max(-1, (U * U + dc * dc - L * L) / (2 * U * dc)));
+            const alpha = Math.acos(cosA);
+            const thT = Math.atan2(px, py); // (sin, cos) bearing convention
+            // both elbow-side solutions; keep the one nearest the straight
+            // blend's elbow so the limb never pops across the body
+            let best: { au: number; al: number; e: number } | null = null;
+            for (const sgn of [1, -1]) {
+              const au = thT + sgn * alpha;
+              const ex = Math.sin(au) * U, ey = Math.cos(au) * U;
+              const al = Math.atan2(px - ex, py - ey);
+              const auD = (side === 'r' ? pose.rAU : pose.lAU) * D2R;
+              const alD = (side === 'r' ? pose.rAL : pose.lAL) * D2R;
+              const e = Math.abs(au - auD) + Math.abs(al - alD);
+              if (best === null || e < best.e) best = { au: au / D2R, al: al / D2R, e };
+            }
+            if (best) {
+              const arcK = Math.sin(Math.PI * clamp01(fUp)) * 0.9;
+              if (side === 'r') {
+                pose = { ...pose, rAU: lerp(pose.rAU, best.au, arcK), rAL: lerp(pose.rAL, best.al, arcK) };
+              } else {
+                pose = { ...pose, lAU: lerp(pose.lAU, best.au, arcK), lAL: lerp(pose.lAL, best.al, arcK) };
+              }
+            }
+          }
+        }
         // beat-accent: a decaying forearm pulse on each word onset — the
         // hand strikes on the emphasized word, exactly as a narrator's does
         // PANEL ACCEPTANCE (audit FIX 6 — TWO-TIER ACCENTS): the pulse is

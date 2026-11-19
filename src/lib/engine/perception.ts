@@ -167,8 +167,14 @@ export const HERO = {
   /** Statement cut-punch (ambient AMP.cutPunch = 0.03, statements 0.05). */
   punch: 0.075,
   /** Statement block overshoot: the slam text travels from 0.90 (not 0.94)
-   *  to 1.10 (not 1.06) — double the arrival travel. */
-  blockTravel: 0.1,
+   *  to 1.10 (not 1.06) — double the arrival travel.
+   *  PHASE 2 VISUAL AUDIT (Fix 3 — OVERSHOOT 20-25% ON HERO EVENTS): the
+   *  statement slam is a hero event; its travel overshoot rises 10% → 22%
+   *  (the middle of the report's 20-25% band) — the block lands at 1.0
+   *  scale having VISIBLY overshot to ~1.024 and settled back (the
+   *  easeOutBack peak rides 1.1× the travel). The gesture strike spring's
+   *  22.5% damping overshoot (stickman.ts) completes the register. */
+  blockTravel: 0.22,
   /** PHASE 3 (audit §8 — THE HERO AMPLITUDE REGISTER): the BODY-action
    *  hero terms the register was missing. The audit's verdict: "the
    *  extreme register fires mostly as camera scale, not as body action."

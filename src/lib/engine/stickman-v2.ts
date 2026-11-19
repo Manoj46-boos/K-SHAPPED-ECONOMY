@@ -952,6 +952,61 @@ export function handGlyph(
 }
 
 /**
+ * PHASE 2 VISUAL AUDIT (Fix 5) — THE FOLLOW-THROUGH CHAIN.
+ *
+ * A 3-node verlet chain (root pinned, two free nodes) — the classic-
+ * animation follow-through layer: when the body (or its clocks) move, the
+ * scarf cloth and the hair crest LAG, overshoot and settle with real
+ * physics instead of tracking a rigid sine. CHEAP + DETERMINISTIC: the
+ * chain replays a fixed 60ms-step verlet integration over a 480ms window
+ * ending at the current frame, seeded analytically from the rest pose —
+ * a pure function of (t, anchor trajectory), so frame-scrubbing is exact
+ * (no integrator state ever carries across frames; 8 steps × 2 nodes ×
+ * 2 constraint relaxations ≈ nothing on the render budget).
+ *
+ * Integration is textbook position-verlet: p' = p + (p − pPrev)·damp +
+ * g·dt², then two relaxation passes enforce the bone lengths with the
+ * root pinned to the anchor.
+ */
+function followChain(
+  t: number,
+  seed: number,
+  anchor: (ti: number) => { x: number; y: number },
+  restDir: { x: number; y: number },   // unit rest direction from the root
+  seg1: number, seg2: number,          // bone lengths
+  gravX: number, gravY: number,        // gravity accel (px/ms²)
+  damp = 0.9
+): { x: number; y: number }[] {
+  const DT = 60, STEPS = 8;
+  const t0 = t - DT * STEPS;
+  const a0 = anchor(t0);
+  // seed: nodes at their rest extension — zero initial velocity
+  let n1 = { x: a0.x + restDir.x * seg1, y: a0.y + restDir.y * seg1 };
+  let n2 = { x: n1.x + restDir.x * seg2, y: n1.y + restDir.y * seg2 };
+  let o1x = n1.x, o1y = n1.y, o2x = n2.x, o2y = n2.y;
+  for (let i = 0; i < STEPS; i++) {
+    const a = anchor(t0 + (i + 1) * DT);
+    const n1x = n1.x + (n1.x - o1x) * damp + gravX * DT * DT;
+    const n1y = n1.y + (n1.y - o1y) * damp + gravY * DT * DT;
+    const n2x = n2.x + (n2.x - o2x) * damp + gravX * DT * DT;
+    const n2y = n2.y + (n2.y - o2y) * damp + gravY * DT * DT;
+    o1x = n1.x; o1y = n1.y; n1 = { x: n1x, y: n1y };
+    o2x = n2.x; o2y = n2.y; n2 = { x: n2x, y: n2y };
+    // constraints — root pinned, both bones lengthed (2 relaxations)
+    for (let it = 0; it < 2; it++) {
+      let dx = n1.x - a.x, dy = n1.y - a.y;
+      let dl = Math.hypot(dx, dy) || 1e-6;
+      n1.x = a.x + dx / dl * seg1; n1.y = a.y + dy / dl * seg1;
+      dx = n2.x - n1.x; dy = n2.y - n1.y;
+      dl = Math.hypot(dx, dy) || 1e-6;
+      const c = (dl - seg2) / dl * 0.5;
+      n2.x -= dx * c; n2.y -= dy * c;
+    }
+  }
+  return [n1, n2];
+}
+
+/**
  * PANEL-12 / P0-4 (report §12.4) — the scarf becomes FABRIC.
  *
  * AUDIT-ROUND-2 (fix 7 — SCARF AS ONE RIBBON): the two-layer offset pair
@@ -969,8 +1024,17 @@ export function handGlyph(
 function scarfTail(
   ctx: CanvasRenderingContext2D,
   x0: number, y0: number,        // below the knot
-  wave: number,                  // the existing Math.sin(t / 700 + seed) * 6
-  colTop: string, colUnder: string
+  wave: number,                  // kept for the crease/under-shadow alignment
+  colTop: string, colUnder: string,
+  /** PHASE 2 (Fix 5): the follow-through chain context — the tail's fold
+   *  and tip are the free nodes of a 3-node verlet chain (root pinned to
+   *  the knot), so the cloth LAGS the body's clocks and settles with real
+   *  physics. t/seed drive the anchor trajectory; walkMul/talkMul scale
+   *  the anchor's motion register exactly like the old wave0 did. */
+  t = 0,
+  seed = 0,
+  walkMul = 1,
+  talkMul = 1
 ): void {
   // P1 scarf v3 (100-judge dossier): the old 42/33/21-unit chest-length
   // ribbon hung DOWN the front of the gold torso and merged with it — the
@@ -979,10 +1043,17 @@ function scarfTail(
   // drawn BEFORE the torso, so the body occludes the root and only the
   // flick beyond the back edge shows: cloth WORN around the neck, not a
   // pendant slab. One fold crease; the under-shadow retires with the bib.
-  const fxp = x0 - 14 + wave * 0.4;    // the fold at the shoulder line
-  const fyp = y0 + 16;
-  const ex = x0 - 30 + wave;           // the tip beyond the back edge
-  const ey = y0 + 30;
+  // PHASE 2 (Fix 5): fold/tip come from the chain (rest direction
+  // back-down, 21/21-unit bones, cloth gravity, damping 0.86) — the tail
+  // flicks, overshoots and settles instead of tracking the sine rigidly.
+  const anchor = (ti: number): { x: number; y: number } => ({
+    x: x0 + Math.sin(ti / 700 + seed) * 7 * walkMul,
+    y: y0 + Math.sin(ti / 240 + seed * 2) * 3 * talkMul + (walkMul > 1 ? Math.sin(ti / 140) * 2.5 : 0),
+  });
+  const rl = Math.hypot(14, 16);
+  const [fp, tp] = followChain(t, seed, anchor, { x: -14 / rl, y: 16 / rl }, 21, 21, -0.0002, 0.0011, 0.86);
+  const fxp = fp.x, fyp = fp.y;       // the fold — chain node 1
+  const ex = tp.x, ey = tp.y;         // the tip — chain node 2
   // ONE continuous tapered ribbon — root segment then fold segment,
   // round caps at the fold so the crease reads as cloth bending.
   taper(ctx, x0, y0, fxp, fyp, 14, 9, colUnder);
@@ -1435,12 +1506,21 @@ export function drawStickmanV2(
   // 18% MAX — the shipped 0.22 sampled 20.5% at 30fps (the audit's band is
   // 12-18%), so the coefficient lands exactly on the register; sampled
   // foot-plants now measure 15-17%.
-  if (squash > 0.001) ctx.scale(1 + 0.15 * squash, 1 - 0.18 * squash);
+  // PHASE 2 VISUAL AUDIT (Fix 4 — WALK AMP AT FEED SCALE): the 18% register
+  // was calibrated at hero scale; at the feed rigs (0.75-1.1) the sampled
+  // squash samples to 2-5px — invisible at 320px. The amplitude is now
+  // scale-conditioned: full register at scale ≥ 1.4 (hero frames
+  // unchanged), +30% at 1.0, +40% (floor) at ≤ 0.9 — closed form, so the
+  // walkStrike/walkPush pulses read as squash-and-stretch at the phone
+  // gate instead of dissolving.
+  const walkAmp = Math.min(1.4, Math.max(1, 1 + Math.max(0, 1.4 - scale) * 0.75));
+  if (squash > 0.001) ctx.scale(1 + 0.15 * squash * walkAmp, 1 - 0.18 * squash * walkAmp);
   // PANEL ACCEPTANCE (audit FIX 6 — STRETCH ON LAUNCH): the missing half of
   // the pair. Volume-preserving elongation about the same ground origin:
   // height +6%, width −5% at full stretch — two frames of reach on every
-  // gesture launch and step push-off.
-  if (stretch > 0.001) ctx.scale(1 - 0.05 * stretch, 1 + 0.06 * stretch);
+  // gesture launch and step push-off (amplitude rides the same
+  // scale-conditioned walkAmp register).
+  if (stretch > 0.001) ctx.scale(1 - 0.05 * stretch * walkAmp, 1 + 0.06 * stretch * walkAmp);
   ctx.scale(r.flip ? -scale : scale, scale);
   // v6 idle life: a 2.4s breath sway (±0.23°) around the ground contact —
   // the freeze between sentences read as a mannequin without it.
@@ -1718,7 +1798,8 @@ export function drawStickmanV2(
       Math.sin(t / 700 + seed) * 14 * (r.walkPhase !== undefined ? 3.2 : 1) * (1 + talkEnv0 * 1.4) +
       Math.sin(t / 240 + seed * 2) * 3.2 * talkEnv0;
     if (scale >= 1.2) {
-      scarfTail(ctx, neckX - 3, neckY + 12, wave0 * 0.5, PALETTE.gold, '#A8851B');
+      scarfTail(ctx, neckX - 3, neckY + 12, wave0 * 0.5, PALETTE.gold, '#A8851B',
+        t, seed, r.walkPhase !== undefined ? 3.2 : 1, 1 + talkEnv0 * 1.4);
     } else {
       // 100-JUDGE PANEL REPORT (fix A5 — THE VANISHING BRAND CUE): the
       // scarf tail drew only at rig ≥ 1.2 — exactly where most background
@@ -2510,18 +2591,29 @@ export function drawStickmanV2(
   // The worker keeps his flat cap (a cap plus a tuft reads as a costume
   // error); every other variant carries the crest — one family silhouette.
   if (!worker) {
+    // PHASE 2 (Fix 5 — THE FOLLOW-THROUGH CHAIN): the crest tip is the END
+    // NODE of a 3-node verlet chain rooted at the crest base — hair
+    // follow-through: the tuft lags the head's speech/walk rhythm (the
+    // anchor bobs on the talk/walk clocks), overshoots and settles with
+    // real physics (light-hair gravity 0.0004, damping 0.9). Deterministic
+    // — the chain replays 8 fixed 60ms steps from an analytic seed.
+    const tuftAnchor = (ti: number): { x: number; y: number } => ({
+      x: -1 + Math.sin(ti / 460 + seed) * (r.talk ?? 0) * 1.2,
+      y: -35 + Math.sin(ti / 300 + seed * 1.7) * ((r.talk ?? 0) * 1.8 + (r.walkPhase !== undefined ? 1.1 : 0)),
+    });
+    const [tn1, tn2] = followChain(t, seed, tuftAnchor, { x: -0.1, y: -0.995 }, 15, 15, 0, 0.0004, 0.9);
     ctx.fillStyle = ink;
     ctx.beginPath();
     ctx.moveTo(-14, -34);
-    ctx.quadraticCurveTo(-4, -64, 12, -36);
-    ctx.quadraticCurveTo(2, -46, -14, -34);
+    ctx.quadraticCurveTo(tn1.x, tn1.y, tn2.x, tn2.y);
+    ctx.quadraticCurveTo(tn2.x * -0.5, tn2.y * 0.72, -14, -34);
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = ink;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(-13, -35);
-    ctx.quadraticCurveTo(-3, -60, 11, -37);
+    ctx.quadraticCurveTo(tn2.x * 0.95, tn2.y * 0.95, 11, -37);
     ctx.stroke();
   }
   // 100-JUDGE PANEL / Phase 1 item 4 — CAST BY SILHOUETTE (report §6
