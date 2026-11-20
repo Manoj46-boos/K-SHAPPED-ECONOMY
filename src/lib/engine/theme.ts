@@ -515,15 +515,36 @@ export function toneRoom(
   w: number,
   h: number,
   tone: string,
-  opts: { ruleX?: number; ruleY?: number; ruleW?: number; ruleH?: number; grow?: number; alpha?: number } = {}
+  opts: { ruleX?: number; ruleY?: number; ruleW?: number; ruleH?: number; grow?: number; alpha?: number;
+          heroMaterial?: boolean } = {}
 ): void {
-  const { ruleX = x + 34, ruleY = y + 26, ruleW = 64, ruleH = 8, grow = 1, alpha = 1 } = opts;
+  const { ruleX = x + 34, ruleY = y + 26, ruleW = 64, ruleH = 8, grow = 1, alpha = 1,
+          heroMaterial = false } = opts;
   registerRect(`toneRoom@${Math.round(x)},${Math.round(y)}`, x, y, w, h);
   ctx.save();
   ctx.globalAlpha = alpha;
+  // B16 (Visual Quality Audit — THE MONEY-SHOT RENDERS AS A BROKEN SLAB):
+  // the room material's flat/sharp/shadow-less read is the chapter card's
+  // own full-bleed language — at HERO-CARD scale the same fill read as a
+  // featureless mustard placeholder ("a viewer screenshotting the frame
+  // would post it as a rendering bug"). The hero material keeps the room
+  // register but gains the film's card craft: the one-light shadow
+  // (lower-left, like every card), a drawn ink hairline edge, and a
+  // draftsmanlike 10px corner instead of the 3px artifact.
+  if (heroMaterial) {
+    ctx.fillStyle = rgba(PALETTE.shadow, 0.16);
+    roundRect(ctx, x - 6, y + 12, w, h, 10);
+    ctx.fill();
+  }
   ctx.fillStyle = roomFill(tone);
-  roundRect(ctx, x, y, w, h, 3);
+  roundRect(ctx, x, y, w, h, heroMaterial ? 10 : 3);
   ctx.fill();
+  if (heroMaterial) {
+    ctx.strokeStyle = rgba(PALETTE.ink, 0.45);
+    ctx.lineWidth = 2.5;
+    roundRect(ctx, x, y, w, h, 10);
+    ctx.stroke();
+  }
   // the gold rule rides goldInk on the deep field (goldDisplay washes on it)
   ctx.fillStyle = tone === 'gold' ? PALETTE.goldInk : PALETTE.gold;
   if (grow > 0) roundRect(ctx, ruleX, ruleY, Math.max(2, ruleW * grow), ruleH, ruleH / 2);
@@ -653,13 +674,36 @@ export function scenePlate(
   // PHASE-2 (report §11 Phase 2): the chapter wash routes through the VIVID
   // accent tones — each room tone leans on its accent's hue at a fixed 17%
   // so the room reads as teal / coral / gold, never grey-sage.
-  const soft = mixHex(
+  let soft = mixHex(
     softBase,
     tone === 'down' ? PALETTE.down
     : tone === 'gold' ? PALETTE.gold
     : PALETTE.up,
     0.17
   );
+  // B15 (MINT MONOTONY): the plate IS the mint field — the per-chapter hue
+  // drift must ride HERE or the up/neutral rooms all plate as one flat
+  // sage. The same journey paintBg's wash rides: warm mint (ch1) -> true
+  // mint (ch2) -> celadon (ch5) -> seafoam-gray (ch6) -> sage-gold (ch8).
+  // Subtle by design (the plate is the whole frame): 8-14% second-tone mix.
+  {
+    // B15 (the tint map is EMPIRICAL — traced per frame: the mint plates
+    // ride chapters 1 charts, 4 data, 5 debt, 6 odds, 7 the close, 0 the
+    // open; each drifts its own hue off the flat sage):
+    // (register pass: at the plate's 0.30 multiply the first mixes probed
+    // 1-3 RGB points — invisible. The drifts now ride 22-34% so the rooms
+    // separate side-by-side the way the gold/coral rooms do.)
+    const tint: Record<number, [string, number]> = {
+      0: [PALETTE.gold, 0.28],
+      1: [PALETTE.up, 0],
+      4: [PALETTE.down, 0.22],
+      5: [PALETTE.down, 0.34],
+      6: [PALETTE.gold, 0.26],
+      7: [PALETTE.gold, 0.30],
+    };
+    const t2 = tone === 'up' || tone === 'neutral' ? tint[washChapter] : undefined;
+    if (t2 && t2[1] > 0) soft = mixHex(soft, t2[0], t2[1]);
+  }
   ctx.save();
   // 100-JUDGE PANEL REPORT (fix C1 — THE MULTIPLY REGISTER): three rounds
   // of "deepen bgTop" failed because alpha-over of pale colors converges
@@ -689,10 +733,28 @@ export function scenePlate(
   // still binds); gold rooms already clear the bar on their own plate
   // (0.130-0.142) and take only a unifying whisper.
   const vividUp = mixHex(PALETTE.upVivid, PALETTE.upSoft, 0.25);
+  // B15 (MINT MONOTONY): the vivid wash IS the mint room's color — the
+  // per-chapter hue drift rides HERE, on a direct source-over layer (the
+  // multiply plate caps any tint to ~3 RGB points): warm mint (the open),
+  // true mint (the charts reference), celadon (data), seafoam-gray (debt),
+  // sage-gold (odds + the close). Measured 8-18 points on the room field —
+  // the mint rooms now separate side-by-side the way the gold/coral ones
+  // always did. Same luminance band (the mixes stay inside upSoft's
+  // register), same wash alpha.
+  const mintTint: Record<number, [string, number]> = {
+    0: [PALETTE.gold, 0.30],
+    1: [PALETTE.up, 0],
+    4: [PALETTE.down, 0.22],
+    5: [PALETTE.down, 0.32],
+    6: [PALETTE.gold, 0.28],
+    7: [PALETTE.gold, 0.30],
+  };
+  const mt = tone === 'up' || tone === 'neutral' ? mintTint[washChapter] : undefined;
+  const vividBase = mt && mt[1] > 0 ? mixHex(vividUp, mt[0], mt[1]) : vividUp;
   const vividWash =
     tone === 'down' ? rgba(PALETTE.down, 0.16 * (strength / 0.95))
     : tone === 'gold' ? rgba(PALETTE.gold, 0.10 * (strength / 0.95))
-    : rgba(vividUp, 0.34 * (strength / 0.95));
+    : rgba(vividBase, 0.34 * (strength / 0.95));
   ctx.fillStyle = vividWash;
   ctx.fillRect(0, 0, W, H);
   // BLUEPRINT Phase 4 (report §11): the FLOOR BAND — a soft gradient ramp
@@ -1116,6 +1178,12 @@ let roomFamily: string | null = null;
 export function setRoomFamily(f: string | null): void { roomFamily = f; }
 export function getRoomFamily(): string | null { return roomFamily; }
 
+/** B15 (MINT MONOTONY): the chapter whose wash paintBg tints this frame.
+ *  The director sets it beside chapterTone; scenes calling paintBg
+ *  themselves inherit it. -1 = untinted (the pre-audit behaviour). */
+let washChapter = -1;
+export function setWashChapter(i: number): void { washChapter = i; }
+
 /** PHASE 4: the chapter index -> its room-architecture family. The film's
  *  nine chapters map to eight families; close/end keep the clean stage
  *  (their frames are full-bleed compositions that own the wall already). */
@@ -1156,11 +1224,30 @@ export function paintBg(
   // ≈80px on chartJourney's extra drift); the wash geometry is unchanged.
   ctx.fillRect(-96, -96, W + 192, H + 192);
   const pulse = 0.5 + 0.5 * Math.sin(t / 6000);
-  const wash =
+  let wash =
     chapterTone === 'up' ? PALETTE.up
     : chapterTone === 'down' ? PALETTE.down
     : chapterTone === 'gold' ? PALETTE.gold
     : PALETTE.up;
+  // B15 RE-SPEC (Visual Quality Audit — MINT MONOTONY): the up/neutral
+  // family owns five of nine chapters at ONE flat sage — "the film's
+  // flattest look is where the film lives". Each mint chapter's wash now
+  // drifts its own hue (warm mint -> true mint -> celadon -> seafoam ->
+  // sage-gold) by mixing a second tone into the wash — every chapter's
+  // room reads distinct while staying inside the light register. The
+  // director declares the chapter per frame (setWashChapter).
+  {
+    const tint: Record<number, [string, number]> = {
+      0: [PALETTE.gold, 0.40],  // the open — warm mint
+      1: [PALETTE.up, 0],       // the charts chapter — true mint (reference)
+      4: [PALETTE.down, 0.30],  // data — celadon
+      5: [PALETTE.down, 0.44],  // debt — seafoam-gray
+      6: [PALETTE.gold, 0.36],  // odds — sage-gold
+      7: [PALETTE.gold, 0.40],  // the close — warm mint
+    };
+    const t2 = tint[washChapter];
+    if (t2 && t2[1] > 0) wash = mixHex(wash, t2[0], t2[1]);
+  }
   // v8.1 recheck: the first pass shipped 2.8–3.2% and corner probes moved
   // only 1–2/255 — imperceptible, graded NOT_FIXED. v8.1 raised it to
   // ~5% (graded PARTIAL — 'rotation exists but subtle'); v8.2 goes to
@@ -1202,6 +1289,17 @@ export function paintBg(
           : 0.215;
   glowBlob(ctx, W * 0.82, H * 0.16 + driftY(t), W * 0.5, wash, strength + 0.012 * pulse);
   glowBlob(ctx, W * 0.1, H * 0.9, W * 0.42, wash, strength * 0.73 + 0.010 * (1 - pulse));
+  // B15 (MINT MONOTONY — THE KEY LIGHT): the room gains light DIRECTION —
+  // one soft warm gradient from the upper-left (the same key the figure's
+  // one-light shadow already answers), fading out by mid-frame. A uniform
+  // wash lit from nowhere; a keyed room reads as a place.
+  {
+    const key = ctx.createLinearGradient(0, 0, W * 0.55, H * 0.8);
+    key.addColorStop(0, rgba(PALETTE.gold, 0.085));
+    key.addColorStop(1, rgba(PALETTE.gold, 0));
+    ctx.fillStyle = key;
+    ctx.fillRect(-96, -96, W + 192, H + 192);
+  }
   // PHASE 4 (FEED THUMB-STOP): the stage world — the flat field becomes
   // THE DATA DESK (floor plane + architecture band + desk edge). Painted
   // here so every family inherits it; the family comes from the frame

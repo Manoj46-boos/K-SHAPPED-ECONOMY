@@ -39,8 +39,19 @@ export function walkStrike(phase: number): number {
   // 3-frame hold = 0.15 phase at FULL compression, then a squared release
   // over the next ~1.5 frames. The squash now visibly LANDS and dwells —
   // the old 0.09 squared spike sampled its peak for at most one frame.
-  const w = 0.24, dwell = 0.15;
-  if (near >= w) return 0;
+  // B12 RE-SPEC (Visual Quality Audit — SQUASH PRESENT IN CODE, ABSENT ON
+  // SCREEN): the 72ms full-compression dwell sampled under the audit's
+  // 300ms-apart strip — the squash lived between samples. The dwell
+  // widens to 0.22 phase (~105ms, 3+ frames) and the release gains the
+  // FOLLOW-THROUGH: a small NEGATIVE excursion (a stretch overshoot the
+  // renderer maps to +11% height) before settling to zero — the body
+  // winds up, lands with weight, settles with follow-through. The
+  // classical read, on the body, at any sampling interval.
+  const w = 0.30, dwell = 0.22;
+  if (near >= w) {
+    const o = (near - w) / (1 - w);
+    return o < 0.30 ? -Math.sin((o / 0.30) * Math.PI) * 0.55 : 0;
+  }
   if (near <= dwell) return 1;
   return Math.pow(1 - (near - dwell) / (w - dwell), 2);
 }

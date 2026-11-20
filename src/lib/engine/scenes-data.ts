@@ -3020,8 +3020,13 @@ export function statCardsScene(g: SceneCtx): void {
     card(ctx, hx0, hy0, hw, hh, { r: 34, tint: tone.main });
   } else if (valuePlane === 'room') {
     // the chapter card's own material at hero scale — full tone field, flat
+    // B16 (Visual Quality Audit — THE BROKEN SLAB): the hero material opts
+    // give the room register the card craft (one-light shadow, ink hairline
+    // edge, 10px corner) — the $4.42T money-shot stops reading as a
+    // featureless placeholder.
     toneRoom(ctx, hx0, hy0, hw, hh, String(hero.tone || 'gold'), {
       ruleX: hx0 + 72, ruleY: hy0 + 44, ruleW: 96, ruleH: 9, grow: easeOutCubic(heroP0),
+      heroMaterial: true,
     });
   } else {
     // the desk plane — no plate; the ledger rule draws itself above the numeral

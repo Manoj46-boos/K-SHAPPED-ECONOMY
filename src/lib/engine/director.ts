@@ -6,7 +6,7 @@
  */
 
 import { clamp01, easeInQuad, easeInOutSine, easeOutCubic } from './easing';
-import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI, drawRoomRail, getRoomFamily, setRoomFamily } from './theme';
+import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI, drawRoomRail, getRoomFamily, setRoomFamily, setWashChapter } from './theme';
 import { drawGrain, lightVignette, bokehField, scalePunch, camState, guardCamState, kWipe, fgBokeh, dofPass, chapterAccent } from './effects';
 import { drawParticles, emitterKindFor } from './particles';
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
@@ -754,6 +754,8 @@ export function drawFrame(
   }
   // v8: this chapter's ambient tone rides the background wash
   const chapterTone = CHAPTER_TONES[Math.min(beat.chapter, CHAPTER_TONES.length - 1)];
+  // B15 (MINT MONOTONY): the wash tint derives from the chapter.
+  setWashChapter(beat.chapter);
 
   // speaking state + word times (local to beat)
   const wordTimes: number[] = [];
@@ -1197,7 +1199,11 @@ export function drawFrame(
       : 0.25;
     drawGrain(ctx, W, H, grainAlpha, t);
   }
-  lightVignette(ctx, W, H, 0.30);
+  // B15 (MINT MONOTONY): the mint rooms carry the mud complaint — the
+  // vignette's edge ring over the sage wash grey-greened the lower third.
+  // Mint chapters run a lighter edge (0.30 -> 0.22); the gold/coral rooms
+  // keep the full cinematic focus.
+  lightVignette(ctx, W, H, [0, 1, 4, 5, 6, 7].includes(beat.chapter) ? 0.22 : 0.30);
 
   // global fades: from white at start, to white at end
   // P1-8 (report §12.8): the cold-open white fade 600ms → 180ms. The 600ms

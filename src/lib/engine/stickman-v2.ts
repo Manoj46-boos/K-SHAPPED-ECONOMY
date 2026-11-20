@@ -451,10 +451,19 @@ function boilOff(): { dx: number; dy: number } {
   // BLUEPRINT Phase 1 (AMP.boilPx): ±0.85 -> ±2.2 px — the drawn-ink
   // wobble must survive the 6x downscale to the 320px feed; at ±0.85 it
   // was 0.22px there, i.e. a clean vector, i.e. a puppet.
-  return {
-    dx: (hash01(j * 17.31 + phase * 7.7) - 0.5) * amp * 2,
-    dy: (hash01(j * 29.7 + phase * 11.3 + 5) - 0.5) * amp * 2,
-  };
+  // B14 RE-SPEC (Visual Quality Audit — UNIFORM NOISE, NOT HAND-DRAWN
+  // LIFE): the uniform per-joint hash read as render noise — every
+  // endpoint wobbled independently, so strokes shimmered instead of
+  // wobbling. Hand-drawn ink wobbles as a CURVE: the offset now derives
+  // from the STROKE (a limb's two endpoints share one stroke id, 60% of
+  // the amplitude travels together) with a ±25% per-endpoint variation
+  // (curvature change, not noise). Same clock, same caps — coherent ink.
+  const stroke = j >> 1; // a limb's two endpoints share one stroke id
+  const sx = (hash01(stroke * 13.71 + phase * 7.7) - 0.5) * amp * 1.2;
+  const sy = (hash01(stroke * 29.7 + phase * 11.3 + 5) - 0.5) * amp * 1.2;
+  const vx = (hash01(j * 17.31 + phase * 3.1) - 0.5) * amp * 0.5;
+  const vy = (hash01(j * 29.7 + phase * 5.9 + 5) - 0.5) * amp * 0.5;
+  return { dx: sx + vx, dy: sy + vy };
 }
 
 // 100-JUDGE AUDIT (Part 8.3 — HAND-DRAWN LINE TEXTURE). The boil alone is
@@ -469,9 +478,12 @@ function boilOff(): { dx: number; dy: number } {
 // without knowing why. Pure function of (joint, quantized time).
 const LINE_TEX_VARIATIONS = [0.92, 0.96, 1.00, 1.04, 1.08, 0.98];
 function lineTexScale(jointIdx: number): number {
+  // B14: the width texture keys on the STROKE (jointIdx >> 1) so a whole
+  // stroke draws heavier/lighter together — the hand-drawn read the
+  // per-endpoint cycle could not produce.
   if (boilT < 0) return 1;
   const phase = Math.floor(boilT / BOIL_MS);
-  const idx = (jointIdx * 7 + phase) % LINE_TEX_VARIATIONS.length;
+  const idx = ((jointIdx >> 1) * 7 + phase) % LINE_TEX_VARIATIONS.length;
   return LINE_TEX_VARIATIONS[(idx + LINE_TEX_VARIATIONS.length) % LINE_TEX_VARIATIONS.length];
 }
 let lineTexJoint = 0;
@@ -1657,6 +1669,10 @@ export function drawStickmanV2(
   // gate instead of dissolving.
   const walkAmp = Math.min(1.4, Math.max(1, 1 + Math.max(0, 1.4 - scale) * 0.75));
   if (squash > 0.001) ctx.scale(1 + 0.15 * squash * walkAmp, 1 - 0.18 * squash * walkAmp);
+  // B12: the follow-through half — negative squash = the stretch
+  // overshoot (the body rebounds past neutral then settles). Same
+  // volume-preserving pair about the ground origin.
+  else if (squash < -0.001) ctx.scale(1 - 0.09 * -squash * walkAmp, 1 + 0.11 * -squash * walkAmp);
   // PANEL ACCEPTANCE (audit FIX 6 — STRETCH ON LAUNCH): the missing half of
   // the pair. Volume-preserving elongation about the same ground origin:
   // height +6%, width −5% at full stretch — two frames of reach on every
@@ -2670,7 +2686,9 @@ export function drawStickmanV2(
   bbTouch(headCX, headCY, 31 * (r.faceScale ?? 1) + 6); // FP0: the shrunken egg + crest
   // AUDIT-ROUND-2 (fix 14): nod pulse 4 → 7px — the word-accent nod
   // survives the 320px gate.
-  const nod = (r.nod ?? 0) * 7;
+  // B13: the word-accent nod rides 11px (was 7) — the head ANSWERS the
+  // accent at feed scale instead of whispering it.
+  const nod = (r.nod ?? 0) * 11;
   // P1-1 (report): face scale for close staging — applied around the head
   // centre so the neck attachment point stays put; only the face grows.
   // 100-JUDGE PANEL / Phase 1 item 2 — HEAD CARICATURE, NOT FLOORS
@@ -2802,17 +2820,26 @@ export function drawStickmanV2(
   // (divide the target by the accumulated scale inside the transform).
   ctx.lineWidth = headStroke === 0 ? 0 : 4.5 / (scale * faceS * HEAD_SHRINK);
   // the egg — taller than wide, slightly offset up for chin room
+  // B14 (Visual Quality Audit — INK CONSISTENCY): the head contour was a
+  // clean constant-width vector while every limb boiled and varied width —
+  // two ink systems on one character ("not internally consistent about
+  // what is hand-drawn"). The skull's fill AND contour now ride the same
+  // per-stroke boil offset and the stroke-width texture the body draws
+  // with: the head wobbles like the drawn body it sits on.
+  const hb = boilOff();
+  const headTex = headStroke > 0 ? lineTexNext() : 1;
   ctx.beginPath();
-  ctx.ellipse(0, -1, 35, 42, 0, 0, Math.PI * 2);
+  ctx.ellipse(hb.dx, -1 + hb.dy, 35, 42, 0, 0, Math.PI * 2);
   ctx.fill();
   // the chin — a subtle jaw extension below the ellipse
   ctx.beginPath();
-  ctx.moveTo(-9, 37);
-  ctx.quadraticCurveTo(0, 46, 9, 37);
+  ctx.moveTo(-9 + hb.dx, 37 + hb.dy);
+  ctx.quadraticCurveTo(hb.dx, 46 + hb.dy, 9 + hb.dx, 37 + hb.dy);
   ctx.fill();
   if (headStroke > 0) {
+    ctx.lineWidth = 4.5 / (scale * faceS * HEAD_SHRINK) * headTex;
     ctx.beginPath();
-    ctx.ellipse(0, -1, 35, 42, 0, 0, Math.PI * 2);
+    ctx.ellipse(hb.dx, -1 + hb.dy, 35, 42, 0, 0, Math.PI * 2);
     ctx.stroke();
   }
   // P1 (SIGNATURE IDENTITY) — THE HAIR CREST: one triangular tuft breaking

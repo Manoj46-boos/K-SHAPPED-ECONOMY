@@ -114,9 +114,13 @@ export const POSES: Record<string, Pose> = {
   // head committing toward the content side. The figure now rests like
   // a person waits, not like a puppet hangs.
   idle: { ...base(), lean: 5, pelvisTilt: 11, shoulderTilt: -6, headTilt: -2, lLU: -6, lLL: -1, rLU: 16, rLL: 10, lAU: -16, lAL: -34, rAU: 12, rAL: 40 },
-  talkA: { ...base(), lAU: -14, lAL: -10, rAU: 26, rAL: 34, smile: 0.3, lean: 2, lLU: -7, rLU: 9, rLL: 5 },
-  talkB: { ...base(), rAU: 30, rAL: 66, lAU: -10, lAL: -8, smile: 0.25, lean: -1.5, lLU: -8, lLL: 4, rLU: 6 },
-  talkC: { ...base(), lAU: -20, lAL: -28, rAU: 54, rAL: 70, smile: 0.3, lean: 3, lLU: -8, rLU: 9, rLL: 6 },
+  // B13 (Visual Quality Audit — THE CAMERA DOES ALL THE ACTING): the
+  // sentence-spring poses are the body's own voice — their gesture
+  // register rises ~28% so the BODY carries the energy the camera
+  // systems were spending (the arms read at feed scale now).
+  talkA: { ...base(), lAU: -18, lAL: -14, rAU: 34, rAL: 46, smile: 0.3, lean: 3, lLU: -7, rLU: 9, rLL: 5 },
+  talkB: { ...base(), rAU: 39, rAL: 84, lAU: -13, lAL: -10, smile: 0.25, lean: -2, lLU: -8, lLL: 4, rLU: 6 },
+  talkC: { ...base(), lAU: -26, lAL: -36, rAU: 69, rAL: 90, smile: 0.3, lean: 4, lLU: -8, rLU: 9, rLL: 6 },
   // PHASE-1 (100-judge report §11 Phase 1): pointR/pointL raise the dedicated
   // POINT glyph — the mitten with one extended index finger; present presents
   // with the plain mitten (the splay-fan palm is retired).
@@ -695,10 +699,15 @@ export class Stickman {
                      toe: number; root: number; lean: number; chin: number }
     const WK: WKey[] = [
       // PUSH / toe-off — the trailing leg extends, body drives forward
-      { at: 0.00, lu: -24, ll: -30, lift: 2,  toe: 22,  root: 0,  lean: 5,  chin: 1 },
+      // B11: the push toe 22 -> 12 — the pointed-toe kick read as a
+      // goose-step; 12 keeps the roll-through without the ballet foot.
+      { at: 0.00, lu: -24, ll: -30, lift: 2,  toe: 12,  root: 0,  lean: 5,  chin: 1 },
       // knee-high swing — the caricatured pass of the SWING leg
       // (AUDIT-ROUND-3 iter-2: -46 → -50, the knee drives harder)
-      { at: 0.10, lu: -6,  ll: -50, lift: 15, toe: -8,  root: -2, lean: 4,  chin: 0 },
+      // B11: the knee drives -44 (was -50) and the ankle flexes toe-UP
+      // (-16) — the swing leg leads with the HEEL like a walked step, not
+      // the pointed-toe kick the audit named the goose-step.
+      { at: 0.10, lu: -6,  ll: -44, lift: 15, toe: -16, root: -2, lean: 4,  chin: 0 },
       // mid-swing — the thigh sweeps forward, the foot clears the ground
       { at: 0.25, lu: 12,  ll: -30, lift: 17, toe: -10, root: -3, lean: 3,  chin: 0 },
       // REACH — the leg extends, the heel presents ahead
@@ -763,7 +772,12 @@ export class Stickman {
     // elbow FLEXION is driven by the swing phase — the forward-swing arm
     // folds harder the faster the leg drives (lift-proportional), so the
     // arms visibly answer the gait instead of hanging.
-    const armAmp = 1.42;
+    // B11 RE-SPEC (Visual Quality Audit — THE WALK'S ARMS DO NOT SWING):
+    // the ±38° register computed here still read as "hanging straight
+    // down or slightly out" at the rendered rig — the swing amplitude
+    // rises to ±47° (armAmp 1.42 -> 1.7 on the ±27° leg extremes) so the
+    // fists pass the hip line and the swing reads at 1080p.
+    const armAmp = 1.7;
     const lAUw = -lLU * armAmp - 7;
     const rAUw = -rLU * armAmp + 7;
     const swingL = liftL / (17 * Math.max(0.3, S) || 1); // 0..1 within the stride
@@ -775,9 +789,14 @@ export class Stickman {
       headTilt: sL.chin,
       lLU, lLL, rLU, rLL,
       lAU: lAUw,
-      lAL: lAUw + Math.max(0, lAUw) * (0.75 + 0.35 * swingL) - 4,
+      // B11: the elbow FOLDS on BOTH arms now — the forward arm folds
+      // hard (the elbow leads the swing, flexion grows with forwardness),
+      // the back arm keeps a drawn ~14° bend instead of snapping straight
+      // (the old Math.max(0, lAUw) gate left the trailing arm a straight
+      // stick — the audit's "the elbows never bend").
+      lAL: lAUw + 14 + 30 * clamp01(lAUw / 40) * (0.7 + 0.3 * swingL) - 4,
       rAU: rAUw,
-      rAL: rAUw + Math.max(0, rAUw) * (0.75 + 0.35 * swingR) + 4,
+      rAL: rAUw + 14 + 30 * clamp01(rAUw / 40) * (0.7 + 0.3 * swingR) + 4,
       smile: 0.35,
       browRaise: 0.1,
       lLift: liftL,
@@ -1287,12 +1306,20 @@ export function riseIn(t: number, dur = 600): number {
  * The settle covers 20% of the strike's return travel — the audit's "20%
  * velocity-tapered settle added to each strike". Pure f(dt), scrub-safe.
  */
-export const ACCENT_WINDOW_MS = 360;
+export const ACCENT_WINDOW_MS = 440;
 
 export function accentEnv(dt: number): number {
   if (dt < 0 || dt > ACCENT_WINDOW_MS) return 0;
-  if (dt < 90) return Math.sin((dt / 90) * Math.PI * 0.5); // the strike
-  const p = (dt - 90) / 270; // the return, 0..1 over 270ms
+  // B12/B13 RE-SPEC (Visual Quality Audit — SQUASH, STRETCH,
+  // ANTICIPATION; THE CAMERA DOES ALL THE ACTING): the classical read —
+  // the body WINDS UP, lands, settles — starts with an ANTICIPATION
+  // phase: the first 80ms pull the accent arm BACK (-0.4 register)
+  // before the strike. The negative return reads as the wind-up in
+  // every consumer that adds the envelope to an angle; the strike
+  // lands at 80-170ms, then the recoil settles as before.
+  if (dt < 80) return -0.4 * Math.sin((dt / 80) * Math.PI * 0.5); // the wind-up
+  if (dt < 170) return Math.sin(((dt - 80) / 90) * Math.PI * 0.5); // the strike
+  const p = (dt - 170) / 270; // the return, 0..1 over 270ms
   const travel =
     p < 0.8
       ? 0.8 * (1 - Math.pow(1 - p / 0.8, 2)) // the recoil: decelerating into the settle point
