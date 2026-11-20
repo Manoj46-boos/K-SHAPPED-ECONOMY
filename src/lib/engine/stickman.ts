@@ -616,6 +616,14 @@ export class Stickman {
       pose = POSES.pointL;
     } else if (opts.speaking && gesture === 'think') {
       pose = POSES.think;
+    } else if (!opts.speaking) {
+      // P1 U6 (KILL THE MANNEQUIN DEFAULT): between sentences the figure
+      // settles into the ASYMMETRIC idle stance — weight leg, bent near
+      // elbow, committing head — instead of holding the beat's gesture
+      // pose forever. The pose keys existed; the blend path above never
+      // reached them. The blend block above smooths the transition, so
+      // the settle reads as a pose change, not a snap.
+      pose = POSES.idle;
     } else {
       pose = POSES[gesture] ?? POSES.idle;
     }

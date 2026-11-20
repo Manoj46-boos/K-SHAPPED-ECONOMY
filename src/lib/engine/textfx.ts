@@ -1,3 +1,4 @@
+import { chapterAccent } from './effects';
 /**
  * On-screen text system: karaoke captions synced to word timings,
  * chapter transition cards, corner watermark, thin gold progress bar.
@@ -383,6 +384,40 @@ export function drawChapterCard(
   // ~0.18H: top anchor done.
   ctx.fillText(String(index).padStart(2, '0'), W / 2, H * 0.30);
   ctx.restore();
+  // PHONE-GATE (the 27% empty band, frame 20): the card's BOTTOM zone
+  // carried no committed ink after the B19 atmosphere cut. The chapter's
+  // own complement accent (the designed per-chapter object — gold K,
+  // coral gauge, teal bars) lands in that band at its declared register:
+  // brand ink, not atmosphere, breaking the loading-screen read.
+  chapterAccent(ctx, W, H, t, tone);
+  // PHONE-GATE (the 27% empty band, frame 20): the card's bottom zone
+  // carried no full-width committed ink after the B19 atmosphere cut.
+  // The fix is data-true, not decoration: the CHAPTER MAP — the film's
+  // four chapter numerals spanning the width, the current one in the
+  // numeral gold, the rest in faint ink, hairline rules between. The
+  // card tells the viewer WHERE they are in the film, and the band
+  // carries committed mass at the feed.
+  {
+    const total = 4; // the film's chapter count (the card's own structure)
+    const mapY = H * 0.76;
+    setFont(ctx, 44, 700, FONT_DISPLAY);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    for (let i = 1; i <= total; i++) {
+      const mx = W * (0.5 + (i - (total + 1) / 2) * 0.16);
+      const cur = i === index;
+      ctx.fillStyle = cur ? PALETTE.goldNumeral : rgba(PALETTE.ink, 0.28);
+      ctx.fillText(String(i).padStart(2, '0'), mx, mapY);
+      if (i < total) {
+        ctx.strokeStyle = rgba(PALETTE.ink, 0.16);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(mx + 52, mapY - 14);
+        ctx.lineTo(mx + W * 0.16 - 52, mapY - 14);
+        ctx.stroke();
+      }
+    }
+  }
   // gold rule grows
   // PHASE-0 round 2: rule drops from H/2-120 (0.39H) to 0.44H — under the
   // relocated ghost numeral's baseline, closing the numeral→CHAPTER gap.

@@ -891,7 +891,11 @@ export function chartJourneyScene(g: SceneCtx): void {
     }
     // B5/B7 RE-SPEC: the walker runs the readable cast tier (1.2) — same
     // body language, same face language, readable hands — one cast.
-    drawStickmanV2(ctx, hxJ, floorY, 1.2, t, {
+    // P1 U5 (ONE CAST LANGUAGE): the walker joins the 1.25 cast tier —
+    // the audit's floor for a character that acts (contact verbs, the
+    // pointing solve). 1.2 sat under the spec; the crown still clears the
+    // title band (floorY - 301 at this floor, ~37px of air).
+    drawStickmanV2(ctx, hxJ, floorY, 1.25, t, {
       pose: poseJ,
       alpha: 0.85 + 0.15 * clamp01(g.sceneT / 180),
       look: -0.3, scarf: true, satchel: resolveProp(g.beat.scene.type, 'satchel', true), hostBody: true,

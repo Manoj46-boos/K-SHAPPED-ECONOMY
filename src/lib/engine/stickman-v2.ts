@@ -767,8 +767,13 @@ export function handGlyph(
   // PHASE-1 VISUAL AUDIT (report Phase 1 — Hands): 'grip' joins as the
   // canonical closed-contact glyph name ('fist' survives as its alias) —
   // the poses say grip because the hand GRIPS an object.
+  // P1 U2 (HANDS THAT CAN ACT — the hold-card read): the grip mapped
+  // straight to the FIST — zero fingers on every held-card/coin-stack
+  // frame, exactly the blob the audit convicts. At rig ≥ 1.4 the grip
+  // now renders the OPEN four-finger hand (the fingers wrap the held
+  // edge); below, the fist mass holds (the feed twin).
   if (mode === 'grip') {
-    mode = 'fist';
+    mode = rigScale >= 1.4 ? 'open' : 'fist';
   }
   // 100-JUDGE VISUAL AUDIT (Phase 1 — HANDS TO FIVE GLYPHS): the hero-tier
   // swap. At rig ≥ 2 (the editorial and reaction stagings — the frames the
@@ -814,8 +819,10 @@ export function handGlyph(
     // below rig 1.25 the plain mass silhouette holds (feed).
     roundRect(ctx, -s * 0.42, -s * 0.34, s * 0.56, s * 0.7, s * 0.26);
     if (rigScale >= 1.25) {
+      // P1 U2: the knuckle breaks floor into the audit's readable band —
+      // the old s*0.13 bars were 2.3px at rig 1.5 (invisible: the mitt).
       for (const fy of [-0.32, -0.115, 0.09, 0.295]) {
-        rrSub(ctx, s * 0.05, fy * s, s * 0.46, s * 0.13, s * 0.055);
+        rrSub(ctx, s * 0.05, fy * s, s * 0.46, Math.max(s * 0.13, 5), s * 0.055);
       }
     }
     ctx.restore();
@@ -862,12 +869,19 @@ export function handGlyph(
     // B2 RE-SPEC (Visual Quality Audit §3.1): the fingertip floor rises to
     // 14px — the finger must terminate as a readable tip on every contact
     // rig, not as the last visible pixel.
-    const tipW = Math.max(s * 0.16, 14 / Math.max(0.5, rigScale));
+    // P1 U2 (HANDS THAT CAN ACT): the finger floored at 14 SCREEN px flat
+    // — the audit's number, not 14/rigScale (which gave 9.3px at rig 1.5:
+    // an invisible finger on every working rig). The taper widens WITH the
+    // floor so the finger reads as a taper, not a trumpet: the whole
+    // distal/proximal chain lifts to keep root ≥ tip.
+    const tipW = Math.max(s * 0.16, 14);
+    const distW = Math.max(s * 0.27, 15.5);
+    const proxW = Math.max(s * 0.36, 17);
     const knX = x + Math.sin(a) * s * 0.80, knY = y + Math.cos(a) * s * 0.80;
     const tiX = x + Math.sin(a) * s * 1.48, tiY = y + Math.cos(a) * s * 1.48;
     taper(ctx, x + Math.sin(a) * s * 0.06, y + Math.cos(a) * s * 0.06,
-      knX, knY, s * 0.36, s * 0.27, col); // proximal phalanx
-    taper(ctx, knX, knY, tiX, tiY, s * 0.27, tipW, col); // distal phalanx
+      knX, knY, proxW, distW, col); // proximal phalanx
+    taper(ctx, knX, knY, tiX, tiY, distW, tipW, col); // distal phalanx
     ctx.fillStyle = col; // the knuckle — the joint the eye reads as a finger
     ctx.beginPath();
     ctx.arc(knX, knY, s * 0.185, 0, Math.PI * 2);
@@ -924,12 +938,20 @@ export function handGlyph(
     // floating finger strokes with a hole where the palm belongs (the
     // detached-ring read at side rigs). The wedge now FILLS in its own
     // transform, before the fingers layer over it.
+    // P1 U2 (Visual Quality Audit §4.1 — HANDS THAT CAN ACT): the palm is
+    // floored at 20 SCREEN px and the fingers clamp to the 5–7px band —
+    // the audit's own numbers. The old math (s*1.04 wide, w0 floored at
+    // 7/rigScale) gave a 18.7px palm and 4.7px fingers at rig 1.5 —
+    // under every floor the audit set, so working hands read as blobs.
+    // The whole glyph lifts to the palm floor so the hand stays
+    // proportionate (lengths ride the same unit).
+    const hs = Math.max(s, 20 / 1.04);
     ctx.save();
-    ctx.translate(x + Math.sin(fa) * s * 0.30, y + Math.cos(fa) * s * 0.30);
+    ctx.translate(x + Math.sin(fa) * hs * 0.30, y + Math.cos(fa) * hs * 0.30);
     ctx.rotate(fa);
     ctx.fillStyle = col;
     ctx.beginPath();
-    roundRect(ctx, -s * 0.52, -s * 0.40, s * 1.04, s * 0.82, s * 0.32);
+    roundRect(ctx, -hs * 0.52, -hs * 0.40, hs * 1.04, hs * 0.82, hs * 0.32);
     ctx.fill();
     ctx.restore();
     // four separated fingers — the count glyph's PROVEN finger path (roots
@@ -940,11 +962,11 @@ export function handGlyph(
     for (let f = 0; f < 4; f++) {
       const off = (f - 1.5) * 0.20 * grip;
       const ffa = fa + off;
-      const bx = x + Math.sin(fa) * s * 0.48 + pxn * off * s * 1.1;
-      const by = y + Math.cos(fa) * s * 0.48 + pyn * off * s * 1.1;
-      const ex = x + Math.sin(ffa) * s * 1.10, ey = y + Math.cos(ffa) * s * 1.10;
+      const bx = x + Math.sin(fa) * hs * 0.48 + pxn * off * hs * 1.1;
+      const by = y + Math.cos(fa) * hs * 0.48 + pyn * off * hs * 1.1;
+      const ex = x + Math.sin(ffa) * hs * 1.10, ey = y + Math.cos(ffa) * hs * 1.10;
       const px2 = Math.sin(ffa + Math.PI / 2), py2 = Math.cos(ffa + Math.PI / 2);
-      const w0 = Math.max(s * 0.19, 7 / Math.max(0.5, rigScale)), w1 = Math.max(s * 0.13, 4.5 / Math.max(0.5, rigScale)), dx2 = Math.sin(ffa), dy2 = Math.cos(ffa);
+      const w0 = Math.min(7, Math.max(hs * 0.19, 5)), w1 = Math.min(4.5, Math.max(hs * 0.13, 3.2)), dx2 = Math.sin(ffa), dy2 = Math.cos(ffa);
       ctx.moveTo(bx - px2 * w0, by - py2 * w0);
       ctx.lineTo(ex - px2 * w1, ey - py2 * w1);
       ctx.quadraticCurveTo(ex + dx2 * w1 * 0.9, ey + dy2 * w1 * 0.9, ex + px2 * w1, ey + py2 * w1);
@@ -954,9 +976,9 @@ export function handGlyph(
     ctx.fillStyle = col;
     ctx.fill();
     // the thumb lobe — the mitten's own grammar, one bump on the wrist side
-    taper(ctx, x + Math.sin(fa) * s * 0.14, y + Math.cos(fa) * s * 0.14,
-      x + Math.sin(fa + 1.1) * s * 0.72, y + Math.cos(fa + 1.1) * s * 0.72,
-      s * 0.26, s * 0.14, col);
+    taper(ctx, x + Math.sin(fa) * hs * 0.14, y + Math.cos(fa) * hs * 0.14,
+      x + Math.sin(fa + 1.1) * hs * 0.72, y + Math.cos(fa + 1.1) * hs * 0.72,
+      hs * 0.26, hs * 0.14, col);
     return;
   }
   // ── THE PINCH  // ── THE PINCH — "let me show you exactly this" ──
@@ -1960,21 +1982,16 @@ export function drawStickmanV2(
     const wave0 =
       Math.sin(t / 700 + seed) * 10 * (r.walkPhase !== undefined ? 3.2 : 1) * (1 + talkEnv0 * 1.4) +
       Math.sin(t / 240 + seed * 2) * 3.2 * talkEnv0;
-    if (scale >= 1.2) {
+    // P1 U3 (RETIRE THE STRAP READ): at side rigs the tail is noise —
+    // the audit draws ONLY THE KNOT below the hero band. The gate rises
+    // 1.2 → 1.7: the flick exists at the hero/presenting registers where
+    // its 3.2px tip survives; below, the knot + collar break carry the
+    // brand (the knot draws at all scales — see the gold knot block).
+    if (scale >= 1.7) {
       scarfTail(ctx, neckX - 3, neckY + 12, wave0 * 0.5, PALETTE.gold, '#A8851B',
         t, seed, r.walkPhase !== undefined ? 3.2 : 1, 1 + talkEnv0 * 1.4);
-    } else {
-      // 100-JUDGE PANEL REPORT (fix A5 — THE VANISHING BRAND CUE): the
-      // scarf tail drew only at rig ≥ 1.2 — exactly where most background
-      // figures appear, so the host's one signature accessory (P0-2's
-      // chosen-one brand) vanished at side-host scale. A simplified
-      // two-stroke scarf below the gate: a short tail flick + a knot
-      // nub, 0.6× scale — the brand stays ON the character at every
-      // distance (the knot itself is drawn later at all scales; this
-      // restores the trailing cloth).
-      // B3 RE-SPEC: the sub-gate flick shortens to match the new ribbon.
-      taper(ctx, neckX - 3, neckY + 12, neckX - 10 - wave0 * 0.3, neckY + 15 + wave0 * 0.22, 5, 2, PALETTE.gold);
     }
+    // (no sub-gate stroke: knot-only below 1.7, per the audit)
   }
   {
     const tx0 = 0, ty0 = pelvisY + 4, tx1 = neckX, ty1 = neckY;
@@ -2787,7 +2804,12 @@ export function drawStickmanV2(
   // drops onto the neck (offset 29.7 -> 24 body units). Feature floors are
   // screen-space, so the face fill GROWS back to the premium band inside the
   // smaller skull automatically. Target: head <= 26% of drawn height.
-  const HEAD_SHRINK = 0.67;
+  // P1 U4 (THUMBNAIL-FACE PARITY — THE BIGGER IVORY EGG): the FP0 shrink
+  // (0.67) undershot the thumbnail's head mass — the audit's parity check
+  // wants the film's close-up to read as the head the viewer clicked. The
+  // egg grows +6% (0.67 → 0.71); the thicker contour (headStroke 14) and
+  // the larger glasses wire land with it.
+  const HEAD_SHRINK = 0.71;
   ctx.scale(faceS * HEAD_SHRINK * (1 - 0.12 * yawMag) * (1 + jawOpen * 0.04), faceS * HEAD_SHRINK * (1 - jawOpen * 0.04));
   // Panel round 2: the head outline yaws ±14° about the neck; the FACE
   // rotates an additional fraction of the same term about the head's own
@@ -3230,11 +3252,12 @@ export function drawStickmanV2(
   // convicted — the host is now THE character with the glasses, everywhere.
   if (ivory) {
     ctx.strokeStyle = rgba(ink, 0.9);
-    // FP0 (Verdict P0 — GLASSES AS SECONDARY ACCENT): the wire thins
-    // (screen floor 3.4 -> 2.6px) and rides at 0.9 alpha so the BROWS own
-    // the face's upper band. The rims still carry their ink into the
-    // face-ink gate — they are the brand, not the mask.
-    ctx.lineWidth = Math.max(1.0, featureFloor(2.6));
+    // P1 U4 (THUMBNAIL-FACE PARITY — THE LARGER GLASSES WIRE): the FP0
+    // 2.6px wire vanished against the thumbnail's bold rims — the parity
+    // check reads the two faces as different characters. The wire floor
+    // returns to 3.4px (the brows still own the upper band; the rim is
+    // the brand's second voice).
+    ctx.lineWidth = Math.max(1.0, featureFloor(3.4));
     ctx.lineCap = 'round';
     const gR = lensR;
     ctx.beginPath();
