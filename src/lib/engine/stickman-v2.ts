@@ -80,7 +80,7 @@ const BODY_MASS = '#7A5D10';
  * can name in three seconds, riding the existing one-light ink language.
  * trouser stays the ink register (#2A3432 family) the limbs already draw.
  */
-const OUTFIT = { tee: '#5A4A17', vest: '#C9A227', trouser: '#2A3432' } as const;
+const OUTFIT = { tee: '#5A4A17', vest: '#D9B224', trouser: '#2A3432' } as const;
 /** AUDIT-ROUND-3 iter-2 (ONE INK, ALL FOUR LIMBS): the gold near-arm
  *  sleeve (ARM_MASS) read to the re-review panel as "the near limb
  *  darker/warmer in tone than the far — the mismatched limb shading
@@ -425,6 +425,14 @@ function boilReset(t: number, fast = false, rigScale = 1): void {
 }
 function boilOff(): { dx: number; dy: number } {
   if (boilT < 0) return { dx: 0, dy: 0 };
+  // P1 (Verdict report — THE PER-RIG BOIL TABLE): the report offers two
+  // branches — floor the wobble at 1.5px on the 320 twin, or drop the boil
+  // below rig 1.5 entirely. The floor branch is geometrically impossible
+  // under the ±4px screen cap (4px at 1080p downscales to 0.67px at the
+  // feed — no legal amplitude reaches 1.5px there), so the table takes the
+  // report's alternative: rigs under 1.5 draw CLEAN vectors (half a texture
+  // reads worse than none), rigs at 1.5+ keep the capped alive-ink wobble.
+  if (boilRigScale < 1.5) return { dx: 0, dy: 0 };
   // P2-6: quiet = on-threes (3 phases, full amplitude); fast = on-twos
   // (2 phases), half amplitude.
   const mod = boilFast ? 2 : 3;
@@ -708,6 +716,14 @@ export function handGlyph(
                                  // 0.84..1.16 — finger splay breathes on a slow clock
 ): void {
   const a = forearmAngle * D2R;
+  // FP0 (Verdict P0 — SCREEN-SPACE HAND FLOORS): hands were sized in fixed
+  // local units, so at side-host rigs the palm was ~11px and the index tip
+  // dissolved to a nub — the film's entire contact vocabulary was invisible
+  // at exactly the scales where contact verbs fire. The glyph unit now
+  // clamps to a screen-space palm floor (>= 12px at 1080p), and the point
+  // glyph's fingertip carries its own floor below (>= 12px at 1080p = 2px
+  // at the 320 twin for contact verbs).
+  s = Math.max(s, 13 / Math.max(0.5, rigScale));
   // P1-2 (100-judge audit, Table 3 — HANDS): the FIST + COUNT glyphs.
   // "Featureless mitts in every pose" / "a withered claw" — and the
   // count poses had nothing to count WITH. The fist: a rounded mass + a
@@ -808,11 +824,22 @@ export function handGlyph(
   // mitten mass + thumb lobe carry the hand's volume behind it. The read
   // is touch + direction; the splayed claw is retired.
   if (mode === 'point') {
-    // the index finger — ONE tapered extension of the arm's axis, root
-    // buried at 0.06s (inside the mass), tip reaching 1.38s
+    // FP0 (Verdict P0 — A TRUE TAPERED FINGER): the old single taper ended
+    // in a s*0.15 nub that dissolved at every contact rig — the point read
+    // as an arm aimed at the data, never a hand touching it. The index is
+    // now TWO segments with a visible knuckle: proximal (root -> knuckle)
+    // and distal (knuckle -> tip), the tip width floored in SCREEN space
+    // (12px at 1080p = 2px at the 320 twin — the verdict's contact floor).
+    const tipW = Math.max(s * 0.16, 12 / Math.max(0.5, rigScale));
+    const knX = x + Math.sin(a) * s * 0.80, knY = y + Math.cos(a) * s * 0.80;
+    const tiX = x + Math.sin(a) * s * 1.48, tiY = y + Math.cos(a) * s * 1.48;
     taper(ctx, x + Math.sin(a) * s * 0.06, y + Math.cos(a) * s * 0.06,
-      x + Math.sin(a) * s * 1.38, y + Math.cos(a) * s * 1.38,
-      s * 0.34, s * 0.15, col);
+      knX, knY, s * 0.36, s * 0.27, col); // proximal phalanx
+    taper(ctx, knX, knY, tiX, tiY, s * 0.27, tipW, col); // distal phalanx
+    ctx.fillStyle = col; // the knuckle — the joint the eye reads as a finger
+    ctx.beginPath();
+    ctx.arc(knX, knY, s * 0.185, 0, Math.PI * 2);
+    ctx.fill();
     // the palm mass — stops at the index root; the folded pair leave it
     // as SEPARATE bars with real gaps (the pre-inked finger breaks)
     ctx.save();
@@ -877,7 +904,7 @@ export function handGlyph(
       const by = y + Math.cos(fa) * s * 0.48 + pyn * off * s * 1.1;
       const ex = x + Math.sin(ffa) * s * 1.10, ey = y + Math.cos(ffa) * s * 1.10;
       const px2 = Math.sin(ffa + Math.PI / 2), py2 = Math.cos(ffa + Math.PI / 2);
-      const w0 = s * 0.19, w1 = s * 0.13, dx2 = Math.sin(ffa), dy2 = Math.cos(ffa);
+      const w0 = Math.max(s * 0.19, 7 / Math.max(0.5, rigScale)), w1 = Math.max(s * 0.13, 4.5 / Math.max(0.5, rigScale)), dx2 = Math.sin(ffa), dy2 = Math.cos(ffa);
       ctx.moveTo(bx - px2 * w0, by - py2 * w0);
       ctx.lineTo(ex - px2 * w1, ey - py2 * w1);
       ctx.quadraticCurveTo(ex + dx2 * w1 * 0.9, ey + dy2 * w1 * 0.9, ex + px2 * w1, ey + py2 * w1);
@@ -1087,16 +1114,20 @@ function scarfTail(
     x: x0 + Math.sin(ti / 700 + seed) * 7 * walkMul,
     y: y0 + Math.sin(ti / 240 + seed * 2) * 3 * talkMul + (walkMul > 1 ? Math.sin(ti / 140) * 2.5 : 0),
   });
+  // FP0 (Verdict P0 — SIGNATURE SILHOUETTE): the tail lengthens 1.5x
+  // (bones 21 -> 31.5) so the gold flick escapes visibly BEYOND the
+  // shoulder line at every rig — the brand accessory finally reads at
+  // feed scale. Root widths rise a step so the longer ribbon keeps mass.
   const rl = Math.hypot(14, 16);
-  const [fp, tp] = followChain(t, seed, anchor, { x: -14 / rl, y: 16 / rl }, 21, 21, -0.0002, 0.0011, 0.86);
+  const [fp, tp] = followChain(t, seed, anchor, { x: -14 / rl, y: 16 / rl }, 31.5, 31.5, -0.0002, 0.0011, 0.86);
   const fxp = fp.x, fyp = fp.y;       // the fold — chain node 1
   const ex = tp.x, ey = tp.y;         // the tip — chain node 2
   // ONE continuous tapered ribbon — root segment then fold segment,
   // round caps at the fold so the crease reads as cloth bending.
-  taper(ctx, x0, y0, fxp, fyp, 14, 9, colUnder);
-  taper(ctx, fxp, fyp, ex, ey, 9, 5, colUnder);
-  taper(ctx, x0, y0, fxp, fyp, 11.5, 7, colTop);
-  taper(ctx, fxp, fyp, ex, ey, 7, 4.2, colTop);
+  taper(ctx, x0, y0, fxp, fyp, 15, 10, colUnder);
+  taper(ctx, fxp, fyp, ex, ey, 10, 5.5, colUnder);
+  taper(ctx, x0, y0, fxp, fyp, 12.2, 7.8, colTop);
+  taper(ctx, fxp, fyp, ex, ey, 7.8, 4.6, colTop);
   // the fold crease — the one seam a real scarf HAS (the two-tone hint
   // at the bend, in the under colour)
   ctx.strokeStyle = rgba(colUnder, 0.85);
@@ -1213,8 +1244,12 @@ export function drawStickmanV2(
      *  so expressions read at distance. 1 = body-proportional (default). */
     faceScale?: number;
     /** Hand prop (v5, audit P1-3): 'coffee' — the second character's mug;
-     * 'thumb' — a thumb stub on the raised fist for the thumbsUp pose. */
-    prop?: 'coffee' | 'thumb';
+     * 'thumb' — a thumb stub on the raised fist for the thumbsUp pose.
+     * P2 (Verdict report — CARRIED-PROP VERBS): 'holdCard' — the host holds
+     * a stat card's edge (grip + lean); 'coinStack' — a coin stack balanced
+     * on the near palm (the counting beats). Silhouette events, ledger-
+     * governed like every other prop. */
+    prop?: 'coffee' | 'thumb' | 'holdCard' | 'coinStack';
     /** v10.1 (panel 11 re-review): register the FULL-BODY envelope as a
      * 'host' rect for the guard's host-vs-content check. Side hosts /
      * walk hosts set this; diagram characters (ownerWorker figures, the
@@ -1359,7 +1394,7 @@ export function drawStickmanV2(
      *  still never inside the rect. The fingertip registers cls 'contact'
      *  (tight ±13·scale pad) so the guard's hand-vs-text sweep verifies
      *  the rule on every frame. */
-    pointAt?: { x: number; y: number; w: number; h: number; hand?: 'point' | 'palm' | 'fist'; bend?: 1 | -1; strength?: number; enforce?: boolean };
+    pointAt?: { x: number; y: number; w: number; h: number; hand?: 'point' | 'palm' | 'fist'; bend?: 1 | -1; strength?: number; enforce?: boolean; touch?: boolean };
     /** 100-JUDGE PANEL / PHASE 2 item 5 — CAST PROPS (report §6 Phase 2:
      *  "briefcase vs lunchbox on owner/worker — one-beat silhouette reads").
      *  Both ride the FAR hand's solved position (the near arm belongs to
@@ -1498,11 +1533,19 @@ export function drawStickmanV2(
       cx - 17 * scale, groundY - 241 * scale, 34 * scale, 30 * scale,
       'host'
     );
-    registerRect(
-      `hostBodyHip@${Math.round(cx)},${Math.round(groundY)}`,
-      cx - envHalf * scale, groundY - 118 * scale, envHalf * 2 * scale, 142 * scale,
-      'host'
-    );
+    // P4-hygiene (gate-truth fix): the wide torso band registers ONLY while
+    // the figure's core is inside the frame. During a walk-IN entrance the
+    // host legitimately crosses the frame edge (the sweep flagged the same
+    // 9 hip-band grazes at ~841s on every run); the band's job is caption-
+    // vs-body plating, which is meaningless for a figure still entering.
+    // The head bands (dome/apex) stay — they are the top-edge rule's bands.
+    if (cx > envHalf * scale + 2) {
+      registerRect(
+        `hostBodyHip@${Math.round(cx)},${Math.round(groundY)}`,
+        cx - envHalf * scale, groundY - 118 * scale, envHalf * 2 * scale, 142 * scale,
+        'host'
+      );
+    }
     // PLAYBOOK D3 (report §8.3): the same figure's own feet band must be
     // EXEMPT from the host-vs-content pass by construction — the guard's
     // containment skip only fires when the band is FULLY inside the body
@@ -1886,8 +1929,12 @@ export function drawStickmanV2(
     // 17→22 (a 2:1 chest-to-waist read) and the whole mass gains a 3.5px
     // ink outline path — the concave neck→trapezius→deltoid contour that
     // makes a filled shape read as a drawn body.
-    const wH = prof ? 17.5 : 15, wW = prof ? 13 : 11;
-    const wC = (prof ? 24 : 22) * chestBreathe, wS = (prof ? 20 : 19) * chestBreathe;
+    // FP0 (Verdict P0 — TORSO +18%): the chest must read as a MASS at feed
+    // scale — every torso half-width rises 18% (chest 22 -> 26, waist
+    // 19 -> 22.4, prof widens with it) so the widened wedge carries the
+    // frame's dark-mass band at every rig.
+    const wH = prof ? 20.6 : 17.7, wW = prof ? 15.3 : 13;
+    const wC = (prof ? 28.3 : 26) * chestBreathe, wS = (prof ? 23.6 : 22.4) * chestBreathe;
     const rX = (h: number, w: number) => tdx * h + tnx * w;
     const rY = (h: number, w: number) => ty0 + tdy * h + tny * w;
     const lX = (h: number, w: number) => tdx * h - tnx * w;
@@ -1908,7 +1955,11 @@ export function drawStickmanV2(
     // outline) layers over the chest, and the deep-V notch down its center
     // returns the tee — the two-tone read survives every scale the feed gate
     // tests. The prof keeps his ink torso (a different PERSON, not the brand).
-    ctx.fillStyle = prof ? ink : OUTFIT.tee;
+    // FP0 (Verdict P0 — CAST BY VALUE): the worker stops sharing the host's
+    // bronze tee — his torso mass drops to a lighter WARM GRAY-INK so the
+    // ownerWorker pair differentiates by VALUE, not just by cap shape.
+    const torsoMass = prof ? ink : worker ? '#6B6157' : OUTFIT.tee;
+    ctx.fillStyle = torsoMass;
     ctx.beginPath();
     ctx.moveTo(rX(0, wH), rY(0, wH));
     ctx.quadraticCurveTo(rX(0.25, wH * 0.7), rY(0.25, wH * 0.7), rX(0.45, wW), rY(0.45, wW));
@@ -1928,18 +1979,21 @@ export function drawStickmanV2(
     ctx.strokeStyle = ink;
     ctx.lineWidth = 3.5;
     ctx.stroke();
-    // P1 — THE GOLD VEST PANEL: same torso rail, h 0.40 → 0.98, inset ~12%
-    // so the tee's ink outline still frames it. Filled + 2px ink outline;
-    // the deep-V tee notch below returns the tee at the center chest.
-    if (!prof) {
+    // P1 — THE GOLD VEST PANEL: same torso rail, FP0 two-tone split at the
+    // 50% torso line (vest owns the chest band 0.50..0.98, the tee owns the
+    // belly), inset ~12% so the tee's ink outline still frames it. Filled +
+    // 2px ink outline; the deep-V tee notch below returns the tee at the
+    // center chest. FP0 CAST: the worker does NOT wear the brand vest — the
+    // gray-ink torso is his silhouette (the gold vest is the host's alone).
+    if (!prof && !worker) {
       ctx.fillStyle = OUTFIT.vest;
       ctx.beginPath();
-      ctx.moveTo(rX(0.40, wW * 0.88), rY(0.40, wW * 0.88));
-      ctx.quadraticCurveTo(rX(0.60, wW * 0.96), rY(0.60, wW * 0.96), rX(0.75, wC * 0.82), rY(0.75, wC * 0.82));
+      ctx.moveTo(rX(0.50, wW * 0.88), rY(0.50, wW * 0.88));
+      ctx.quadraticCurveTo(rX(0.62, wW * 0.96), rY(0.62, wW * 0.96), rX(0.75, wC * 0.82), rY(0.75, wC * 0.82));
       ctx.quadraticCurveTo(rX(0.90, wC * 0.80), rY(0.90, wC * 0.80), rX(0.98, wS * 0.78), rY(0.98, wS * 0.78));
       ctx.lineTo(lX(0.98, wS * 0.78), lY(0.98, wS * 0.78));
       ctx.quadraticCurveTo(lX(0.90, wC * 0.80), lY(0.90, wC * 0.80), lX(0.75, wC * 0.82), lY(0.75, wC * 0.82));
-      ctx.quadraticCurveTo(lX(0.60, wW * 0.96), lY(0.60, wW * 0.96), lX(0.40, wW * 0.88), lY(0.40, wW * 0.88));
+      ctx.quadraticCurveTo(lX(0.62, wW * 0.96), lY(0.62, wW * 0.96), lX(0.50, wW * 0.88), lY(0.50, wW * 0.88));
       ctx.closePath();
       ctx.fill();
       ctx.strokeStyle = ink;
@@ -1949,14 +2003,15 @@ export function drawStickmanV2(
       ctx.fillStyle = OUTFIT.tee;
       ctx.beginPath();
       ctx.moveTo(rX(0.97, wS * 0.34), rY(0.97, wS * 0.34));
-      ctx.lineTo(rX(0.60, 0), rY(0.60, 0));
+      ctx.lineTo(rX(0.62, 0), rY(0.62, 0));
       ctx.lineTo(lX(0.97, wS * 0.34), lY(0.97, wS * 0.34));
       ctx.closePath();
       ctx.fill();
     }
     // shoulder caps — small rounded delts at the shoulder line (vest gold:
-    // the deltoid sits on the vest's shoulder strap)
-    ctx.fillStyle = prof ? ink : OUTFIT.vest;
+    // the deltoid sits on the vest's shoulder strap; the worker's stay on
+    // his gray-ink torso — FP0 cast-by-value)
+    ctx.fillStyle = prof || worker ? torsoMass : OUTFIT.vest;
     ctx.beginPath();
     ctx.arc(rX(0.92, wS * 0.6), rY(0.92, wS * 0.6), wS * 0.45, 0, Math.PI * 2);
     ctx.fill();
@@ -1965,7 +2020,7 @@ export function drawStickmanV2(
     ctx.fill();
     // hip block — a short horizontal bar at the pelvis for grounding
     // (tee tone: the vest ends above the waist; the pelvis is trouser/tee)
-    ctx.fillStyle = prof ? ink : OUTFIT.tee;
+    ctx.fillStyle = torsoMass;
     ctx.beginPath();
     ctx.ellipse(tx0 + tdx * 0.08, ty0 + tdy * 0.08, wH * 1.1, wH * 0.45, Math.atan2(tdx, -tdy), 0, Math.PI * 2);
     ctx.fill();
@@ -2140,7 +2195,15 @@ export function drawStickmanV2(
     const shYp = neckY + 3 - Math.sin(shT) * 9 + shDrop;
     const flipP = r.flip ? -1 : 1;
     const pt = r.pointAt;
-    const cl = 40 + hash01(seed * 7.31 + 1.7) * 20;
+    // P2 (Verdict report — TOUCH MUST BE LEGIBLE): the verb decides the
+    // band. point-at-TEXT keeps the 40-60px clearance (the pad never crowds
+    // the letters); a TOUCH/BRACKET verb flips the sign — the fingertip
+    // lands 4-8px INSIDE the target rect's edge (hash-picked, one figure
+    // holds one overlap, scrub-stable), so the contact is physically ON the
+    // data with the FP0 fingertip and the 0.42 press shadow sealing it.
+    const cl = pt.touch
+      ? -(4 + hash01(seed * 3.7 + 2.1) * 4)
+      : 40 + hash01(seed * 7.31 + 1.7) * 20;
     // the figure's shoulder in SCENE space (the same mapping the contact
     // block inverts — rig → scene with flip)
     const shSceneX = cx + flipP * shXp * scale;
@@ -2388,6 +2451,57 @@ export function drawStickmanV2(
     ctx.fill();
     ctx.restore();
   }
+  if (r.prop === 'holdCard') {
+    // P2 (Verdict report — HOLD AND BALANCE THE NUMBERS): the host HOLDS a
+    // stat card's edge — the grip hand clamps the card's short side, the
+    // card leans off the forearm (a held object, never a floating decal).
+    // White card, gold number band, ink outline: a miniature of the film's
+    // stat-card language, drawn at the near hand so the hold is exact.
+    notePropDraw('holdCard');
+    ctx.save();
+    ctx.translate(hand.ex + 10, hand.ey - 26);
+    ctx.rotate(-0.12 + Math.sin(t / 900 + seed) * 0.02);
+    ctx.fillStyle = PALETTE.card;
+    roundRect(ctx, -4, -30, 52, 64, 7);
+    ctx.fill();
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 3;
+    roundRect(ctx, -4, -30, 52, 64, 7);
+    ctx.stroke();
+    ctx.fillStyle = PALETTE.gold;
+    roundRect(ctx, 4, -20, 36, 14, 4);
+    ctx.fill();
+    ctx.fillStyle = rgba(PALETTE.inkSoft, 0.75);
+    roundRect(ctx, 4, 2, 30, 5, 2.5);
+    ctx.fill();
+    roundRect(ctx, 4, 12, 24, 5, 2.5);
+    ctx.fill();
+    ctx.restore();
+    // the grip bar across the card edge — the fingers wrap the short side
+    ctx.fillStyle = ink;
+    roundRect(ctx, hand.ex + 2, hand.ey - 34, 12, 30, 5);
+    ctx.fill();
+  }
+  if (r.prop === 'coinStack') {
+    // P2 (Verdict report — BALANCE A COIN STACK ON A PALM): five coins on
+    // the upturned near palm, the stack swaying a hair with the weight-shift
+    // clock (balance is a live act, not a decal). Gold rims + ink edges so
+    // the stack reads at feed scale; the palm rides the 'open' glyph when
+    // the scene does not override it.
+    notePropDraw('coinStack');
+    const sway = Math.sin(t / 2400 + seed * 3.1) * 1.6;
+    for (let c = 0; c < 5; c++) {
+      const cy2 = hand.ey - 8 - c * 7.5;
+      const cxo = hand.ex + 14 + sway * (c / 4);
+      ctx.fillStyle = PALETTE.goldDisplay;
+      ctx.beginPath();
+      ctx.ellipse(cxo, cy2, 13, 5.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  }
   if (r.prop === 'thumb') {
     // a short stub above the fist — reads as a raised thumb at any scale
     ctx.strokeStyle = ink;
@@ -2500,9 +2614,9 @@ export function drawStickmanV2(
   // (eyeDX below), exactly as the audit specified: "the audience reads
   // connection through the head yaw first, eyes second".
   const yawR = (pose.headYaw ?? 0) * D2R;
-  const headCX = neckX + Math.sin(tiltR) * (10 + 33 * 0.9);
-  const headCY = neckY - Math.cos(tiltR) * (10 + 33 * 0.9);
-  bbTouch(headCX, headCY, 42 * (r.faceScale ?? 1) + 6); // PHASE 3 bbox: the head egg + crest
+  const headCX = neckX + Math.sin(tiltR) * (10 + 24);
+  const headCY = neckY - Math.cos(tiltR) * (10 + 24);
+  bbTouch(headCX, headCY, 31 * (r.faceScale ?? 1) + 6); // FP0: the shrunken egg + crest
   // AUDIT-ROUND-2 (fix 14): nod pulse 4 → 7px — the word-accent nod
   // survives the 320px gate.
   const nod = (r.nod ?? 0) * 7;
@@ -2597,7 +2711,14 @@ export function drawStickmanV2(
   // at 1.25x body-proportional size with ONE permanent signature feature
   // (the host's round ink glasses, drawn below). The caricature must own the
   // feed: a bigger head + glasses ink reads as "this channel" at 320px.
-  const HEAD_SHRINK = 0.93;
+  // FP0 (Visual Verdict P0 — THE 4.5-HEAD REBALANCE): the audit measured the
+  // drawn figure at ~2.3 heads of body under a head owning ~40% of its
+  // height — bobblehead, not the Becker caricature band. The egg scales to
+  // 0.72x its local units (HEAD_SHRINK 0.93 -> 0.67) and the head centre
+  // drops onto the neck (offset 29.7 -> 24 body units). Feature floors are
+  // screen-space, so the face fill GROWS back to the premium band inside the
+  // smaller skull automatically. Target: head <= 26% of drawn height.
+  const HEAD_SHRINK = 0.67;
   ctx.scale(faceS * HEAD_SHRINK * (1 - 0.12 * yawMag) * (1 + jawOpen * 0.04), faceS * HEAD_SHRINK * (1 - jawOpen * 0.04));
   // Panel round 2: the head outline yaws ±14° about the neck; the FACE
   // rotates an additional fraction of the same term about the head's own
@@ -2655,26 +2776,26 @@ export function drawStickmanV2(
     // NODE of a 3-node verlet chain rooted at the crest base — hair
     // follow-through: the tuft lags the head's speech/walk rhythm (the
     // anchor bobs on the talk/walk clocks), overshoots and settles with
-    // real physics (light-hair gravity 0.0004, damping 0.9). Deterministic
-    // — the chain replays 8 fixed 60ms steps from an analytic seed.
+    // real physics. P1 (Verdict report) triples the light-hair gravity so
+    // the tuft VISIBLY settles (0.0004 -> 0.0012).
     const tuftAnchor = (ti: number): { x: number; y: number } => ({
       x: -1 + Math.sin(ti / 460 + seed) * (r.talk ?? 0) * 1.2,
-      y: -35 + Math.sin(ti / 300 + seed * 1.7) * ((r.talk ?? 0) * 1.8 + (r.walkPhase !== undefined ? 1.1 : 0)),
+      y: -26 + Math.sin(ti / 300 + seed * 1.7) * ((r.talk ?? 0) * 1.4 + (r.walkPhase !== undefined ? 0.9 : 0)),
     });
-    const [tn1, tn2] = followChain(t, seed, tuftAnchor, { x: -0.1, y: -0.995 }, 15, 15, 0, 0.0004, 0.9);
+    const [tn1, tn2] = followChain(t, seed, tuftAnchor, { x: -0.1, y: -0.995 }, 15, 15, 0, 0.0012, 0.9);
+    // FP0 (Verdict P0 — THE COMMA CREST): the spiked triangle tuft read as
+    // a paint drip / bad wig — the accidental detail that un-designed the
+    // silhouette. One CURVED COMMA instead: a round crown pad fused with a
+    // single tapered sweep along the chain's settled tip — one stroke, one
+    // shape, a signature the feed can name.
     ctx.fillStyle = ink;
     ctx.beginPath();
-    ctx.moveTo(-14, -34);
+    ctx.moveTo(-13, -26);
     ctx.quadraticCurveTo(tn1.x, tn1.y, tn2.x, tn2.y);
-    ctx.quadraticCurveTo(tn2.x * -0.5, tn2.y * 0.72, -14, -34);
+    ctx.quadraticCurveTo(tn2.x * 0.35, tn2.y * 0.55, -4, -30);
+    ctx.quadraticCurveTo(-10, -33, -13, -26);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = ink;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-13, -35);
-    ctx.quadraticCurveTo(tn2.x * 0.95, tn2.y * 0.95, 11, -37);
-    ctx.stroke();
   }
   // 100-JUDGE PANEL / Phase 1 item 4 — CAST BY SILHOUETTE (report §6
   // Phase 1): "the worker gets a cap." A flat cap on the crown: the dome
@@ -2685,27 +2806,32 @@ export function drawStickmanV2(
   // transform stack already in place (drawn in head-local space).
   if (worker) {
     // the dome — a clipped arc over the crown, following the egg
+    // FP0 (Verdict P0 — CAP OFF THE BROW LINE): the old dome sank to y -22
+    // with r27 and covered the top HALF of the face — glasses vanished, the
+    // worker read as "the host in a dark skullcap". The dome rises (centre
+    // -27, r 24) so the brow band and eyes stay clear; the cap reads as
+    // worn ON the crown, not melted INTO the head.
     ctx.save();
     ctx.beginPath();
     ctx.ellipse(0, -1, 35, 42, 0, 0, Math.PI * 2);
     ctx.clip();
     ctx.fillStyle = ink;
     ctx.beginPath();
-    ctx.ellipse(0, -22, 36, 27, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -27, 35, 24, 0, 0, Math.PI * 2);
     ctx.fill();
     // the crown seam — an ivory arc at the dome's lower edge so the cap
     // reads as a cap ON the head, not a darker skullcap region
     ctx.strokeStyle = rgba('#F7EFD8', 0.9);
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.ellipse(0, -22, 36, 27, 0, Math.PI * 0.08, Math.PI * 0.92);
+    ctx.ellipse(0, -27, 35, 24, 0, Math.PI * 0.10, Math.PI * 0.90);
     ctx.stroke();
     ctx.restore();
     // the brim — a flat bar jutting toward the look direction
     const brimDir = (r.look ?? 0) >= 0 ? 1 : -1;
     ctx.fillStyle = ink;
     ctx.save();
-    ctx.translate(brimDir * 6, -16);
+    ctx.translate(brimDir * 6, -23);
     ctx.rotate(brimDir * -0.08);
     roundRect(ctx, brimDir > 0 ? 0 : -26, -5, 26, 10, 4);
     ctx.fill();
@@ -2847,7 +2973,12 @@ export function drawStickmanV2(
   // spacing widens ±11 → ±14 so the bigger masses still breathe. The
   // screen-space floors scale with the same factor so the feed never
   // starves the face again.
-  const eyeR = Math.max(5.2, featureFloor(9.1), scale >= 2 ? 11.2 : 0);
+  // FP0 (Verdict P0 — FACE RE-KEY): the hero constants shrink with the egg
+  // (0.72x) so the caricature keeps the premium ratios; the screen-space
+  // floors stay unchanged so the feed never starves. The lens retires as the
+  // DOMINANT feature — it is now a SECONDARY ACCENT: radius proportional to
+  // the eye (sclera x1.28), thinner wire — the brows carry the emotion.
+  const eyeR = Math.max(5.2, featureFloor(9.1), scale >= 2 ? 8.4 : 0);
   // 100-JUDGE PANEL REPORT (defect D12 — THE SKULL READ): below rig scale
   // 1.0 the becker head's PURE-WHITE features (sclera, brows, mouth) on
   // the solid ink read as a grinning skull at feed scale (the coffee
@@ -2877,19 +3008,16 @@ export function drawStickmanV2(
   // measurement put the shipped features at ~22% of the face — the fill pass
   // raises every feature floor (lens 9.5 → 11, sclera hero 5.2 → 6.4, pupil
   // share 0.52 → 0.55) toward the ~45% feature-area band the panel scored.
-  const lensR = Math.max(13.5, featureFloor(8.5));
-  // 100-JUDGE VISUAL AUDIT (Fix 1 — CHARACTER OWNERSHIP): the googly read's
-  // root cause was the white:sclera ratio — a 6.9-unit white oval inside a
-  // 9.5 lens read as "eyes", not "glasses over eyes". The sclera runs HALF
-  // the lens and the INK pupil dominates it (0.52 of the lens ≈ 55% of the
-  // eye's area): the eye now reads ink-dominant with a thin white ring —
-  // the drawn-caricature standard, not a googly meme.
-  // FACE FILL: sclera half the lens read as "glasses over nothing" at rest —
-  // the hero sclera lifts 5.2 → 6.4 and its screen floor 4.2 → 4.8 so the
-  // eye mass survives every rig; the INK pupil still dominates (0.55 of the
-  // lens): the drawn-caricature standard, not a googly meme.
-  const scleraR = Math.max(5.5, featureFloor(6.2), scale >= 2 ? 8.3 : 0);
-  const ivoryPupR = Math.max(3.9, featureFloor(4.9), lensR * 0.55);
+  // FP0 (Verdict P0 — INK-DOMINANT EYES): hero sclera 8.3 → 6.2 rides the
+  // smaller egg; the pupil derives from the SCLERA (0.76 of its radius =
+  // 58% of the eye's area — past the verdict's 55% floor), never from the
+  // lens, so the eye reads ink-first at every scale.
+  const scleraR = Math.max(5.5, featureFloor(6.2), scale >= 2 ? 6.2 : 0);
+  // FP0 (Verdict P0 — GLASSES AS SECONDARY ACCENT): the lens radius is now
+  // PROPORTIONAL TO THE EYE (sclera × 1.28) instead of a fixed 13.5 units —
+  // the wire stops dominating the face and frames it.
+  const lensR = Math.max(9.0, featureFloor(6.5), scleraR * 1.28);
+  const ivoryPupR = Math.max(3.9, featureFloor(4.9), scleraR * 0.76);
   if (becker) {
     ctx.fillStyle = faceInk;
     ctx.beginPath();
@@ -2910,10 +3038,16 @@ export function drawStickmanV2(
     // rims so the frames stroke over the eyes like worn glasses. Surprise
     // dilates the pupils on top; per-eye silhouette scales and the blink
     // ride the same ellipse math as every other branch.
+    // FP0 (Verdict P0 — SHOCK IS BROW + LID + JAW, NEVER BLACK OVALS): the
+    // sclera OPENS with surprise (x1.12) while the pupil's cap TIGHTENS
+    // (0.74 -> 0.60 of the sclera radius) — the gasp reads as arched brows +
+    // jaw drop + wide bright eyes, with an ivory crescent guaranteed at
+    // every scale. The filled-black-goggle failure mode is now impossible.
+    const surSclera = scleraR * (1 + surprise * 0.12);
     ctx.fillStyle = '#FFFFFF';
     ctx.beginPath();
-    ctx.ellipse(-14 + eyeDX, -6, scleraR * eyeSL, scleraR * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
-    ctx.ellipse(14 + eyeDX, -6, scleraR * eyeSR, scleraR * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
+    ctx.ellipse(-14 + eyeDX, -6, surSclera * eyeSL, surSclera * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
+    ctx.ellipse(14 + eyeDX, -6, surSclera * eyeSR, surSclera * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = ink;
     // 100-JUDGE REPORT (fix D02/D26 — THE GOGGLE READ): the pupil ran at
@@ -2924,7 +3058,7 @@ export function drawStickmanV2(
     // at 74% of its radius — still ink-dominant (the drawn-caricature
     // standard), but a visible ivory crescent survives at every scale and
     // the gasp can no longer swallow the eye.
-    const pup = Math.min(ivoryPupR * (1 + surprise * 0.28), scleraR * 0.74); // AUDIT-2 dilation, kept
+    const pup = Math.min(ivoryPupR * (1 + surprise * 0.1), surSclera * (0.74 - 0.14 * surprise)); // FP0: whites survive the gasp
     ctx.beginPath();
     ctx.ellipse(-14 + eyeDX, -6, pup * eyeSL, pup * eyeOpen * eyeSL, 0, 0, Math.PI * 2);
     ctx.ellipse(14 + eyeDX, -6, pup * eyeSR, pup * eyeOpen * eyeSR, 0, 0, Math.PI * 2);
@@ -3012,14 +3146,12 @@ export function drawStickmanV2(
   // measured 0px BEFORE), and they END the head-style drift the audit
   // convicted — the host is now THE character with the glasses, everywhere.
   if (ivory) {
-    ctx.strokeStyle = ink;
-    // PHASE-0: THE WIRE FRAME — thin ROUND lenses, one uniform 3px screen
-    // stroke at every rig (the hero-bold 7.6px doubling is retired: boldness
-    // was exactly what fused rim + brows + eyes into the mask). No lens fill,
-    // ever — the sclera eyes drawn above show through the wire. The prof
-    // cast variant stays silhouette-different by weight and its milky fill;
-    // the host's thin temples + arc bridge are the Data Desk signature.
-    ctx.lineWidth = Math.max(1.0, featureFloor(3.4));
+    ctx.strokeStyle = rgba(ink, 0.9);
+    // FP0 (Verdict P0 — GLASSES AS SECONDARY ACCENT): the wire thins
+    // (screen floor 3.4 -> 2.6px) and rides at 0.9 alpha so the BROWS own
+    // the face's upper band. The rims still carry their ink into the
+    // face-ink gate — they are the brand, not the mask.
+    ctx.lineWidth = Math.max(1.0, featureFloor(2.6));
     ctx.lineCap = 'round';
     const gR = lensR;
     ctx.beginPath();

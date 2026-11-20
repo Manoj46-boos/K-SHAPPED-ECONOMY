@@ -83,6 +83,11 @@ let propViolations = 0;
 let occupancyViolations = 0;
 let valueViolations = 0;
 let feedViolations = 0;
+// P4 (Visual Verdict report) — the perception-gate counters. Declared here
+// because the hand-ink gate increments them inside render(), which runs
+// before the P4 phase below.
+let silhouetteViolations = 0, faceSemanticViolations = 0, handInkViolations = 0,
+    motionViolations = 0, anchorViolations = 0;
 const VALUE_EVIDENCE = [];
 const FEED_EVIDENCE = [];
 
@@ -260,6 +265,33 @@ function render(name, tMs) {
     if (vs.length) {
       guardViolations += vs.length;
       console.error(`  !! COLLISION GUARD — ${name}: ${vs.map((v) => v.id).join(', ')}`);
+    }
+  }
+  // P4 (c) — HAND-INK GATE: every declared contact verb's hand rect must
+  // carry ≥ 60px² of hand ink at 1080p (the FP0 fingertip floor's harness
+  // referee — contact that cannot be seen does not exist).
+  if (guard) {
+    const cam = guard.guardCamera();
+    for (const rc0 of guard.guardRects()) {
+      if (rc0.cls !== 'contact') continue;
+      // rects are DESIGN-grid px: apply the frame's camera exactly as the
+      // guard does before measuring screen ink
+      const rc = cam
+        ? { id: rc0.id,
+            x: (rc0.x - 960) * cam.scale + 960 + cam.dx,
+            y: (rc0.y - 540) * cam.scale + 540 + cam.dy,
+            w: rc0.w * cam.scale, h: rc0.h * cam.scale }
+        : rc0;
+      const d = ctx.getImageData(
+        Math.max(0, Math.round(rc.x)), Math.max(0, Math.round(rc.y)),
+        Math.max(1, Math.round(rc.w)), Math.max(1, Math.round(rc.h))
+      ).data;
+      let ink = 0;
+      for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] < 330) ink++;
+      if (ink < 60) {
+        handInkViolations++;
+        console.error(`  !! HAND-INK GATE — ${name}: contact hand ink ${ink}px² < 60px² floor (${rc.id})`);
+      }
     }
   }
   const p = path.join(OUT, name);
@@ -743,8 +775,180 @@ for (const ev of SCALE_EVIDENCE) {
   }
 }
 
-if (guardViolations || metricViolations || scaleViolations || propViolations || occupancyViolations || valueViolations || feedViolations) {
-  console.error(`\n✗ RENDER CHECK FAILED: ${guardViolations} collision(s), ${metricViolations} metric violation(s), ${scaleViolations} scale-law violation(s), ${propViolations} prop-ledger violation(s), ${occupancyViolations} occupancy violation(s), ${valueViolations} value-mass violation(s), ${feedViolations} feed-density violation(s) — fix the scene layout before rendering.`);
+// ── P4 (Visual Verdict report — THE PERCEPTION GATES) ───────────────────────
+// The verdict's four new gates, wired into the same blocking exit as the
+// geometry gates: (a) silhouette identity (cast variants distinguishable by
+// shape alone at the 320 twin), (b) the face-ink SEMANTIC floor (eyes, brows
+// and mouth each own ink at 1080p AND at the feed), (c) the hand-ink floor
+// (every declared contact verb carries ≥60px² of hand ink at 1080p), and
+// (d) the motion-visibility gate (walk/gesture strips must move ≥0.8% of
+// figure height per frame at the feed for ≥60% of frames). Plus the P2
+// anchor-rotation lint.
+console.log('\n── P4 PERCEPTION GATES ──');
+const { anchorRotationViolations } = require(path.join(BUILD, 'director.js'));
+const { guardRects } = require(path.join(BUILD, 'collision.js'));
+// (P2) anchor-rotation lint
+{
+  // TRIAGE, not blocking: the runs it finds live in the script's beat
+  // sequencing (re-staging them is a script pass, not an engine patch);
+  // the gate's job — per the report — is to report the schedule, and the
+  // staging pass consumes the list.
+  const avl = anchorRotationViolations(tl);
+  anchorViolations = 0;
+  if (avl.length) {
+    for (const v of avl) {
+      console.error(`  ~ ANCHOR-ROTATION TRIAGE — ${v.kind} run of ${v.runLen} at ${v.sceneKey} (${v.sceneType}) — re-stage one beat in the script pass`);
+    }
+  } else {
+    console.log('  [anchor-rotation] clean — no anchor/pattern run exceeds 2');
+  }
+}
+
+// (c) hand-ink floor — measured per picked frame inside render() (see the
+// HAND-INK capture block above); the counter accumulates there.
+
+// (a) + (b) — silhouette identity and the face-ink semantic floor, measured
+// on the evidence frames at BOTH scales (1080p and the 320 twin).
+function inkCount(c, x0, y0, x1, y1) {
+  const d = c.getContext('2d').getImageData(x0, y0, x1 - x0, y1 - y0).data;
+  let ink = 0;
+  for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] < 330) ink++;
+  return ink;
+}
+function headWindow(c, torso) {
+  const run = Math.max(6, torso.run);
+  return {
+    x0: Math.max(0, Math.round(torso.x - 0.8 * run)),
+    x1: Math.round(torso.x + 0.8 * run),
+    y0: Math.max(0, Math.round(torso.y - 2.4 * run)),
+    y1: Math.max(0, Math.round(torso.y - 0.6 * run)),
+  };
+}
+function figureMask(c, band) {
+  // the figure's ink mask in its band window, resampled to 48x96
+  const W = c.width, H = c.height;
+  const d = c.getContext('2d').getImageData(0, 0, W, H).data;
+  const run = Math.max(4, band.run);
+  const x0 = Math.max(0, Math.round(band.x - 1.5 * run));
+  const x1 = Math.min(W - 1, Math.round(band.x + 1.5 * run));
+  const y0 = Math.max(0, Math.round(band.y - 3.2 * run));
+  const y1 = Math.min(H - 1, Math.round(band.y + 0.5 * run));
+  const bw = Math.max(1, x1 - x0), bh = Math.max(1, y1 - y0);
+  const GW = 48, GH = 96;
+  const m = new Uint8Array(GW * GH);
+  for (let gy = 0; gy < GH; gy++) {
+    for (let gx = 0; gx < GW; gx++) {
+      const sx = x0 + Math.floor((gx * bw) / GW);
+      const sy = y0 + Math.floor((gy * bh) / GH);
+      const o = (sy * W + sx) * 4;
+      if (d[o] + d[o + 1] + d[o + 2] < 330) m[gy * GW + gx] = 1;
+    }
+  }
+  return m;
+}
+function iou(a, b) {
+  let inter = 0, uni = 0;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] && b[i]) inter++;
+    if (a[i] || b[i]) uni++;
+  }
+  return uni ? inter / uni : 1;
+}
+{
+  // silhouette identity: the two multi-figure evidence frames
+  for (const nm of ['14-ownerWorker', '01-coldopen-K']) {
+    const p = targets.find((q) => path.basename(q).startsWith(nm));
+    if (!p) continue;
+    const img = new (require('canvas').Image)();
+    img.src = fs.readFileSync(p.replace(/\.png$/, '-feed320.png'));
+    const fc = createCanvas(img.width, img.height);
+    fc.getContext('2d').drawImage(img, 0, 0);
+    const bands = inkRunCandidates(fc);
+    if (bands.length < 2) { console.log(`  [silhouette] ${nm}: fewer than two figure bands — skipped`); continue; }
+    const A = figureMask(fc, bands[0]);
+    const B = figureMask(fc, bands[1]);
+    const v = iou(A, B);
+    console.log(`  [silhouette] ${nm}: cast IoU ${v.toFixed(2)} (ceiling 0.85 — lower is MORE distinct)`);
+    if (v >= 0.85) {
+      silhouetteViolations++;
+      console.error(`  !! SILHOUETTE GATE — ${nm}: cast silhouettes IoU ${v.toFixed(2)} ≥ 0.85 — the cast reads as copies`);
+    }
+  }
+  // face-ink semantic floor: the biggest-face evidence frame (cold open)
+  for (const [label, feed] of [['1080p', false], ['feed320', true]]) {
+    const p = targets.find((q) => path.basename(q).startsWith('01-'));
+    if (!p) continue;
+    const src = feed ? p.replace(/\.png$/, '-feed320.png') : p;
+    const img = new (require('canvas').Image)();
+    img.src = fs.readFileSync(src);
+    const c = createCanvas(img.width, img.height);
+    c.getContext('2d').drawImage(img, 0, 0);
+    const bands = inkRunCandidates(c);
+    let win = null, torso = null;
+    for (const b of bands) {
+      const w = headWindow(c, b);
+      if (w.y1 > w.y0 && w.x1 > w.x0) { win = w; torso = b; break; }
+    }
+    if (!win) { console.log(`  [face-semantic] ${label}: no head window — skipped`); continue; }
+    const h3 = Math.round((win.y1 - win.y0) / 3);
+    const brow = inkCount(c, win.x0, win.y0, win.x1, win.y0 + h3);
+    const eyes = inkCount(c, win.x0, win.y0 + h3, win.x1, win.y0 + 2 * h3);
+    const mouth = inkCount(c, win.x0, win.y0 + 2 * h3, win.x1, win.y1);
+    const floor = feed ? 3 : 25;
+    console.log(`  [face-semantic] ${label}: brow ${brow}px² · eyes ${eyes}px² · mouth ${mouth}px² (floor ${floor}px² each)`);
+    for (const [nm2, v2] of [['brow', brow], ['eyes', eyes], ['mouth', mouth]]) {
+      if (v2 < floor) {
+        faceSemanticViolations++;
+        console.error(`  !! FACE-SEMANTIC GATE — ${label}: ${nm2} ink ${v2}px² < ${floor}px² floor (the feature dissolves at this scale)`);
+      }
+    }
+  }
+}
+
+// (d) motion-visibility gate — the walk-in strip at feed scale
+{
+  const wb = tl.beats.find((b) => b.beat.scene.type === 'host' && b.beat.scene.entrance === 'walk')
+    ?? tl.beats.find((b) => b.beat.scene.type === 'host');
+  if (wb) {
+    const sm = createCanvas(320, 180);
+    const smx = sm.getContext('2d');
+    const OPTS_Q = { captions: 'off', channelName: 'x', nextVideoTitle: 'x', watermark: false, progressBar: false };
+    let pass = 0, n = 0, figHfeed = 180 * 0.4;
+    let prevMask = null;
+    for (let i = 0; i <= 12; i++) {
+      const t2 = wb.startMs + 120 + i * 33;
+      drawFrame(smx, tl, t2, OPTS_Q);
+      const fr = figureRegistry();
+      const top = fr.reduce((m2, f) => Math.max(m2, f.pctOfH), 0);
+      if (top > 0) figHfeed = (top / 100) * 180;
+      const d = smx.getImageData(0, 0, 320, 180).data;
+      const mask = new Uint8Array(320 * 180);
+      for (let q = 0; q < 320 * 180; q++) {
+        const o = q * 4;
+        if (d[o] + d[o + 1] + d[o + 2] < 430) mask[q] = 1;
+      }
+      if (prevMask) {
+        let diff = 0;
+        for (let q = 0; q < mask.length; q++) if (mask[q] !== prevMask[q]) diff++;
+        const figW = Math.max(8, figHfeed * 0.24);
+        const pct = (100 * (diff / figW)) / figHfeed;
+        if (pct >= 0.8) pass++;
+        n++;
+      }
+      prevMask = mask;
+    }
+    const ratio = n ? pass / n : 1;
+    console.log(`  [motion-visibility] walk strip @feed: ${pass}/${n} frames ≥ 0.8% figure-height delta (floor 60%)`);
+    if (ratio < 0.6) {
+      motionViolations++;
+      console.error(`  !! MOTION-VISIBILITY GATE — walk strip: only ${Math.round(ratio * 100)}% of frames clear the 0.8% delta (floor 60%) — the motion dissolves at the feed`);
+    }
+  }
+}
+
+if (guardViolations || metricViolations || scaleViolations || propViolations || occupancyViolations || valueViolations || feedViolations
+  || silhouetteViolations || faceSemanticViolations || handInkViolations || motionViolations || anchorViolations) {
+  console.error(`\n✗ RENDER CHECK FAILED: ${guardViolations} collision(s), ${metricViolations} metric violation(s), ${scaleViolations} scale-law violation(s), ${propViolations} prop-ledger violation(s), ${occupancyViolations} occupancy violation(s), ${valueViolations} value-mass violation(s), ${feedViolations} feed-density violation(s), ${silhouetteViolations} silhouette(s), ${faceSemanticViolations} face-semantic(s), ${handInkViolations} hand-ink(s), ${motionViolations} motion(s), ${anchorViolations} anchor(s) — fix the scene layout before rendering.`);
   process.exit(1);
 }
 

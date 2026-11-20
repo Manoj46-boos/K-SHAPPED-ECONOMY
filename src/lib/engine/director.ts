@@ -415,6 +415,23 @@ function cameraV2(
     camX += dir * AMP.whipPx * whip;
     camY += 4 * whip;
   }
+  // P3 (Verdict report — CUT CADENCE): chapters 1-3 own the first-60-second
+  // collapse, and the platform benchmark punishes any 3-5s window with no
+  // camera or scene event. A micro-event scheduler drops a short operator
+  // move every ~4s into every chapter 1-3 group past the entry window: a
+  // 700ms eased push (+1.4% scale) with a 14px alternating truck, closed
+  // form in gt (zero at both ends — pop-free, scrub-safe). No hold long
+  // enough for the swipe reflex to arm.
+  if (chapterIdx <= 2 && gt > 2000) {
+    const TICK = 4000;
+    const k = Math.floor((gt - 2000) / TICK);
+    const local = gt - 2000 - k * TICK;
+    if (local < 700) {
+      const e2 = Math.sin((local / 700) * Math.PI);
+      camScale += 0.014 * e2;
+      camX += (k % 2 === 0 ? 1 : -1) * 14 * e2;
+    }
+  }
   // PLAYBOOK D1 + D3 follow-up: the chartJourney legacy tracking term is
   // RETIRED — the ch2/ch3 hero TRUCKS (±150-190px) already lead the
   // draw-on; stacking the old ±32px term on top pushed the chart's
@@ -1220,4 +1237,58 @@ export function drawIdleFrame(
   void H;
   void W;
   void easeOutCubic;
+}
+
+// ── P2 (Visual Verdict report — THE ANCHOR-ROTATION LINT) ───────────────────
+// Staging variety is a retention law: no more than 2 consecutive beats with
+// the same anchor (character-led vs data-led) and no more than 2 consecutive
+// beats on the same staging pattern (scene type). The lint walks the flat
+// beat sequence, classifies each beat by its scene type, and reports every
+// run of 3+ that would train the viewer that "the next 10 seconds look like
+// the last". The render harness prints the result on every run.
+const ANCHOR_CHARACTER_LED = new Set([
+  'host', 'channelIntro', 'divergeK', 'ownerWorker', 'stampCard',
+  'quoteCard', 'commentPrompt', 'endScreen', 'takeaways',
+]);
+
+export interface AnchorViolation {
+  sceneKey: string;
+  sceneType: string;
+  kind: 'anchor' | 'pattern';
+  runLen: number;
+}
+
+export function anchorRotationViolations(tl: Timeline): AnchorViolation[] {
+  const out: AnchorViolation[] = [];
+  // collapse consecutive beats that share a sceneKey (one staging)
+  type Run = { key: string; type: string; len: number };
+  const runs: Run[] = [];
+  for (const b of tl.beats) {
+    const s = b.beat.scene as { sceneKey?: string; type: string };
+    const key = s.sceneKey ?? s.type;
+    const last = runs[runs.length - 1];
+    if (last && last.key === key) last.len += 1;
+    else runs.push({ key, type: s.type, len: 1 });
+  }
+  let i = 0;
+  while (i < runs.length) {
+    const cls = (r: Run): 'character' | 'data' =>
+      ANCHOR_CHARACTER_LED.has(r.type) ? 'character' : 'data';
+    // anchor run: consecutive stagings of the same class
+    let j = i;
+    while (j + 1 < runs.length && cls(runs[j + 1]) === cls(runs[i])) j++;
+    const anchorLen = j - i + 1;
+    if (anchorLen > 2) {
+      out.push({ sceneKey: runs[i].key, sceneType: runs[i].type, kind: 'anchor', runLen: anchorLen });
+    }
+    // pattern run: consecutive stagings of the same TYPE
+    let k = i;
+    while (k + 1 < runs.length && runs[k + 1].type === runs[i].type) k++;
+    const patternLen = k - i + 1;
+    if (patternLen > 2) {
+      out.push({ sceneKey: runs[i].key, sceneType: runs[i].type, kind: 'pattern', runLen: patternLen });
+    }
+    i = Math.max(j, k) + 1;
+  }
+  return out;
 }

@@ -143,7 +143,12 @@ function hostSmall(
   // plate's floor band (top H*0.66) and their feet. Opt-in plinth: a soft
   // slab under the feet — "standing beside the data" becomes deliberate
   // staging instead of a hover.
-  shelf?: boolean
+  shelf?: boolean,
+  // P2 (Verdict report — CARRIED-PROP VERBS): passthrough to the figure's
+  // hand-prop slot ('holdCard' | 'coinStack'); the call site resolves it
+  // through the prop ledger before passing. LAST position — existing call
+  // sites are untouched.
+  prop?: 'holdCard' | 'coinStack'
 ): void {
   // v10 (panel CHAR-1/CHAR-3): the side host CYCLES through a gesture set
   // instead of holding one pose for the whole scene — "two poses: shrug,
@@ -319,6 +324,10 @@ function hostSmall(
       parallaxAmt: parallax ? parallaxD * (1 - clamp01(reaction)) : undefined,
       // CONTACT VERBS: the solved hand — the scene declared the touch.
       contact,
+      // P2 (Verdict report — CARRIED-PROP VERBS): the scene's hand prop,
+      // ledger-resolved by the call site (holdCard on statCards, coinStack
+      // on dotGrid). Drawn at the near hand — held, never floating.
+      prop,
     },
     seed
   );
@@ -885,7 +894,10 @@ export function pieChartScene(g: SceneCtx): void {
   const dxs = hxPie + 5 - cx;
   const dys = hyPie - 200 * 1.35 - cy;
   const dl = Math.hypot(dxs, dys) || 1;
-  const pieTouch = { x: cx + (dxs / dl) * r, y: cy + (dys / dl) * r };
+  // P2 (Verdict report — TOUCH MUST BE LEGIBLE): the palm target moves 7px
+  // INSIDE the rim so the hand mass overlaps the gold wedge's edge — the
+  // FP0 fingertip + the 0.42 press shadow seal the touch ON the data.
+  const pieTouch = { x: cx + (dxs / dl) * (r - 7), y: cy + (dys / dl) * (r - 7) };
   {
     const lx = W * 0.62;
     const lw = 590;
@@ -1041,7 +1053,10 @@ export function dotGridScene(g: SceneCtx): void {
   // engine's own declared contact verb for a presenter whose object sits
   // beyond his envelope.
   hostSmall(g, W * 0.78, 'present', 8, H * 0.66, 1.5, 0, 'aha', 1.4, 1, true, 0.4,
-    undefined, undefined, undefined, 'left');
+    undefined, undefined, undefined, 'left', undefined,
+    // P2 (Verdict report — BALANCE THE NUMBERS): the counting beat's coin
+    // stack rides the near palm, ledger-resolved.
+    resolveProp('dotGrid', 'coinStack', true) ? 'coinStack' : undefined);
 }
 
 // ── magChips scene ───────────────────────────────────────────────────────
@@ -2456,9 +2471,16 @@ export function aiDatacenterScene(g: SceneCtx): void {
     // fill becomes a vertical gradient — denser at the base, lifting at
     // the top where the room's light catches it — and the far rows fade
     // toward the plate (atmospheric recession: farther = hazier).
+    // P3 (Verdict report — VALUE DISCIPLINE): the corridor re-lights from
+    // the near-black INK register to the film's SHADOW register (the cool
+    // slate every other shadow in the film uses) — the non-brand dark mass
+    // stops fighting the light theme and drops under the 12% frame-area
+    // cap — and each slab gains a GOLD RIM (the brand edge the audit
+    // prescribes: "re-lit to the shadow register with a gold rim"). LED
+    // glints stay; the racks read as lit hardware, not black holes.
     {
-      const gTop = rgba(PALETTE.ink, 0.82 + 0.14 * depth);
-      const gBot = rgba(PALETTE.ink, 0.96);
+      const gTop = rgba(PALETTE.shadow, 0.60 + 0.16 * depth);
+      const gBot = rgba(PALETTE.shadow, 0.82);
       const g = ctx.createLinearGradient(0, baseY - rh, 0, baseY);
       g.addColorStop(0, gTop);
       g.addColorStop(1, gBot);
@@ -2471,6 +2493,16 @@ export function aiDatacenterScene(g: SceneCtx): void {
         roundRect(ctx, x - rw / 2, baseY - rh, rw, rh, 5);
         ctx.fill();
       }
+      // the gold rim — one brand edge on the light side of every slab
+      ctx.strokeStyle = rgba(PALETTE.gold, 0.42 + 0.30 * depth);
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x - rw / 2, baseY);
+      ctx.lineTo(x - rw / 2, baseY - rh + 5);
+      ctx.quadraticCurveTo(x - rw / 2, baseY - rh, x - rw / 2 + 5, baseY - rh);
+      ctx.lineTo(x + rw / 2 - 2, baseY - rh);
+      ctx.stroke();
     }
     ctx.fillStyle = rgba('#FFFFFF', 0.06 + 0.2 * depth);
     roundRect(ctx, x - rw / 2, baseY - rh, rw, 3.5, 2);
@@ -2601,13 +2633,25 @@ export function aiDatacenterScene(g: SceneCtx): void {
       ctx.closePath();
       ctx.fill();
     }
-    // front body — dark slab
-    ctx.fillStyle = rgba(PALETTE.ink, 0.94);
+    // front body — the shadow register (P3 Verdict: re-lit from the
+    // near-black ink slab) with a GOLD RIM on its lit edges — the brand
+    // edge the report prescribes; the interior detail now reads ON a lit
+    // machine instead of inside a black hole.
+    ctx.fillStyle = rgba(PALETTE.shadow, 0.86);
     roundRect(ctx, hx - hw / 2, hBase - hh, hw, hh, 10);
     ctx.fill();
     ctx.lineWidth = 2;
     ctx.strokeStyle = rgba(PALETTE.shadow, 0.45);
     roundRect(ctx, hx - hw / 2, hBase - hh, hw, hh, 10);
+    ctx.stroke();
+    // the gold rim — the hero rack's light-side edges
+    ctx.strokeStyle = rgba(PALETTE.gold, 0.72);
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(hx - hw / 2, hBase - 4);
+    ctx.lineTo(hx - hw / 2, hBase - hh + 10);
+    ctx.quadraticCurveTo(hx - hw / 2, hBase - hh, hx - hw / 2 + 10, hBase - hh);
+    ctx.lineTo(hx + hw / 2 - 10, hBase - hh);
     ctx.stroke();
     // PHASE 2 (audit Table 6 — RACK INTERIORS + LEDs): the audit's frame-13
     // verdict — "flat slabs with no interior detail; LEDs and seams only."
@@ -3086,7 +3130,10 @@ export function statCardsScene(g: SceneCtx): void {
   // clearance off the hero card's registered right edge 1330, feet still
   // clear of the chip row; palm target (1338, 470) holds. Guard re-arbitrates.
   hostSmall(g, 1452, 'pointL', 19, g.H * 0.615, 1.5, 0, 'aha', 1.4, 1, true, 0.4,
-    undefined, undefined, { x: 1338, y: 470, hand: 'palm' }, 'left', true);
+    undefined, undefined, { x: 1338, y: 470, hand: 'palm' }, 'left', true,
+    // P2 (Verdict report — HOLD THE NUMBERS): the host grips the hero
+    // card's edge — the ledger-resolved holdCard prop rides the near hand.
+    resolveProp('statCards', 'holdCard', true) ? 'holdCard' : undefined);
 }
 
 // ── ownerWorker scene ────────────────────────────────────────────────────────
@@ -4062,7 +4109,10 @@ export function oddsSpreadScene(g: SceneCtx): void {
       // PHASE 3: the drawn arm smear — two-tier accent envelope only.
       armSmear: g.speaking ? accentPulse(g.beatT, g.wordTimes, g.wordTexts) : 0,
       parallax: false,
-      pointAt: pointRect ? { ...pointRect, hand: 'point', strength: 1 } : undefined,
+      // P2 (Verdict report — TOUCH MUST BE LEGIBLE): the pin is a touch
+      // target, not text — the fingertip lands 4-8px INSIDE the pin's rect
+      // (the touch band), sealed by the press shadow.
+      pointAt: pointRect ? { ...pointRect, hand: 'point', strength: 1, touch: true } : undefined,
     }, 26);
   }
   const kp = clamp01((t - 4200) / 700);

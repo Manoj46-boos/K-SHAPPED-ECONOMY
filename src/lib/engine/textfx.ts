@@ -5,7 +5,7 @@
 
 import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, springTo } from './easing';
 import { PALETTE, FONT_UI, FONT_DISPLAY, rgba, roundRect, setFont, TYPE_FLOOR } from './theme';
-import { Stickman } from './stickman';
+import { Stickman, walkIn } from './stickman';
 import { drawStickmanV2 } from './stickman-v2';
 import { registerPill, registerFixed } from './collision';
 import { captionDuplicatesHeadline } from './scene-context';
@@ -476,22 +476,46 @@ export function drawChapterCard(
     ctx.fillStyle = filled ? (active ? PALETTE.goldDeep : PALETTE.gold) : rgba(PALETTE.grid, 0.6);
     ctx.fill();
   }
-  // v5 (audit P1-5): the host peeks in from the left edge with a signpost
-  // pointing at the chapter — the card now has a guide, not just type. He
-  // slides in 24px and settles; the sign board carries the chapter number
-  // and an arrow chevron aimed at the title. Drawn last so he reads OVER
-  // the ghost numeral, alpha tied to the card's own fade.
+  // P3 (Verdict report — KILL THE WASHES): the card's right half — the 60%
+  // the title band never owned — gains the brand K as a MID-GROUND layer:
+  // a 20%-alpha gold outline scaled to fill the zone, drawing on with the
+  // card. The transition becomes a designed poster with content in every
+  // quadrant; the walk-in signpost host (below) owns the left.
   {
-    const slide = (1 - easeOutCubic(clamp01(t / 420))) * 24;
+    ctx.save();
+    ctx.globalAlpha = a * 0.20 * easeOutCubic(clamp01((t - 150) / 600));
+    ctx.strokeStyle = PALETTE.gold;
+    ctx.lineWidth = 24;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const kS = H * 0.44;
+    const kx = W * 0.74, ky = H * 0.60;
+    ctx.beginPath();
+    ctx.moveTo(kx - kS * 0.40, ky - kS);
+    ctx.lineTo(kx - kS * 0.40, ky + kS);
+    ctx.moveTo(kx + kS * 0.30, ky - kS);
+    ctx.lineTo(kx - kS * 0.16, ky - kS * 0.04);
+    ctx.lineTo(kx + kS * 0.38, ky + kS);
+    ctx.stroke();
+    ctx.restore();
+  }
+  // v5 (audit P1-5): the host WALKS IN from the left edge with a signpost
+  // pointing at the chapter — a guide arriving IN MOTION, not a decal
+  // fading up. P3 (Verdict report): the entrance is a real walkIn (1.25s,
+  // eased distance, feet planted) at 0.55 rig. The sign board carries the
+  // chapter number and an arrow chevron aimed at the title; the pole
+  // plants as the walk reaches it.
+  {
     const sy = H * 0.78;
     ctx.save();
     ctx.globalAlpha = a;
-    ctx.translate(-slide, 0);
     // signpost: pole + tilted board with the chapter number + chevron
+    const wp = clamp01(t / 700);
     const px = 196;
     ctx.strokeStyle = rgba(PALETTE.shadow, 0.9);
     ctx.lineWidth = 7;
     ctx.lineCap = 'round';
+    ctx.globalAlpha = a * wp;
     ctx.beginPath();
     ctx.moveTo(px, sy + 6);
     ctx.lineTo(px, sy - 148);
@@ -526,9 +550,11 @@ export function drawChapterCard(
     ctx.lineTo(bw - 50, -9);
     ctx.stroke();
     ctx.restore();
-    // the host — peeking, pointing at the sign/title
-    const pose = Stickman.poseAt(t, { gesture: 'pointR', speaking: false, seed: 3 });
-    drawStickmanV2(ctx, 150, sy + 58, 0.72, t, { pose, alpha: a, look: 0.9, scarf: true }, 3);
+    // the host — walks in, settles into the point at the sign/title
+    // P3 (Verdict report): a real walking entrance at 0.55 rig.
+    const arrivePose = Stickman.poseAt(t, { gesture: 'pointR', speaking: false, seed: 3 });
+    const w = walkIn(t, -90, 150, 1250, arrivePose, 0.55, 3);
+    drawStickmanV2(ctx, w.x, sy + 58, 0.55, t, { pose: w.pose, alpha: a, look: 0.9, scarf: true }, 3);
     ctx.restore();
   }
   ctx.restore();

@@ -228,6 +228,11 @@ export const PROP_LEDGER: Record<string, string[]> = {
   lunchbox: ['ownerWorker', 'gasPump'],
   // the prof's coffee — channel-intro and talk-to-camera stagings
   coffee: ['channelIntro', 'host', 'commentPrompt', 'divergeK'],
+  // P2 (Verdict report — CARRIED-PROP VERBS): the host holds a stat card's
+  // edge (the statCards perch) and balances a coin stack on his palm (the
+  // dotGrid counting beat) — silhouette events, ledger-governed.
+  holdCard: ['statCards'],
+  coinStack: ['dotGrid'],
 };
 
 export interface PropUsage {

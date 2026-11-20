@@ -336,6 +336,11 @@ export class Stickman {
   }): Pose {
     const seed = opts.seed ?? 0;
     const gesture = opts.gesture || 'idle';
+    // P1 (Verdict report — THE TRUE ONE-POLE HEAD LAG): the DELAYED gesture
+    // lean is captured inside the sentence branch (where the spring terms
+    // live) and consumed at the return — the head arrives ~105ms after the
+    // torso on every lean change, in closed form (scrub-safe).
+    let leanDelayed: number | null = null;
     let pose: Pose;
     if (opts.speaking && (gesture === 'present' || gesture === 'idle' || gesture === 'close')) {
       // P1-6 (report §12.6): THE METRONOME IS DEAD. The talk cycle used to
@@ -413,6 +418,10 @@ export class Stickman {
         const stEff = holdD !== null ? st - (200 - holdD) : st;
         const anti = stEff < 150 ? Math.sin((stEff / 150) * Math.PI) * 0.45 : 0;
         const sT = Math.max(0, stEff - 150);
+        // P1 — the same spring sampled 105ms late: the torso's lean delayed
+        const antiLag = (stEff - 105) < 150 && stEff > 105 ? Math.sin(((stEff - 105) / 150) * Math.PI) * 0.45 : 0;
+        const fUpLag = Math.max(0, springTo(0, 1, Math.max(0, sT - 105), 150, 10.5) - antiLag);
+        leanDelayed = lerp(prevPose.lean, cyc.lean, fUpLag);
         // PHASE 2 VISUAL AUDIT (Fix 3 — OVERSHOOT IN THE 20-25% HERO BAND):
         // damping 11 → 10.5 (ζ = 0.4287 → 22.5% overshoot, the middle of
         // the report's band); stiffness 150 (settle unchanged).
@@ -485,6 +494,23 @@ export class Stickman {
               }
             }
           }
+        }
+        // P1 (Verdict report — ANTICIPATION IS A COUNTER-MOVE, NOT A FREEZE):
+        // the 200ms pre-strike hold used to FREEZE the spring input — a
+        // stutter-pause. The hold is now a LOAD: the torso leans and the
+        // free arm pulls opposite the strike direction, growing toward the
+        // onset (closed form in holdD — pure function of t, scrub-safe).
+        if (holdD !== null) {
+          const dArmR2 = Math.abs(cyc.rAU - prevPose.rAU) + Math.abs(cyc.rAL - prevPose.rAL);
+          const away = (dArmR2 >= Math.abs(cyc.lAU - prevPose.lAU) + Math.abs(cyc.lAL - prevPose.lAL)) ? -1 : 1;
+          const loadK = clamp01((200 - holdD) / 200) * 0.35;
+          pose = {
+            ...pose,
+            lean: pose.lean + away * 5 * loadK,
+            rAU: pose.rAU + away * 9 * loadK,
+            lAU: pose.lAU - away * 9 * loadK,
+            rootY: pose.rootY + 2.5 * loadK,
+          };
         }
         // beat-accent: a decaying forearm pulse on each word onset — the
         // hand strikes on the emphasized word, exactly as a narrator's does
@@ -596,15 +622,19 @@ export class Stickman {
       headTilt: pose.headTilt + sway * 0.25,
     };
     // PANEL-12 / P1-3 (report §13.3) — FOLLOW-THROUGH: the head chases
-    // the torso. A one-pole lag in closed form is a phase-shifted lookup:
-    // the head's tilt picks up a transient proportional to how far the
-    // CURRENT lean has traveled from its lagged (mostly-static) value —
-    // so when the torso leans, the head arrives ~120ms later. This is the
-    // last joint that still moved like a mannequin.
+    // the torso. P1 (Verdict report — THE TRUE ONE-POLE LAG, 90-120ms):
+    // inside the sentence branch the gesture lean is a pure function of
+    // the spring term, so the DELAYED lean is evaluable exactly — the
+    // same spring at t - 105ms. The head now picks up the torso's lean
+    // transient ~105ms late, in closed form (scrub-safe), on every lean
+    // change. Other branches keep the static transient approximation.
     const leanLagged = leaned.lean * 0.82 + 0.18 * (POSES[gesture]?.lean ?? 0);
+    const headLag = leanDelayed !== null
+      ? (leaned.lean - leanDelayed) * 0.55
+      : (leaned.lean - leanLagged) * 0.6;
     return {
       ...leaned,
-      headTilt: leaned.headTilt + (leaned.lean - leanLagged) * 0.6,
+      headTilt: leaned.headTilt + headLag,
     };
   }
 
@@ -666,13 +696,21 @@ export class Stickman {
       { at: 0.40, lu: 25,  ll: -6,  lift: 4,  toe: -14, root: 2,  lean: 4,  chin: -2 },
       // CONTACT — the lunge: leg extended ahead, heel strikes, body LOW,
       // the chin tucks INTO the plant
-      { at: 0.50, lu: 27,  ll: 2,   lift: 0,  toe: -14, root: 6,  lean: 5,  chin: -4 },
+      // P1 (Verdict report — MOTION RE-REGISTRATION): the vertical extremes
+      // DOUBLE (contact 6 -> 12, down 9 -> 18, pass -7 -> -12) so the four
+      // beats differ in head height by >= 4% of the figure at the 320 twin —
+      // the verdict's acceptance test. The ground anchor keeps the planted
+      // foot ON the line (rootY stays the stance leg's reach).
+      { at: 0.50, lu: 27,  ll: 2,   lift: 0,  toe: -14, root: 12, lean: 5,  chin: -4 },
       // DOWN — the absorb: weight lands, the knee flexes, pelvis LOWEST
-      // (iter-2: root 7 → 9 — the four beats must differ in HEAD HEIGHT)
-      { at: 0.60, lu: 18,  ll: -18, lift: 0,  toe: -4,  root: 9,  lean: 4,  chin: -2 },
+      { at: 0.60, lu: 18,  ll: -18, lift: 0,  toe: -4,  root: 18, lean: 4,  chin: -2 },
+      // P1 — THE 2-FRAME HOLD ON THE DOWN KEY: a duplicate DOWN at 0.645
+      // makes the sample HOLD at the absorb for ~50-60ms (2 frames at 30fps
+      // on the film's stride clock) — the weight visibly LANDS instead of
+      // kissing the floor and bouncing on.
+      { at: 0.645, lu: 18, ll: -18, lift: 0,  toe: -4,  root: 18, lean: 4,  chin: -2 },
       // PASS — the tall crossing: stance leg near-vertical, body TALLEST
-      // (iter-2: root -4 → -7, chin lifts — the counter-bob reads)
-      { at: 0.75, lu: 4,   ll: -10, lift: 0,  toe: 2,   root: -7, lean: 3,  chin: 2 },
+      { at: 0.75, lu: 4,   ll: -10, lift: 0,  toe: 2,   root: -12, lean: 3,  chin: 2 },
       // ROLL-THROUGH — the heel lifts, the toe loads toward the next push
       // (iter-2: stays tall into the push, root -1 → -3)
       { at: 0.90, lu: -12, ll: -8,  lift: 0,  toe: 16,  root: -3, lean: 4,  chin: 1 },
@@ -711,10 +749,16 @@ export class Stickman {
     const rootY = (U + L) - Math.max(reachL, reachR) + sL.root * S;
     // CONTRALATERAL arms — the same-side arm OPPOSES the same-side leg
     // (the analytic cycle coupled them ipsilaterally: an anatomy bug).
-    // The elbow flexes on the forward swing.
-    const armAmp = 0.9;
+    // P1 (Verdict report — ARMS ANSWER THE LEGS): swing amplitude rises to
+    // the ±38° register (armAmp 0.9 -> 1.42 on the ±27° leg swing) and the
+    // elbow FLEXION is driven by the swing phase — the forward-swing arm
+    // folds harder the faster the leg drives (lift-proportional), so the
+    // arms visibly answer the gait instead of hanging.
+    const armAmp = 1.42;
     const lAUw = -lLU * armAmp - 7;
     const rAUw = -rLU * armAmp + 7;
+    const swingL = liftL / (17 * Math.max(0.3, S) || 1); // 0..1 within the stride
+    const swingR = liftR / (17 * Math.max(0.3, S) || 1);
     return {
       ...base(),
       rootY,
@@ -722,9 +766,9 @@ export class Stickman {
       headTilt: sL.chin,
       lLU, lLL, rLU, rLL,
       lAU: lAUw,
-      lAL: lAUw + Math.max(0, lAUw) * 0.55 - 2,
+      lAL: lAUw + Math.max(0, lAUw) * (0.75 + 0.35 * swingL) - 4,
       rAU: rAUw,
-      rAL: rAUw + Math.max(0, rAUw) * 0.55 + 2,
+      rAL: rAUw + Math.max(0, rAUw) * (0.75 + 0.35 * swingR) + 4,
       smile: 0.35,
       browRaise: 0.1,
       lLift: liftL,

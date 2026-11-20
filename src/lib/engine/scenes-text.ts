@@ -654,6 +654,32 @@ export function quoteCardScene(g: SceneCtx): void {
     }
   }
   registerRect('quoteCard:quote', ruleX, 220, blockR - ruleX, footY - 200);
+  // P3 (Verdict report — KILL THE WASHES): the quote card's right zone —
+  // the band between the text block and the host — gains the brand K as a
+  // mid-ground layer (20% alpha, gold, filling the vertical band). The
+  // frame now carries designed content in every quadrant; the host reads
+  // as presenting BESIDE the mark, not floating in a wash.
+  {
+    const kp2 = clamp01((t - 500) / 700);
+    if (kp2 > 0) {
+      ctx.save();
+      ctx.globalAlpha = kp2 * 0.20;
+      ctx.strokeStyle = PALETTE.gold;
+      ctx.lineWidth = 18;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      const kS = H * 0.30;
+      const kx = W * 0.795, ky = H * 0.52;
+      ctx.beginPath();
+      ctx.moveTo(kx - kS * 0.40, ky - kS);
+      ctx.lineTo(kx - kS * 0.40, ky + kS);
+      ctx.moveTo(kx + kS * 0.30, ky - kS);
+      ctx.lineTo(kx - kS * 0.16, ky - kS * 0.04);
+      ctx.lineTo(kx + kS * 0.38, ky + kS);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
   // host reacting
   const hp = clamp01((t - 800) / 600);
   if (hp > 0) {

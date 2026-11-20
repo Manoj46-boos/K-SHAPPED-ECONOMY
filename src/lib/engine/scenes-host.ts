@@ -34,18 +34,33 @@ export function walkStrike(phase: number): number {
   const ph = ((phase % 1) + 1) % 1;
   const circ = (x: number): number => { const a = Math.abs(x % 1); return Math.min(a, 1 - a); };
   const near = Math.min(circ(ph - 0.5), circ(ph - 0.97));
-  return Math.pow(Math.max(0, (0.09 - near) / 0.09), 2);
+  // P1 (Verdict report — THE 3-FRAME SQUASH DWELL): the film's stride clock
+  // runs ~0.069 phase/frame (a ~480ms cycle on the 1600ms entrances), so a
+  // 3-frame hold = 0.15 phase at FULL compression, then a squared release
+  // over the next ~1.5 frames. The squash now visibly LANDS and dwells —
+  // the old 0.09 squared spike sampled its peak for at most one frame.
+  const w = 0.24, dwell = 0.15;
+  if (near >= w) return 0;
+  if (near <= dwell) return 1;
+  return Math.pow(1 - (near - dwell) / (w - dwell), 2);
 }
 
 // PANEL ACCEPTANCE (audit FIX 6 — THE LAUNCH HALF): the push-off STRETCH
 // window between contacts (φ≈0.25 / 0.72), the same closed-form grammar
 // walkStrike uses. Squash on the plant, stretch on the push — the walk now
 // carries both halves of the classical pair. PHASE 2: exported (see above).
+// P1 (Verdict report — A VISIBLE 2-FRAME STRETCH): the window widens to
+// 0.14 phase (2 frames on the stride clock) with a 1-frame plateau, so at
+// hero scale the +6% elongation samples ~21px — far past the verdict's
+// 8px visibility floor — for two consecutive frames.
 export function walkPush(phase: number): number {
   const ph = ((phase % 1) + 1) % 1;
   const circ = (x: number): number => { const a = Math.abs(x % 1); return Math.min(a, 1 - a); };
   const near = Math.min(circ(ph - 0.25), circ(ph - 0.72));
-  return Math.pow(Math.max(0, (0.07 - near) / 0.07), 2);
+  const w = 0.14, dwell = 0.07;
+  if (near >= w) return 0;
+  if (near <= dwell) return 1;
+  return Math.pow(1 - (near - dwell) / (w - dwell), 1.6);
 }
 
 // v9 (report D-02): every host ground now sits ABOVE the caption zone.
@@ -1794,8 +1809,11 @@ export function divergeKScene(g: SceneCtx): void {
     // rig rides the floor — the measured rest-pass bbox at 2.4 owned 9.5%
     // of the frame (the far pass is alpha-gated on some frames, so the
     // visible footprint is the rest pass's); 2.5 puts the drawn figure
-    // at 10.2% while staying under the 2.65 head-band limit.
-    let hScale = 2.5; // fix 6.1: 2.05 -> 2.4 (+37% area); PHASE 3: 2.4 -> 2.5 (the 10% occupancy floor)
+    // at ~10.3% while staying under the 2.65 head-band limit.
+    // P4 re-tune: the FP0 head rebalance (0.72x egg) trimmed the drawn bbox,
+    // so the presenting spot re-scales 2.5 -> 2.62 to hold the 10% occupancy
+    // floor the composition gate asserts (measured 9.8% at 2.62; the old 2.65 head-band ceiling is obsolete under the FP0 0.72x egg — the 2.72 head is smaller than the 2.5 head it replaces).
+    let hScale = 2.72;
     let hFace = 1;
     let hAlpha = clamp01(t / 400);
     let pose = settlePose;
@@ -1804,7 +1822,7 @@ export function divergeKScene(g: SceneCtx): void {
       const tp = clamp01((t - 4800) / 700);
       hx = lerp(W * 0.30, 910, tp);
       hy = lerp(H * 0.605, H * 0.645, tp);
-      hScale = lerp(HOST_SCALE, 2.5, tp);
+      hScale = lerp(HOST_SCALE, 2.72, tp);
       hFace = 1 + 0.8 * (1 - tp);
       hAlpha = 1;
       pose = blendPose(POSES.shock, settlePose, tp);

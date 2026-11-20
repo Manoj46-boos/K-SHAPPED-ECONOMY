@@ -223,6 +223,20 @@ const MIN_DEPTH = 10; // shallower overlaps = camera-worst-case, not shipped
  *  lands at 960+935×1.092+22 ≈ 2004 — 84px past the edge. */
 const EDGE_PAD = 10;
 
+/** P4: the current frame's guard camera (design-grid space), so the
+ *  harness can transform registered rects into screen px exactly as the
+ *  guard does before measuring ink. */
+export function guardCamera(): { dx: number; dy: number; scale: number } | null {
+  return collisionGuard.camera;
+}
+
+/** P4 (Visual Verdict report — HAND-INK GATE): read access to the current
+ *  frame's registered rects, so the render harness can assert the hand-ink
+ *  floor on every declared contact verb. */
+export function guardRects(): Array<GuardRect & { id: string; cls?: 'content' | 'host' | 'contact' }> {
+  return collisionGuard.content.slice();
+}
+
 /** Compute (and stash) all violations for the current frame:
  *  pill + fixed-furniture overlaps, and frame-edge crossings. */
 export function collectViolations(): CollisionViolation[] {
