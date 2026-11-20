@@ -233,7 +233,11 @@ function drawMouthV2(
   // (12 → 15 hero / 7 → 9 compact), every open shape runs ~25% taller, and
   // the interior gains a darker cavity wedge + warm tongue hint so the open
   // mouth reads as depth (a cavity), not as a flat ink blob.
-  const wFloor = bigFace ? 15 : 9;
+  // B4 RE-SPEC (Visual Quality Audit §3.1 — THUMBNAIL-FACE PARITY): the
+  // mouth is the face's third mass — the floors lift one step (15 → 17
+  // hero / 9 → 10 compact) so the film's talking face carries the
+  // thumbnail's mouth presence at every rig.
+  const wFloor = bigFace ? 17 : 10;
   const mouthCavity = (cx: number, cy: number, rw: number, rh: number): void => {
     ctx.fillStyle = 'rgba(28,22,16,0.5)';
     ctx.beginPath();
@@ -304,13 +308,17 @@ function drawMouthV2(
       // B / D / G — the small-open slot register (one shape; G keeps its
       // single teeth bar — the only viseme-specific detail that survives
       // the transcode)
+      // B4 RE-SPEC (Visual Quality Audit §3.1 — THE CURL-MOUTH): the G
+      // teeth bar rendered as a white worm across the dark slot below hero
+      // scales — the "bug on the face" read. The bar is a hero-scale detail
+      // only: below bigFace the slot runs clean.
       default:
         {
           ctx.fillStyle = col;
           ctx.beginPath();
           ctx.ellipse(mx, 15, w * 0.75, h * 0.4 * jawX, 0, 0, Math.PI * 2);
           ctx.fill();
-          if (viseme === 'G') {
+          if (viseme === 'G' && bigFace) {
             ctx.fillStyle = '#FDFCF8';
             ctx.fillRect(mx - w * 0.55, 13.8, w * 1.1, 2.5);
           }
@@ -723,7 +731,12 @@ export function handGlyph(
   // clamps to a screen-space palm floor (>= 12px at 1080p), and the point
   // glyph's fingertip carries its own floor below (>= 12px at 1080p = 2px
   // at the 320 twin for contact verbs).
-  s = Math.max(s, 13 / Math.max(0.5, rigScale));
+  // B2 RE-SPEC (Visual Quality Audit §3.1 — WITHERED HANDS): the 13px floor
+  // still shipped nub hands on the re-specified ink limbs — a hand must
+  // read as a HAND at every staging, so the palm floor rises to 20px
+  // screen space (the smallest hand a cold viewer names as a hand on a
+  // 1080p frame) and the point glyph's fingertip floor rises to 14px.
+  s = Math.max(s, 20 / Math.max(0.5, rigScale));
   // P1-2 (100-judge audit, Table 3 — HANDS): the FIST + COUNT glyphs.
   // "Featureless mitts in every pose" / "a withered claw" — and the
   // count poses had nothing to count WITH. The fist: a rounded mass + a
@@ -752,7 +765,11 @@ export function handGlyph(
   // gesture renders as the PINCH — the thumb-and-index "exactly this" hand.
   // Below rig 2 the feed-scale vocabulary is unchanged (mitten/count read
   // at 320px; fingers would dissolve to noise).
-  if (!mode && rigScale >= 2) {
+  // B2 RE-SPEC (Visual Quality Audit §3.1): the open four-finger hand is
+  // the DEFAULT resting hand from rig 1.4 up — one hand language on every
+  // staging a viewer can see a face at, not just the hero frames; below
+  // 1.4 the mitten holds (fingers dissolve to noise at feed scale).
+  if (!mode && rigScale >= 1.4) {
     mode = 'open';
   }
   if (mode === 'count1' && rigScale >= 2) {
@@ -830,7 +847,10 @@ export function handGlyph(
     // now TWO segments with a visible knuckle: proximal (root -> knuckle)
     // and distal (knuckle -> tip), the tip width floored in SCREEN space
     // (12px at 1080p = 2px at the 320 twin — the verdict's contact floor).
-    const tipW = Math.max(s * 0.16, 12 / Math.max(0.5, rigScale));
+    // B2 RE-SPEC (Visual Quality Audit §3.1): the fingertip floor rises to
+    // 14px — the finger must terminate as a readable tip on every contact
+    // rig, not as the last visible pixel.
+    const tipW = Math.max(s * 0.16, 14 / Math.max(0.5, rigScale));
     const knX = x + Math.sin(a) * s * 0.80, knY = y + Math.cos(a) * s * 0.80;
     const tiX = x + Math.sin(a) * s * 1.48, tiY = y + Math.cos(a) * s * 1.48;
     taper(ctx, x + Math.sin(a) * s * 0.06, y + Math.cos(a) * s * 0.06,
@@ -886,11 +906,19 @@ export function handGlyph(
     const pxn = Math.sin(fa + Math.PI / 2), pyn = Math.cos(fa + Math.PI / 2);
     // the palm wedge — slightly longer than the mitten mass, the fingers'
     // shared root (one subpath of the same filled path)
+    // B2 RE-SPEC (Visual Quality Audit — the palm that never was): the
+    // wedge path was built inside save/translate/rotate and then DISCARDED
+    // by the fingers' own beginPath — the open hand rendered as four
+    // floating finger strokes with a hole where the palm belongs (the
+    // detached-ring read at side rigs). The wedge now FILLS in its own
+    // transform, before the fingers layer over it.
     ctx.save();
     ctx.translate(x + Math.sin(fa) * s * 0.30, y + Math.cos(fa) * s * 0.30);
     ctx.rotate(fa);
+    ctx.fillStyle = col;
     ctx.beginPath();
     roundRect(ctx, -s * 0.52, -s * 0.40, s * 1.04, s * 0.82, s * 0.32);
+    ctx.fill();
     ctx.restore();
     // four separated fingers — the count glyph's PROVEN finger path (roots
     // buried in the wedge, quadratic-capped tips, fan ±0.30 rad breathing
@@ -928,9 +956,15 @@ export function handGlyph(
     const fa = a;
     // the folded mass — stops at the palm; the three folded fingers leave
     // it as separate bars with gaps (the pre-inked breaks)
+    // B2 RE-SPEC (Visual Quality Audit — the same discarded-path bug the
+    // wedge had): the mass path was built inside save/translate/rotate and
+    // then DISCARDED by the restore — the pinch rendered as a bare curled
+    // index + the stroked loop ("the detached-ring read"). The mass now
+    // FILLS in its own transform, under the index curl.
     ctx.save();
     ctx.translate(x + Math.sin(fa) * s * 0.08, y + Math.cos(fa) * s * 0.08);
     ctx.rotate(fa);
+    ctx.fillStyle = col;
     ctx.beginPath();
     roundRect(ctx, -s * 0.4, -s * 0.34, s * 0.62, s * 0.7, s * 0.26);
     if (rigScale >= 1.25) {
@@ -938,6 +972,7 @@ export function handGlyph(
         rrSub(ctx, s * 0.02, fy * s, s * 0.4, s * 0.13, s * 0.05);
       }
     }
+    ctx.fill();
     ctx.restore();
     // the index — curls from the mass to the pinch point (1.0s out)
     taper(ctx, x + Math.sin(fa) * s * 0.18, y + Math.cos(fa) * s * 0.18,
@@ -1118,24 +1153,33 @@ function scarfTail(
   // (bones 21 -> 31.5) so the gold flick escapes visibly BEYOND the
   // shoulder line at every rig — the brand accessory finally reads at
   // feed scale. Root widths rise a step so the longer ribbon keeps mass.
-  const rl = Math.hypot(14, 16);
-  const [fp, tp] = followChain(t, seed, anchor, { x: -14 / rl, y: 16 / rl }, 31.5, 31.5, -0.0002, 0.0011, 0.86);
+  // B3 RE-SPEC (Visual Quality Audit §3.1 — THE STRAP READ): the 63-unit,
+  // 15-unit-root tail rendered as a two-inch band from the left shoulder
+  // down across the chest — the panel's "slung messenger-bag strap /
+  // sash worn wrong". A scarf's tail is a SHORT cloth flick that leaves
+  // the knot at SHOULDER height and travels BACK, never down the chest:
+  // the rest direction flattens (back-horizontal, slight droop), the
+  // bones shorten to 17/14, and the ribbon thins to 8.5→3.2 units — the
+  // flick stays at the shoulder line, the knot + collar carry the brand,
+  // and the strap read is geometrically impossible.
+  const rl = Math.hypot(14, 5);
+  const [fp, tp] = followChain(t, seed, anchor, { x: -14 / rl, y: 5 / rl }, 17, 14, -0.0002, 0.0011, 0.86);
   const fxp = fp.x, fyp = fp.y;       // the fold — chain node 1
   const ex = tp.x, ey = tp.y;         // the tip — chain node 2
   // ONE continuous tapered ribbon — root segment then fold segment,
   // round caps at the fold so the crease reads as cloth bending.
-  taper(ctx, x0, y0, fxp, fyp, 15, 10, colUnder);
-  taper(ctx, fxp, fyp, ex, ey, 10, 5.5, colUnder);
-  taper(ctx, x0, y0, fxp, fyp, 12.2, 7.8, colTop);
-  taper(ctx, fxp, fyp, ex, ey, 7.8, 4.6, colTop);
+  taper(ctx, x0, y0, fxp, fyp, 8.5, 6, colUnder);
+  taper(ctx, fxp, fyp, ex, ey, 6, 3.8, colUnder);
+  taper(ctx, x0, y0, fxp, fyp, 7.2, 5, colTop);
+  taper(ctx, fxp, fyp, ex, ey, 5, 3.2, colTop);
   // the fold crease — the one seam a real scarf HAS (the two-tone hint
   // at the bend, in the under colour)
   ctx.strokeStyle = rgba(colUnder, 0.85);
-  ctx.lineWidth = 2.2;
+  ctx.lineWidth = 1.8;
   ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(fxp - 3.5, fyp - 1.5);
-  ctx.lineTo(fxp + 3.5, fyp + 1.5);
+  ctx.moveTo(fxp - 3, fyp - 1.2);
+  ctx.lineTo(fxp + 3, fyp + 1.2);
   ctx.stroke();
 }
 
@@ -1795,7 +1839,7 @@ export function drawStickmanV2(
         neckY + 3 + Math.sin(shT) * 9 - (pose.shoulderDrop ?? 0) * 0.6 + Math.cos(farAU * D2R) * U_ARM * 0.58,
         INK.armFar[0] + 5, INK.armFar[0] - 1, '#6E5210');
     }
-    handGlyph(ctx, farHand.ex, farHand.ey, farAL, 15, farInk, scale, pose.lHand, grip); // PHASE-1: the far hand runs the same mitten glyph — one hand language at every scale
+      handGlyph(ctx, farHand.ex, farHand.ey, farAL, 15, farInk, scale, pose.lHand, grip); // PHASE-1: the far hand runs the same mitten glyph — one hand language at every scale
     // AUDIT-2 / 0.1: the far shoe steps with its limb (farInk) — depth,
     // not a second colour system.
     shoeWedge(farFoot, farInk, pose.lToe ?? 0);
@@ -1895,8 +1939,10 @@ export function drawStickmanV2(
     // 6 -> 14px — at 6px the tail's flick was 1.8px at the 320px gate and
     // the scarf read as a static bolt of cloth. At 14px (4.1px at feed) the
     // wave REGISTERs: the scarf is worn, alive, brand-motion.
+    // B3 RE-SPEC: the short shoulder flick answers the body's clocks at a
+    // 10px register — cloth-alive without whipping a ribbon this short.
     const wave0 =
-      Math.sin(t / 700 + seed) * 14 * (r.walkPhase !== undefined ? 3.2 : 1) * (1 + talkEnv0 * 1.4) +
+      Math.sin(t / 700 + seed) * 10 * (r.walkPhase !== undefined ? 3.2 : 1) * (1 + talkEnv0 * 1.4) +
       Math.sin(t / 240 + seed * 2) * 3.2 * talkEnv0;
     if (scale >= 1.2) {
       scarfTail(ctx, neckX - 3, neckY + 12, wave0 * 0.5, PALETTE.gold, '#A8851B',
@@ -1910,7 +1956,8 @@ export function drawStickmanV2(
       // nub, 0.6× scale — the brand stays ON the character at every
       // distance (the knot itself is drawn later at all scales; this
       // restores the trailing cloth).
-      taper(ctx, neckX - 3, neckY + 12, neckX - 12 - wave0 * 0.3, neckY + 17 + wave0 * 0.22, 6, 2.5, PALETTE.gold);
+      // B3 RE-SPEC: the sub-gate flick shortens to match the new ribbon.
+      taper(ctx, neckX - 3, neckY + 12, neckX - 10 - wave0 * 0.3, neckY + 15 + wave0 * 0.22, 5, 2, PALETTE.gold);
     }
   }
   {
@@ -2086,28 +2133,32 @@ export function drawStickmanV2(
   // whips on the push-off — a secondary action that says "there is mass
   // and air here", the classic follow-through tell).
   if (r.scarf !== false) {
+    // B3 RE-SPEC (Visual Quality Audit §3.1): the knot compacts — the old
+    // 13×8 ellipse + 26×11 collar band read as a chest plate at hero rigs.
+    // A knot is a knot: 10×6.5 with a 20×9 collar wrap keeps the tied-scarf
+    // read and lets the head/neck anatomy show.
     ctx.fillStyle = PALETTE.gold;
     ctx.beginPath();
-    ctx.ellipse(neckX, neckY + 10, 13, 8, leanR * 0.6, 0, Math.PI * 2);
+    ctx.ellipse(neckX, neckY + 10, 10, 6.5, leanR * 0.6, 0, Math.PI * 2);
     ctx.fill();
     // v10 (panel CHAR-3): a goldDeep outline on the knot — at side-host
     // scale the solid knot read as "a stain"; the two-tone knot reads as
     // a tied scarf at any size.
     ctx.strokeStyle = PALETTE.goldDeep;
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2.2;
     ctx.beginPath();
-    ctx.ellipse(neckX, neckY + 10, 13, 8, leanR * 0.6, 0, Math.PI * 2);
+    ctx.ellipse(neckX, neckY + 10, 10, 6.5, leanR * 0.6, 0, Math.PI * 2);
     ctx.stroke();
     // P1 scarf v3 (100-judge dossier): the neck-wrap collar — a gold band
     // around the neck base, drawn after the torso so it sits ON the body.
     // This is what makes the scarf read as WORN (the tail lives behind the
     // shoulder, drawn pre-torso); the knot becomes the band's tie knot.
     ctx.fillStyle = PALETTE.gold;
-    roundRect(ctx, neckX - 13, neckY + 1, 26, 11, 5.5);
+    roundRect(ctx, neckX - 10, neckY + 1, 20, 9, 4.5);
     ctx.fill();
     ctx.strokeStyle = PALETTE.goldDeep;
-    ctx.lineWidth = 2.2;
-    roundRect(ctx, neckX - 13, neckY + 1, 26, 11, 5.5);
+    ctx.lineWidth = 2;
+    roundRect(ctx, neckX - 10, neckY + 1, 20, 9, 4.5);
     ctx.stroke();
   }
 
@@ -3117,9 +3168,14 @@ export function drawStickmanV2(
     const bRaise = pose.browRaise * AMP.browTravelPx;
     const bAng = pose.browAngle * D2R;
     const x0 = dir * (8 + eyeDX), x1 = dir * (24 + eyeDX);
-    const lift = ivory ? 5 : 0;
-    const y0 = -18 - lift - bRaise - dir * Math.tan(bAng) * 7;
-    const y1 = -16 - lift - bRaise + dir * Math.tan(bAng) * 7;
+    // B4 RE-SPEC (Visual Quality Audit §3.1 — BROWS RIDE THE GLASSES): the
+    // rest line sits ON the lens rim (gap ≤ 3 units) instead of 5 units of
+    // ivory lift above it — the brow arch reads as attached to the face at
+    // every rig, and the travel (AMP.browTravelPx 40 → 14) keeps even the
+    // full-surprise arch inside the forehead's own band.
+    const lift = ivory ? 2.5 : 0;
+    const y0 = -15.5 - lift - bRaise - dir * Math.tan(bAng) * 7;
+    const y1 = -13.5 - lift - bRaise + dir * Math.tan(bAng) * 7;
     ctx.strokeStyle = becker ? faceInk : ink;
     ctx.lineWidth = Math.max(smallHead ? 5.5 : 6.5, featureFloor(7), scale >= 2 ? 9.5 : 0);
     ctx.lineCap = 'round';
@@ -3224,7 +3280,16 @@ export function drawStickmanV2(
     if (r.talk && (r.talk > 0.15) && (r as any).wordTexts && (r as any).wordTimes) {
       vm = visemeAt((r as any).beatT ?? 0, (r as any).wordTimes ?? [], (r as any).wordTexts ?? []);
     }
-    drawMouthV2(ctx, eyeDX, pose.smile, r.talk ?? 0, jaw2x, becker ? faceInk : PALETTE.ink, scale > 1.5, vm);
+    // B4 RE-SPEC (Visual Quality Audit §3.1 — THE NEUTRAL SHOCK): the
+    // twist close-up rendered a hanging-armed figure with a small dot
+    // mouth — the gasp read as idle standing. Surprise above 0.55 now
+    // owns the mouth: an effective talk of ≥0.86 forces the round-O gasp
+    // register even between words, so a shocked face ALWAYS has a shocked
+    // mouth (thumbnail-face parity — the click face is the film face).
+    const mouthTalk = (r.talk ?? 0) > 0.18
+      ? (r.talk ?? 0)
+      : (surprise > 0.55 ? Math.max(0.86, surprise) : (r.talk ?? 0));
+    drawMouthV2(ctx, eyeDX, pose.smile, mouthTalk, jaw2x, becker ? faceInk : PALETTE.ink, scale > 1.5, vm);
   }
   // cheek warmth — very subtle (P1-1 'becker': skipped — no interior clutter)
   // 100-JUDGE PANEL REPORT (fix A4): cheek warmth 0.16 → 0.09 — the plush

@@ -104,7 +104,16 @@ export const POSES: Record<string, Pose> = {
   // counter-angled. Premium stick figures are never symmetric at rest;
   // symmetric A-poses / V-cheers are the “mannequin salesman” tell the
   // re-verification panel flagged on both BEFORE host frames.
-  idle: { ...base(), lean: 6, pelvisTilt: 9, shoulderTilt: -5, lLU: -10, lLL: 4, rLU: 12, rLL: 8, lAU: -12, lAL: -8, rAU: 14, rAL: 8 },
+  // B6 RE-SPEC (Visual Quality Audit §3.1 — THE DEFAULT BODY IS A
+  // MANNEQUIN): the previous idle keys were tilt-only (arms ±12° from
+  // vertical, elbows near-zero) — the render showed soldier-at-parade
+  // arms, crossed shins, no weight. A rest pose has BENT ARMS and a
+  // committed weight leg: near arm bent ~28° forward (hand in front of
+  // the thigh), far arm relaxed behind the hip, left leg straight and
+  // bearing (with pelvisTilt + it carries the weight), right leg easy,
+  // head committing toward the content side. The figure now rests like
+  // a person waits, not like a puppet hangs.
+  idle: { ...base(), lean: 5, pelvisTilt: 11, shoulderTilt: -6, headTilt: -2, lLU: -6, lLL: -1, rLU: 16, rLL: 10, lAU: -16, lAL: -34, rAU: 12, rAL: 40 },
   talkA: { ...base(), lAU: -14, lAL: -10, rAU: 26, rAL: 34, smile: 0.3, lean: 2, lLU: -7, rLU: 9, rLL: 5 },
   talkB: { ...base(), rAU: 30, rAL: 66, lAU: -10, lAL: -8, smile: 0.25, lean: -1.5, lLU: -8, lLL: 4, rLU: 6 },
   talkC: { ...base(), lAU: -20, lAL: -28, rAU: 54, rAL: 70, smile: 0.3, lean: 3, lLU: -8, rLU: 9, rLL: 6 },

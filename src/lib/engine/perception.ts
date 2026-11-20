@@ -137,7 +137,13 @@ export const AMP = {
    *  100-JUDGE VISUAL AUDIT (Phase 1 — FACE CRAFT): 34 -> 40 — the
    *  caricature band the engine's own audit prescribed: the raise now
    *  clears the glasses frame with a full arc of air above it. */
-  browTravelPx: 40,
+  /** Brow travel, LOCAL px of the brow base above its rest line.
+   *  B4 RE-SPEC (Visual Quality Audit §3.1 — FLOATING BROWS): the old 40
+   *  put a full-surprise brow ~106 SCREEN px above the glasses wire at the
+   *  hero rig — brows detached from the face and floated in the forehead.
+   *  14 keeps a committed arch (~37px at hero) that stays attached to the
+   *  glasses line — the expression rides the face, not the forehead. */
+  browTravelPx: 14,
   /** Reaction window, ms. */
   reactionWindowMs: 1600,
   /** The whip-truck on scene entry.
@@ -190,26 +196,33 @@ export const HERO = {
 
 /** Phase 2 ink register (report §11 Phase 2): the phone feed rewards dark
  *  mass on pale ground. Limb/torso/head weights sized so the figure carries
- *  the frame's identity even at 320px. */
+ *  the frame's identity even at 320px.
+ *
+ *  B1 RE-SPEC (Visual Quality Audit §3.1 — RUBBER-TUBE LIMBS → DRAWN INK):
+ *  the previous register (legs 29.5/22.4/16.5, arms 23.6/17.7/13 rig units)
+ *  drew ~78px thighs and ~62px upper arms at the hero rig — "a gorilla-suited
+ *  mascot in a wetsuit", caught between two idioms: too thick to be a
+ *  stick man, too crude to be a designed mascot. Premium stick-figure work
+ *  at 1080p runs drawn strokes; the figure's identity now lives where the
+ *  thumbnail already puts it — the head contour, the gold vest torso mass
+ *  and the glasses — not on limb mass. Limbs drop to a true drawn taper
+ *  (legs 13/10/7, arms 10/8/6 — a 55–70% reduction that still renders
+ *  5.75px of hip stroke and ~3px of ankle at the 320px feed gate, inside
+ *  the feed's dark-ink floors), and the torso mass rises one step
+ *  (19/30 → 21/32) so the silhouette keeps its dark-mass band with the
+ *  limbs out of the way. */
 export const INK = {
-  /** Near arm taper: shoulder → elbow → wrist.
-   *  100-JUDGE REPORT fix C2 (INK MASS): 17/13/10 → 20/15/11 — the figure
-   *  must carry the frame's value structure (dark ink was 2.3% of frame;
-   *  the target band is 4-5%).
-   *  P1 (100-judge audit §13 — SIGNATURE IDENTITY, +18% INK WEIGHT): every
-   *  limb taper ×1.18 — at feed scale the 320px twin reads the heavier
-   *  contour as "a drawn character", not "a thin line person". Torso mass
-   *  and the head's screen-space 4.5px contour are unchanged (they are
-   *  masses, not strokes — the identity pass lives on the limbs). */
-  armNear: [23.6, 17.7, 13] as [number, number, number],
-  /** Far arm taper (C2: 13/10/8 → 15/12/9; P1 ×1.18). */
-  armFar: [17.7, 14.2, 10.6] as [number, number, number],
-  /** Near leg taper (C2: 21/16/12 → 25/19/14; P1 ×1.18). */
-  legNear: [29.5, 22.4, 16.5] as [number, number, number],
-  /** Far leg taper (C2: 17/13/10 → 20/15/11; P1 ×1.18). */
-  legFar: [23.6, 17.7, 13] as [number, number, number],
-  /** Torso taper: hips → shoulders (was 15/22). */
-  torso: [19, 30] as [number, number],
+  /** Near arm taper: shoulder → elbow → wrist (B1: 23.6/17.7/13 → 10/8/6). */
+  armNear: [10, 8, 6] as [number, number, number],
+  /** Far arm taper (B1: 17.7/14.2/10.6 → 8/6.5/5). */
+  armFar: [8, 6.5, 5] as [number, number, number],
+  /** Near leg taper (B1: 29.5/22.4/16.5 → 13/10/7). */
+  legNear: [13, 10, 7] as [number, number, number],
+  /** Far leg taper (B1: 23.6/17.7/13 → 10.6/8.5/6.5). */
+  legFar: [10.6, 8.5, 6.5] as [number, number, number],
+  /** Torso taper: hips → shoulders (B1: 19/30 → 21/32 — the torso, not the
+   *  limbs, carries the figure's dark mass once the limbs are drawn ink). */
+  torso: [21, 32] as [number, number],
   /** Head outline stroke (was 9). AUDIT-PHASE-2: 12 -> 14 — the face's
    *  outline carries the head's identity at 320px (was 2.4px at feed,
    *  now 2.8px). */

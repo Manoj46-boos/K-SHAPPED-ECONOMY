@@ -557,7 +557,11 @@ export function chartJourneyScene(g: SceneCtx): void {
   // the host's walkway — feet ON the axis while the pen draws. The
   // annotation pills yield ABOVE his crown (crownTopY below).
   const floorY = chartY + chartH;
-  const walkerCrown = floorY - 241 * 0.8;
+  // B5 RE-SPEC (Visual Quality Audit §3.2 — THE WALKER IS AN ACTOR): the
+  // axis walker draws at rig 1.25 (was 0.8) — at 0.8 he was a ~190px
+  // decal on the plot with an unreadable face and no contact read. The
+  // annotation layer clamps above his crown at the new height.
+  const walkerCrown = floorY - 241 * 1.1;
 
   const series = (s.series as any[] | undefined)?.map((sr) => ({
     name: sr.name as string,
@@ -803,16 +807,18 @@ export function chartJourneyScene(g: SceneCtx): void {
     if (g.sceneT < 1700) {
       // THE DRAW-ON ENTRANCE — the walkway read itself: he paces the axis
       // from the left edge as the chart draws in above him.
-      const r = walkIn(Math.min(g.sceneT, 1700), 250, STN[cur], 1700, arriveJ, 0.8, 11);
+      const r = walkIn(Math.min(g.sceneT, 1700), 250, STN[cur], 1700, arriveJ, 1.1, 11);
       hxJ = r.x; poseJ = r.walking ? r.pose : arriveJ; phaseJ = r.walking ? r.phase : undefined;
     } else if (stT < 900 && Math.abs(STN[cur] - STN[prev]) >= 120) {
-      const r = walkIn(stT, STN[prev], STN[cur], 900, arriveJ, 0.8, 11);
+      const r = walkIn(stT, STN[prev], STN[cur], 900, arriveJ, 1.1, 11);
       hxJ = r.x; poseJ = r.walking ? r.pose : arriveJ; phaseJ = r.walking ? r.phase : undefined;
     } else {
       hxJ = STN[cur]; poseJ = arriveJ;
     }
     const talkJ = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-    drawStickmanV2(ctx, hxJ, floorY, 0.8, t, {
+    // B5 RE-SPEC: the walker runs the host's own rig tier floor (1.25) —
+    // same body language, same face language, readable hands — one cast.
+    drawStickmanV2(ctx, hxJ, floorY, 1.1, t, {
       pose: poseJ,
       alpha: 0.85 + 0.15 * clamp01(g.sceneT / 180),
       look: -0.3, scarf: true, satchel: resolveProp(g.beat.scene.type, 'satchel', true), hostBody: true,
@@ -828,7 +834,7 @@ export function chartJourneyScene(g: SceneCtx): void {
     // PHASE 1 SCALE LAW: the axis walker registers as a participant — he
     // paces the chart's own baseline and points at the milestones (the
     // gesture cycle's pointIn term is the declared contact verb).
-    registerFigure(g.beat.scene.sceneKey, 'axis-walker', 'participant', 0.8, H, true);
+    registerFigure(g.beat.scene.sceneKey, 'axis-walker', 'participant', 1.1, H, true);
   }
   sourceTag(ctx, W, s.source as string, H - 60);
 }
@@ -4100,7 +4106,8 @@ export function oddsSpreadScene(g: SceneCtx): void {
       pointRect = { x: pinX - 14, y: trackY - 14, w: 28, h: 28 };
     }
     const talkO = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-    drawStickmanV2(ctx, 1664, g.H * 0.63, 1.15, t, {
+    // B5 RE-SPEC: the odds-spread host joins the 1.25 cast tier (was 1.15).
+    drawStickmanV2(ctx, 1664, g.H * 0.63, 1.25, t, {
       pose: arriveO2,
       alpha: 0.85 + 0.15 * clamp01(g.sceneT / 180),
       look: -0.5, scarf: true, hostBody: true,
