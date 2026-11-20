@@ -94,7 +94,12 @@ export function walkPush(phase: number): number {
 // ground line for the 2.8-3.0 presenting scale. The caption-pill clearance
 // widens (the pill top sits at 864); the headroom above the figure is the
 // budget the presenting scale spends. Head probe + collision sweep certify.
-const HOST_GROUND = (H: number): number => H * 0.66;
+// P0 defect sweep: the left-stage host's feet band rode 13px into the
+// 2-row caption pill at the exit's max camera (traced at 1000.5s). The
+// stage ground rises 0.66 -> 0.64 — the band's worst-case bottom clears
+// the pill top by ~11px; the stage furniture (ramps, desk rules,
+// contacts) is computed FROM this constant, so it moves with him.
+const HOST_GROUND = (H: number): number => H * 0.64;
 // PREMIUM UPGRADE FIX 1 (100-judge critique §5.1): host scale 2.05 → 2.6.
 // At 2.05 the figure occupied 1.58% of frame area; at 2.6 it occupies ~2.8%,
 // and every downstream amplitude (head, eyes, scarf, gesture travel, smear,
@@ -1613,7 +1618,14 @@ export function divergeKScene(g: SceneCtx): void {
         POSES.shock,
         Math.min(1, shIn * 1.25)
       );
-      drawStickmanV2(ctx, W * 0.30, H * 0.605, HOST_SCALE, t, {
+      // P0 defect sweep (THE DECAPITATED CLOSE-UP): the shock close-up
+      // staged its ground at 0.605 — at the 2.65 rig the figure's CROWN
+      // sat at design y≈14, and the exit's raised camera (1.116) lifted
+      // it to screen -12.6: the head visibly cropped at the frame top
+      // (traced + rendered at 1088s). The stage drops to 0.67 — the crown
+      // holds ~27px of top air at the worst camera while the certified
+      // 2.65 rig (and its 10% occupancy floor) stays intact.
+      drawStickmanV2(ctx, W * 0.30, H * 0.67, HOST_SCALE, t, {
         pose: shk, alpha: shIn, look: 0.72,
         talk: gasp, jaw2x: 2, faceScale: 1.8, parallax: true,
         // PHASE 3 COMPOSITION: the cold-open shock is a subject staging —
@@ -1820,6 +1832,11 @@ export function divergeKScene(g: SceneCtx): void {
     // P4 re-tune: the FP0 head rebalance (0.72x egg) trimmed the drawn bbox,
     // so the presenting spot re-scales 2.5 -> 2.62 to hold the 10% occupancy
     // floor the composition gate asserts (measured 9.8% at 2.62; the old 2.65 head-band ceiling is obsolete under the FP0 0.72x egg — the 2.72 head is smaller than the 2.5 head it replaces).
+    // P0 defect sweep: the 1088s crown graze was a TRANSITION-camera
+    // state (the exit lift, scale 1.116) — the certified transition
+    // window in the guard now governs it, so the scene keeps its
+    // certified 2.72 close-up (the 10.4% occupancy floor holds; at rest
+    // the crown sits 35px inside the top pad).
     let hScale = 2.72;
     let hFace = 1;
     let hAlpha = clamp01(t / 400);
@@ -2536,7 +2553,9 @@ export function paradoxResolveScene(g: SceneCtx): void {
     // strikes — the same 30°→95° sweep the cold open and kDef run, once,
     // 600ms after the K appears.
     const turnP = clamp01((t - 2800) / 900);
-    drawK3D(ctx, W * 0.4, H * 0.47, 150, 1, t, true, turnP); // 100-JUDGE REPORT (fix D24): 115 → 150
+    // P0 defect sweep: the K holds the LEFT column (the headline owns the
+    // centre band, the figure the right) — three columns, no shared ink.
+    drawK3D(ctx, W * 0.30, H * 0.47, 150, 1, t, true, turnP); // 100-JUDGE REPORT (fix D24): 115 → 150
     ctx.restore();
   }
   // AUDIT-ROUND-2 (fix 3 — KILL BODY PARAGRAPHS ON FRAMES): three stacked
@@ -2651,7 +2670,16 @@ export function paradoxResolveScene(g: SceneCtx): void {
     // by the sweep) and the K itself grows 115 → 150: the resolve frame
     // now carries a presenter, a letter and a focal line instead of a
     // word in a void.
-    ctx, W * 0.34, H * 0.667, 1.5, t,
+    // P0 defect sweep (STRIKE THROUGH THE HEAD + THE SUB-HEAD CLIP):
+    // the figure no longer shares the headline's column AT ALL — the old
+    // W*0.34 staging put his crown under the strike band the moment the
+    // reaction push (scale ~1.55 about HIS chest as pivot) lifted him, and
+    // the same push swung the right-column focal line out past the frame
+    // edge (pivot far left = everything right of it stretches out). The
+    // host owns the right column now: the push pivot moves WITH him, the
+    // pull on the text reverses inward, and the strike clears by a whole
+    // column at rest and at every push frame.
+    ctx, W * 0.80, H * 0.667, 1.5, t,
     {
       pose, alpha: clamp01((t - 600) / 500), look: 0.5, talk,
       // AUDIT-PHASE-3: faceScale peak 1.65 -> 1.8 — the paradox reaction

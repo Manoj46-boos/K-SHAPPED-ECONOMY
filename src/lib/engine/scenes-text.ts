@@ -4,7 +4,7 @@
  */
 
 import { clamp01, easeInOutSine, easeOutBack, easeOutCubic, easeOutQuad } from './easing';
-import { PALETTE, TONE, card, rgba, roundRect, setFont, paintBg, scenePlate, glowBlob, FONT_DISPLAY, FONT_UI } from './theme';
+import { PALETTE, TONE, card, rgba, roundRect, setFont, paintBg, scenePlate, glowBlob, FONT_DISPLAY, FONT_UI, CAPTION_ZONE_TOP } from './theme';
 import { bokehField, lightRays, softBloom, sparkles, drawK3D, kMotifs, floatCoins, impactRing, microShake, camState } from './effects';
 import { SceneCtx, declareOnScreenHeadline } from './scene-context';
 import { reactionAt } from './scene-context';
@@ -471,7 +471,16 @@ export function stampCardScene(g: SceneCtx): void {
     // v3 (panel P0-3): v2 renderer
     // P1-1 (report): +30% (1.0 → 1.3); ground → H*0.667 (envelope 767).
     // PANEL-12 / P2-1: foreground parallax.
-    drawStickmanV2(ctx, W * 0.19, H * 0.635, 1.3, t, { pose, alpha: hp, look: 0.6, parallax: true }, 32); // PLAYBOOK D3: ground 0.667 -> 0.635 (feet clear the 2-row pill at max camera)
+    // P0 defect sweep: the exit's max camera still carried the feet band
+    // 13px into the 2-row caption pill (traced at 1000.5s). The stage
+    // rises to 0.62 — the band's worst-case bottom clears the pill by
+    // ~16px, the card row and the pose are untouched.
+    // P0 defect sweep: the FULL-FIGURE rect (feet + contact shadow) must
+    // clear the 2-row caption pill's top at the exit's max camera — the
+    // solved ground is 0.597 (feet 645, rect bottom 761, screen 782 at
+    // the 1.116 lift — 14px of air over the pill). The crown stays ~86px
+    // below the title band; the card row is untouched.
+    drawStickmanV2(ctx, W * 0.19, H * 0.597, 1.3, t, { pose, alpha: hp, look: 0.6, parallax: true }, 32); // PLAYBOOK D3: ground 0.667 -> 0.597 (full-figure rect clears the 2-row pill at max camera)
   }
 }
 
@@ -1285,7 +1294,12 @@ export function endScreenScene(g: SceneCtx): void {
       ctx.save();
       ctx.globalAlpha = ap;
       const ax = nx + 350; // v10: centred under the (wider) card
-      const ay = ny + 420 + 76; // v10: rides directly under the card
+      // P0 defect sweep (SUBSCRIBE VS CAPTION PILL): the row rode at
+      // ~y790 — straddling CAPTION_ZONE_TOP (800), the karaoke pill plated
+      // the click target. The row now RESERVES the caption strip the way
+      // the one-row caption class does: it clamps above the zone with its
+      // own shadow air, and the card-to-row gap absorbs the difference.
+      const ay = Math.min(ny + 420 + 76, CAPTION_ZONE_TOP - 58);
       // v10.1 (panel 11 re-review, GROWTH-1): the outlined display word read
       // as "clashing with the clean system typography everywhere else" —
       // a stroked wordmark is a different type system. The CTA is now a

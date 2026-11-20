@@ -601,7 +601,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
         if (crownX === undefined) return true; // a crown-band plate with no lane x: treat as hit
         const pL = lxA - tw / 2 - 16;
         const pR = lxA + tw / 2 + 16;
-        return pR > (crownX as number) - 100 && pL < (crownX as number) + 100;
+        return pR > (crownX as number) - 170 && pL < (crownX as number) + 170;
       };
       const lyRaw = py + dyA;
       const belowLy = py + dotR + 2 + LEAD_MIN + 34; // pill-top clears the dot by LEAD_MIN
@@ -710,6 +710,29 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
         }
       }
       const lx2 = lxF;
+      // P0 defect sweep / B18 follow-up (NOTHING PLATES HIM): if the
+      // resolved placement still intersects the walker's body envelope
+      // (the least-harm path can ship a residual hit on crowded charts),
+      // the plate YIELDS ENTIRELY — the data dot persists (the anchor is
+      // series ink, not text), the plate never covers the presenter. This
+      // is the codebase's own declared rule made unconditional.
+      if (walkerHit(lyT, lxF)) {
+        const pyKeep2 = y + h - ((av - yMin) / (yMax - yMin)) * h;
+        const pxKeep2 = x + xf * w;
+        ctx.save();
+        ctx.globalAlpha = app;
+        ctx.fillStyle = tone;
+        ctx.beginPath();
+        ctx.arc(pxKeep2, pyKeep2, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(pxKeep2, pyKeep2, 6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        return;
+      }
       const lyC = clampRow(lyT - rise);
       // the search is crown-aware (clampRow carries the walker-lane bound),
       // so the shipped row IS the measured row — no post-clamp surprises

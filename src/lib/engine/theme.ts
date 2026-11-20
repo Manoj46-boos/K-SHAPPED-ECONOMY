@@ -7,7 +7,7 @@
 // v9 (report P0-1): card()/chip()/fitText feed the collision guard when the
 // harness enables it — every plated-through defect (D-01, D-02, the R7
 // family) was content a guard like this would have caught at render time.
-import { registerRect, registerFixed } from './collision';
+import { registerRect, registerFixed, declareHostContact } from './collision';
 // PHASE 4 (Visual Audit — FEED THUMB-STOP): the per-family stage world
 // (floor plane, architecture band, desk edge) paints inside paintBg so
 // EVERY scene inherits the fundSplit-grade depth system.
@@ -565,6 +565,11 @@ export function deskRule(
 ): void {
   if (grow <= 0) return;
   registerRect(`deskRule@${Math.round(x)},${Math.round(y)}`, x, y, Math.max(2, w * grow), 4);
+  // P0 follow-up: the desk rule IS the stage line — every host and axis
+  // walker stands on/behind it by design (the film's staging grammar).
+  // Declaring it here makes the figure-vs-deskline graze a declared
+  // contact everywhere, instead of a per-scene exemption list.
+  declareHostContact(`deskRule@${Math.round(x)},${Math.round(y)}`);
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.strokeStyle = rgba(PALETTE.ink, 0.55);
@@ -983,7 +988,11 @@ export function drawRoomRail(
       ctx.strokeStyle = rgba(PALETTE.ink, 0.36);
       ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.moveTo(W * 0.06, fy + 16);
+      // P0 defect sweep (watermark-vs-chip): the baseline rule started at
+      // W*0.06 — running UNDER the channel lockup's glyphs (the chips were
+      // moved clear earlier; the rule was not). It now starts AT the rail's
+      // own first-chip column, so the lockup owns its corner untouched.
+      ctx.moveTo(W * 0.17, fy + 16);
       ctx.lineTo(W * 0.94, fy + 16);
       ctx.stroke();
       // the rail starts past the channel lockup (x >= 0.17W — the
@@ -1166,7 +1175,15 @@ export function drawRoomRail(
       });
     }
 
-  registerFixed('roomrail', Math.round(W * 0.17) + 4, 10, Math.round(W * 0.83) + 20, 70);
+  // P0 defect sweep: the rail's guard envelope ran y 10..80 — 26px of air
+  // BELOW its own ink (the chips ~16..56 and the rule at 50). The intro
+  // dive's host bands graze that air at y≈68 and the sweep flagged a
+  // designed camera move as a defect. The envelope now hugs the ink:
+  // y 12..58 — anything crossing the rail's DRAWN band still flags.
+  // P0 rule R1: the envelope hugs the ACTUAL drawn ink (startX carries
+  // the lockup-clearance floor) — the stale W*0.17 anchor overlapped the
+  // watermark's envelope in air.
+  registerFixed('roomrail', Math.round(startX), 12, Math.max(120, Math.round(W * 0.94) - Math.round(startX)), 46);
   // families 'close' and 'end' keep the clean stage on purpose.
   ctx.restore();
 }
