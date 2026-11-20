@@ -173,7 +173,6 @@ function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   // same full-bleed tone plate as the data scenes, so the presenter stands
   // in a lit space instead of on a lightbox.
   scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
-  bokehField(ctx, W, H, g.t, { intensity: 1.2, seed: 7 });
   kMotifs(ctx, W, H, g.t, 0.18);
 
   const stage = g.s.stage as string;
@@ -189,7 +188,6 @@ function hostStage(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   // and left-host stages stand beside it (|518−730| = 212 < 343 band):
   // the presenter stands IN the room's light, the far-side plate darkens
   // (one gradient mask, no blur). The HOST's x rides in as hostX.
-  lightRays(ctx, W, H, g.t, { alpha: 0.6, x: W * 0.38, hostX: hx, hostR: 170 });
 
   // P1-6 (report): the subject halo — a soft radial lift behind the host so
   // he reads as lit in a room, not drawn on paper. Before the spotlight so
@@ -577,8 +575,6 @@ export function hostSceneV2(g: SceneCtx): void {
   paintBg(ctx, W, H, t, g.chapterTone);
   // P1-2 (report §12.2): the editorial host's room — same plate, his tone.
   scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
-  bokehField(ctx, W, H, t, { intensity: 1.1, seed: 7 });
-  lightRays(ctx, W, H, t, { alpha: 0.45 });
   kMotifs(ctx, W, H, t, 0.18);
   // P1-6 (report): the editorial host's halo — the close-up composition
   // gets the strongest lift (his face is the film's recurring close shot)

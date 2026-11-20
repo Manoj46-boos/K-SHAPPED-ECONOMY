@@ -5,7 +5,7 @@
  */
 
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, easeOutQuad, hashStr, lerp, springTo } from './easing';
-import { PALETTE, TONE, card, chip, rgba, roundRect, setFont, fitText, TYPE_FLOOR, LABEL_FLOOR, toneRoom, deskRule, ValuePlane } from './theme';
+import { PALETTE, TONE, card, chip, rgba, roundRect, setFont, fitText, TYPE_FLOOR, LABEL_FLOOR, toneRoom, deskRule, ValuePlane, mixHex } from './theme';
 import { registerRect, registerFixed, registerText } from './collision';
 // P4 (100-judge audit §13 — CHART IMPACT GRAMMAR): bars and lines land as
 // EVENTS — the engine's own shake + ring + sparkle vocabulary, fired at the
@@ -94,6 +94,7 @@ export interface LineChartOpts {
    *  base, and their leader lines simply lengthen (low-point pills can
    *  always rise — the leader grows, the anchor holds). */
   crownTopY?: number;
+  crownX?: number;
   /** PHASE 3 item 3.2 — see the field doc above. */
   doneAt?: number;
   /** PHASE 3 item 3.1 — the ABSOLUTE scene-space x the plate's right edge
@@ -578,10 +579,30 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       // exactly the row whose stroke-overlap was measured (the v1 order —
       // search first, crown-clamp after — let the clamp silently move a
       // found-clear row back INTO the stroke)
-      const lyMaxC = opts.crownTopY !== undefined
-        ? Math.min(lyMax, opts.crownTopY - 28)
-        : lyMax;
+      // B18 (Visual Quality Audit — ANNOTATION PILLS LANDING ON CHART
+      // TITLES — THE INVERTED CLAMP): the walker-lane bound sat on the
+      // WRONG side of the clamp. crownTopY (the walker's crown, ~208 on
+      // walker charts) is ABOVE the plot's own top bound yMin2 (~290), so
+      // min(max(v, yMin2), crownTopY-28) collapsed to crownTopY-28 for
+      // EVERY candidate — traced on c4-gallup: both pills shipped at
+      // ly=180, plate top 146, straight across the scene title band
+      // (170-246). The ceiling is the plot's own bound again — the title
+      // is now STRUCTURALLY unreachable — and the walker's body envelope
+      // (crownX passed by the scene) is a hard skip in the search and a
+      // 4000 penalty in the least-harm path: a pill yields to the walker
+      // by SLIDING X, never by rising into the title.
+      const crownBand = opts.crownTopY;
+      const crownX = opts.crownX;
+      const lyMaxC = lyMax;
       const clampRow = (v: number): number => Math.min(Math.max(v, yMin2), lyMaxC);
+      const walkerHit = (row: number, lxA: number): boolean => {
+        if (crownBand === undefined) return false;
+        if (row + 12 <= (crownBand as number) - 14) return false; // plate clears the crown
+        if (crownX === undefined) return true; // a crown-band plate with no lane x: treat as hit
+        const pL = lxA - tw / 2 - 16;
+        const pR = lxA + tw / 2 + 16;
+        return pR > (crownX as number) - 100 && pL < (crownX as number) + 100;
+      };
       const lyRaw = py + dyA;
       const belowLy = py + dotR + 2 + LEAD_MIN + 34; // pill-top clears the dot by LEAD_MIN
       const aboveLy = py - dotR - 2 - LEAD_MIN - pillH - Math.min(60, Math.abs(dyA));
@@ -654,6 +675,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
           if (coversPoint(cr)) continue;
           if (prevLy !== -Infinity && Math.abs(cr - prevLy) < 56) continue;
           if (strokeOverlap(cr, lxS) > 0) continue;
+          if (walkerHit(cr, lxS)) continue;
           lyT = cr;
           lxF = lxS;
           break outer;
@@ -668,7 +690,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
           for (const cand of [lyRaw, belowLy, aboveLy]) {
             const cr = clampRow(cand);
             if (coversPoint(cr)) continue;
-            const area = strokeOverlap(cr, lxS);
+            const area = strokeOverlap(cr, lxS) + (walkerHit(cr, lxS) ? 4000 : 0);
             if (area < bestArea) {
               bestArea = area;
               bestRow = cr;
@@ -936,6 +958,14 @@ export function barRow(
   // the bar survives the platform re-encode on a phone. Gradient alpha raised
   // 0.78 → 0.92 so the fill reads as solid mass, not watercolor.
   const cVivid = TONE(tone).vivid ?? c;
+  // B18 (Visual Quality Audit — "the +44% Mag-7 bar a barely-visible
+  // stub"): the muted register COMMITS. The raw sage fill on the cream
+  // field probed ~8 luminance points over the track — data invisible.
+  // The muted fill deepens 45% toward ink (still the quiet register, now
+  // readable), gains a crisp ink edge like every drawn object, and the
+  // value numeral rides ink instead of sage.
+  const muted = tone === 'muted';
+  const cFill = muted ? mixHex(PALETTE.sage, PALETTE.ink, 0.45) : cVivid;
   // P4: the land event — shake the row while the impact ring opens.
   const landAge = opts.t !== undefined && opts.landT !== undefined ? opts.t - opts.landT : -1;
   const shake = landAge >= 0 && landAge < 60 ? microShake(opts.t as number, opts.landT as number, 5) : { dx: 0, dy: 0 };
@@ -955,11 +985,17 @@ export function barRow(
   ctx.fill();
   // value bar
   const g = ctx.createLinearGradient(x, 0, x + bw, 0);
-  g.addColorStop(0, rgba(cVivid, 0.92));
-  g.addColorStop(1, cVivid);
+  g.addColorStop(0, rgba(cFill, 0.92));
+  g.addColorStop(1, cFill);
   ctx.fillStyle = g;
   roundRect(ctx, x, by, Math.max(30, bw), 30, 15);
   ctx.fill();
+  if (muted) {
+    ctx.strokeStyle = rgba(PALETTE.ink, 0.5);
+    ctx.lineWidth = 1.5;
+    roundRect(ctx, x, by, Math.max(30, bw), 30, 15);
+    ctx.stroke();
+  }
   // P4 — the ring fires from the bar CAP the instant the growth completes:
   // the record bar arriving is an EVENT the camera acknowledges (furniture
   // register — 60px radius, tone color; the guard layout is untouched).
@@ -969,7 +1005,7 @@ export function barRow(
   // value text
   const isGold = tone === 'gold';
   setFont(ctx, 34, 700);
-  ctx.fillStyle = isGold ? PALETTE.goldDeep : c;
+  ctx.fillStyle = isGold ? PALETTE.goldDeep : muted ? PALETTE.ink : c;
   ctx.textAlign = 'left';
   ctx.fillText(`+${value}${suffix}`, x + Math.max(30, bw) + 18, by + 25);
   // optional tag chip

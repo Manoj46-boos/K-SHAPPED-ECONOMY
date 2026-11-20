@@ -813,11 +813,16 @@ export function drawFrame(
     W,
     H,
     beatT: bt,
-    t: gt,
-    // PHASE-4 (report §11 Phase 4): the scene-span clock. group.beatIdx is
-    // the run's FIRST beat index (both the noCap and the packed pushes set
-    // it to the run start), so sceneT = beat-local time + the offset of
-    // this beat within the run — it never resets across 12s-cap re-splits.
+    // B18 (Visual Quality Audit — ENTRANCES STILL ON-SCREEN AT MID-SCENE):
+    // the scene clock IS the beat clock now. The old g.t (= sceneT) reset
+    // at every 12s-cap re-split (traced: 5738 -> 14 mid-beat), so every
+    // entrance keyed on it RE-RAN mid-scene — the pie legend ghosted at
+    // 55% of its beat, the +44% bar a stub at 55%, pills re-landing over
+    // chart titles. beatT (t - beat.startMs) runs the whole scene run
+    // continuously (traced 238 -> 13738 without a reset): entrances fire
+    // ONCE, loops never snap. sceneT stays for the few callers that
+    // genuinely want the re-split-local clock.
+    t: bt,
     sceneT: bt + (beat.startMs - tl.beats[group.beatIdx].startMs),
     d: groupDur,
     p: clamp01(gt / groupDur),
@@ -946,21 +951,14 @@ export function drawFrame(
       chapterAccent(ctx, 1920, 1080, t, chapterTone);
     }
   }
-  // AUDIT-3 / §3.5 (report Phase 3.5 — DEPTH PAYOFF): the foreground
-  // bokeh pass — two/three large defocused discs drifting IN FRONT of the
-  // scene (over the world, under the captions/watermark). The missing near
-  // layer of the depth stack: bg bokeh behind, stage mid, figures fore,
-  // and now LENS in front — the frame finally has a foreground plane that
-  // occludes, which is the cheapest depth cue in 2D (report §7).
-  // Deterministic (pure function of gt + camState); alpha ≤ 0.09 keeps
-  // every reading surface clean.
-  // P2-3 (100-judge audit, Table 4 — "no bokeh on statement beats"): the
-  // foreground lens pass skips the statement frames (bigText / stampCard)
-  // — typography owns the frame alone; "why bubbles, in a data film?".
-  // Every other scene keeps the foreground depth layer.
-  if (beat.beat.scene.type !== 'bigText' && beat.beat.scene.type !== 'stampCard') {
-    fgBokeh(ctx, 1920, 1080, gt, { seed: beat.chapter * 7 + 5, count: 3 });
-  }
+  // B19 (Visual Quality Audit — THE TEXTURE STACK NEVER COMMITS): the
+  // foreground bokeh pass is CUT. The near lens plane was the audit's
+  // named defect twice ("soap bubbles over data" — the panel verdict the
+  // codebase already recorded once — "and are back in the render"): 18
+  // soft discs at alpha 0.075-0.13 add transcode noise over every reading
+  // surface and commit no depth cue. The committed depth stack is the
+  // stage world's own planes + the vignette; the lens plane is gone.
+  // (fgBokeh skips statement frames above — now it skips every frame.)
   ctx.restore();
   // B9 RE-SPEC (Visual Quality Audit §3.2 — FURNITURE COLLISIONS): the
   // chapter room-rail is FIXED room architecture — it draws HERE, in

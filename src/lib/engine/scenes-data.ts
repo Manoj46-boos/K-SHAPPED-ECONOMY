@@ -68,8 +68,14 @@ function bg(g: SceneCtx, seed: number, gold = 0.4, plate?: 'up' | 'down' | 'gold
     }
     ctx.restore();
   }
-  bokehField(g.ctx, g.W, g.H, g.t, { intensity: 0.75, seed, gold });
-  lightRays(g.ctx, g.W, g.H, g.t, { alpha: 0.45 });
+  // B19 (THE TEXTURE STACK NEVER COMMITS): the shared background
+  // atmosphere — bokeh confetti + corner light rays — is CUT. Both ran at
+  // whisper alpha on every scene (the rays' own code note: soft-light on
+  // near-white plates is "arithmetically a no-op"); together with the
+  // grain/vignette/stage systems they cost render time and transcode
+  // noise without one committed depth cue. The committed stack: the stage
+  // world's floor planes (below), the room wash, one grain, one vignette.
+  // (The datacenter keeps its own atmosphere — see aiDatacenterScene.)
   // 100-JUDGE REPORT (fix D13 — THE GHOST WATERMARK): the 0.18-alpha K
   // outline floated in every data room — visible enough to read as a smudge,
   // invisible enough to carry no brand weight. The codebase's own rule:
@@ -431,7 +437,7 @@ export function chartTwinScene(g: SceneCtx): void {
       // chart"). S&P stays teal; Nasdaq — the star of the beat — renders
       // in display gold so the eye reads winner vs baseline instantly.
       series: [{ name: '', tone: i === 0 ? 'up' : 'gold', points: c.points }],
-      p: clamp01((t - 200 - i * 260) / 2400),
+      p: clamp01((t - 150 - i * 220) / 1100), // B18: full alpha <= 1.8s
       t,
       yFormat: 'idx100', showYAxis: true, gridLines: 3,
       // Fix 5.7: the FEED-SCALE AXIS — 50px weight-600 inkSoft labels
@@ -530,7 +536,7 @@ export function chartJourneyScene(g: SceneCtx): void {
   // group); per-beat content keys off beatT.
   const bt = g.beatT;
   const title = s.title as string;
-  const drawP = clamp01(t / 2600);
+  const drawP = clamp01(t / 1600); // B18: the draw-on lands inside the 1.8s entrance rule
   // PLAYBOOK D3 follow-up: title 180→330 and chartX 190→330 — the ch2/ch3
   // hero TRUCKS (±150-190px) + drift ran the title's left edge past the
   // frame bound (sceneTitle:Nasdaq-100, 46px). The journey charts ride the
@@ -599,6 +605,24 @@ export function chartJourneyScene(g: SceneCtx): void {
     });
   }
 
+  // B18: the walker's CURRENT x — the same walkIn the presenter draw runs
+  // below, computed early (walkIn is a pure function) so the annotation
+  // search yields to the walker's real position instead of a guess.
+  let walkerXNow = 815;
+  {
+    const STN_E = [430, 815, 1240];
+    const hIdxE = (id?: string): number => (id ? Math.floor(hashStr(id) * STN_E.length) % STN_E.length : 1);
+    const curE = hIdxE(g.sentenceId);
+    const prevE = g.prevSentenceId ? hIdxE(g.prevSentenceId) : 0;
+    const stTE = g.sentenceT ?? 1e9;
+    if (g.sceneT < 1700) {
+      walkerXNow = walkIn(Math.min(g.sceneT, 1700), 250, STN_E[curE], 1700, undefined, 1.2, 11).x;
+    } else if (stTE < 900 && Math.abs(STN_E[curE] - STN_E[prevE]) >= 120) {
+      walkerXNow = walkIn(stTE, STN_E[prevE], STN_E[curE], 900, undefined, 1.2, 11).x;
+    } else {
+      walkerXNow = STN_E[curE];
+    }
+  }
   lineChart(ctx, {
     x: chartX, y: chartY + (series.length > 1 ? 66 : 0), w: chartW, h: chartH,
     series,
@@ -632,6 +656,7 @@ export function chartJourneyScene(g: SceneCtx): void {
     // PHASE 2 terrain staging: the annotation layer clamps ABOVE the walker's
     // crown — pills never overprint the presenter pacing the chart's base.
     crownTopY: walkerCrown,
+    crownX: walkerXNow,
   });
   // PHASE 3 COMPOSITION (Fix 1 — DATA-BEAT HERO FLOOR): the journey chart
   // registers its occupancy — 1250 × (0.355-0.42)H = 21.5-27.4% of the
@@ -949,7 +974,7 @@ export function pieChartScene(g: SceneCtx): void {
     setFont(ctx, 42, 600);
     let ly = H * 0.37;
     legend.forEach((sl, i) => {
-      const ap = clamp01((t - 700 - i * 300) / 600);
+      const ap = clamp01((t - 400 - i * 220) / 500); // B18: last legend row full at ~1.8s
       const lines = wrapText(ctx, sl.label, lw - 80, 42, 600);
       const blockH = 64 + lines.length * 48 + 26;
       if (ap > 0) {
@@ -1012,7 +1037,7 @@ export function dotGridScene(g: SceneCtx): void {
     x: 190, y: gridY, w: W - 800, h: gridH, // fix 6.1: field narrows (W-720 -> W-800) — the 1.45 side host's body envelope overlapped it (guard 'host' class)
     total: (s.total as number) || 500,
     highlight: (s.highlight as number) || 10,
-    p: clamp01(t / 3400),
+    p: clamp01(t / 1600), // B18
     t,
   });
   // the highlight band — a rounded gold wash cradling the ten gold dots
@@ -1216,7 +1241,7 @@ export function barsCompareScene(g: SceneCtx): void {
   const barW = W - 620;
   const yMax = (s.yMax as number) || Math.max(...bars.map((b) => b.value), 1) * 1.15;
   bars.forEach((b, i) => {
-    const bp = clamp01((t - 400 - i * 450) / 900);
+    const bp = clamp01((t - 300 - i * 300) / 700); // B18: every bar full at <= 1.6s
     if (bp <= 0) return;
     barRow(ctx, {
       x: 190, y: H * 0.24 + i * 130, w: barW, rowH: 120,
@@ -1375,7 +1400,7 @@ export function trioConvergeScene(g: SceneCtx): void {
     lineChart(ctx, {
       x: x + 36, y: y + 84, w: w - 72, h: h - 90,
       series: [{ name: '', tone: a.tone, points: a.pts as [number, number][] }],
-      p: clamp01((t - 500 - i * 320) / 1600),
+      p: clamp01((t - 400 - i * 250) / 700), // B18
       t, showYAxis: false, gridLines: 2, emphasizeLast: false,
     });
   });
@@ -1478,7 +1503,7 @@ export function kDefScene(g: SceneCtx): void {
   const ky = H * 0.48;
   const S = 190;
   // two population dots travel apart from one point
-  const travel = clamp01((t - 600) / 2200);
+  const travel = clamp01((t - 600) / 1200); // B18: the draw-on lands at 1.8s
   const dotGap = lerp(0, 1, easeInOutCubic(travel));
   ctx.save();
   // BLUEPRINT Phase 3 (report §11 — ONE 3D LANGUAGE): kDef stops re-drawing
@@ -1489,7 +1514,7 @@ export function kDefScene(g: SceneCtx): void {
   // ±5°/2.6s wobble clock — so the brand object has ONE dimensionality
   // across the whole film. The vivid formation arms ride the growth and
   // hand off to the ink face exactly as divergeK stages it.
-  const grow = clamp01((t - 200) / 2600);
+  const grow = clamp01((t - 200) / 1600); // B18
   const kA2 = clamp01((grow - 0.55) / 0.45);
   // 100-JUDGE PANEL REPORT (defect D7 — THE HANDOFF): the overlay tubes ran
   // with alpha 1-kA2 across the WHOLE landing, coexisting with the visible
@@ -2187,7 +2212,7 @@ export function recessionGaugeScene(g: SceneCtx): void {
   // debate's TEXT lives in the voice track; the frame keeps only its CAST.
   const debates = (s.debates as any[]) || [];
   debates.forEach((d, i) => {
-    const ap = clamp01((t - 400 - i * 600) / 700);
+    const ap = clamp01((t - 300 - i * 350) / 600); // B18
     if (ap <= 0) return;
     ctx.save();
     ctx.globalAlpha = ap;
@@ -2222,7 +2247,7 @@ export function recessionGaugeScene(g: SceneCtx): void {
     // coin chip below tracks the same constant.
     cx: W * 0.70, cy: H * 0.52, r: 240,
     value: (s.gaugeTo as number) || 48,
-    p: clamp01((t - 1200) / 2200),
+    p: clamp01((t - 1200) / 600), // B18: the hero needle lands at 1.8s
     t,
     label: 'Zandi\u2019s model', // PHASE 2: short dial name — the qualifier lives in the VO
   });
@@ -2386,7 +2411,6 @@ export function aiDatacenterScene(g: SceneCtx): void {
   // P0-4 panel re-review: bokeh trimmed 1.15→0.95 / gold 0.5→0.4 — the
   // corner discs read as "stray decorative circles" at full strength; at
   // 0.95 they stay atmosphere without asserting themselves.
-  bokehField(ctx, W, H, t, { intensity: 1.25, seed: 171, gold: 0.4 });
   // perspective floor grid
   // PANEL-12 / P3-2 (report §15.2): the floor must register as a FLOOR —
   // verticals 0.4 → 0.55 alpha, plus a horizon hairline. A floor grid you
@@ -2467,7 +2491,12 @@ export function aiDatacenterScene(g: SceneCtx): void {
     if (a <= 0.01) return;
     const depth = clamp01((rw - 40) / 110); // 0 far .. 1 near (by size)
     ctx.save();
-    ctx.globalAlpha = a * ap * (0.62 + 0.38 * depth);
+    // B17 (Visual Quality Audit — THE DATACENTER RACKS ARE FOG RECTANGLES):
+    // the racks arrive near-SOLID now. The old 0.62-1.0 alpha ramp made the
+    // far rows translucent ghosts — "soft gray gradient slabs with blurred
+    // edges". Depth reads by SIZE and DETAIL DENSITY (true perspective),
+    // never by transparency.
+    ctx.globalAlpha = a * ap * (0.88 + 0.12 * depth);
     ctx.translate(0, rise);
     // contact AO — skewed toward the room's one vanishing point.
     // P0-4 panel re-review 2 ("central racks still read as hovering"):
@@ -2528,20 +2557,23 @@ export function aiDatacenterScene(g: SceneCtx): void {
     // prescribes: "re-lit to the shadow register with a gold rim"). LED
     // glints stay; the racks read as lit hardware, not black holes.
     {
-      const gTop = rgba(PALETTE.shadow, 0.60 + 0.16 * depth);
-      const gBot = rgba(PALETTE.shadow, 0.82);
+      // B17: the body is SOLID hardware in the film's shadow register — a
+      // gentle top-lit falloff (0.94 -> 0.98, shading not fog) plus a crisp
+      // 2px ink edge on every slab. The old translucent 0.60-0.82 gradient
+      // plus the bgSoft haze wash WAS the fog-rectangle read.
+      const gTop = rgba(PALETTE.shadow, 0.94);
+      const gBot = rgba(PALETTE.shadow, 0.98);
       const g = ctx.createLinearGradient(0, baseY - rh, 0, baseY);
       g.addColorStop(0, gTop);
       g.addColorStop(1, gBot);
       ctx.fillStyle = g;
       roundRect(ctx, x - rw / 2, baseY - rh, rw, rh, 5);
       ctx.fill();
-      // the far-row haze wash — distance fades toward the room's air
-      if (depth < 0.72) {
-        ctx.fillStyle = rgba(PALETTE.bgSoft, 0.30 * (1 - depth));
-        roundRect(ctx, x - rw / 2, baseY - rh, rw, rh, 5);
-        ctx.fill();
-      }
+      // the crisp ink edge — drawn object, not atmosphere
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.55);
+      ctx.lineWidth = 2;
+      roundRect(ctx, x - rw / 2, baseY - rh, rw, rh, 5);
+      ctx.stroke();
       // the gold rim — one brand edge on the light side of every slab
       ctx.strokeStyle = rgba(PALETTE.gold, 0.42 + 0.30 * depth);
       ctx.lineWidth = 2.5;
@@ -2556,32 +2588,45 @@ export function aiDatacenterScene(g: SceneCtx): void {
     ctx.fillStyle = rgba('#FFFFFF', 0.06 + 0.2 * depth);
     roundRect(ctx, x - rw / 2, baseY - rh, rw, 3.5, 2);
     ctx.fill();
-    // PHASE 2 (audit Table 6 — RACK INTERIORS): the corridor slabs stop
-    // being "flat slabs" — each body carries UNIT SLATS (server chassis
-    // rows, scaled by depth) so the dark field reads as RACKS at feed.
-    // Slat count follows height; alpha follows depth (far rows stay hazy).
+    // PHASE 2 (audit Table 6 — RACK INTERIORS) / B17 re-spec: the corridor
+    // racks carry the hero's drawn language at EVERY depth — chassis unit
+    // rows with a VENT GRILLE hairline pair in each unit and a PER-UNIT LED
+    // DOT ROW (gold + teal, deterministic phases). Detail density scales
+    // with depth (far racks fewer, coarser units — never blurrier ones).
     const slats = Math.max(3, Math.round(rh / (26 + 18 * (1 - depth))));
-    ctx.strokeStyle = rgba('#FFFFFF', 0.10 + 0.10 * depth);
+    const uH = rh / slats;
     ctx.lineWidth = 1.2;
-    for (let u = 1; u < slats; u++) {
-      const uy = baseY - rh + (rh * u) / slats;
+    for (let u = 0; u < slats; u++) {
+      const uy = baseY - rh + u * uH;
+      // the unit separator — a chassis seam
+      ctx.strokeStyle = rgba('#FFFFFF', 0.10 + 0.10 * depth);
       ctx.beginPath();
       ctx.moveTo(x - rw / 2 + 5, uy);
       ctx.lineTo(x + rw / 2 - 5, uy);
       ctx.stroke();
-    }
-    // LED glints — fewer with distance, independent phases, OFF = dark
-    const n = Math.max(2, Math.min(7, Math.round(rw / 24)));
-    for (let k = 0; k < n * 2; k++) {
-      const col = k % 2;
-      const row = Math.floor(k / 2);
-      if (Math.sin(t / (170 + col * 90) + idx * 3 + k * 1.7) < 0.1) continue;
-      ctx.fillStyle = k % 3 === 0 ? PALETTE.gold : PALETTE.upVivid;
-      const lx = x - rw / 2 + 7 + col * (rw - 14);
-      const ly = baseY - rh + 10 + (row * (rh - 20)) / Math.max(1, n - 1);
-      ctx.beginPath();
-      ctx.arc(lx, ly, 1.6 + 2.6 * depth, 0, Math.PI * 2);
-      ctx.fill();
+      // the vent grille — three short hairlines right of center (the
+      // drawn detail that says "hardware", not "slab")
+      if (u < slats - 1 && rw > 34) {
+        ctx.strokeStyle = rgba('#FFFFFF', 0.07 + 0.08 * depth);
+        for (let v = 0; v < 3; v++) {
+          const vy = uy + uH * (0.3 + v * 0.18);
+          ctx.beginPath();
+          ctx.moveTo(x + rw * 0.06, vy);
+          ctx.lineTo(x + rw / 2 - 8, vy);
+          ctx.stroke();
+        }
+      }
+      // the per-unit LED row — deterministic on/off, gold every third
+      if (rw > 26) {
+        const nL = Math.max(2, Math.min(5, Math.round(rw / 30)));
+        for (let L = 0; L < nL; L++) {
+          if (Math.sin(t / (170 + u * 90) + idx * 3 + (u * nL + L) * 1.7) < 0.1) continue;
+          ctx.fillStyle = (u + L) % 3 === 0 ? PALETTE.gold : PALETTE.upVivid;
+          ctx.beginPath();
+          ctx.arc(x - rw / 2 + 9 + L * ((rw - 18) / Math.max(1, nL - 1 || 1)), uy + uH * 0.5, 1.4 + 2.2 * depth, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     }
     ctx.restore();
   };
@@ -2766,7 +2811,8 @@ export function aiDatacenterScene(g: SceneCtx): void {
     ctx.fill();
     ctx.restore();
   }
-  hazeBands(ctx, W, H, { rearY: horizon + 26, midY: H * 0.6 });
+  // B17: the corridor haze bands are gone — the room reads by drawn
+  // architecture (solid racks, one vanishing point), not by fog.
   // AUDIT-ROUND-2 (fix 20 — THE HAZE BAND BETWEEN ROWS 2 AND 3): a soft
   // full-width atmospheric break at the y-seam between the corridor's
   // second and third rack rows — the near pair stays crisp, the far field
@@ -2820,7 +2866,7 @@ export function aiDatacenterScene(g: SceneCtx): void {
       // slabs rendered bronze (panel round 2) — so tone-less cards take the
       // chapter's 'up' register and the script's explicit gold stays gold.
       big: st.big, label: st.label, tone: st.tone || 'up',
-      p: clamp01((t - 800 - i * 900) / 900), t,
+      p: clamp01((t - 300 - i * 280) / 500), t, // B18: the card cascade lands <= 1.4s
     });
   });
   // ── 100-JUDGE PANEL / Phase 4 item 4.1 — THE SECOND CONTENT ARRIVAL AT
@@ -4046,7 +4092,7 @@ export function oddsSpreadScene(g: SceneCtx): void {
   // line (the open 520-632 band), the rest stay above — every card owns
   // its rectangle, every connector lands clean of the % tick labels.
   markers.forEach((m, i) => {
-    const mp = clamp01((t - 700 - i * 650) / 700);
+    const mp = clamp01((t - 300 - i * 160) / 400); // B18: all seven chips in by ~1.7s
     if (mp <= 0) return;
     const x = trackX + (clamp01(m.at / 100)) * trackW;
     const c = TONE(m.tone);

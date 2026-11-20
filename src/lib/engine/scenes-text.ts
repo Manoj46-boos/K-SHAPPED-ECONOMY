@@ -29,8 +29,9 @@ function bg(g: SceneCtx, seed: number, gold = 0.4, strength = 0.72, bokeh = 0.85
   // param. Statement beats (the stamp slam) pass 0 — typography owns the
   // frame alone; typography-forward beats (the quote card) pass a
   // whisper; reading layouts keep the room's atmosphere.
-  if (bokeh > 0) bokehField(g.ctx, g.W, g.H, g.t, { intensity: bokeh, seed, gold });
-  lightRays(g.ctx, g.W, g.H, g.t, { alpha: 0.5 });
+  // B19 (TEXTURE STACK): the background bokeh + light-ray whisper layers
+  // are cut — the committed stack is the room wash, the stage architecture,
+  // one grain, one vignette.
 }
 
 // ── bigText: the hard cut ────────────────────────────────────────────────────
@@ -57,7 +58,6 @@ export function bigTextScene(g: SceneCtx): void {
   // alpha — the words sit IN the brand's room, not on a slide.
   // PHASE-0 VISUAL AUDIT: kMotifs retired here (the stray K outline on a
   // typography-only frame read as an artifact, not as branding).
-  lightRays(ctx, W, H, t, { alpha: 0.22 });
   // AUDIT-2 / §10.4 (report Phase 3): THE IMPACT GRAMMAR — the slam fires
   // the full triple: a 2px/80ms MICRO-SHAKE (applied here at the TOP of the
   // scene draw so every element — block, underline, host — rides the
@@ -1106,7 +1106,6 @@ export function endScreenScene(g: SceneCtx): void {
   // P1-2 (report §12.2): the farewell lands in the gold room — the last
   // frames of the film are no longer 80% near-white.
   scenePlate(ctx, W, H, g.chapterTone ?? 'gold');
-  bokehField(ctx, W, H, t, { intensity: 1.1, seed: 261, gold: 0.6 });
   kMotifs(ctx, W, H, t, 0);
   // P2-3 (audit Table 4 — "coins only where money moves"): the end
   // screen's five floating coins were the same "sprinkles doing zero
