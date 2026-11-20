@@ -7,7 +7,7 @@
 // v9 (report P0-1): card()/chip()/fitText feed the collision guard when the
 // harness enables it — every plated-through defect (D-01, D-02, the R7
 // family) was content a guard like this would have caught at render time.
-import { registerRect } from './collision';
+import { registerRect, registerFixed } from './collision';
 // PHASE 4 (Visual Audit — FEED THUMB-STOP): the per-family stage world
 // (floor plane, architecture band, desk edge) paints inside paintBg so
 // EVERY scene inherits the fundSplit-grade depth system.
@@ -868,10 +868,53 @@ export function scenePlate(
   // already own big props (charts, machines, datacenter) or whose frames
   // are full-bleed compositions (takeaways, end screen) keep the clean
   // stage — fewer, bolder, not more.
-  if (family) {
-    ctx.save();
-    ctx.lineCap = 'round';
-    const fy = 20; // the rail's centerline (design space, 1080 grid)
+  setRoomFamily(family ?? null);
+  ctx.restore();
+}
+
+/** B9 RE-SPEC (Visual Quality Audit §3.2 — FURNITURE COLLISIONS): the
+ *  chapter room-rail used to draw INSIDE scenePlate — under the camera
+ *  transform. A camera-riding rail can never hold a fixed relationship to
+ *  the FIXED watermark: at the raised register (scale ~1.15 about the frame
+ *  centre) the odds board's percent chips rode ~55px above their design row
+ *  and CLIPPED off the top frame edge; at the lowered drift they slid down
+ *  INTO the watermark band — the audit's "watermark collides with the
+ *  stat-chip row" on the majority of mint-room frames. Room architecture is
+ *  FIXED furniture: the rail now draws in screen space from the director
+ *  (before captions/watermark) at the same design band — x >= 0.17W keeps
+ *  it horizontally clear of the channel lockup, the fixed y makes the
+ *  relationship to every fixed element permanent, and the band registers
+ *  with the guard as fixed furniture.
+ *  Called by the director AFTER the scene, BEFORE the captions/watermark. */
+export function drawRoomRail(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  family: string,
+  channelName?: string
+): void {
+  ctx.save();
+  ctx.lineCap = 'round';
+  // B9 RE-SPEC (the measured fix): the rail's left anchors were designed at
+  // W*0.17 = 326 — but the shipped watermark's text run ('THE DATA DESK' at
+  // the TYPE_FLOOR face from x=82) measures ≈392px wide and ends at x≈474:
+  // the first chip sat 148px INSIDE the lockup's text. The rail now
+  // MEASURES the watermark's own glyph run (same face, same caps) and
+  // remaps its whole anchor span into [textEnd + 30, W - 56] with a
+  // horizontal squeeze (≤9% at the shipped name — invisible on whisper-
+  // alpha furniture). The relationship to the fixed watermark is now
+  // permanent for ANY channel name.
+  let startX = W * 0.17;
+  if (channelName) {
+    ctx.font = '600 ' + TYPE_FLOOR + 'px Inter, sans-serif';
+    startX = Math.min(W * 0.62, Math.max(startX, 82 + ctx.measureText(channelName.toUpperCase()).width + 30));
+  }
+  const span0 = W * 0.94 - W * 0.17;
+  const span1 = W - 56 - startX;
+  ctx.translate(startX - W * 0.17, 0);
+  ctx.scale(span1 / span0, 1);
+  const fy = 34; // the rail's FIXED centreline (screen space, 1080 grid)
+
     if (family === 'market') {
       // THE TICKER RAIL — the market room's own architecture: an ink tape
       // line with live price tags (up teal / down coral) and a LIVE dot.
@@ -1060,11 +1103,18 @@ export function scenePlate(
         ctx.fillText(label, tx + 59, fy + 15);
       });
     }
-    // families 'close' and 'end' keep the clean stage on purpose.
-    ctx.restore();
-  }
+
+  registerFixed('roomrail', Math.round(W * 0.17) + 4, 10, Math.round(W * 0.83) + 20, 70);
+  // families 'close' and 'end' keep the clean stage on purpose.
   ctx.restore();
 }
+
+/** The family the CURRENT frame's scenePlate drew with (null = clean
+ *  stage). The director resets it before the scene and reads it after —
+ *  the rail then draws ONCE, in fixed space, outside the camera. */
+let roomFamily: string | null = null;
+export function setRoomFamily(f: string | null): void { roomFamily = f; }
+export function getRoomFamily(): string | null { return roomFamily; }
 
 /** PHASE 4: the chapter index -> its room-architecture family. The film's
  *  nine chapters map to eight families; close/end keep the clean stage

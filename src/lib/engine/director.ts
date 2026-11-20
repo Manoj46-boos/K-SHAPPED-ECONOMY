@@ -6,7 +6,7 @@
  */
 
 import { clamp01, easeInQuad, easeInOutSine, easeOutCubic } from './easing';
-import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI } from './theme';
+import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI, drawRoomRail, getRoomFamily, setRoomFamily } from './theme';
 import { drawGrain, lightVignette, bokehField, scalePunch, camState, guardCamState, kWipe, fgBokeh, dofPass, chapterAccent } from './effects';
 import { drawParticles, emitterKindFor } from './particles';
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
@@ -896,6 +896,9 @@ export function drawFrame(
     ctx.restore();
     guardRef.enabled = gEnabled;
   }
+  // B9 RE-SPEC: the room-family ledger resets every frame; the scene's
+  // scenePlate re-declares it and the rail draws AFTER the camera restore.
+  setRoomFamily(null);
   try {
     g.chapterTone = chapterTone;
     drawer(g);
@@ -957,6 +960,18 @@ export function drawFrame(
     fgBokeh(ctx, 1920, 1080, gt, { seed: beat.chapter * 7 + 5, count: 3 });
   }
   ctx.restore();
+  // B9 RE-SPEC (Visual Quality Audit §3.2 — FURNITURE COLLISIONS): the
+  // chapter room-rail is FIXED room architecture — it draws HERE, in
+  // screen space outside the camera, so its relationship to the fixed
+  // watermark and the frame edges is permanent. (The camera-riding rail
+  // clipped off the top edge at the raised register and slid into the
+  // watermark band at the lowered drift — the audit's recurring
+  // "watermark collides with the stat-chip row" class.) x >= 0.17W keeps
+  // it horizontally clear of the channel lockup; see theme.drawRoomRail.
+  {
+    const rf = getRoomFamily();
+    if (rf) drawRoomRail(ctx, 1920, 1080, rf, opts.channelName);
+  }
   // BLUEPRINT Phase 5 (report §11 — the reaction close-up's CONTENT
   // RECEDE): during every reaction window the data content recedes in
   // VALUE around the host's zone (a soft radial white veil, brightest at

@@ -773,8 +773,10 @@ export function takeawaysScene(g: SceneCtx): void {
       const ap = clamp01((t - (isFocus ? 150 : 400)) / 650);
       if (ap <= 0) continue;
       if (!isFocus) {
-        // dim rail numbers
-        const x = 110 + (i - 1) * 120;
+        // dim rail numbers (B10: shifted left of the 2.0-rig host's
+        // envelope — the old 110/230/350 rail put the third numeral
+        // inside the bigger figure's head band)
+        const x = 84 + (i - 1) * 92;
         ctx.save();
         ctx.globalAlpha = ap * 0.35;
         setFont(ctx, 66, 700, FONT_DISPLAY);
@@ -927,7 +929,15 @@ export function takeawaysScene(g: SceneCtx): void {
       // frame's left edge under the steady camera) and the near hand palms
       // the card's left edge at chest height — the hand on the list he is
       // counting down, contact shadow at the press point.
-      drawStickmanV2(ctx, 420, H * 0.615, 1.3, t,
+      // B10 RE-SPEC (Visual Quality Audit §3.2 — EMPTY-FIELD COMPOSITIONS):
+      // the 1.3 rig left ~55% of the frame as mint field around a ~315px
+      // figure — "passing a floor is not the same as owning a frame". The
+      // editorial close-up bar: the host DOMINATES the left third at the
+      // 2.0 rig (~485px, a third of the frame's height) with designed
+      // space around him; the palm contact on the card's left edge still
+      // lands (shoulder (420, ~365) -> (546, 460) = 158px, inside the
+      // 228px arm envelope at this rig).
+      drawStickmanV2(ctx, 420, H * 0.615, 2.0, t,
         {
           pose, alpha: hp, look: 0.6,
           prop: focus === 3 && rP <= 0.5 ? 'thumb' : undefined,
@@ -1335,10 +1345,17 @@ export function endScreenScene(g: SceneCtx): void {
       // 100-JUDGE REPORT (fix D30 — THE PLATED CLICK TARGET): the 108-tall
       // box at y 850-958 sat INSIDE the caption pill's band (top ≈864) —
       // the karaoke pill plated the box's right end every wide-caption
-      // frame. The target compacts to 80px and drops INTO the below-pill
-      // gap (974-1054, shadow to 1066 — clear of the progress bar at
-      // 1072), where the v10 strip originally lived.
-      const bx = 150, by = 974, bw = 440, bh = 80;
+      // frame. The v10 "below-pill gap" fix (974-1054) FAILED THE SAME WAY:
+      // CAPTION_ZONE_TOP is 800 and the 1-row karaoke pill tops at ≈990 —
+      // the audit's frame 35 caught the pill plating the button's whole
+      // upper half. There is NO caption-free band under y 800 on this beat
+      // (the VO runs to the end), so the click target LEAVES the caption
+      // zone entirely: it takes the free top band of the left-55% safe
+      // zone, right of the channel lockup (lockup spans x≈373-703 at y
+      // 137-225 — the box at x 730 clears it horizontally) and above the
+      // teaser card (y 270). The standard channel-page pattern — subscribe
+      // element beside the channel identity — and structurally unplatable.
+      const bx = 748, by = 100, bw = 392, bh = 74;
       registerRect('endScreen:subscribe', bx - 6, by, bw + 6, bh + 14);
       // PANEL-12 / P3-3: one-light rule — the box's shadow falls
       // lower-left like the CTA chip's.
@@ -1398,7 +1415,7 @@ export function endScreenScene(g: SceneCtx): void {
       // promise under the pill was a promise nobody reads).
       setFont(ctx, 24, 600);
       ctx.fillStyle = rgba(PALETTE.ink, 0.62);
-      ctx.fillText('every source, linked below', bx + 104, by + 86);
+      ctx.fillText('every source, linked below', bx + 104, by + 104);
       ctx.restore();
     }
   }

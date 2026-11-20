@@ -2485,24 +2485,31 @@ export function paradoxResolveScene(g: SceneCtx): void {
   // register, measured. The pulse is exactly 1.0 outside its 200ms window.
   const punchP = clamp01((t - 1400) / 200);
   const punch = 1 + 0.055 * Math.sin(punchP * Math.PI) * (1 - punchP);
-  ctx.translate(cx, H * 0.34 - 28);
+  // B8 RE-SPEC (Visual Quality Audit §3.2 — THE STRIKE THROUGH THE HEAD):
+  // the word sat at H*0.34 with the strike's left end 14px from the
+  // host's head at rest — under the reaction camera push (scale ~1.55
+  // about the pivot) the head's crown crossed the strike line: the
+  // audit's "red strike straight through his head". The word band lifts
+  // to H*0.30 — the strike now clears the crown by ~90px at rest and
+  // stays clear through the full push.
+  ctx.translate(cx, H * 0.30 - 28);
   ctx.scale(punch, punch);
-  ctx.translate(-cx, -(H * 0.34 - 28));
+  ctx.translate(-cx, -(H * 0.30 - 28));
   setFont(ctx, 96, 700);
   ctx.fillStyle = PALETTE.ink;
-  ctx.fillText('PARADOX', cx, H * 0.34);
+  ctx.fillText('PARADOX', cx, H * 0.30);
   if (sp > 0) {
     ctx.strokeStyle = PALETTE.down;
     ctx.lineWidth = 12;
     ctx.lineCap = 'round';
     const sw = 460;
     ctx.beginPath();
-    ctx.moveTo(cx - sw / 2, H * 0.34 - 36);
-    ctx.lineTo(cx - sw / 2 + sw * easeOutCubic(sp), H * 0.34 - 20);
+    ctx.moveTo(cx - sw / 2, H * 0.30 - 36);
+    ctx.lineTo(cx - sw / 2 + sw * easeOutCubic(sp), H * 0.30 - 20);
     ctx.stroke();
   }
   ctx.restore();
-  if (sp > 0) impactRing(ctx, cx, H * 0.34 - 28, t, 1400, 200, HERO.ringScale, PALETTE.down);
+  if (sp > 0) impactRing(ctx, cx, H * 0.30 - 28, t, 1400, 200, HERO.ringScale, PALETTE.down);
   // resolves into K + takeaway lines
   // P1-1/P1-6 pass: the K moves to the left third and the takeaway lines
   // annotate BESIDE it (right column, y 470-604). The v8 stack put the
@@ -2591,8 +2598,13 @@ export function paradoxResolveScene(g: SceneCtx): void {
   // envelope pauses (a held expression), and the camera pushes toward the
   // head zone (director.cameraV2 consumes the same reactionAt() clock).
   const rP = reactionAt(g.s.sceneKey, g.t, g.d);
+  // B8 RE-SPEC (Visual Quality Audit §3.2 — THE CARRIED-BEAM READ): the
+  // aha key's far arm (lAU -40 / lAL -60) swept up across the K's upper
+  // diagonal — with the near fist on the stem the silhouette read as the
+  // host CARRYING the letter like a beam. 'present' keeps the far arm
+  // folded low; the near arm's stem grip carries the contact verb.
   let pose = Stickman.poseAt(t, {
-    gesture: 'aha',
+    gesture: 'present',
     speaking: g.speaking,
     sentenceId: g.sentenceId,
     prevSentenceId: g.prevSentenceId,

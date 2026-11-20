@@ -5,7 +5,7 @@
  * odds spread.
  */
 
-import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, hash01, hashStr, lerp, seamArrival, springTo } from './easing';
+import { clamp, clamp01, easeInOutCubic, easeOutBack, easeOutCubic, hash01, hashStr, lerp, seamArrival, springTo } from './easing';
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, chapterFamily, CAPTION_ZONE_TOP, TYPE_FLOOR, LABEL_FLOOR, FONT_DISPLAY, toneRoom, deskRule, valuePlaneFor, roomFill } from './theme';
 import { bokehField, kMotifs, lightRays, drawK, drawK3D, sparkles, hazeBands, impactRing, microShake, depthShift } from './effects';
 import { SceneCtx } from './scene-context';
@@ -557,11 +557,12 @@ export function chartJourneyScene(g: SceneCtx): void {
   // the host's walkway — feet ON the axis while the pen draws. The
   // annotation pills yield ABOVE his crown (crownTopY below).
   const floorY = chartY + chartH;
-  // B5 RE-SPEC (Visual Quality Audit §3.2 — THE WALKER IS AN ACTOR): the
-  // axis walker draws at rig 1.25 (was 0.8) — at 0.8 he was a ~190px
-  // decal on the plot with an unreadable face and no contact read. The
-  // annotation layer clamps above his crown at the new height.
-  const walkerCrown = floorY - 241 * 1.1;
+  // B5/B7 RE-SPEC (Visual Quality Audit §3.2 — THE WALKER IS AN ACTOR):
+  // the axis walker draws at rig 1.2 (was 0.8 — a ~190px decal with an
+  // unreadable face and no contact read) with a PLANTED FIST GRIP on the
+  // data line at his station. The annotation layer clamps above his
+  // crown at the new height.
+  const walkerCrown = floorY - 241 * 1.2;
 
   const series = (s.series as any[] | undefined)?.map((sr) => ({
     name: sr.name as string,
@@ -807,18 +808,54 @@ export function chartJourneyScene(g: SceneCtx): void {
     if (g.sceneT < 1700) {
       // THE DRAW-ON ENTRANCE — the walkway read itself: he paces the axis
       // from the left edge as the chart draws in above him.
-      const r = walkIn(Math.min(g.sceneT, 1700), 250, STN[cur], 1700, arriveJ, 1.1, 11);
+      const r = walkIn(Math.min(g.sceneT, 1700), 250, STN[cur], 1700, arriveJ, 1.2, 11);
       hxJ = r.x; poseJ = r.walking ? r.pose : arriveJ; phaseJ = r.walking ? r.phase : undefined;
     } else if (stT < 900 && Math.abs(STN[cur] - STN[prev]) >= 120) {
-      const r = walkIn(stT, STN[prev], STN[cur], 900, arriveJ, 1.1, 11);
+      const r = walkIn(stT, STN[prev], STN[cur], 900, arriveJ, 1.2, 11);
       hxJ = r.x; poseJ = r.walking ? r.pose : arriveJ; phaseJ = r.walking ? r.phase : undefined;
     } else {
       hxJ = STN[cur]; poseJ = arriveJ;
     }
     const talkJ = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
-    // B5 RE-SPEC: the walker runs the host's own rig tier floor (1.25) —
-    // same body language, same face language, readable hands — one cast.
-    drawStickmanV2(ctx, hxJ, floorY, 1.1, t, {
+    // B7 RE-SPEC (Visual Quality Audit §3.2 — THE WALKER IS AN ACTOR):
+    // planted contact. When he STANDS at a station and the line has drawn
+    // past him, his near hand FISTS ON THE DATA LINE at his own x — the
+    // grip the audit found missing ("the hand never grips the line; the
+    // figure skates on top of the plot as decoration"). The line's y at
+    // the station reproduces lineChart's own point mapping (px = x + xf*w,
+    // py from the padded min/max) so the fist lands exactly on the stroke;
+    // it is gated on the draw-on progress so he never grips ink that is
+    // not there yet, and clamped to the arm's natural cone.
+    let gripJ: { x: number; y: number; hand: 'fist' } | undefined;
+    if (phaseJ === undefined) {
+      const xfJ = (hxJ - chartX) / chartW;
+      if (drawP >= xfJ + 0.02) {
+        let yMinJ = Infinity, yMaxJ = -Infinity;
+        for (const sr of series) for (const [, v] of sr.points) { if (v < yMinJ) yMinJ = v; if (v > yMaxJ) yMaxJ = v; }
+        const bandJ = s.band as { from: number; to: number } | undefined;
+        if (bandJ) { yMinJ = Math.min(yMinJ, bandJ.from); yMaxJ = Math.max(yMaxJ, bandJ.to); }
+        const padJ = (yMaxJ - yMinJ) * 0.18 || 1;
+        yMinJ -= padJ; yMaxJ += padJ;
+        const ptsJ = series[0].points;
+        const lastXJ = ptsJ[ptsJ.length - 1][0] || 1;
+        let gvJ = ptsJ[ptsJ.length - 1][1];
+        for (let i = 1; i < ptsJ.length; i++) {
+          const aJ = ptsJ[i - 1][0] / lastXJ, bJ = ptsJ[i][0] / lastXJ;
+          if (xfJ <= bJ) {
+            const fJ = clamp01((xfJ - aJ) / Math.max(1e-6, bJ - aJ));
+            gvJ = ptsJ[i - 1][1] + (ptsJ[i][1] - ptsJ[i - 1][1]) * fJ;
+            break;
+          }
+        }
+        const plotYJ = chartY + (series.length > 1 ? 66 : 0);
+        const gyJ = plotYJ + chartH - ((gvJ - yMinJ) / (yMaxJ - yMinJ)) * chartH;
+        const crownJ = floorY - 241 * 1.2;
+        gripJ = { x: hxJ, y: clamp(gyJ, crownJ - 24, floorY - 54), hand: 'fist' };
+      }
+    }
+    // B5/B7 RE-SPEC: the walker runs the readable cast tier (1.2) — same
+    // body language, same face language, readable hands — one cast.
+    drawStickmanV2(ctx, hxJ, floorY, 1.2, t, {
       pose: poseJ,
       alpha: 0.85 + 0.15 * clamp01(g.sceneT / 180),
       look: -0.3, scarf: true, satchel: resolveProp(g.beat.scene.type, 'satchel', true), hostBody: true,
@@ -830,11 +867,13 @@ export function chartJourneyScene(g: SceneCtx): void {
       // PHASE 3: the drawn arm smear — two-tier accent envelope only.
       armSmear: g.speaking ? accentPulse(g.beatT, g.wordTimes, g.wordTexts) : 0,
       parallax: false,
+      // B7 RE-SPEC: the planted grip — the near hand fists the line.
+      contact: gripJ,
     }, 25);
     // PHASE 1 SCALE LAW: the axis walker registers as a participant — he
     // paces the chart's own baseline and points at the milestones (the
     // gesture cycle's pointIn term is the declared contact verb).
-    registerFigure(g.beat.scene.sceneKey, 'axis-walker', 'participant', 1.1, H, true);
+    registerFigure(g.beat.scene.sceneKey, 'axis-walker', 'participant', 1.2, H, true);
   }
   sourceTag(ctx, W, s.source as string, H - 60);
 }
@@ -2292,7 +2331,11 @@ export function recessionGaugeScene(g: SceneCtx): void {
     // bound under the base push on the right (the full 10% figure-floor
     // rig physically cannot fit that column — guard-verified both ways).
     const subjectRig = Math.min(1.7, Math.max(1.15, scaleForFigureArea(180, STICK_BASE_HEIGHT, 10, W, H)));
-    drawStickmanV2(ctx, Math.min(1770, W - 184), H * 0.63, subjectRig, t,
+    // B8 RE-SPEC (Visual Quality Audit §3.2 — RUBBER ELBOW): the host
+    // steps 25px left (1745) — the palm's reach to the rim drops from
+    // ~257px (beyond the solved arm's natural length, the source of the
+    // Z-bend elbow) to ~215px, inside the arm's envelope at this rig.
+    drawStickmanV2(ctx, Math.min(1745, W - 184), H * 0.63, subjectRig, t,
       {
         pose,
         // PHASE 3: participant grammar — the beat's hero is the dial system
@@ -2321,7 +2364,7 @@ export function recessionGaugeScene(g: SceneCtx): void {
         // band and the torso clears the label's right edge by ~28px. Reach
         // unchanged (~126 scene px from the shoulder); the 48% needle
         // (x ≈ 1345) stays far left of the palm.
-        contact: { x: 1575, y: 514, hand: 'palm' },
+        contact: { x: 1598, y: 520, hand: 'palm' },
       }, 29);
     // PHASE 1 SCALE LAW: the gauge host registers as a subject — his palm
     // ON the dial's ring is the declared contact verb. PHASE 3: the rig
@@ -4107,7 +4150,12 @@ export function oddsSpreadScene(g: SceneCtx): void {
     }
     const talkO = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
     // B5 RE-SPEC: the odds-spread host joins the 1.25 cast tier (was 1.15).
-    drawStickmanV2(ctx, 1664, g.H * 0.63, 1.25, t, {
+    // B9 RE-SPEC (Visual Quality Audit §3.2 — THE RIGHT-EDGE CROP): the
+    // host at 1664 rode the beat's push to within ~50px of the right
+    // frame edge — his raised-arm envelope grazed the crop. He stands at
+    // 1568: the body core clears the edge by ~130px at the max push and
+    // the pointing solve to the range line still lands inside reach.
+    drawStickmanV2(ctx, 1568, g.H * 0.63, 1.25, t, {
       pose: arriveO2,
       alpha: 0.85 + 0.15 * clamp01(g.sceneT / 180),
       look: -0.5, scarf: true, hostBody: true,
