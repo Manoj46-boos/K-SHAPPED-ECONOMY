@@ -6,7 +6,7 @@
  */
 
 import { clamp01, easeInQuad, easeInOutSine, easeOutCubic } from './easing';
-import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI, drawRoomRail, getRoomFamily, setRoomFamily, setWashChapter } from './theme';
+import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI, drawRoomRail, drawChapterRoom, getRoomFamily, setRoomFamily, setWashChapter } from './theme';
 import { drawGrain, lightVignette, bokehField, scalePunch, camState, guardCamState, kWipe, fgBokeh, dofPass, chapterAccent } from './effects';
 import { drawParticles, emitterKindFor } from './particles';
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
@@ -415,23 +415,15 @@ function cameraV2(
     camX += dir * AMP.whipPx * whip;
     camY += 4 * whip;
   }
-  // P3 (Verdict report — CUT CADENCE): chapters 1-3 own the first-60-second
-  // collapse, and the platform benchmark punishes any 3-5s window with no
-  // camera or scene event. A micro-event scheduler drops a short operator
-  // move every ~4s into every chapter 1-3 group past the entry window: a
-  // 700ms eased push (+1.4% scale) with a 14px alternating truck, closed
-  // form in gt (zero at both ends — pop-free, scrub-safe). No hold long
-  // enough for the swipe reflex to arm.
-  if (chapterIdx <= 2 && gt > 2000) {
-    const TICK = 4000;
-    const k = Math.floor((gt - 2000) / TICK);
-    const local = gt - 2000 - k * TICK;
-    if (local < 700) {
-      const e2 = Math.sin((local / 700) * Math.PI);
-      camScale += 0.014 * e2;
-      camX += (k % 2 === 0 ? 1 : -1) * 14 * e2;
-    }
-  }
+  // P2 U10 (SIMPLIFY THE CAMERA — RETIRED): the micro-event scheduler
+  // (a 700ms push + 14px truck every ~4s in chapters 1-3) fought the
+  // ambient drift — constant small motion reads nervous, not premium.
+  // Fewer, larger events own the frame now: the whip, one hero move per
+  // chapter (the hero map), the reaction pushes, and the U14 pattern
+  // interrupts (scene/body events, not camera noise). The first-60s
+  // cadence is enforced by the interrupt sweep (tools/interrupt-sweep.mjs)
+  // instead of a camera tick.
+  const _ = chapterIdx; // kept: the chapter-1-3 scope remains meaningful for the sweep
   // PLAYBOOK D1 + D3 follow-up: the chartJourney legacy tracking term is
   // RETIRED — the ch2/ch3 hero TRUCKS (±150-190px) already lead the
   // draw-on; stacking the old ±32px term on top pushed the chart's
@@ -502,26 +494,14 @@ function cameraV2(
   // scenes themselves carry the OTHER half of the fix: a second CONTENT
   // arrival at the stage's own 55% seam (see the drawers — beatP-keyed, so
   // it lands once per stage no matter where the cap's seams fall).
-  const LONG_STAGE =
-    sceneKey === 'c6-ai' || sceneKey === 'c8-fund' || sceneKey === 'c8-odds';
-  if (groupDur > (LONG_STAGE ? 9000 : 12000)) {
-    const seam = groupDur * 0.5;
-    const release = groupDur * 0.85;
-    const dir = groupIdx % 2 === 0 ? 1 : -1;
-    // in: 300ms eased re-aim at the seam; out: eased return through the
-    // tail. Guard-sweep lesson: the reframe is VERTICAL-biased (camY ±24
-    // with a camX ±10 hint) — a lateral truck held through the scene pushed
-    // edge-marginal content (the takeaways card, the datacenter host, the
-    // chartTwin exit) past the frame bounds at max push scale, while the
-    // vertical axis has certified headroom between the title band and the
-    // caption zone.
-    const inP = clamp01((gt - seam + 150) / 300);
-    const outP = clamp01((gt - release) / (groupDur - release));
-    if (inP > 0 && outP < 1) {
-      const e = easeInOutSine(inP) * (1 - easeInOutSine(outP));
-      camY += dir * 24 * e;
-      camX += dir * 10 * e;
-    }
+  // P2 U10 (SIMPLIFY THE CAMERA — RETIRED): the mid-scene reframe is the
+  // second system that fought the drift (the audit: "two systems fighting").
+  // The long-stage anti-boredom duty it carried moves to the scenes' own
+  // content arrivals at the 55% seam (which exist in the drawers) and the
+  // chapter hero move — the operator now SETTLES between events, which is
+  // what a premium operator does. _groupDur kept for the sweep scripts.
+  {
+    void groupDur; void groupIdx;
   }
   // PANEL-12 / P2-6 (report §14.6): THE REACTION SHOT — a held-expression
   // beat on the twist (c8-fund), the paradox resolve (c7-paradox) and the
@@ -836,6 +816,7 @@ export function drawFrame(
     sentenceId: activeSent?.lineId,
     prevSentenceId: prevSent?.lineId,
     sentenceT: activeSent !== null ? t - activeSent.startMs : undefined,
+    sentenceDurMs: activeSent ? activeSent.endMs - activeSent.startMs : undefined,
     channelName: opts.channelName,
     nextVideoTitle: opts.nextVideoTitle,
     // 100-JUDGE PANEL / Phase 4 item 4.3: the beat's chapter index — the
@@ -971,6 +952,12 @@ export function drawFrame(
   {
     const rf = getRoomFamily();
     if (rf) drawRoomRail(ctx, 1920, 1080, rf, opts.channelName);
+    // P2 U12 (ONE DESIGNED ROOM PER CHAPTER FAMILY): the wall object, the
+    // horizon prop and the desk surface — the fundSplit grade — land right
+    // after the rail, same screen-space call site, same fixed relationship
+    // to the watermark. Families without a room key (the close, the end
+    // screen) keep the clean stage.
+    if (rf) drawChapterRoom(ctx, 1920, 1080, rf);
   }
   // BLUEPRINT Phase 5 (report §11 — the reaction close-up's CONTENT
   // RECEDE): during every reaction window the data content recedes in

@@ -444,8 +444,13 @@ function boilOff(): { dx: number; dy: number } {
   // P2-6: quiet = on-threes (3 phases, full amplitude); fast = on-twos
   // (2 phases), half amplitude.
   const mod = boilFast ? 2 : 3;
-  // AUDIT-ROUND-3: local-unit amplitude capped to BOIL_CAP_PX screen px
-  const amp = (boilFast ? 0.5 : 1) * Math.min(AMP.boilPx, BOIL_CAP_PX / boilRigScale);
+  // P2 U11 (COMMIT THE INK TEXTURE): the boil register is HERO-VISIBLE —
+  // at rig >= 2 (the close-ups the panel studies) the screen cap rises
+  // 4 -> 6px: the wobble reads as hand-drawn ink, not a texture the eye
+  // must squint at. Mid rigs (1.5-2) keep the certified 4px cap; below
+  // 1.5 the vectors stay clean (the existing gate).
+  const capPx = boilRigScale >= 2 ? 6.0 : BOIL_CAP_PX;
+  const amp = (boilFast ? 0.5 : 1) * Math.min(AMP.boilPx, capPx / boilRigScale);
   const phase = Math.floor(boilT / BOIL_MS) % mod;
   const j = boilJoint++;
   // BLUEPRINT Phase 1 (AMP.boilPx): ±0.85 -> ±2.2 px — the drawn-ink
@@ -2215,7 +2220,13 @@ export function drawStickmanV2(
   // rendered hand on the target. Everything the pose still owns (body,
   // legs, head, far arm, mouth) keeps animating — the hand stays planted
   // while the figure talks, which is the whole grammar.
-  if (r.contact) {
+  // P2 U7 (ARMS ANSWER THE STRIDE): the near-arm IK override is a PLANTED
+  // grammar — it pins the swing arm to a contact point. While the figure
+  // WALKS (walkPhase defined), the keyed stride owns the near arm: the
+  // pose's contralateral swing (±33..-53°, the elbow folding with the
+  // swing) renders instead of a static IK grip, so the strip test shows
+  // alternating arm leads. Planted poses (no walkPhase) keep the IK.
+  if (r.contact && r.walkPhase === undefined) {
     const shX2 = neckX + 4 + Math.sin(shT) * 4;
     const shY2 = neckY + 3 - Math.sin(shT) * 9 + shDrop;
     const flipS = r.flip ? -1 : 1;

@@ -239,3 +239,18 @@ export function splitSentences(text: string): string[] {
   }
   return out.length ? out : [text];
 }
+
+
+/**
+ * P2 U9 (Visual Quality Audit §4.3 — SQUASH WHERE THE AUDIENCE LOOKS):
+ * the 2-frame land settle shared by every scene-event squash — cards,
+ * the K brace, prop arrivals. Pure f(dt): instant full compress on the
+ * impact frame (dt=0), release over ~160ms with the spring-back the
+ * eye reads as weight. The v2's squash transform consumes the value;
+ * callers pass scene-ms so it is scrub-safe.
+ */
+export function landPulse(dt: number, riseMs = 66, decayMs = 160): number {
+  if (dt < 0 || dt > riseMs + decayMs) return 0;
+  if (dt <= riseMs) return 1 - easeOutCubic(dt / riseMs) * 0.25; // the held impact
+  return (1 - easeInOutSine((dt - riseMs) / decayMs)) * 0.75;
+}

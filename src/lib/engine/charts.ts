@@ -4,7 +4,7 @@
  * All light-theme, all deterministic functions of (t, p).
  */
 
-import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, easeOutQuad, hashStr, lerp, springTo } from './easing';
+import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, easeOutQuad, hashStr, lerp, springTo, landPulse } from './easing';
 import { PALETTE, TONE, card, chip, rgba, roundRect, setFont, fitText, TYPE_FLOOR, LABEL_FLOOR, toneRoom, deskRule, ValuePlane, mixHex } from './theme';
 import { registerRect, registerFixed, registerText } from './collision';
 // P4 (100-judge audit §13 — CHART IMPACT GRAMMAR): bars and lines land as
@@ -1307,6 +1307,9 @@ export function statCard(
     tone?: string;
     p: number;
     t: number;
+    /** P2 U9: the absolute scene-ms the card lands — drives the 2-frame
+     *  settle squash (>=8px at 1080p) the audit prescribes. */
+    landT?: number;
     bigIsNumber?: boolean;
     decimals?: number;
     /** v4 (audit P0-1): compact row metrics for tight columns — 58px numeral,
@@ -1326,14 +1329,28 @@ export function statCard(
     plane?: ValuePlane;
   }
 ): void {
-  const { x, y, w, h, big, label, tag, tone = 'up', p, t } = opts;
+  const { x, y, w, h, big, label, tag, tone = 'up', p, t, landT } = opts;
   const plane: ValuePlane = opts.plane ?? 'card';
   const ap = clamp01(p);
   const rise = (1 - easeOutCubic(ap)) * 26;
   const pop = easeOutBack(clamp01(ap / 0.7));
+  // P2 U9 (SQUASH WHERE THE AUDIENCE LOOKS): the card LANDS with a
+  // 2-frame settle — the plate compresses vertically (bottom-anchored,
+  // feet stay planted) and springs back. landPulse on (t - landT); the
+  // 6% compress at a >=240px plate = >=14px at 1080p — the audit's 8px
+  // floor cleared with margin.
+  const landP = landT !== undefined ? landPulse(t - landT) : 0;
+  const landY = y + h + rise;
   ctx.save();
   ctx.globalAlpha = Math.min(1, ap * 1.6);
   ctx.translate(0, rise);
+  if (landP > 0.001) {
+    // the 2-frame settle: bottom-anchored vertical compress (the plate
+    // lands ON its surface), width-conserving pair
+    ctx.translate(x + w / 2, y + h);
+    ctx.scale(1 + 0.04 * landP, 1 - 0.06 * landP);
+    ctx.translate(-(x + w / 2), -(y + h));
+  }
   const c = TONE(tone).main;
   // PHASE-0 (report §6, Fix 3 — RAISE DATA-INK SATURATION): the stat
   // card's number and accent line ride the VIVID ramp (was tone.main) —

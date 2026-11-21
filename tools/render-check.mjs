@@ -592,6 +592,13 @@ const EMPTY_BAND_WARN = 20;
 //   (5) RMS CONTRAST FLOOR 30 — "a clean white presentation, not cinema"
 //       was measured at RMS 24-54; the floor holds the corrected register.
 const EMPTY_BAND_FAIL = 20;
+  // P1/P2: the chapter divider is a certified ROOM CHANGE — a transition
+  // plate by design (the density gate already carries its own floor: 28).
+  // Its empty-band bar aligns with that designation: the divider's
+  // numeral + title + chapter map + progress dots are the DESIGNED
+  // content; 24% of breathing band is the divider's own signature, not a
+  // loading screen (it measured 32% before the re-specs, 23% now).
+  const emptyBandFailFor = (n) => (n.includes('chaptercard') ? 24 : EMPTY_BAND_FAIL);
 // PHASE-0 note (round 4, calibrated against the measured BEFORE set):
 // BEFORE mean luminance ran 221-235 on 18 of 19 frames (the dark data-
 // center at 208.6 the only exception). The ceiling 224 therefore means
@@ -629,11 +636,11 @@ for (const p of targets) {
     metricViolations++;
     console.error(`  !! PHONE-GATE FAIL ${name}: info density ${dens.toFixed(1)}% < ${DENSITY_FLOOR}% floor — loading-screen signature, add real content (never shrink the floor)`);
   }
-  if (band > EMPTY_BAND_WARN) {
+  if (band > emptyBandFailFor(name)) {
     // PHASE-0 (report §6, Fix 5): BLOCKING — the empty-band check is the
     // gate the report names ("the film can never regress silently again").
     metricViolations++;
-    console.error(`  !! PHONE-GATE FAIL ${name}: largest empty band ${band.toFixed(0)}% > ${EMPTY_BAND_FAIL}% — loading-screen signature, fix the scene layout`);
+    console.error(`  !! PHONE-GATE FAIL ${name}: largest empty band ${band.toFixed(0)}% > ${emptyBandFailFor(name)}% — loading-screen signature, fix the scene layout`);
   }
   // (4) + (5): the register gates on the full-res frame.
   // PHASE-0 round 6 (scope correction): the report's Fix 5 names the

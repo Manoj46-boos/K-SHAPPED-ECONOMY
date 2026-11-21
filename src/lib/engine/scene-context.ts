@@ -43,6 +43,9 @@ export interface SceneCtx {
   sentenceId?: string;
   prevSentenceId?: string;
   sentenceT?: number;
+  /** P2 U14: the active sentence's total duration — the long-hold
+   *  interrupt's key (sentences >= 3.2s in chapters 1-3 fire the take). */
+  sentenceDurMs?: number;
   channelName: string;
   nextVideoTitle: string;
   /** v8: this chapter's ambient wash tone (the chapter color journey).

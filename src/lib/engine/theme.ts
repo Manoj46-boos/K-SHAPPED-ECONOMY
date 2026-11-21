@@ -1337,3 +1337,234 @@ export function inkStroke(
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 }
+
+/** P2 U12 (Visual Quality Audit §4.4 — ONE DESIGNED ROOM PER CHAPTER
+ *  FAMILY): the fundSplit 493-wall is the film's own proof of room grade —
+ *  a full-width structured mass, perspective, value planes. Every chapter
+ *  family's rooms come up to that bar with three committed pieces drawn in
+ *  SCREEN space (same call site as drawRoomRail, fixed to the frame):
+ *    1. THE WALL OBJECT — the family's owned framed plaque on the right
+ *       flank (structured dark mass + ivory detail, background-grade).
+ *    2. THE HORIZON PROP — a low console with one family silhouette on
+ *       the left floor edge.
+ *    3. THE DESK SURFACE — a perspective trapezoid plane with a real
+ *       material gradient and a front-edge line, full width.
+ *  Pure f(W, H); background plane; never registered with the guard (the
+ *  figures and cards plate OVER it by design). */
+export function drawChapterRoom(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  family: string
+): void {
+  const deep = rgba(PALETTE.ink, 0.16);
+  const deep2 = rgba(PALETTE.ink, 0.10);
+  const ivory = rgba('#F7EFD8', 0.34);
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  // ── 3. the desk surface (drawn first: everything else sits on it) ──
+  {
+    const hy = H * 0.640;            // the horizon (the wall-floor seam)
+    const fy = H * 0.785;            // the front edge
+    const g = ctx.createLinearGradient(0, hy, 0, fy);
+    g.addColorStop(0, rgba(PALETTE.ink, 0.075));
+    g.addColorStop(1, rgba(PALETTE.ink, 0.13));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    // the perspective trapezoid — the surface recedes toward the seam
+    ctx.moveTo(W * 0.03, fy);
+    ctx.lineTo(W * 0.115, hy);
+    ctx.lineTo(W * 0.885, hy);
+    ctx.lineTo(W * 0.97, fy);
+    ctx.closePath();
+    ctx.fill();
+    // the material: three planed seams converging to the vanishing band
+    ctx.strokeStyle = rgba(PALETTE.ink, 0.085);
+    ctx.lineWidth = 2;
+    for (const u of [0.28, 0.58, 0.84]) {
+      const y0 = hy + (fy - hy) * u;
+      const half = W * (0.425 - 0.085 * u);
+      ctx.beginPath();
+      ctx.moveTo(W * 0.5 - half, y0);
+      ctx.lineTo(W * 0.5 + half, y0);
+      ctx.stroke();
+    }
+    // the front edge — the one hard line a desk gets
+    ctx.strokeStyle = rgba(PALETTE.ink, 0.22);
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(W * 0.03, fy);
+    ctx.lineTo(W * 0.97, fy);
+    ctx.stroke();
+  }
+  // ── 1. the wall object — the family's framed plaque, right flank ──
+  {
+    const wx = W * 0.815, wy = H * 0.315, ww = W * 0.125, wh = H * 0.27;
+    ctx.fillStyle = deep;
+    ctx.beginPath();
+    ctx.roundRect(wx, wy, ww, wh, 10);
+    ctx.fill();
+    ctx.strokeStyle = rgba(PALETTE.ink, 0.26);
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    const cx = wx + ww / 2, cy = wy + wh / 2;
+    ctx.strokeStyle = ivory;
+    ctx.fillStyle = ivory;
+    ctx.lineWidth = 3;
+    if (family === 'market') {
+      // the ticker plaque — 4 price rows with live dots
+      for (let i = 0; i < 4; i++) {
+        const ry = wy + wh * (0.22 + i * 0.19);
+        ctx.beginPath();
+        ctx.moveTo(wx + ww * 0.12, ry);
+        ctx.lineTo(wx + ww * 0.78, ry);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(wx + ww * 0.86, ry, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (family === 'charts') {
+      // the plotted curve plaque — axes + one drawn line
+      ctx.beginPath();
+      ctx.moveTo(wx + ww * 0.14, wy + wh * 0.18);
+      ctx.lineTo(wx + ww * 0.14, cy + wh * 0.32);
+      ctx.lineTo(wx + ww * 0.86, cy + wh * 0.32);
+      ctx.stroke();
+      ctx.beginPath();
+      const pts = [[0.2, 0.72], [0.38, 0.55], [0.55, 0.62], [0.72, 0.34], [0.86, 0.24]];
+      pts.forEach(([u, v], i) => {
+        const px = wx + ww * u, py = wy + wh * v;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.lineWidth = 4;
+      ctx.stroke();
+    } else if (family === 'survey') {
+      // the pinboard — three tilted cards on rails
+      for (let i = 0; i < 3; i++) {
+        const cxx = wx + ww * (0.26 + i * 0.24);
+        const tilt = (i - 1) * 0.12;
+        ctx.save();
+        ctx.translate(cxx, cy);
+        ctx.rotate(tilt);
+        ctx.fillStyle = ivory;
+        ctx.beginPath();
+        ctx.roundRect(-ww * 0.10, -wh * 0.22, ww * 0.20, wh * 0.44, 4);
+        ctx.fill();
+        ctx.fillStyle = rgba(PALETTE.ink, 0.30);
+        ctx.beginPath();
+        ctx.arc(0, -wh * 0.22, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        ctx.fillStyle = ivory;
+      }
+    } else if (family === 'machines') {
+      // the gauge dial — ring, ticks, needle
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(cx, cy + wh * 0.06, wh * 0.26, Math.PI * 0.85, Math.PI * 2.15);
+      ctx.stroke();
+      for (let i = 0; i < 5; i++) {
+        const a = Math.PI * (0.95 + i * 0.275);
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a) * wh * 0.22, cy + wh * 0.06 + Math.sin(a) * wh * 0.22);
+        ctx.lineTo(cx + Math.cos(a) * wh * 0.26, cy + wh * 0.06 + Math.sin(a) * wh * 0.26);
+        ctx.stroke();
+      }
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + wh * 0.06);
+      ctx.lineTo(cx + Math.cos(Math.PI * 1.7) * wh * 0.2, cy + wh * 0.06 + Math.sin(Math.PI * 1.7) * wh * 0.2);
+      ctx.stroke();
+    } else if (family === 'data') {
+      // the rack column — 3 units + LED dots
+      for (let i = 0; i < 3; i++) {
+        const uy = wy + wh * (0.14 + i * 0.28);
+        ctx.strokeStyle = rgba(PALETTE.ink, 0.30);
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.roundRect(wx + ww * 0.12, uy, ww * 0.76, wh * 0.20, 4);
+        ctx.stroke();
+        ctx.fillStyle = ivory;
+        for (let k = 0; k < 3; k++) {
+          ctx.beginPath();
+          ctx.arc(wx + ww * (0.2 + k * 0.09), uy + wh * 0.10, 3.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = ivory;
+      }
+    } else if (family === 'debt') {
+      // the ledger plaque — descending columns
+      const cols = [0.72, 0.56, 0.42, 0.30];
+      cols.forEach((v, i) => {
+        const bx = wx + ww * (0.16 + i * 0.19);
+        const bh = wh * 0.5 * v;
+        ctx.beginPath();
+        ctx.roundRect(bx, wy + wh * 0.78 - bh, ww * 0.12, bh, 3);
+        ctx.fill();
+      });
+    } else if (family === 'odds') {
+      // the odds board — two columns + chips
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(wx + ww * 0.3, wy + wh * 0.16);
+      ctx.lineTo(wx + ww * 0.3, wy + wh * 0.82);
+      ctx.moveTo(wx + ww * 0.7, wy + wh * 0.16);
+      ctx.lineTo(wx + ww * 0.7, wy + wh * 0.82);
+      ctx.stroke();
+      for (let i = 0; i < 3; i++) {
+        const ry = wy + wh * (0.26 + i * 0.2);
+        ctx.beginPath();
+        ctx.roundRect(wx + ww * 0.34, ry - 7, ww * 0.3, 14, 7);
+        ctx.fill();
+      }
+    }
+  }
+  // ── 2. the horizon prop — the console + one silhouette, left floor ──
+  {
+    const py = H * 0.655, px0 = W * 0.055, pw = W * 0.075;
+    ctx.strokeStyle = rgba(PALETTE.ink, 0.22);
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(px0, py);
+    ctx.lineTo(px0 + pw, py);
+    ctx.stroke();
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(px0 + pw * 0.14, py);
+    ctx.lineTo(px0 + pw * 0.14, py + H * 0.045);
+    ctx.moveTo(px0 + pw * 0.86, py);
+    ctx.lineTo(px0 + pw * 0.86, py + H * 0.045);
+    ctx.stroke();
+    ctx.fillStyle = rgba(PALETTE.ink, 0.20);
+    // the family silhouette ON the console
+    if (family === 'machines') {
+      // the pump — a body + a spout
+      ctx.beginPath();
+      ctx.roundRect(px0 + pw * 0.28, py - H * 0.052, pw * 0.30, H * 0.052, 4);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.roundRect(px0 + pw * 0.56, py - H * 0.070, pw * 0.16, H * 0.022, 3);
+      ctx.fill();
+    } else if (family === 'data') {
+      // the server cart — two units
+      ctx.beginPath();
+      ctx.roundRect(px0 + pw * 0.26, py - H * 0.050, pw * 0.34, H * 0.024, 3);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.roundRect(px0 + pw * 0.26, py - H * 0.024, pw * 0.34, H * 0.024, 3);
+      ctx.fill();
+    } else {
+      // the shared console object — a low instrument box with a dial
+      ctx.beginPath();
+      ctx.roundRect(px0 + pw * 0.24, py - H * 0.044, pw * 0.36, H * 0.044, 4);
+      ctx.fill();
+      ctx.strokeStyle = ivory;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(px0 + pw * 0.42, py - H * 0.022, H * 0.013, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}

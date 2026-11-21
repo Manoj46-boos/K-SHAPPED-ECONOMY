@@ -228,7 +228,7 @@ function hostSmall(
   {
     const pt0 = reactionStart(g.s.sceneKey, g.t, g.d) >= 0
       ? -1
-      : pivotTakeStart(g.s.sceneKey, g.sentenceId, g.sentenceT, g.t, g.sceneT, 260);
+      : pivotTakeStart(g.s.sceneKey, g.sentenceId, g.sentenceT, g.t, g.sceneT, 260, g.s.chapterIdx, g.s.sentenceDurMs);
     if (pt0 >= 0) pose = take(pose, g.t, pt0);
   }
   // BLUEPRINT Phase 2 (judge round-2 calibration): the reaction beat holds
@@ -2882,6 +2882,7 @@ export function aiDatacenterScene(g: SceneCtx): void {
       // chapter's 'up' register and the script's explicit gold stays gold.
       big: st.big, label: st.label, tone: st.tone || 'up',
       p: clamp01((t - 300 - i * 280) / 500), t, // B18: the card cascade lands <= 1.4s
+      landT: 800 + i * 280, // P2 U9: the 2-frame land settle fires at the card's own impact
     });
   });
   // ── 100-JUDGE PANEL / Phase 4 item 4.1 — THE SECOND CONTENT ARRIVAL AT

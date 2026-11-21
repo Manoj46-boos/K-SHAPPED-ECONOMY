@@ -3,10 +3,10 @@
  * the signature "diverging K" formation, split-number reveals, channel intro.
  */
 
-import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, hashStr, lerp, seamArrival } from './easing';
+import { clamp01, easeInOutSine, easeOutCubic, easeOutQuad, hashStr, lerp, seamArrival, landPulse } from './easing';
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, glowBlob, paintBg, scenePlate, chapterFamily, FONT_DISPLAY, CAPTION_ZONE_TOP, TYPE_FLOOR } from './theme';
 import { bokehField, drawK3D, drawK, softBloom, kMotifs, lightRays, slideUp, subjectHalo, microShake, impactRing, depthShift } from './effects';
-import { Stickman, POSES, blendPose, walkIn, nodPulse, accentPulse, launchPulse, walkSmear, take } from './stickman';
+import { Stickman, POSES, blendPose, walkIn, nodPulse, accentPulse, launchPulse, walkSmear, take, heroTake } from './stickman';
 import { camState } from './effects';
 import { drawStickmanV2, talkAt } from './stickman-v2';
 import { HERO } from './perception';
@@ -395,6 +395,17 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
   // feeds the same event envelope (counter-arm + boil reset). Max of the
   // four sources — one envelope, whichever event is live.
   const propArrival = g.sceneT < 320 ? (1 - g.sceneT / 320) * 0.9 : 0;
+  // P2 U9 (PROP ARRIVALS COMPRESS THE FIGURE'S ARM): the arm receiving
+  // the prop folds tighter as it arrives — the elbow angle compresses on
+  // the same envelope, a ~15px hand displacement at the acting rigs
+  // (the audit's >=8px floor cleared). Pure f(sceneT); releases by 320ms.
+  if (propArrival > 0) {
+    pose = {
+      ...pose,
+      rAL: (pose.rAL ?? 0) + propArrival * 12,
+      lAL: (pose.lAL ?? 0) - propArrival * 8,
+    };
+  }
   const smr = Math.max(
     g.speaking ? accentPulse(g.beatT, g.wordTimes, g.wordTexts) : 0,
     walkSmear(walkPhase),
@@ -775,7 +786,12 @@ export function hostSceneV2(g: SceneCtx): void {
   // untouched.
   {
     const r0 = reactionStart(g.s.sceneKey, t, g.d);
-    if (r0 >= 0) pose = take(pose, t, r0);
+    // P2 U8 (BODY-ACTION HERO EVENTS): the twist, the paradox and the
+    // final takeaway run the hero choreography — the anticipation coil
+    // 480ms before the camera's push starts, the strike on the same
+    // clock, the settle with the 105ms head chase. The camera push stays
+    // as support; the BODY carries the event.
+    if (r0 >= 0) pose = heroTake(pose, t, r0);
   }
   // PHASE 1.3 (panel audit — TAKE ON EVERY CHAPTER PIVOT, not 3× per film):
   // the hold-overshoot-settle now also fires at every CHAPTER CARD CLEAR
@@ -786,7 +802,7 @@ export function hostSceneV2(g: SceneCtx): void {
   {
     const pt0 = reactionStart(g.s.sceneKey, t, g.d) >= 0
       ? -1
-      : pivotTakeStart(g.s.sceneKey, g.sentenceId, g.sentenceT, t, g.sceneT, 150);
+      : pivotTakeStart(g.s.sceneKey, g.sentenceId, g.sentenceT, t, g.sceneT, 150, g.s.chapterIdx, g.s.sentenceDurMs);
     if (pt0 >= 0) pose = take(pose, t, pt0);
   }
   // P1-6 (audit Table 3): the word-accent SMEAR — in the word's strike
@@ -1618,6 +1634,12 @@ export function divergeKScene(g: SceneCtx): void {
         POSES.shock,
         Math.min(1, shIn * 1.25)
       );
+      // P2 U8 (BODY-ACTION HERO EVENTS): the cold-open carries BOTH its
+      // hero beats in the body — the shock's arrival (t=2400, the strike
+      // into the gasp) and the tear flinch (t=5950, growP 0.5 — the K
+      // rips; the body recoils and settles with the head chasing). The
+      // camera push/roll at 4.4-7.1s becomes support for the body beat.
+      const heroT0 = t < 4600 ? 2400 : 5950;
       // P0 defect sweep (THE DECAPITATED CLOSE-UP): the shock close-up
       // staged its ground at 0.605 — at the 2.65 rig the figure's CROWN
       // sat at design y≈14, and the exit's raised camera (1.116) lifted
@@ -1626,7 +1648,11 @@ export function divergeKScene(g: SceneCtx): void {
       // holds ~27px of top air at the worst camera while the certified
       // 2.65 rig (and its 10% occupancy floor) stays intact.
       drawStickmanV2(ctx, W * 0.30, H * 0.67, HOST_SCALE, t, {
-        pose: shk, alpha: shIn, look: 0.72,
+        pose: heroTake(shk, t, heroT0), alpha: shIn, look: 0.72,
+        // P2 U9 (THE K LANDS WITH A BODY BRACE): at the tear's impact the
+        // body braces — the ground-anchored squash compresses the figure
+        // ~10px at the 2.65 rig for the 2-frame settle, then releases.
+        squash: landPulse(t - 5950) * 0.08,
         talk: gasp, jaw2x: 2, faceScale: 1.8, parallax: true,
         // PHASE 3 COMPOSITION: the cold-open shock is a subject staging —
         // it registers its frame-area occupancy (HOST_SCALE 2.65 clears

@@ -1480,6 +1480,53 @@ export function take(pose: Pose, t: number, t0: number): Pose {
   };
 }
 
+/**
+ * P2 U8 (Visual Quality Audit §4.3 — BODY-ACTION HERO EVENTS): the hero
+ * moments are carried by the BODY, not the camera. Three phases on the
+ * event's own clock, pure f(t), scrub-safe:
+ *   ANTICIPATION (t0-480..t0): the lean-back coil — the torso winds back
+ *   -5°, the shoulders counter-tilt, the root lifts 2px (a breath taken).
+ *   STRIKE (t0..t0+200): the take()'s overshoot with a HERO amplitude —
+ *   the coil releases forward +4.5° past the pose, the brow/blink spike,
+ *   the root drops (the weight commits).
+ *   SETTLE (t0+200..t0+380): the take()'s own damped bounce — the head
+ *   chases the torso on the blend's 105ms lag term (already in the draw
+ *   path), which is the follow-through the audit demands (>=100ms).
+ * Outside its window the pose is returned untouched.
+ */
+export function heroTake(pose: Pose, t: number, t0: number): Pose {
+  const dt = t - t0;
+  // ANTICIPATION: the coil — ramps in over 340ms, holds to the strike.
+  if (dt >= -480 && dt < 0) {
+    const u = clamp01((dt + 480) / 340);
+    const e = u * u; // easeIn — the coil gathers
+    return {
+      ...pose,
+      lean: (pose.lean ?? 0) - 5 * e,
+      shoulderTilt: (pose.shoulderTilt ?? 0) - 3 * e,
+      rootY: (pose.rootY ?? 0) + 2 * e,
+      headTilt: (pose.headTilt ?? 0) + 1.5 * e, // the chin lifts a touch
+    };
+  }
+  if (dt < 0) return pose;
+  // STRIKE + SETTLE: the take() body, amplitude raised to the hero band.
+  if (dt > 380) return pose;
+  if (dt < 66) {
+    return { ...pose, rootY: (pose.rootY ?? 0) + 3.5 };
+  }
+  const over = clamp01(easeOutCubic(Math.min(1, (dt - 66) / 134)));
+  const settle = dt >= 200 ? Math.sin((dt - 200) / 180 * Math.PI) : 0;
+  const bounce = dt < 200 ? over : -0.45 * settle;
+  return {
+    ...pose,
+    browRaise: clamp01(pose.browRaise + 0.30 * (dt < 200 ? over : 1 - 0.5 * settle)),
+    headTilt: (pose.headTilt ?? 0) - 6 * bounce,
+    lean: (pose.lean ?? 0) + 4.5 * bounce,
+    rootY: (pose.rootY ?? 0) + 2.5 * bounce,
+    blinkT: dt < 200 ? 0 : undefined,
+  };
+}
+
 export const mixPose = blendPose;
 
 /**

@@ -240,7 +240,15 @@ export function pivotTakeStart(
   sentenceT: number | undefined,
   t: number,
   sceneT: number,
-  delay = 150
+  delay = 150,
+  /** P2 U14 (THE FIRST 60 SECONDS, ENGINEERED): the chapter index and the
+   *  sentence duration, when the caller has them — the long-hold
+   *  interrupt. Every sentence >= 2.2s in chapters 1-3 fires the take at
+   *  its own start: the platform benchmark punishes any 3-5s window with
+   *  no scene/camera/body event, and the micro-camera scheduler is
+   *  retired (U10) — the BODY owns the pattern interrupts now. */
+  chapterIdx?: number,
+  sentenceDurMs?: number
 ): number {
   // chapter opener: the take rides the opener scene's first ~600ms.
   // sceneT (the sceneKey run clock, which never resets inside a run)
@@ -253,6 +261,17 @@ export function pivotTakeStart(
   // 120ms after the sentence's first word (30ms earlier than the opener
   // hold so the overshoot completes inside the same 600ms envelope)
   if (sentenceId && PIVOT_LINES.has(sentenceId) && sentenceT !== undefined) {
+    const dt = sentenceT - (delay - 30);
+    if (dt >= 0 && dt <= 380) return t - dt;
+  }
+  // P2 U14: the long-hold interrupt — chapters 1-3, sentences >= 3.2s.
+  // 380ms window at the sentence's start; the existing hold-overshoot-
+  // settle envelope runs it (same grammar as the pivot lines, one system).
+  if (
+    chapterIdx !== undefined && chapterIdx <= 2 &&
+    sentenceDurMs !== undefined && sentenceDurMs >= 2200 &&
+    sentenceT !== undefined
+  ) {
     const dt = sentenceT - (delay - 30);
     if (dt >= 0 && dt <= 380) return t - dt;
   }

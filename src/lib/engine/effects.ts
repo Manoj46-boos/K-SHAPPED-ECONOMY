@@ -159,7 +159,14 @@ export function bokehField(
   // PHASE 3 (Fix 3 — THE FURNITURE WHITELIST): 36 → 24 — the far-band third
   // (12 sub-gate fragments) is deleted; the two surviving bands still read
   // as a lens (≈8 visible at the 320px feed) without the noise tier.
-  const N = 24;
+  // P2 U11 (HALVE THE ATMOSPHERE — ONE BOKEH BAND): the two-band field
+  // with chart-fragment interiors is deleted wholesale — the audit's
+  // verdict ("soap bubbles over data") covers BOTH the fragment grammar
+  // and the two-band stack. What survives: ONE band of large, very-low
+  // alpha defocused discs (the classic lens read, no hard edges, no
+  // fragment interiors), half the count. Vignette + grain continue on
+  // figure frames — the atmosphere system is halved.
+  const N = 10;
   // v3 (panel P1-2): motes counter-shift by the camera motion the background
   // did NOT follow, so the bokeh slides against the scene plane at ~0.45×.
   const camX2 = camState.dx * (1 - BG_PARALLAX);
@@ -181,9 +188,9 @@ export function bokehField(
   // mass is the ONE gold hero accent (Fix 2's value structure — bokeh
   // never competes for brightness).
   for (let i = 0; i < N; i++) {
-    const band = i % 2;                    // 0 near · 1 mid — the whitelist keeps two bands
-    const depth = band === 0 ? 0.95 : 0.62;
-    const speed = 16 + (1 - band) * 40;
+    const band = 0;                        // the ONE band (U11)
+    const depth = 0.95;
+    const speed = 16;
     const bx = (hash01(i * 3.7 + seed) * W + drift(t / 9000 + i * 3, i) * 40 * depth - camX2 * depth + W) % W;
     const by =
       (hash01(i * 7.1 + seed * 5) * H - (t / 1000) * speed - camY2 * depth + Math.sin(t / 5000 + i) * 20 + H * 4) % H;
@@ -205,63 +212,22 @@ export function bokehField(
         * (isGold ? 0.72 : 1),
       isGold ? 14 : 1e9
     ) * camState.scale;
-    // PLAYBOOK V1 (report §8.4 — DATA-ARTIFACT AIR): the disc interior is
-    // replaced by drifting CHART FRAGMENTS — sparkline, tick ruler, K
-    // contour. Three judges independently convicted the rings as "soap
-    // bubbles... swap for grid lines, chart ticks, or actual data
-    // artifacts to earn the Data Desk branding". The depth-band alpha
-    // ladder survives as the fragment alpha (near reads, mid whispers);
-    // render cost DROPS (open strokes, no fills, no highlight arcs).
-    const fragA = (band === 0 ? 0.16 : 0.12) * intensity;
-    const fragCol = isGold ? PALETTE.gold : '#7FB8AC';
-    const kind = i % 3;                    // 0 sparkline · 1 ruler · 2 K
-    const rot = (hash01(i * 11.7 + seed * 3) - 0.5) * 0.6;
+    // the soft defocused disc — radial gradient, no hard edges, no
+    // fragment interiors (U11: the fragments are deleted; the disc is
+    // atmosphere at <=0.09 alpha, present at the feed, never a bubble
+    // over the data — it sits in the frame's far air, camera-coupled)
+    const discA = 0.085 * intensity;
+    const g2 = ctx.createRadialGradient(bx, by, r * 0.15, bx, by, r);
+    g2.addColorStop(0, rgba('#7FB8AC', discA));
+    g2.addColorStop(0.75, rgba('#7FB8AC', discA * 0.6));
+    g2.addColorStop(1, rgba('#7FB8AC', 0));
     ctx.save();
     ctx.translate(bx, by);
-    ctx.rotate(rot + Math.sin(t / 6000 + i) * 0.04);
-    ctx.globalAlpha = fragA;
-    ctx.strokeStyle = fragCol;
-    ctx.lineWidth = Math.max(1.6, r * 0.07);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    if (kind === 0) {
-      // SPARKLINE — a 5-point market line in a fragment-sized window
-      const w2 = r * 1.1, h2 = r * 0.55;
-      ctx.beginPath();
-      const pts = 5;
-      for (let k = 0; k < pts; k++) {
-        const px = -w2 / 2 + (w2 * k) / (pts - 1);
-        const py = h2 * (0.5 - hash01(i * 13.3 + k * 7.7 + seed));
-        if (k === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.stroke();
-    } else if (kind === 1) {
-      // TICK RULER — a baseline with 4 ticks, the chart-axis fragment
-      const w2 = r * 1.05;
-      ctx.beginPath();
-      ctx.moveTo(-w2 / 2, 0);
-      ctx.lineTo(w2 / 2, 0);
-      ctx.stroke();
-      for (let k = 0; k < 4; k++) {
-        const tx = -w2 / 2 + (w2 * k) / 3;
-        ctx.beginPath();
-        ctx.moveTo(tx, 0);
-        ctx.lineTo(tx, -r * 0.16 - hash01(i + k * 3) * r * 0.08);
-        ctx.stroke();
-      }
-    } else {
-      // K CONTOUR — the brand glyph at fragment scale, 3 strokes
-      const s2 = r * 0.5;
-      ctx.beginPath();
-      ctx.moveTo(-s2 * 0.35, -s2);
-      ctx.lineTo(-s2 * 0.35, s2);            // the stem
-      ctx.moveTo(s2 * 0.05, -s2 * 0.15);
-      ctx.lineTo(s2 * 0.55, -s2);            // the upper arm
-      ctx.moveTo(s2 * 0.05, -s2 * 0.15);
-      ctx.lineTo(s2 * 0.6, s2);              // the lower leg
-      ctx.stroke();
-    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = g2;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 }
