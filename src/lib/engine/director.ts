@@ -6,7 +6,7 @@
  */
 
 import { clamp01, easeInQuad, easeInOutSine, easeOutCubic } from './easing';
-import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI, drawRoomRail, drawChapterRoom, getRoomFamily, setRoomFamily, setWashChapter } from './theme';
+import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI, drawRoomRail, drawChapterRoom, getRoomFamily, setRoomFamily, setWashChapter, setRoomLook } from './theme';
 import { drawGrain, lightVignette, bokehField, scalePunch, camState, guardCamState, kWipe, fgBokeh, dofPass, chapterAccent } from './effects';
 import { drawParticles, emitterKindFor } from './particles';
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
@@ -887,6 +887,10 @@ export function drawFrame(
   // B9 RE-SPEC: the room-family ledger resets every frame; the scene's
   // scenePlate re-declares it and the rail draws AFTER the camera restore.
   setRoomFamily(null);
+  // B-TRACK (§4.2): the room look resets to the STUDIO before every drawer
+  // call — scenes-data's bg() flips it to the DATA LAB for data beats; host
+  // and statement scenes keep the ivory studio.
+  setRoomLook('studio');
   try {
     g.chapterTone = chapterTone;
     drawer(g);

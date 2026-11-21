@@ -5,7 +5,7 @@
  */
 
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, easeOutQuad, hashStr, lerp, springTo, landPulse } from './easing';
-import { PALETTE, TONE, card, chip, rgba, roundRect, setFont, fitText, TYPE_FLOOR, LABEL_FLOOR, toneRoom, deskRule, ValuePlane, mixHex } from './theme';
+import { PALETTE, TONE, card, chip, rgba, roundRect, setFont, fitText, TYPE_FLOOR, LABEL_FLOOR, toneRoom, deskRule, ValuePlane, mixHex, roomInk, roomLookNow, LINE_WEIGHTS, FONT_UI } from './theme';
 import { registerRect, registerFixed, registerText } from './collision';
 // P4 (100-judge audit §13 — CHART IMPACT GRAMMAR): bars and lines land as
 // EVENTS — the engine's own shake + ring + sparkle vocabulary, fired at the
@@ -161,7 +161,7 @@ function niceStep(raw: number): number {
 export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): void {
   const {
     x, y, w, h, series, p, t, yFormat = 'index',
-    gridLines = 4, lineWidth = 6.5, showYAxis = true,
+    gridLines = 4, lineWidth = LINE_WEIGHTS.chart, showYAxis = true,
   } = opts;
   const [yMin, yMax] = yBounds(opts);
   // v10.1 (panel 11 re-review): the plot frame is CONTENT — a side host's
@@ -177,7 +177,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     const axScale = opts.axisScale ?? 1;
     const axSize = Math.round(TYPE_FLOOR * axScale);
     const axWeight = opts.axisWeight ?? 400;
-    const axColor = opts.axisColor ?? PALETTE.inkFaint;
+    const axColor = opts.axisColor ?? roomInk().inkFaint;
     ctx.save();
     setFont(ctx, axSize, axWeight); // v9 (D-07): 24→28 floor
     ctx.textBaseline = 'alphabetic';
@@ -277,7 +277,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       // Fix 5.7: the feed-scale axis — same size/weight/tone as the x-labels
       const axScale = opts.axisScale ?? 1;
       setFont(ctx, Math.round(TYPE_FLOOR * axScale), opts.axisWeight ?? 400);
-      ctx.fillStyle = opts.axisColor ?? PALETTE.inkFaint;
+      ctx.fillStyle = opts.axisColor ?? roomInk().inkFaint;
       ctx.fillText(label(v), x - 14 * axScale, gy);
     }
   }
@@ -295,7 +295,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     ctx.fill();
     setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor
     ctx.textAlign = 'left';
-    ctx.fillStyle = PALETTE.goldDeep;
+    ctx.fillStyle = roomLookNow() === 'lab' ? mixHex(PALETTE.gold, '#FFFFFF', 0.42) : PALETTE.goldDeep;
     // B3 FIX (100-Judge report — ANNOTATION PLATE COLLIDES WITH THE BAND
     // LABEL, 307s sample): the caption left-aligned at x+16 printed across
     // the y-axis ticks and the axis walker's crown zone, and the annotation
@@ -390,7 +390,12 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     // v10 (panel COLOR-3): vivid stroke ink — one step brighter than the
     // text-safe tone, so the LINE survives the transcode on a phone while
     // every label keeps its AA contrast.
-    const strokeCol = tone.vivid ?? tone.main;
+    // B-TRACK (§4.2): on the DATA LAB plate the teal family would die
+    // against the slate — every series stroke lightens one step toward
+    // white (the vivid ramp keeps the hue; the plate keeps the commit).
+    const strokeCol = roomLookNow() === 'lab'
+      ? mixHex(tone.vivid ?? tone.main, '#FFFFFF', 0.34)
+      : tone.vivid ?? tone.main;
     const pts = seriesPxAll[si];
     // P1-4 (report §12.4): reveal by cumulative ARC LENGTH, not point count.
     // The old floor(pts.length * reveal) drew a fixed number of points per
@@ -461,6 +466,27 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       ctx.arc(head.x, head.y, cr * 0.72, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
+    }
+    // D4 FIX (100-Judge report Track D — FOLLOW-THROUGH ON THE DATA ITSELF):
+    // the pen finishing the line now OVERSHOOTS — at draw completion the
+    // last segment extends 3px past the endpoint and settles back, the
+    // drawn-ink equivalent of the scarf's settle. Two frames, keyed to the
+    // same doneAt pulse as the endpoint dot, scrub-safe.
+    if (opts.doneAt !== undefined && reveal >= 0.999 && vis.length > 1) {
+      const over = landPulse(t - opts.doneAt);
+      if (over > 0.02) {
+        const a2 = vis[vis.length - 2];
+        const b2 = vis[vis.length - 1];
+        const dx2 = b2.x - a2.x, dy2 = b2.y - a2.y;
+        const L2 = Math.hypot(dx2, dy2) || 1;
+        ctx.strokeStyle = strokeCol;
+        ctx.lineWidth = lineWidth;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(b2.x, b2.y);
+        ctx.lineTo(b2.x + (dx2 / L2) * 3 * over, b2.y + (dy2 / L2) * 3 * over);
+        ctx.stroke();
+      }
     }
     // PHASE 3 item 3.2 — THE ENDPOINT DOT: a 140ms easeOutBack scale-in
     // keyed to `doneAt` (the caller's draw-completion instant), replacing
@@ -1037,7 +1063,7 @@ export function barRow(
   // label
   ctx.textBaseline = 'alphabetic';
   setFont(ctx, 34, 600);
-  ctx.fillStyle = PALETTE.ink;
+  ctx.fillStyle = roomInk().ink;
   ctx.textAlign = 'left';
   registerRect(`barRow:${label.slice(0, 14)}`, x, y + rowH * 0.5 - 44, Math.min(ctx.measureText(label).width, w), 40);
   ctx.fillText(label, x, y + rowH * 0.5 - 14);
@@ -1151,7 +1177,7 @@ export function dotGrid(
     // scene's whole point). The 490 non-highlight dots commit to 0.75 ink,
     // and the gold highlights widen to 2.2x (the report's own number) so
     // the counted ten own the field at a glance. Feed twin verified.
-    ctx.fillStyle = isHi ? PALETTE.gold : rgba(PALETTE.inkSoft, 0.75);
+    ctx.fillStyle = isHi ? PALETTE.gold : rgba(roomInk().inkSoft, 0.75);
     ctx.beginPath();
     ctx.arc(cx, cy, dotR * (isHi ? hiScale : 1) * pop * pulse * appear, 0, Math.PI * 2);
     ctx.fill();
@@ -1588,13 +1614,15 @@ export function sceneTitle(
   ctx.save();
   ctx.globalAlpha = ap;
   setFont(ctx, 54, 600);
-  ctx.fillStyle = PALETTE.ink;
+  // B-TRACK: the scene title is plate-level reading text — ivory on the
+  // DATA LAB, the film's dark ink on the STUDIO.
+    ctx.fillStyle = roomInk().ink;
   ctx.textAlign = 'left';
   registerRect(`sceneTitle:${text.slice(0, 16)}`, x, y - 50, Math.min(ctx.measureText(text).width, maxW), 76);
   // v10 (PANEL-11): the title is reading text — the dotGrid badge plating it
   // was a shipped defect the rect-only guard could not see.
   registerText(`sceneTitle:${text.slice(0, 16)}`, x, y - 50, Math.min(ctx.measureText(text).width, maxW), 76);
-  fitText(ctx, text, x, y, maxW, 54, 600);
+  fitText(ctx, text, x, y, maxW, 54, 600, FONT_UI, roomInk().ink); // B-TRACK: fitText overrides fillStyle — pass the room ink
   const tw = Math.min(ctx.measureText(text).width, maxW);
   // P2-3 (100-judge audit, Table 4 — "the underline = the film's tic"):
   // the same full-width gold underline under EVERY scene title was flagged

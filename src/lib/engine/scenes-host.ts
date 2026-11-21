@@ -842,6 +842,17 @@ export function hostSceneV2(g: SceneCtx): void {
     // (5%); the shared 0.62 ground restores the ~9% the probe gate wants.
     ctx, hx, HOST_GROUND(H), HOST_SCALE, t,
     { pose, alpha: 0.85 + 0.15 * clamp01(g.sceneT / 180), look: 0.8, scarf: true, nod: nodP, talk, smear: smr, walkPhase, squash: walkPhase !== undefined ? walkStrike(walkPhase) : 0, parallax: true, parallaxAmt: 0.55, // P2-4: hero moment — clear space, deep differential
+      // C4 FIX (100-Judge report Track C — SIGNATURE GESTURE 2: THE
+      // SCARF-GRAB ON SHOCK): through the shock window's first 600ms the
+      // near hand solves BACK to the scarf tail — the figure physically
+      // grabs the tail the verlet wind is pulling. The same anchor at every
+      // shock window: personality is repetition.
+      contact: (() => {
+        const r0s = reactionStart(g.s.sceneKey, t, g.d);
+        return r0s >= 0 && t - r0s < 600
+          ? { x: hx - 26, y: HOST_GROUND(H) - 190, hand: 'palm' as const }
+          : undefined;
+      })(),
       // PANEL ACCEPTANCE (audit FIX 2): full-body envelope — see drawHost.
       hostBody: true,
       stretch: Math.min(1,

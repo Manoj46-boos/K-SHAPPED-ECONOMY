@@ -1,3 +1,4 @@
+import { settleSquash } from './easing';
 /**
  * Design system — "Morning Ivory": a light, premium, editorial look.
  * No dark backgrounds anywhere. Warm ivory canvas, ink strokes, gold accents,
@@ -308,12 +309,22 @@ export function card(
   y: number,
   w: number,
   h: number,
-  opts: { r?: number; alpha?: number; border?: boolean; glow?: string; tint?: string } = {}
+  opts: { r?: number; alpha?: number; border?: boolean; glow?: string; tint?: string; settle?: { t: number; landT: number } } = {}
 ): void {
   const { r = 26, alpha = 1, border = true, glow, tint } = opts;
   registerRect(`card@${Math.round(x)},${Math.round(y)}`, x, y, w, h);
   ctx.save();
   ctx.globalAlpha = alpha;
+  // D2 (Track D): the shared 2-frame settle squash about the plate's own
+  // center — compress 6% tall, widen 5%, settle. Same grammar as chip().
+  if (opts.settle) {
+    const sq = settleSquash(opts.settle.t - opts.settle.landT);
+    if (sq.sy !== 1) {
+      ctx.translate(x + w / 2, y + h / 2);
+      ctx.scale(sq.sx, sq.sy);
+      ctx.translate(-(x + w / 2), -(y + h / 2));
+    }
+  }
   // layered soft shadow — v8: cool slate (was warm taupe #8C8474)
   // v10: tinted variant when the caller passes the content tone
   // v10.1 (panel 11 re-review, COLOR-4): the v10 tint shipped at the old
@@ -409,6 +420,7 @@ export function chip(
     weight?: 300 | 400 | 600 | 700;
     alpha?: number;
     iconDot?: string;
+    settle?: { t: number; landT: number };
   } = {}
 ): number {
   const {
@@ -430,6 +442,15 @@ export function chip(
   const w = tw + padX * 2 + dotW;
   const h = size + padY * 2;
   registerRect(`chip:${text.slice(0, 14)}`, x, y, w, h);
+  // D2 (Track D): the shared settle squash about the chip's center.
+  if (opts.settle) {
+    const sq = settleSquash(opts.settle.t - opts.settle.landT);
+    if (sq.sy !== 1) {
+      ctx.translate(x + w / 2, y + h / 2);
+      ctx.scale(sq.sx, sq.sy);
+      ctx.translate(-(x + w / 2), -(y + h / 2));
+    }
+  }
   // PANEL-12 / P3-3: the chip shadow joins the one-light rule (−5, +7)
   ctx.fillStyle = rgba(PALETTE.shadow, 0.08);
   roundRect(ctx, x - 5, y + 7, w, h, h / 2);
@@ -572,8 +593,8 @@ export function deskRule(
   declareHostContact(`deskRule@${Math.round(x)},${Math.round(y)}`);
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.strokeStyle = rgba(PALETTE.ink, 0.55);
-  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = roomLookNow() === 'lab' ? rgba('#F2EFE4', 0.5) : rgba(PALETTE.ink, 0.55);
+  ctx.lineWidth = LINE_WEIGHTS.rule; // B-TRACK: the line-weight table's rule weight
   ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(x, y);
@@ -632,6 +653,37 @@ export function mixHex(a: string, b: string, t: number): string {
  *  3. The acceptance bar is MEASURED per frame by the panel's pixel_audit
  *     script: saturation ≥ 0.12 on every host and data frame while mean
  *     luminance stays inside 180-215. */
+// ── B-TRACK (100-Judge report §4.2 — ONE COMMITTED LOOK) ────────────────────
+// Two room looks instead of nine whisper tints: the ivory STUDIO (host and
+// statement beats — unchanged) and the DATA LAB — a committed mid-deep
+// slate-teal plate with ivory ink and the vivid data ramp. The light brand
+// is preserved (no black anywhere); data frames stop dissolving.
+export type RoomLook = 'studio' | 'lab';
+let roomLook: RoomLook = 'studio';
+export function setRoomLook(look: RoomLook): void { roomLook = look; }
+export function roomLookNow(): RoomLook { return roomLook; }
+/** The LAB plate tone — mid-deep slate-teal (the film's own dark datacenter
+ *  register, lifted two steps off black): committed, feed-proof, still light. */
+export const LAB_PLATE = '#40635B';
+export const LAB_PLATE_STRENGTH = 0.42;
+/** Plate-level ink per look: on the DATA LAB the reading ink is warm ivory;
+ *  on the STUDIO it is the film's dark ink. Text ON cards/chips keeps the
+ *  dark ink everywhere (cream surfaces never flip). */
+export function roomInk(): { ink: string; inkSoft: string; inkFaint: string } {
+  if (roomLook !== 'lab') {
+    return { ink: PALETTE.ink, inkSoft: PALETTE.inkSoft, inkFaint: PALETTE.inkFaint };
+  }
+  return { ink: '#F2EFE4', inkSoft: 'rgba(242, 239, 228, 0.82)', inkFaint: 'rgba(242, 239, 228, 0.55)' };
+}
+// ── B-TRACK: THE FILM'S LINE-WEIGHT TABLE (one law, every frame) ────────────
+// Today the same frame draws 6.5, 7, 9 and 12px rules. The table is the law:
+export const LINE_WEIGHTS = {
+  hairline: 1.5,   // grids, plate borders, guides
+  rule: 3,         // desk rule, room rails, dividers
+  chart: 8,        // chart series strokes (the hero ink)
+  headContour: 4.5 // the figure's head outline (screen px at rig 1.0)
+} as const;
+
 export function scenePlate(
   ctx: CanvasRenderingContext2D,
   W: number,
@@ -762,6 +814,14 @@ export function scenePlate(
     : rgba(vividBase, 0.34 * (strength / 0.95));
   ctx.fillStyle = vividWash;
   ctx.fillRect(0, 0, W, H);
+  // B-TRACK (§4.2 — THE DATA LAB LOOK): data beats commit to the mid-deep
+  // slate-teal plate — one direct source-over layer over the plated room.
+  // No black anywhere; the room lands mid-deep and the ivory ink + vivid
+  // data ramp read at the feed.
+  if (roomLook === 'lab') {
+    ctx.fillStyle = rgba(LAB_PLATE, LAB_PLATE_STRENGTH);
+    ctx.fillRect(0, 0, W, H);
+  }
   // BLUEPRINT Phase 4 (report §11): the FLOOR BAND — a soft gradient ramp
   // under the presenter's ground line (host ground ≈ 0.66·H; the band
   // ramps from there to the frame bottom). The frame gains a GROUND LINE:

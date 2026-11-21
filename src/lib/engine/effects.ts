@@ -1076,9 +1076,18 @@ export function drawK3D(
 // ~1.04 and settles (pop) — the settle that separates premium motion from
 // template motion. Scrub-safe: springTo is a pure function of elapsed ms.
 export function slideUp(t: number, dur = 620, dist = 46): { dy: number; a: number } {
-  const p = clamp01(t / dur);
-  const e = springTo(0, 1, Math.min(Math.max(t, 0), dur), 200, 18);
-  return { dy: (1 - e) * dist, a: Math.min(1, p * 2.2) };
+  // D3 FIX (100-Judge report Track D — ANTICIPATION BEFORE EVERY REVEAL):
+  // the bigText recoil had a wind-up; slideUp entrances didn't — cards
+  // launched without anticipation, the weakest half of the classical pair.
+  // Every slideUp now opens with a 250ms pre-move: the element dips 8px
+  // DOWN (the coil) before the spring rise — the same minus-then-settle
+  // shape the recoil uses. The total window grows 250ms; callers key their
+  // beats to the arrival, so the coil borrows from the dead zone before it.
+  const ANT = 250;
+  const e = springTo(0, 1, Math.min(Math.max(t - ANT, 0), dur), 200, 18);
+  const coil = t < ANT ? Math.sin((t / ANT) * Math.PI) * 8 : 0;
+  const p = clamp01(t / (dur + ANT));
+  return { dy: (1 - e) * dist + coil, a: Math.min(1, p * 2.4) };
 }
 
 export function popIn(t: number, dur = 560): { s: number; a: number } {

@@ -5,8 +5,8 @@
  * odds spread.
  */
 
-import { clamp, clamp01, easeInOutCubic, easeOutBack, easeOutCubic, hash01, hashStr, lerp, seamArrival, springTo } from './easing';
-import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, chapterFamily, CAPTION_ZONE_TOP, TYPE_FLOOR, LABEL_FLOOR, FONT_DISPLAY, toneRoom, deskRule, valuePlaneFor, roomFill } from './theme';
+import { clamp, clamp01, easeInOutCubic, easeOutBack, easeOutCubic, hash01, hashStr, lerp, seamArrival, springTo, settleSquash } from './easing';
+import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, chapterFamily, CAPTION_ZONE_TOP, TYPE_FLOOR, LABEL_FLOOR, FONT_DISPLAY, toneRoom, deskRule, valuePlaneFor, roomFill, setRoomLook, roomInk } from './theme';
 import { bokehField, kMotifs, lightRays, drawK, drawK3D, sparkles, hazeBands, impactRing, microShake, depthShift } from './effects';
 import { SceneCtx } from './scene-context';
 import { REACTIONS, reactionAt, reactionStart } from './scene-context';
@@ -35,6 +35,11 @@ import { scaleForFigureArea, registerHeroObject } from './composition';
 // deleted, not faded — the window printed through the chart's right
 // column as ghost UI at the 485s sample).
 function bg(g: SceneCtx, seed: number, gold = 0.4, plate?: 'up' | 'down' | 'gold' | 'neutral', furniture = true): void {
+  // B-TRACK (§4.2): every data scene declares the DATA LAB look — the
+  // committed slate-teal plate + ivory plate ink (director resets to the
+  // STUDIO look before each drawer call, so host/statement beats keep the
+  // ivory room).
+  setRoomLook('lab');
   paintBg(g.ctx, g.W, g.H, g.t, g.chapterTone);
   // PHASE 4: the chapter family's OWNED room furniture rides the plate
   // (room architecture per chapter family, not re-tints — audit §7).
@@ -182,12 +187,15 @@ function hostSmall(
   // turns toward his content on the same term the arms use — the
   // eyeline connects (C5) at every side-host scale in the film.
   const bias = (dir === 'right' ? 'right' : 'left') as 'right' | 'left';
-  const ph = (g.t / 3000 + seed) % 4;
-  const idx = Math.floor(ph);
-  // PANEL-12 / P1-2: the side-host gesture crossfade re-blends through the
-  // analytic spring — same motion grammar as the main host's talk cycle.
-  const tInto = Math.min(ph - idx, 1 - (ph - idx)) * 3000;
-  const k = clamp01(tInto / 620);
+  // C1 FIX (100-Judge report Track C — THE SIDE HOSTS LEARN THE SCRIPT'S
+  // CLOCK): the pose slots advanced on a 3s metronome — four steps whether
+  // or not the VO moved. The slots now advance PER SENTENCE (deterministic
+  // from the sentence id — the same pick grammar poseAt uses), and the
+  // crossfade rides the sentence's own first 620ms: the gesture changes
+  // exactly when the thought changes.
+  const sIdx = Math.floor(hashStr(String(g.sentenceId ?? `s${seed}`)) * 4) % 4;
+  const sIdxPrev = Math.floor(hashStr(String(g.prevSentenceId ?? g.sentenceId ?? `s${seed}`)) * 4) % 4;
+  const k = clamp01(Math.min(g.sentenceT ?? 620, 620) / 620);
   // P1-6 (report §12.6): the owner/worker pair keys off the sentence
   // grammar too — same ids, same word onsets, their own gesture cycle.
   const sentOpts = {
@@ -197,8 +205,8 @@ function hostSmall(
     wordTimes: g.gWordTimes,
     pointBias: bias,
   };
-  const poseA = Stickman.poseAt(g.t, { gesture: cycle[idx % 4], speaking: g.speaking, ...sentOpts });
-  const poseB = Stickman.poseAt(g.t, { gesture: cycle[(idx + 1) % 4], speaking: g.speaking, ...sentOpts });
+  const poseA = Stickman.poseAt(g.t, { gesture: cycle[sIdxPrev], speaking: g.speaking, ...sentOpts });
+  const poseB = Stickman.poseAt(g.t, { gesture: cycle[sIdx], speaking: g.speaking, ...sentOpts });
   const w = k > 0 ? clamp01(springTo(0, 1, k * 620, 150, 19)) : 0;
   let pose = w > 0 ? blendPose(poseA, poseB, w) : poseA;
   // PHASE 1 item 1 (panel round 2: "gaze frontal, gold band unacknowledged"):
@@ -236,6 +244,34 @@ function hostSmall(
       : pivotTakeStart(g.s.sceneKey, g.sentenceId, g.sentenceT, g.t, g.sceneT, 260, g.s.chapterIdx, g.s.sentenceDurMs);
     if (pt0 >= 0) pose = take(pose, g.t, pt0);
   }
+  // C2 FIX (Track C — GESTURE AMPLITUDE KEYS TO THE SCRIPT'S ENERGY): the
+  // voStyle deltas the beats already carry scale the gesture — a twist line
+  // (urgent) pushes the whole arm vocabulary toward the point; a sourcing
+  // line (calm) settles the figure toward the resting presenter. One blend,
+  // the existing machinery, no new angles.
+  if (reaction <= 0.02 && !sitAt) {
+    const ampTgt = g.s.voStyle === 'urgent' ? POSES[bias === 'right' ? 'pointR' : 'pointL']
+      : g.s.voStyle === 'reveal' ? POSES.talkB
+      : g.s.voStyle === 'calm' ? POSES.present
+      : g.s.voStyle === 'quote' ? POSES.wry
+      : null;
+    const ampW = g.s.voStyle === 'urgent' ? 0.26
+      : g.s.voStyle === 'reveal' ? 0.16
+      : g.s.voStyle === 'calm' ? 0.3
+      : g.s.voStyle === 'quote' ? 0.14
+      : 0;
+    if (ampTgt && ampW > 0) pose = blendPose(pose, ampTgt, ampW);
+  }
+  // C4 FIX (Track C — SIGNATURE GESTURE 1: THE GLASSES-PUSH): on every
+  // third sentence (deterministic from the sentence id) at the sentence's
+  // 1.1-1.3s mark, the near hand solves to the bridge — one fingertip,
+  // 200ms, always the same tic. Personality is repetition.
+  const glassesPush = Math.floor(hashStr(String(g.sentenceId ?? 'x')) * 3) === 0
+    && (g.sentenceT ?? 9e9) >= 1100 && (g.sentenceT ?? 9e9) <= 1300
+    && reaction <= 0.02 && !sitAt;
+  const contact2 = glassesPush
+    ? { x: x + (dir === 'right' ? -14 : 14) * scale, y: groundY - STICK_BASE_HEIGHT * scale * 0.855, hand: 'palm' as const }
+    : contact;
   // BLUEPRINT Phase 2 (judge round-2 calibration): the reaction beat holds
   // the mouth OPEN in a gasp (talk 0.88 drives the round-O shape, and the
   // jaw2x multiplier doubles it) — a paused/closed mouth on a shock face
@@ -289,8 +325,18 @@ function hostSmall(
     g.ctx.fill();
     g.ctx.restore();
   }
+  // C3 FIX (Track C — EVERY SIDE HOST WALKS IN): entrances faded in at
+  // 0.85 alpha — a condense, not an arrival. The host now WALKS in over
+  // 900ms on the keyed stride (the editorial host's walkIn grammar — the
+  // film's best asset): he enters one step outside his station and plants
+  // on it, plant squash and push-off stretch riding the D1 stride defaults.
+  const walkInP = clamp01(g.beatT / 900);
+  const walking = walkInP < 1 && !sitAt;
+  const walkDir = x < g.W / 2 ? 1 : -1; // approaches from his own side
+  const enterX = walking ? x - walkDir * (1 - easeOutCubic(walkInP)) * 240 : x;
+  const walkPhase = walking ? g.beatT / 520 : undefined;
   drawStickmanV2(
-    g.ctx, x, groundY2, scale, g.t,
+    g.ctx, enterX, groundY2, scale, g.t,
     {
       // P2-4 (audit Table 4 — depth with intent): the side hosts now
       // ENTER WITH THE WHIP — alpha ramps from t=160 (was 500), so the
@@ -302,7 +348,7 @@ function hostSmall(
       // BEAT time (the count restarts per beat; the host arrives with it —
       // a 12s-cap re-split group no longer replays the fade mid-count) and
       // commits to the 0.85 floor / 180ms ramp: arrive, don't condense.
-      pose, alpha: 0.85 + 0.15 * clamp01((g.beatT - 20) / 180), look: dir === 'right' ? 0.5 : -0.5, talk, smear,
+      pose, alpha: walking ? 0.55 + 0.45 * clamp01(g.beatT / 300) : 0.85 + 0.15 * clamp01((g.beatT - 20) / 180), look: dir === 'right' ? 0.5 : -0.5, talk, smear,
       // PHASE 3: the drawn three-speedline arm smear — same two-tier
       // accent envelope (accentPulse, content-word strikes, reaction-
       // paused): the audit's restored smear rides the film's real strikes.
@@ -333,8 +379,11 @@ function hostSmall(
       // differential lives on hosts with clear space: the cold-open
       // shock and the editorial host.
       parallaxAmt: parallax ? parallaxD * (1 - clamp01(reaction)) : undefined,
-      // CONTACT VERBS: the solved hand — the scene declared the touch.
-      contact,
+      // CONTACT VERBS: the solved hand — the scene declared the touch
+      // (or the glasses-push signature gesture owns the hand).
+      contact: contact2,
+      // C3: the keyed stride while walking in (undefined once planted).
+      walkPhase,
       // P2 (Verdict report — CARRIED-PROP VERBS): the scene's hand prop,
       // ledger-resolved by the call site (holdCard on statCards, coinStack
       // on dotGrid). Drawn at the near hand — held, never floating.
@@ -342,6 +391,18 @@ function hostSmall(
     },
     seed
   );
+  // A3 FIX (100-Judge report Track A — THE TOUCH READS AT 320PX): the
+  // moment a palm or fist lands on its target, a 2-frame pop ring fires at
+  // the contact point (impactRing, furniture register) — the touch reads
+  // at the feed even when the hand is small. The engagement instant: 620ms
+  // into the beat (the walk-in has planted and the solve has landed), or
+  // the glasses-push window's own start for the signature gesture.
+  if (contact2) {
+    const ringT = glassesPush
+      ? g.t - (g.sentenceT ?? 0) + 1100
+      : g.t - g.beatT + 620;
+    impactRing(g.ctx, contact2.x, contact2.y, g.t, ringT, 46, 1, PALETTE.gold);
+  }
   // PHASE 1 SCALE LAW: every side host registers its staging so the harness
   // gate can assert the tier floors (§5.1: subject ≥ 8% with a contact
   // verb, participant ≥ 5% with one). The gesture cycle points at content
@@ -377,7 +438,9 @@ export function chartTwinScene(g: SceneCtx): void {
   //     and the palm LANDS ON the Nasdaq endpoint dot (+22%) the moment the
   //     pen finishes drawing it (contact easeAt 2900 = the dot's pop beat) —
   //     the decoration read dies by geometry: the hand touches the data.
-  const cw = W * 0.35;
+  // A1 FIX (Track A): the cards narrow 8% (W*0.35 -> W*0.322) to pay for
+  // the presenter's premium tier raise — the report's own exchange rate.
+  const cw = W * 0.322;
   const gap = W * 0.042;
   const x0 = W * 0.075;
   // the axis gutter: "+20%" measures 130px at 50px/600; plot starts at
@@ -525,7 +588,7 @@ export function chartTwinScene(g: SceneCtx): void {
   // right 1901.6 ≤ 1910 at x = 1680. Reach: shoulder→dot 144.4 scene px
   // = 99.6 rig ≤ 110 — the arm lands with a natural near-straight reach.
   declareHostContact(`lineChart:plot@${Math.round(plotX1)}`, 'lineChart:xLabels');
-  hostSmall(g, W * 0.875, 'present', 3, H * 0.66, 1.5, 0, 'aha', 1.4, 1,
+  hostSmall(g, 1660, 'present', 3, H * 0.66, 2.0, 0, 'aha', 1.4, 1,
     false, 0.4, undefined, undefined,
     { x: dotX, y: dotY, hand: 'palm', bend: 1, easeAt: 2900 },
     'left');
@@ -581,11 +644,17 @@ export function chartJourneyScene(g: SceneCtx): void {
   // annotation pills yield ABOVE his crown (crownTopY below).
   const floorY = chartY + chartH;
   // B5/B7 RE-SPEC (Visual Quality Audit §3.2 — THE WALKER IS AN ACTOR):
-  // the axis walker draws at rig 1.2 (was 0.8 — a ~190px decal with an
-  // unreadable face and no contact read) with a PLANTED FIST GRIP on the
-  // data line at his station. The annotation layer clamps above his
-  // crown at the new height.
-  const walkerCrown = floorY - 241 * 1.2;
+  // the axis walker draws at rig 1.45 (was 1.2; originally 0.8) with a
+  // PLANTED FIST GRIP on the data line at his station. A1 FIX (Track A):
+  // at 1.45 the walker joins the presence band AND carries the lab frame's
+  // dark mass (the value gate needs >= 0.9% figure ink once the title goes
+  // ivory on the DATA LAB plate).
+  // A1 FIX: the walker's rig keys to the chart's own height — tall hero
+  // charts (0.42H, no stat rows) stage the walker at 1.7 (the presence
+  // band AND the lab frame's dark mass); stat-beat charts (0.32H) keep
+  // 1.45 so his crown never enters the scene title's registered band.
+  const walkerRig = chartH > H * 0.37 ? 1.7 : 1.45;
+  const walkerCrown = floorY - 241 * walkerRig;
 
   const series = (s.series as any[] | undefined)?.map((sr) => ({
     name: sr.name as string,
@@ -633,9 +702,9 @@ export function chartJourneyScene(g: SceneCtx): void {
     const prevE = g.prevSentenceId ? hIdxE(g.prevSentenceId) : 0;
     const stTE = g.sentenceT ?? 1e9;
     if (g.sceneT < 1700) {
-      walkerXNow = walkIn(Math.min(g.sceneT, 1700), 250, STN_E[curE], 1700, undefined, 1.2, 11).x;
+      walkerXNow = walkIn(Math.min(g.sceneT, 1700), 250, STN_E[curE], 1700, undefined, walkerRig, 11).x;
     } else if (stTE < 900 && Math.abs(STN_E[curE] - STN_E[prevE]) >= 120) {
-      walkerXNow = walkIn(stTE, STN_E[prevE], STN_E[curE], 900, undefined, 1.2, 11).x;
+      walkerXNow = walkIn(stTE, STN_E[prevE], STN_E[curE], 900, undefined, walkerRig, 11).x;
     } else {
       walkerXNow = STN_E[curE];
     }
@@ -812,6 +881,12 @@ export function chartJourneyScene(g: SceneCtx): void {
         const pw = m.w;
         const px = p.x;
         registerRect(`journey:stat${m.i}`, px, cyy, pw, m.h);
+        const sq = settleSquash(t - (1400 + m.i * 500 + 700)); // D2 settle
+        if (sq.sy !== 1) {
+          ctx.translate(px + pw / 2, cyy + m.h / 2);
+          ctx.scale(sq.sx, sq.sy);
+          ctx.translate(-(px + pw / 2), -(cyy + m.h / 2));
+        }
         ctx.fillStyle = c.soft;
         roundRect(ctx, px, cyy, pw, m.h, 33);
         ctx.fill();
@@ -900,10 +975,10 @@ export function chartJourneyScene(g: SceneCtx): void {
     if (g.sceneT < 1700) {
       // THE DRAW-ON ENTRANCE — the walkway read itself: he paces the axis
       // from the left edge as the chart draws in above him.
-      const r = walkIn(Math.min(g.sceneT, 1700), 250, STN[cur], 1700, arriveJ, 1.2, 11);
+      const r = walkIn(Math.min(g.sceneT, 1700), 250, STN[cur], 1700, arriveJ, walkerRig, 11);
       hxJ = r.x; poseJ = r.walking ? r.pose : arriveJ; phaseJ = r.walking ? r.phase : undefined;
     } else if (stT < 900 && Math.abs(STN[cur] - STN[prev]) >= 120) {
-      const r = walkIn(stT, STN[prev], STN[cur], 900, arriveJ, 1.2, 11);
+      const r = walkIn(stT, STN[prev], STN[cur], 900, arriveJ, walkerRig, 11);
       hxJ = r.x; poseJ = r.walking ? r.pose : arriveJ; phaseJ = r.walking ? r.phase : undefined;
     } else {
       hxJ = STN[cur]; poseJ = arriveJ;
@@ -941,8 +1016,12 @@ export function chartJourneyScene(g: SceneCtx): void {
         }
         const plotYJ = chartY + (series.length > 1 ? 66 : 0);
         const gyJ = plotYJ + chartH - ((gvJ - yMinJ) / (yMaxJ - yMinJ)) * chartH;
-        const crownJ = floorY - 241 * 1.2;
-        gripJ = { x: hxJ, y: clamp(gyJ, crownJ - 24, floorY - 54), hand: 'fist' };
+        const crownJ = floorY - 241 * walkerRig;
+        // the grip never reaches into the scene title's registered band
+        // (170-246 design) even under the mapped exit-camera drift — the
+        // fist parks below the title's worst-case mapped bottom (~327) and
+        // reads as a present when the line sits higher.
+        gripJ = { x: hxJ, y: clamp(gyJ, Math.max(crownJ - 24, 336), floorY - 54), hand: 'fist' };
       }
     }
     // B5/B7 RE-SPEC: the walker runs the readable cast tier (1.2) — same
@@ -951,7 +1030,7 @@ export function chartJourneyScene(g: SceneCtx): void {
     // the audit's floor for a character that acts (contact verbs, the
     // pointing solve). 1.2 sat under the spec; the crown still clears the
     // title band (floorY - 301 at this floor, ~37px of air).
-    drawStickmanV2(ctx, hxJ, floorY, 1.25, t, {
+    drawStickmanV2(ctx, hxJ, floorY, walkerRig, t, { // A1: the walker joins the presence band
       pose: poseJ,
       alpha: 0.85 + 0.15 * clamp01(g.sceneT / 180),
       look: -0.3, scarf: true, satchel: resolveProp(g.beat.scene.type, 'satchel', true), hostBody: true,
@@ -1026,7 +1105,7 @@ export function pieChartScene(g: SceneCtx): void {
   // gate the values now read at 9.3px — inside the audit's 40-60px
   // read-text band — and the labels at 7px stay legible as text.
   const legend = (s.slices as any[]) || [];
-  const hxPie = 890;
+  const hxPie = 905; // A1: the premium tier's column
   const hyPie = H * 0.66;
   // the rim point nearest the (estimated) shoulder — always on the gold
   // wedge for both beats' slice layouts (gold spans the upper-right arc)
@@ -1078,7 +1157,7 @@ export function pieChartScene(g: SceneCtx): void {
   // into it — and hostSmall's own pointBias wiring turns his head with it.
   // CONTACT VERB edition: hand ON the pie rim, facing the pie (faceDir
   // 'left' — he stands left of centre but his content is further left).
-  hostSmall(g, hxPie, 'pointL', 6, hyPie, 1.35, 0, 'aha', 1.4, 1, true, 0.4,
+  hostSmall(g, hxPie, 'pointL', 6, hyPie, 1.9, 0, 'aha', 1.4, 1, true, 0.4,
     undefined, undefined, { x: pieTouch.x, y: pieTouch.y, hand: 'palm' }, 'left');
   sourceTag(ctx, W, s.source as string, H - 60);
 }
@@ -1193,7 +1272,7 @@ export function dotGridScene(g: SceneCtx): void {
   // 4th term is the point-in pose aimed at the band (faceDir 'left'), the
   // engine's own declared contact verb for a presenter whose object sits
   // beyond his envelope.
-  hostSmall(g, W * 0.78, 'present', 8, H * 0.66, 1.5, 0, 'aha', 1.4, 1, true, 0.4,
+  hostSmall(g, W * 0.78, 'present', 8, H * 0.66, 1.9, 0, 'aha', 1.4, 1, true, 0.4,
     undefined, undefined, undefined, 'left', undefined,
     // P2 (Verdict report — BALANCE THE NUMBERS): the counting beat's coin
     // stack rides the near palm, ledger-resolved.
@@ -1226,7 +1305,7 @@ export function magChipsScene(g: SceneCtx): void {
     ctx.translate(x + tw / 2, y + 62);
     ctx.scale(0.9 + 0.1 * easeOutBack(ap), 0.9 + 0.1 * easeOutBack(ap));
     ctx.translate(-(x + tw / 2), -(y + 62));
-    card(ctx, x, y, tw, 124, { r: 22 });
+    card(ctx, x, y, tw, 124, { r: 22, settle: { t, landT: 900 + i * 260 } }); // D2 settle
     ctx.fillStyle = PALETTE.goldWash;
     roundRect(ctx, x, y, tw, 124, 22);
     ctx.fill();
@@ -1261,7 +1340,7 @@ export function magChipsScene(g: SceneCtx): void {
     // 715 design (760 mapped).
     const y = H * 0.458 + i * 120;
     const c = TONE(st.tone || 'default');
-    card(ctx, W * 0.165, y, W * 0.675, 100, { r: 26 });
+    card(ctx, W * 0.165, y, W * 0.675, 100, { r: 26, settle: { t, landT: 3200 + i * 700 } }); // D2 settle
     // B10 FIX (100-Judge report — MUTED DATA INK): the cream card on the
     // mint plate read as a translucent gray pill at the feed, and the
     // ink-soft label dissolved. The plate commits to solid white and the
@@ -1315,7 +1394,7 @@ export function magChipsScene(g: SceneCtx): void {
     // shifts right, paying for the presenter's tier raise to 1.5 — the
     // parity-face band (+56% area over the certified 1.2 speck) — with the
     // palm still solving ON the card's left edge inside natural reach.
-    hostSmall(g, 185, 'present', 22, H * 0.66, 1.5, 0, 'aha', 1.4, 1, false, 0.4,
+    hostSmall(g, 185, 'present', 22, H * 0.66, 1.75, 0, 'aha', 1.4, 1, false, 0.4,
       undefined, undefined, { x: 325, y: H * 0.458 + 50, hand: 'palm' as const }, 'right', true);
   }
   sourceTag(ctx, W, s.source as string, H - 60);
@@ -1747,7 +1826,7 @@ export function kDefScene(g: SceneCtx): void {
   // definition card's right edge at chest height — the palm rests on the
   // card he is quoting, while the gesture cycle keeps pointing the K
   // (pointR + faceDir right). Contact shadow where palm meets card.
-  hostSmall(g, 900, 'pointR', 15, g.H * 0.66, 1.35, 0, 'aha', 1.4, 1, true, 0.55,
+  hostSmall(g, 950, 'pointR', 15, g.H * 0.66, 1.9, 0, 'aha', 1.4, 1, true, 0.55,
     undefined, undefined, { x: 774, y: 470, hand: 'palm' }, 'right'); // P2-4: hero moment — the naming beat rides the deep differential
   sourceTag(ctx, W, s.source as string, H - 60);
 }
@@ -1800,7 +1879,7 @@ export function credibilityChipsScene(g: SceneCtx): void {
   // 1392/1.5 — premium area band; the wider core (1392±117) keeps 5px more
   // clearance off the chip stack's registered right edge 1280; the palm
   // still solves onto (1280, 505) with the longer reach. Guard re-arbitrates.
-  hostSmall(g, 1392, 'present', 16, g.H * 0.63, 1.5, 0, 'aha', 1.4, 1, true, 0.4,
+  hostSmall(g, 1440, 'present', 16, g.H * 0.63, 1.9, 0, 'aha', 1.4, 1, true, 0.4,
     undefined, undefined, { x: 1280, y: 505, hand: 'palm' }, 'left', true);
 }
 
@@ -3270,6 +3349,12 @@ export function statCardsScene(g: SceneCtx): void {
     ctx.save();
     ctx.globalAlpha = cp2;
     registerRect(`statCards:chip${i}`, cx2, cy2, hw / 2 - 40, 84);
+    const sqC = settleSquash(t - (1500 + i * 550 + 700)); // D2 settle
+    if (sqC.sy !== 1) {
+      ctx.translate(cx2 + (hw / 2 - 40) / 2, cy2 + 42);
+      ctx.scale(sqC.sx, sqC.sy);
+      ctx.translate(-(cx2 + (hw / 2 - 40) / 2), -(cy2 + 42));
+    }
     // 4.3: the demoted chips ride their chapter's plane too — cream pill
     // ('card'), tone slab ('room'), or a bare ledger entry ('desk'). Same
     // rect in all three.
@@ -3362,7 +3447,7 @@ export function statCardsScene(g: SceneCtx): void {
   // 1452/1.5 — the premium band; body core (1452±117) keeps 5px more
   // clearance off the hero card's registered right edge 1330, feet still
   // clear of the chip row; palm target (1338, 470) holds. Guard re-arbitrates.
-  hostSmall(g, 1452, 'pointL', 19, g.H * 0.615, 1.5, 0, 'aha', 1.4, 1, true, 0.4,
+  hostSmall(g, 1490, 'pointL', 19, g.H * 0.615, 2.0, 0, 'aha', 1.4, 1, true, 0.4,
     undefined, undefined, { x: 1338, y: 470, hand: 'palm' }, 'left', true,
     // P2 (Verdict report — HOLD THE NUMBERS): the host grips the hero
     // card's edge — the ledger-resolved holdCard prop rides the near hand.
@@ -4069,7 +4154,7 @@ export function fundSplitScene(g: SceneCtx): void {
     const y = H * 0.5 - 16 + i * 120;
     const c = TONE(st.tone || 'default');
     registerRect(`fundSplit:stat${i}`, W * 0.09, y, 420, 104);
-    card(ctx, W * 0.09, y, 420, 104, { r: 24 });
+    card(ctx, W * 0.09, y, 420, 104, { r: 24, settle: { t, landT: (i + 1) * 950 } }); // D2 settle
     setFont(ctx, 58, 700);
     ctx.fillStyle = c.main;
     ctx.textAlign = 'left';
@@ -4172,7 +4257,7 @@ export function fundSplitScene(g: SceneCtx): void {
   // clears the stat chips (x ≤ 593) and the callback chip (y 996); the
   // wall is background-grade (unregistered); the reaction pivot follows
   // him (REACTIONS['c8-fund'] px 1700 → 1420, scene-context.ts).
-  hostSmall(g, 1395, 'pointL', 24, 585, 1.35, reactionAt(g.s.sceneKey, g.t, g.d), 'shock', 1.8, 2, false,
+  hostSmall(g, 1420, 'pointL', 24, 585, 1.75, reactionAt(g.s.sceneKey, g.t, g.d), 'shock', 1.8, 2, false,
     undefined, undefined, undefined, { x: 1350, y: 438, hand: 'palm', bend: 1 }, 'left'); // P2-4: parallax=false — he stands INSIDE the data (the wall's plane)
 }
 
@@ -4403,6 +4488,12 @@ export function oddsSpreadScene(g: SceneCtx): void {
         }
       }
       ctx.stroke();
+      const sqO = settleSquash(t - (300 + i * 160 + 400)); // D2 settle
+      if (sqO.sy !== 1) {
+        ctx.translate(cx2, cy2 + chh2 / 2);
+        ctx.scale(sqO.sx, sqO.sy);
+        ctx.translate(-cx2, -(cy2 + chh2 / 2));
+      }
       ctx.fillStyle = '#fff';
       roundRect(ctx, cx2 - cw2 / 2, cy2, cw2, chh2, 18);
       ctx.fill();

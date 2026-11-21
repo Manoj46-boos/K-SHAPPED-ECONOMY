@@ -249,6 +249,16 @@ export function splitSentences(text: string): string[] {
  * eye reads as weight. The v2's squash transform consumes the value;
  * callers pass scene-ms so it is scrub-safe.
  */
+/** D2 (100-Judge report Track D — THE 2-FRAME SETTLE SQUASH, GENERALIZED):
+ *  statCard landings owned the land squash; every card(), chip() and plate
+ *  now shares it. Returns a volume-preserving pair for a draw at (t-landT)
+ *  ms after its landing: the plate compresses 6% tall / widens 5% for about
+ *  two frames, then settles. Neutral (1, 1) outside the window. */
+export function settleSquash(dt: number): { sy: number; sx: number } {
+  const p = dt >= 0 && dt < 226 ? landPulse(dt) : 0;
+  return { sy: 1 - 0.06 * p, sx: 1 + 0.05 * p };
+}
+
 export function landPulse(dt: number, riseMs = 66, decayMs = 160): number {
   if (dt < 0 || dt > riseMs + decayMs) return 0;
   if (dt <= riseMs) return 1 - easeOutCubic(dt / riseMs) * 0.25; // the held impact

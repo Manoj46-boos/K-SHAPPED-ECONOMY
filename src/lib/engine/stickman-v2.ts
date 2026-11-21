@@ -27,7 +27,7 @@
 import { PALETTE, rgba, roundRect, hexLerp } from './theme';
 import { clamp, clamp01, hash01, easeOutCubic } from './easing';
 import { registerRect } from './collision';
-import { camState } from './effects';
+import { camState, drawK } from './effects';
 import { AMP, INK } from './perception';
 // PHASE 3 COMPOSITION (Visual Audit — Composition & value): subject
 // figures self-measure their drawn bbox and register the frame-area
@@ -1513,10 +1513,25 @@ export function drawStickmanV2(
   // decaying pulse at slam/landing times. Applied inside the figure
   // transform stack below, after translate(cx, groundY). Pure function of
   // caller data.
-  const squash = r.squash ?? 0;
-  // PANEL ACCEPTANCE (audit FIX 6): the launch stretch rides the same
-  // transform stack (see the scale call below the squash).
-  const stretch = Math.min(1, r.stretch ?? 0);
+  // D1 FIX (100-Judge report Track D — SQUASH AND STRETCH AT FEED
+  // AMPLITUDE): the plant squash and launch stretch were caller-supplied
+  // on four call sites only — every other keyed stride shipped
+  // squash-free at the feed. They are now DRAW DEFAULTS: any draw with
+  // walkPhase set derives the measured 15-17% plant squash at foot-strike
+  // and the push-off stretch straight from the stride clock (two strikes
+  // per cycle, closed form, scrub-safe). Callers passing explicit squash
+  // keep it.
+  let squash = r.squash ?? 0;
+  let stretch = Math.min(1, r.stretch ?? 0);
+  if (r.walkPhase !== undefined && r.squash === undefined) {
+    const cyc = ((r.walkPhase % 1) + 1) % 1;
+    const strikePulse = (ph: number): number => {
+      const d = ((cyc - ph) % 1 + 1) % 1; // time since this foot's strike
+      return d < 0.18 ? Math.exp(-(d / 0.18) * 4.0) : 0;
+    };
+    squash = Math.max(strikePulse(0.18), strikePulse(0.68)) * 0.16;
+    stretch = Math.max(strikePulse(0.45), strikePulse(0.95)) * 0.1;
+  }
   // BLUEPRINT Phase 2: the jaw multiplier reaches the mouth (the shock
   // reaction's 2x gasp).
   const jaw2x = r.jaw2x ?? 1;
@@ -2092,6 +2107,14 @@ export function drawStickmanV2(
       ctx.lineTo(lX(0.97, wS * 0.34), lY(0.97, wS * 0.34));
       ctx.closePath();
       ctx.fill();
+      // B-TRACK (§4.2 — THE BRAND ON THE CHARACTER): a small K monogram on
+      // the vest's chest, deep-gold ink (gold-on-gold would vanish), 2px
+      // stroke, from rig 1.4 up — the silhouette itself carries the channel
+      // at feed scale. Deterministic; no prop cost.
+      if (scale >= 1.4) {
+        const kSize = scale * 8.2;
+        drawK(ctx, (rX(0.75, 0) + lX(0.75, 0)) / 2, (rY(0.72, 0) + lY(0.72, 0)) / 2, kSize, 2, '#8F6E12');
+      }
     }
     // shoulder caps — small rounded delts at the shoulder line (vest gold:
     // the deltoid sits on the vest's shoulder strap; the worker's stay on
