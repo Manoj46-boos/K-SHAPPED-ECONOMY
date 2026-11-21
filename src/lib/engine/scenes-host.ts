@@ -1158,8 +1158,14 @@ export function splitNumbersScene(g: SceneCtx): void {
     // v4's mirror-break rides on: the market panel keeps its 44px lift.
     const vsW = W * 0.36;
     const delay = 300;
-    drawNumberPanel(g, W * 0.06, py - 22, vsW, panelH, 'THE MARKET', marketStats, t, 0);
-    drawNumberPanel(g, W * 0.545, py + 22, vsW, panelH, 'THE MOOD', moodStats, t, delay);
+    // B1 FIX (deepening): the panels key to SCENE time, not group time —
+    // the director's 12s cap re-split resets the group clock mid-scene and
+    // replayed the panels' entrance while the VO was live (the 55s blank
+    // beat). sceneT never resets inside a sceneKey run (SceneCtx contract:
+    // "a character arrives ONCE per scene") — the panels arrive once and
+    // stay put at every re-split seam.
+    drawNumberPanel(g, W * 0.06, py - 22, vsW, panelH, 'THE MARKET', marketStats, g.sceneT, 0);
+    drawNumberPanel(g, W * 0.545, py + 22, vsW, panelH, 'THE MOOD', moodStats, g.sceneT, delay);
     // PHASE 3 COMPOSITION (Fix 1 — DATA-BEAT HERO FLOOR): the vs beat's
     // hero object is the two-panel data system — x 0.06W→0.905W × panelH:
     // 1622×~370 = 28.7% of the frame, over the 18% floor (the harness
@@ -1192,7 +1198,7 @@ export function splitNumbersScene(g: SceneCtx): void {
       g, mode === 'left' ? lx : rx, mode === 'left' ? py - 22 : py + 22, panelW, panelH,
       mode === 'left' ? 'THE MARKET' : 'THE MOOD',
       mode === 'left' ? marketStats : moodStats,
-      t, 0
+      g.sceneT, 0
     );
     // 100-JUDGE REPORT (fix D05 — THE 85% FRAME): the single-panel mode
     // shipped one card, one host and nothing else — the audit measured the
@@ -1432,7 +1438,22 @@ function drawNumberPanel(
     rowGap = Math.min(rowGap, Math.max(88, maxGap));
   }
   stats.forEach((st, i) => {
-    const sa = clamp01((t - delay - 350 - i * 480) / 600);
+    // B1 FIX (100-Judge report — THE BLANK-PANEL BEATS, 55s sample): two
+    // stacked defects shipped here. (a) The row cascade took
+    // 350 + n*480 + 600ms (~1.9s for three rows) — on a 4.7s beat, 40% of
+    // the beat drew under-populated panels. (b) The director's 12s cap
+    // re-split resets the group clock mid-scene, replaying this entrance
+    // while the VO is live — the 55s sample caught the replay at its
+    // emptiest (blank white cards, kicker only; panel-region luminance
+    // mean 249/255, std 3.0). The rows now land WITH the plate — 120ms
+    // after it, 140ms stagger, 320ms fade (full cascade <= 0.9s) — and
+    // carry a 0.35 alpha floor once the plate is past half-arrival: a
+    // panel plate NEVER renders as a bare white card, at any beat state,
+    // at any group re-split seam. Scrub-safe: still a pure function of t.
+    const sa = Math.max(
+      ap > 0.45 ? 0.35 : 0,
+      clamp01((t - delay - 120 - i * 140) / 320)
+    );
     if (sa <= 0) return;
     const sy = y + ROW_TOP + i * rowGap;
     ctx.globalAlpha = ap * sa;

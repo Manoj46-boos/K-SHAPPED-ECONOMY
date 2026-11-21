@@ -296,7 +296,16 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor
     ctx.textAlign = 'left';
     ctx.fillStyle = PALETTE.goldDeep;
-    ctx.fillText(opts.band.label, x + 16, Math.min(by1, by2) + 24);
+    // B3 FIX (100-Judge report — ANNOTATION PLATE COLLIDES WITH THE BAND
+    // LABEL, 307s sample): the caption left-aligned at x+16 printed across
+    // the y-axis ticks and the axis walker's crown zone, and the annotation
+    // search never knew it existed (the gold pill printed straight through
+    // the gold caption — two gold texts in one band). The caption now
+    // right-aligns at the band's own right edge (the empty rail), and the
+    // annotation search below treats its rect as an obstacle.
+    ctx.textAlign = 'right';
+    ctx.fillText(opts.band.label, x + w - 16, Math.min(by1, by2) + 24);
+    ctx.textAlign = 'left';
   }
 
   // peak band
@@ -326,7 +335,13 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     ctx.restore();
   }
 
-  const rawReveal = clamp01((opts.revealFrac ?? 1) * p);
+  // B2b FIX (100-Judge report — CHART DRAW-ONS SHIP AS PALE VOIDS, 105s
+  // sample): a chart whose first frames carry grid-only ink reads as a
+  // dead frame at the feed — the viewer meets several per minute while
+  // scrubbing. The reveal now opens at a 0.06 floor: the axis, the grid
+  // and the first data segment are on screen from frame one, and the
+  // draw-on animation plays on top of committed ink instead of emptiness.
+  const rawReveal = Math.max(0.06, clamp01((opts.revealFrac ?? 1) * p));
   const reveal = settleReveal(rawReveal);
   chartDebug.reveal.push({ raw: rawReveal, settled: reveal });
 
@@ -603,6 +618,28 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
         const pR = lxA + tw / 2 + 16;
         return pR > (crownX as number) - 170 && pL < (crownX as number) + 170;
       };
+      // B3 FIX: the band caption's rect (right-aligned at the band's right
+      // edge, drawn above) — an obstacle for the annotation search, so the
+      // gold pill can never print through the gold band label again.
+      const bandRect: [number, number, number, number] | null = (() => {
+        if (!opts.band) return null;
+        setFont(ctx, TYPE_FLOOR, 600);
+        const blw = ctx.measureText(opts.band.label).width;
+        const by1 = y + h - ((opts.band.to - yMin) / (yMax - yMin)) * h;
+        const by2 = y + h - ((opts.band.from - yMin) / (yMax - yMin)) * h;
+        const bTop = Math.min(by1, by2);
+        setFont(ctx, 46, 600);
+        return [x + w - 16 - blw, bTop - 22, blw + 32, 46];
+      })();
+      const bandHit = (row: number, lxA: number): boolean => {
+        if (!bandRect) return false;
+        const pL = lxA - tw / 2 - 16;
+        const pR = lxA + tw / 2 + 16;
+        const pT = row - 34;
+        const pB = row + 12;
+        return pR > bandRect[0] && pL < bandRect[0] + bandRect[2]
+          && pB > bandRect[1] && pT < bandRect[1] + bandRect[3];
+      };
       const lyRaw = py + dyA;
       const belowLy = py + dotR + 2 + LEAD_MIN + 34; // pill-top clears the dot by LEAD_MIN
       const aboveLy = py - dotR - 2 - LEAD_MIN - pillH - Math.min(60, Math.abs(dyA));
@@ -676,6 +713,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
           if (prevLy !== -Infinity && Math.abs(cr - prevLy) < 56) continue;
           if (strokeOverlap(cr, lxS) > 0) continue;
           if (walkerHit(cr, lxS)) continue;
+          if (bandHit(cr, lxS)) continue;
           lyT = cr;
           lxF = lxS;
           break outer;
@@ -690,7 +728,9 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
           for (const cand of [lyRaw, belowLy, aboveLy]) {
             const cr = clampRow(cand);
             if (coversPoint(cr)) continue;
-            const area = strokeOverlap(cr, lxS) + (walkerHit(cr, lxS) ? 4000 : 0);
+            const area = strokeOverlap(cr, lxS)
+              + (walkerHit(cr, lxS) ? 4000 : 0)
+              + (bandHit(cr, lxS) ? 4000 : 0);
             if (area < bestArea) {
               bestArea = area;
               bestRow = cr;
@@ -716,7 +756,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       // the plate YIELDS ENTIRELY — the data dot persists (the anchor is
       // series ink, not text), the plate never covers the presenter. This
       // is the codebase's own declared rule made unconditional.
-      if (walkerHit(lyT, lxF)) {
+      if (walkerHit(lyT, lxF) || bandHit(lyT, lxF)) {
         const pyKeep2 = y + h - ((av - yMin) / (yMax - yMin)) * h;
         const pxKeep2 = x + xf * w;
         ctx.save();
@@ -1007,18 +1047,17 @@ export function barRow(
   roundRect(ctx, x, by, w, 30, 15);
   ctx.fill();
   // value bar
-  const g = ctx.createLinearGradient(x, 0, x + bw, 0);
-  g.addColorStop(0, rgba(cFill, 0.92));
-  g.addColorStop(1, cFill);
-  ctx.fillStyle = g;
+  // B10 FIX (100-Judge report — MUTED DATA INK): the gradient fill read as
+  // watercolor at the feed — bars commit to a FLAT full-alpha vivid fill
+  // (the report's "flat vivid fills at full alpha, no gradient") with the
+  // crisp ink edge on every row, not just the muted ones.
+  ctx.fillStyle = cFill;
   roundRect(ctx, x, by, Math.max(30, bw), 30, 15);
   ctx.fill();
-  if (muted) {
-    ctx.strokeStyle = rgba(PALETTE.ink, 0.5);
-    ctx.lineWidth = 1.5;
-    roundRect(ctx, x, by, Math.max(30, bw), 30, 15);
-    ctx.stroke();
-  }
+  ctx.strokeStyle = rgba(PALETTE.ink, 0.5);
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, x, by, Math.max(30, bw), 30, 15);
+  ctx.stroke();
   // P4 — the ring fires from the bar CAP the instant the growth completes:
   // the record bar arriving is an EVENT the camera acknowledges (furniture
   // register — 60px radius, tone color; the guard layout is untouched).
@@ -1095,7 +1134,9 @@ export function dotGrid(
     // at a glance ("almost 4 dollars of every 10" never landed). 1.7× radius
     // ≈ 3× the area reads instantly, plus a crisp ink ring so the gold dots
     // read as COUNTED, not just colored.
-    const hiScale = 1.7;
+    // B10 FIX: the gold highlights widen to 2.2x (the report's number) —
+    // ~4.8x the area of the committed field dots; the count owns the frame.
+    const hiScale = 2.2;
     const pulse = isHi ? 1 + 0.18 * Math.sin(t / 300 + idx * 1.7) : 1;
     // FIX 3 (density payloads): 0.62 -> 0.8 — the wall of dots must READ
     // as mass at the 320px feed (the 0.62 register measured 2.2% info — the
@@ -1105,7 +1146,12 @@ export function dotGrid(
     // 500-company field, the scene's whole point, washed to nothing. The
     // field now draws in INK-SOFT at 0.5: clearly-readable dot mass at feed
     // scale, still one full register behind the ten gold highlights.
-    ctx.fillStyle = isHi ? PALETTE.gold : rgba(PALETTE.inkSoft, 0.5);
+    // B10 FIX (100-Judge report — DATA INK DIES AT 320PX): the 0.5
+    // ink-soft register measured as gray mush at the feed (the field is the
+    // scene's whole point). The 490 non-highlight dots commit to 0.75 ink,
+    // and the gold highlights widen to 2.2x (the report's own number) so
+    // the counted ten own the field at a glance. Feed twin verified.
+    ctx.fillStyle = isHi ? PALETTE.gold : rgba(PALETTE.inkSoft, 0.75);
     ctx.beginPath();
     ctx.arc(cx, cy, dotR * (isHi ? hiScale : 1) * pop * pulse * appear, 0, Math.PI * 2);
     ctx.fill();

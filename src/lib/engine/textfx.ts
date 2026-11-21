@@ -382,8 +382,23 @@ export function drawChapterCard(
   // now fills the card's dead TOP zone (the 32% flag was the 0-0.35H
   // band above the rule). At 460px serif the numeral's cap reaches
   // ~0.18H: top anchor done.
-  ctx.fillText(String(index).padStart(2, '0'), W / 2, H * 0.30);
+  // B6 FIX (100-Judge report — the numeral CROPPED at the frame top): at
+  // the 0.30H baseline the 460px Fraunces cap-height lifts the glyph top
+  // to y 0 and above — the sampled Chapter 04 card shipped the top of the
+  // 04 flush-cut by the frame edge (gold ink measured in rows 0-6). The
+  // baseline moves to 0.335H (cap top ~0.04H, 43px of air) and the safe
+  // area is asserted below: the numeral's ink must start below y 12.
+  ctx.fillText(String(index).padStart(2, '0'), W / 2, H * 0.335);
   ctx.restore();
+  // B6 harness-side assert: the numeral's glyph top must clear the crop.
+  // (The draw is the layout contract; this guard trips a build-gate
+  // regression the same way the collision guard does.)
+  {
+    const capTop = H * 0.335 - 460 * 0.73; // Fraunces cap-height ~0.73em
+    if (capTop < 12) {
+      throw new Error('chapterCard: ghost numeral cap enters the top crop-safe area (B6 regression)');
+    }
+  }
   // PHONE-GATE (the 27% empty band, frame 20): the card's BOTTOM zone
   // carried no committed ink after the B19 atmosphere cut. The chapter's
   // own complement accent (the designed per-chapter object — gold K,

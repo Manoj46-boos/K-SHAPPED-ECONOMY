@@ -3089,7 +3089,13 @@ export function drawStickmanV2(
   // floors stay unchanged so the feed never starves. The lens retires as the
   // DOMINANT feature — it is now a SECONDARY ACCENT: radius proportional to
   // the eye (sclera x1.28), thinner wire — the brows carry the emotion.
-  const eyeR = Math.max(5.2, featureFloor(9.1), scale >= 2 ? 8.4 : 0);
+  // B11 FIX (100-Judge report — FACE PARITY DOWN TO RIG 1.5): the hero
+  // face values applied only at rig >= 2, so every working side-host
+  // staging (1.2-1.5) shipped a starved face — below the feed's perception
+  // floor and below the thumbnail face the viewer clicked. The parity gate
+  // lowers to 1.5: every certified staging carries the face that earned
+  // the click. (Screen-space floors unchanged below that.)
+  const eyeR = Math.max(5.2, featureFloor(9.1), scale >= 1.5 ? 8.4 : 0);
   // 100-JUDGE PANEL REPORT (defect D12 — THE SKULL READ): below rig scale
   // 1.0 the becker head's PURE-WHITE features (sclera, brows, mouth) on
   // the solid ink read as a grinning skull at feed scale (the coffee
@@ -3123,7 +3129,7 @@ export function drawStickmanV2(
   // smaller egg; the pupil derives from the SCLERA (0.76 of its radius =
   // 58% of the eye's area — past the verdict's 55% floor), never from the
   // lens, so the eye reads ink-first at every scale.
-  const scleraR = Math.max(5.5, featureFloor(6.2), scale >= 2 ? 6.2 : 0);
+  const scleraR = Math.max(5.5, featureFloor(6.2), scale >= 1.5 ? 6.2 : 0); // B11 parity at 1.5
   // FP0 (Verdict P0 — GLASSES AS SECONDARY ACCENT): the lens radius is now
   // PROPORTIONAL TO THE EYE (sclera × 1.28) instead of a fixed 13.5 units —
   // the wire stops dominating the face and frames it.
@@ -3237,7 +3243,7 @@ export function drawStickmanV2(
     const y0 = -15.5 - lift - bRaise - dir * Math.tan(bAng) * 7;
     const y1 = -13.5 - lift - bRaise + dir * Math.tan(bAng) * 7;
     ctx.strokeStyle = becker ? faceInk : ink;
-    ctx.lineWidth = Math.max(smallHead ? 5.5 : 6.5, featureFloor(7), scale >= 2 ? 9.5 : 0);
+    ctx.lineWidth = Math.max(smallHead ? 5.5 : 6.5, featureFloor(7), scale >= 1.5 ? 9.5 : 0); // B11 parity at 1.5
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(x0, y0);

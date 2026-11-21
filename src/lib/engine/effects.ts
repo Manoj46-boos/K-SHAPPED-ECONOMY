@@ -699,6 +699,18 @@ function extrudeStroke(
   const tx = ((x1 - x0) / L) * (w / 2), ty = ((y1 - y0) / L) * (w / 2);
   const ax = x0 + tx, ay = y0 + ty, bx = x1 - tx, by = y1 - ty;
   const dx = d.x, dy = d.y;
+  // B9 FIX (100-Judge report — THE K-TURN'S MID-STATE BREAKS THE
+  // LETTERFORM): at the turn's steep axis the depth vector runs nearly
+  // PARALLEL to the stroke (the stem at 95°), so the wall quad's far edge
+  // traveled ~depth PAST the letterform's round cap — the yellow spike the
+  // mid-turn frames shipped. The near edge is inset w/2 along the stroke;
+  // the far edge now carries the SAME treatment: the depth vector's own
+  // projection along the stroke axis shortens the far end so the wall
+  // terminates inside the face's cap at every axis angle.
+  const uxAxis = (x1 - x0) / L, uyAxis = (y1 - y0) / L;
+  const dProj = dx * uxAxis + dy * uyAxis; // depth's slide along the stroke
+  const farInx = uxAxis * dProj, farIny = uyAxis * dProj;
+  const bx2 = bx - farInx, by2 = by - farIny;
   // AUDIT-2 / D3: which +normal wall faces the light? Light from upper
   // right ≈ (0.7, −0.7): positive dot ⇒ lit tone, else shadow tone.
   const litP = ux * 0.7 + uy * -0.7 >= 0;
@@ -716,8 +728,8 @@ function extrudeStroke(
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.moveTo(ax + sx, ay + sy);
-    ctx.lineTo(bx + sx, by + sy);
-    ctx.lineTo(bx + sx + dx, by + sy + dy);
+    ctx.lineTo(bx2 + sx, by2 + sy);
+    ctx.lineTo(bx2 + sx + dx, by2 + sy + dy);
     ctx.lineTo(ax + sx + dx, ay + sy + dy);
     ctx.closePath();
     ctx.fill();
@@ -840,11 +852,16 @@ export function drawK3D(
   // away from the upper-right light. Every wall of every stroke runs
   // parallel to this vector: one object, one extrusion, one read.
   // 100-JUDGE PANEL / Phase 3 item 2 — THE K-TURN: through the turn
-  // sweep the axis rotates 30° → 95° (eased, the caller's 900ms window)
+  // sweep the axis rotates 30° → 80° (eased, the caller's 900ms window)
   // — the extrusion rotates toward the lens and the glyph reads as
-  // MASS while the camera pushes. The turn is an EVENT (once per act);
-  // outside its window the axis is exactly the resting 30°.
-  const axis = (K3D.axisDeg + (95 - K3D.axisDeg) * easeOutCubic(clamp01(turn))) * Math.PI / 180;
+  // MASS while the camera pushes. B9 FIX (100-Judge report): the old 95°
+  // target put the depth vector nearly parallel to the stem — the walls
+  // stopped reading as walls and the mid-sweep frames shipped the
+  // wall-spike class the extrudeStroke inset now also guards. 80° keeps
+  // the mass event while every wall keeps its face/depth separation.
+  // The turn is an EVENT (once per act); outside its window the axis is
+  // exactly the resting 30°.
+  const axis = (K3D.axisDeg + (80 - K3D.axisDeg) * easeOutCubic(clamp01(turn))) * Math.PI / 180;
   const dAll = { x: -Math.cos(axis) * depth, y: Math.sin(axis) * depth };
   const dArmUp = { x: dAll.x * 0.88, y: dAll.y * 0.88 }; // foreshortened
   // AUDIT-PHASE-4: SOLID GOLD material — the lit wall in the object's

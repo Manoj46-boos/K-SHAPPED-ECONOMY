@@ -52,7 +52,7 @@ export interface CollisionViolation {
    *  v10.1 (panel 11 re-review): 'host' — a side-host body envelope plating
    *  scene content (statCards host over the 12.4% card, aiDatacenter host
    *  in the scrolling rack field). */
-  kind: 'pill' | 'fixed' | 'edge' | 'text' | 'host' | 'cardPad' | 'hand';
+  kind: 'pill' | 'fixed' | 'edge' | 'text' | 'host' | 'cardPad' | 'hand' | 'captionClearance';
 }
 
 /** PHASE-0 (panel report §7-D6): the ONE bottom-padding floor for text that
@@ -368,6 +368,47 @@ export function collectViolations(): CollisionViolation[] {
       }
     }
   }
+  }
+  // ── B12 FIX (100-Judge report — THE 40PX CAPTION-CLEARANCE LAW): dense
+  // beats parked their bottom text rows 0-11px above the caption pill —
+  // legal under the old overlap check (no actual intersection) and pure
+  // tension the moment the widest two-row caption shipped. The law: no
+  // content plate may enter the 40px band ABOVE a live caption pill while
+  // horizontally overlapping it. Figures stay governed by the existing
+  // pill rule (with its certified walk-past exemptions); plates, chips,
+  // text rows and furniture all assert here.
+  if (g.pill && !g.overlay) {
+    const CLEAR = 40;
+    const zone = { x: g.pill.x, y: g.pill.y - CLEAR, w: g.pill.w, h: CLEAR };
+    const cam2 = g.camera;
+    for (const r0 of g.content) {
+      if (r0.cls === 'host' || r0.id.startsWith('stickman@')) continue;
+      if (g.contactIds.has(r0.id)) continue;
+      // The law governs READING furniture (plates, chips, text rows — all
+      // flatter than 200px). Solid masses taller than that (the datacenter
+      // rack field, the corridor walls) are room/hero architecture: they
+      // yield to nothing, and the opaque pill covering a mass's bottom
+      // band hides no information.
+      if (r0.h > 200) continue;
+      let r: GuardRect & { id: string } = r0;
+      if (cam2) {
+        const x2 = (r0.x - 960) * cam2.scale + 960 + cam2.dx;
+        const y2 = (r0.y - 540) * cam2.scale + 540 + cam2.dy;
+        r = { ...r0, x: x2, y: y2, w: r0.w * cam2.scale, h: r0.h * cam2.scale };
+      }
+      const ox = Math.min(r.x + r.w, zone.x + zone.w) - Math.max(r.x, zone.x);
+      const oy = Math.min(r.y + r.h, zone.y + zone.h) - Math.max(r.y, zone.y);
+      if (ox > 20 && oy > 0) {
+        out.push({
+          frame: g.frame,
+          id: r.id,
+          rect: { x: r.x, y: r.y, w: r.w, h: r.h },
+          pill: { x: zone.x, y: zone.y, w: zone.w, h: zone.h },
+          depth: Math.round(oy),
+          kind: 'captionClearance',
+        });
+      }
+    }
   }
   g.violations = out;
 

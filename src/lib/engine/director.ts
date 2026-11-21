@@ -1055,8 +1055,15 @@ export function drawFrame(
       // reactionNow > 0.04. The twist close-up never again dissolves under
       // a transition sweep.
       const reactive = reactionNow > 0.04;
+      // B2a FIX (100-Judge report — WASHED TRANSITION FRAMES): the 0.5
+      // chapter-boundary ivory cap dropped whole data-scene frames below
+      // feed contrast (the audit's washed-transition class). Data-family
+      // scenes cap the veil at 0.22 — the exit motion (the truck) still
+      // reads; the frame keeps committed ink. Statement/host scenes keep
+      // their caps (the slam owns those frames).
+      const veilCap = familyOf(beat.beat.scene.type) === 'data' ? 0.22 : 0.5;
       const cap = reactive ? 0
-        : isChapterBoundary ? (exitStyle === 0 ? 0.5 : 0.22) : exitStyle === 2 ? 0.22 : 0;
+        : isChapterBoundary ? (exitStyle === 0 ? veilCap : 0.22) : exitStyle === 2 ? 0.22 : 0;
       white = Math.max(white, cap * Math.pow(exitP, 1.6));
       if (exitStyle === 2 && exitP > 0 && !reactive) {
         // the brand sweep closes a scene instead of only opening chapters
