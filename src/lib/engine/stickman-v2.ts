@@ -25,7 +25,7 @@
  */
 
 import { PALETTE, rgba, roundRect, hexLerp } from './theme';
-import { clamp, clamp01, hash01, easeOutCubic } from './easing';
+import { clamp, clamp01, hash01, easeOutCubic, easeInOutSine } from './easing';
 import { registerRect } from './collision';
 import { camState, drawK } from './effects';
 import { AMP, INK, INK_WORKING } from './perception';
@@ -137,6 +137,7 @@ function armIk(
  */
 export function talkAt(t: number, wordTimes: number[]): number {
   let open = 0;
+  let lastWordEnd = -1e9;
   for (const wt of wordTimes) {
     const a = t - wt;
     if (a >= -20 && a <= 260) {
@@ -150,7 +151,19 @@ export function talkAt(t: number, wordTimes: number[]): number {
       const env = Math.sin(Math.PI * Math.min(1, p * 1.35));
       open = Math.max(open, env);
     }
+    if (wt + 260 <= t) lastWordEnd = Math.max(lastWordEnd, wt + 260);
     if (wt > t + 300) break;
+  }
+  // A8 FIX (100-JUDGE PANEL REPORT §2.1 — THE PHRASE-LEVEL SNAP): when a
+  // sentence's word run ends, the openness hit zero on the NEXT sample —
+  // the mouth snapped from its last viseme straight to the rest crescent
+  // and speech read as flap-open/flap-closed at the phrase level. The
+  // openness now decays over 200ms from its residual articulation read
+  // (0.55) after the last word slot: articulation eases out, never snaps.
+  // Pure function of t — scrub-determinism preserved.
+  if (open === 0 && lastWordEnd > -1e8) {
+    const d = t - lastWordEnd;
+    if (d >= 0 && d < 200) open = (1 - d / 200) * 0.55;
   }
   return open;
 }
@@ -180,12 +193,21 @@ const VISIEME_BY_FIRST_LETTER: Record<string, Viseme> = {
 
 export function visemeAt(t: number, wordTimes: number[], words: string[]): Viseme {
   let activeIdx = -1;
+  let lastIdx = -1;
   for (let i = 0; i < wordTimes.length; i++) {
     if (wordTimes[i] <= t && t < wordTimes[i] + 280) activeIdx = i;
+    if (wordTimes[i] + 280 <= t) lastIdx = i;
     if (wordTimes[i] > t + 50) break;
   }
-  if (activeIdx < 0 || activeIdx >= words.length) return 'X';
-  const w = words[activeIdx].toLowerCase().replace(/[^a-z]/g, '');
+  // A8 FIX (100-JUDGE PANEL REPORT §2.1 — VISEME CONTINUITY THROUGH PAUSES):
+  // through a short pause (≤ 400ms after the last word's slot) the mouth
+  // HOLDS the previous word's viseme shape instead of snapping to X — the
+  // openness eases out via talkAt's 200ms decay while the shape stays
+  // articulate. Pure function of (t, wordTimes, words).
+  const idx = activeIdx >= 0 ? activeIdx
+    : (lastIdx >= 0 && t - (wordTimes[lastIdx] + 280) < 400 ? lastIdx : -1);
+  if (idx < 0 || idx >= words.length) return 'X';
+  const w = words[idx].toLowerCase().replace(/[^a-z]/g, '');
   if (!w) return 'X';
   if (w.startsWith('th')) return 'G';
   if (w.startsWith('sh') || w.startsWith('ch')) return 'B';
@@ -773,7 +795,12 @@ export function handGlyph(
   // read as a HAND at every staging, so the palm floor rises to 20px
   // screen space (the smallest hand a cold viewer names as a hand on a
   // 1080p frame) and the point glyph's fingertip floor rises to 14px.
-  s = Math.max(s, 20 / Math.max(0.5, rigScale));
+  // A3 FIX (100-JUDGE PANEL REPORT §2.1 — HAND VOCABULARY COLLAPSE): the
+  // 20px floor still shipped stick-tip hands at the 1.1-1.5 stagings where
+  // the contact verbs fire. The palm floor rises to 24px screen space and
+  // the fingertip to 16px (below) — the smallest hand that reads as a
+  // hand WITH a gesture at a side rig, per the report's own floors.
+  s = Math.max(s, 24 / Math.max(0.5, rigScale));
   // P1-2 (100-judge audit, Table 3 — HANDS): the FIST + COUNT glyphs.
   // "Featureless mitts in every pose" / "a withered claw" — and the
   // count poses had nothing to count WITH. The fist: a rounded mass + a
@@ -903,7 +930,10 @@ export function handGlyph(
     // an invisible finger on every working rig). The taper widens WITH the
     // floor so the finger reads as a taper, not a trumpet: the whole
     // distal/proximal chain lifts to keep root ≥ tip.
-    const tipW = Math.max(s * 0.16, 14);
+    // A3 FIX (100-JUDGE PANEL REPORT §2.1): the fingertip floor rises 14 →
+    // 16px screen space — the pointing hand lands as a HAND with a
+    // fingertip at every contact rig (the Mag-7 fundSplit staging test).
+    const tipW = Math.max(s * 0.16, 16);
     const distW = Math.max(s * 0.27, 15.5);
     const proxW = Math.max(s * 0.36, 17);
     const knX = x + Math.sin(a) * s * 0.80, knY = y + Math.cos(a) * s * 0.80;
@@ -974,7 +1004,10 @@ export function handGlyph(
     // under every floor the audit set, so working hands read as blobs.
     // The whole glyph lifts to the palm floor so the hand stays
     // proportionate (lengths ride the same unit).
-    const hs = Math.max(s, 20 / 1.04);
+    // A3 FIX (100-JUDGE PANEL REPORT §2.1): the open-hand palm lifts to the
+    // 24px floor (riding the same screen-space floor as the palm glyph) —
+    // proportionate at every staging.
+    const hs = Math.max(s, 24 / 1.04);
     ctx.save();
     ctx.translate(x + Math.sin(fa) * hs * 0.30, y + Math.cos(fa) * hs * 0.30);
     ctx.rotate(fa);
@@ -988,8 +1021,14 @@ export function handGlyph(
     // with the re-grip clock); drawn as ONE path so the union silhouette
     // stays a single hand at every angle
     ctx.beginPath();
-    for (let f = 0; f < 4; f++) {
-      const off = (f - 1.5) * 0.20 * grip;
+    // A3 FIX (100-JUDGE PANEL REPORT §2.1 — THE FORK READ): four 5-7px
+    // fingers dissolve to noise below rig 1.6 and the open hand reads as a
+    // fork/claw. The finger count caps at THREE below rig 1.6 (three gaps
+    // read; four dissolve) — the fan spread is unchanged, so the hand
+    // stays an open palm, just with fingers that survive the rig.
+    const fingerN = rigScale < 1.6 ? 3 : 4;
+    for (let f = 0; f < fingerN; f++) {
+      const off = (f - (fingerN - 1) / 2) * 0.20 * grip;
       const ffa = fa + off;
       const bx = x + Math.sin(fa) * hs * 0.48 + pxn * off * hs * 1.1;
       const by = y + Math.cos(fa) * hs * 0.48 + pyn * off * hs * 1.1;
@@ -1755,25 +1794,29 @@ export function drawStickmanV2(
   // the freeze between sentences read as a mannequin without it.
   ctx.rotate(Math.sin(t / 2400 + seed * 1.7) * 0.004);
   // v10 (panel CHAR-2): WEIGHT SHIFT — a slow 4.6s hip settle.
-  // AUDIT-3 / §2.2 (report Phase 2.2 — CONTRAPPOSTO IDLE): the terms were
-  // sub-pixel at phone scale (±1.8px at scale 1.0), which is why the
-  // BEFORE renders still read “mannequin between sentences”. 
-  // BLUEPRINT Phase 1 (report Table 7): the idle register rises to the
-  // panel's numbers — weight ±7.5px (AMP.weightShift) driving a ±4.0°
-  // shoulder counter (AMP.shoulderCounterDeg). Hips and shoulders oppose
-  // each other on a line a phone viewer can finally SEE.
-  // PLAYBOOK M5 (report §8.2 — THE BREATH-HOLD): constant life reads as
-  // simulation. Every 3rd weight cycle (a 13.8s clock) the idle terms
-  // drop 60% for one cycle — the contrast makes the alive cycles read
-  // as alive. Pure function of t; scrub-safe.
-  const holdCycle = ((t / 4600 + seed * 0.31) % 3) / 3; // 0..1 within the 3-cycle group
-  // PHASE 3 (audit §8 — HOLD-LIFE RE-RAISE): the quiet-cycle dip 0.4 -> 0.8.
-  // At 0.4 the third of every three weight cycles fell under the feed's
-  // static-perception floor — the audit measured "a breathing statue". 0.8
-  // keeps the CONTRAST (the alive cycles read as alive) without dying.
-  const holdK = holdCycle > 0.667 ? 0.8 : 1;             // the last cycle of every 3 runs quieter
-  const weight = Math.sin(t / 4600 + seed * 2.3) * AMP.weightShift * holdK;
-  const counter = Math.sin(t / 4600 + seed * 2.3) * holdK;
+  // A7 FIX (100-JUDGE PANEL REPORT §2.1 — THE WEIGHT STORY): the previous
+  // idle was a sine stack — correct in kind, sub-perceptual in sum (≤3px of
+  // visible travel at side rigs): mid-sentence holds read as a figure
+  // PARKED ON A MARK. The idle is now a TWO-STATE system, as the report
+  // prescribes: each 7.2s cycle DWELLS ~60% of its time on a full visible
+  // contrapposto (the weight ON one leg — hip shifted 20 local units, the
+  // shoulder counter riding the same state), then releases through a 700ms
+  // easeInOutSine settle to neutral for ~40%, and the stance leg ALTERNATES
+  // every cycle. Every 3rd cycle runs at the quieter 0.8 register (the
+  // breath-hold contrast survives). A hold now ACTS: weight visibly onto
+  // one leg, a settle, neutral, the other leg. Pure function of t.
+  const idleClock = t / 7200 + seed * 0.61;
+  const idlePhase = idleClock % 1;
+  const idleIdx = Math.floor(idleClock);
+  const stanceDir = idleIdx % 2 === 0 ? 1 : -1;   // the weight alternates legs
+  let idleK: number;                              // 0 = neutral, 1 = full contrapposto
+  if (idlePhase < 0.58) idleK = 1;
+  else if (idlePhase < 0.65) idleK = 1 - easeInOutSine((idlePhase - 0.58) / 0.07);
+  else if (idlePhase < 0.95) idleK = 0;
+  else idleK = easeInOutSine((idlePhase - 0.95) / 0.05);
+  const holdK = idleIdx % 3 === 2 ? 0.8 : 1;      // every 3rd cycle runs quieter
+  const weight = stanceDir * AMP.weightShift * idleK * holdK;
+  const counter = stanceDir * idleK * holdK;
   ctx.translate(weight, 0);
   ctx.rotate(Math.sin(t / 6200 + seed * 0.9) * 0.003);
   // the pose-level contrapposto offsets (applied on a COPY — callers'
@@ -1786,6 +1829,12 @@ export function drawStickmanV2(
     ...pose0,
     lAU: pose0.lAU - counter * AMP.shoulderCounterDeg,
     rAU: pose0.rAU + counter * AMP.shoulderCounterDeg,
+    // A7 FIX (100-JUDGE PANEL REPORT §2.1 — THE RE-SETTLE): the head and
+    // torso RE-SETTLE after every accent — a small counter-lean under the
+    // gesture's smear (the strike's follow-through the report names). The
+    // body answers the accent instead of returning to the same pose two
+    // seconds running. Pure function of the rig's own smear term.
+    lean: (pose0.lean ?? 0) - (r.smear ?? 0) * 1.5,
   };
   // BLUEPRINT Phase 2: the two rotation terms the rig never had —
   // PELVIS TILT (the hip line tilts; the torso grows from the tilted
@@ -1853,7 +1902,11 @@ export function drawStickmanV2(
     // C5 FIX (market review §2.1 — THE CLOWN WEDGE): the shoe shrinks 15%
     // so the foot stops outsizing the shin (a 33-unit foot on 21-unit shin
     // widths read as clown shoes at hero scale).
-    ctx.scale(0.85, 0.85);
+    // A2 FIX (100-JUDGE PANEL REPORT §2.1 — THE DARK LUMP): the wedge
+    // shrinks a FURTHER 13% at the working rigs (below 1.4) so the foot
+    // never outsizes the shin at the side stagings either — the report's
+    // "wedge length −15% at rigs < 1.4".
+    ctx.scale(scale < 1.4 ? 0.74 : 0.85, scale < 1.4 ? 0.74 : 0.85);
     ctx.fillStyle = col;
     ctx.beginPath();
     // 100-JUDGE VISUAL AUDIT (Fix 1 — THE CLEAN WEDGE): the old four-curve
@@ -1869,10 +1922,19 @@ export function drawStickmanV2(
     ctx.quadraticCurveTo(6, -1.8, -8.5, -3.2);
     ctx.closePath();
     ctx.fill();
-    // the sole line — a slightly darker pass under the wedge so the
-    // ground contact reads (one light, shadow tone)
-    ctx.strokeStyle = rgba(PALETTE.shadow, 0.55);
-    ctx.lineWidth = 2.4;
+    // A2 FIX (100-JUDGE PANEL REPORT §2.1 — TWO-TONE SHOE): an IVORY mid-sole
+    // band over the ink wedge — the premium sneaker read the report names;
+    // the shoe now answers the ground as footwear, not a dark boot-blob.
+    ctx.strokeStyle = rgba(PALETTE.white, 0.92);
+    ctx.lineWidth = 3.0;
+    ctx.beginPath();
+    ctx.moveTo(-7.2, 4.4);
+    ctx.quadraticCurveTo(7.4, 5.8, 21.2, 4.2);
+    ctx.stroke();
+    // the ground-contact sole line — ALWAYS legible (the report's 0.9 alpha;
+    // was 0.55, invisible over the mint floor band at side rigs)
+    ctx.strokeStyle = rgba(PALETTE.shadow, 0.9);
+    ctx.lineWidth = 2.2;
     ctx.beginPath();
     ctx.moveTo(-8.2, 7);
     ctx.quadraticCurveTo(7.4, 8, 22.4, 6);
@@ -1899,10 +1961,25 @@ export function drawStickmanV2(
   // silhouette at 320px — the ownerWorker pair becomes cast, not copies.
   const worker = r.variant === 'worker';
   // U2 (market review Table 5 — WEIGHT THE WORKING LIMBS): one taper per
-  // camera distance. Below rig 1.4 (the working stagings — side hosts at
-  // 1.1-1.35) the limbs carry the WORKING register's mass so they hold
-  // against the capsule torso; the hero register keeps INK unchanged.
-  const IKr = scale < 1.4 ? INK_WORKING : INK;
+  // camera distance.
+  // A1 FIX (100-JUDGE PANEL REPORT §2.1 — SCARECROW PROPORTIONS): the hard
+  // rig<1.4 switch left the 1.4-2.0 band — where most side hosts stage —
+  // on the thin hero register: wire arms under a large head, the torso
+  // capsule floating on string. The two registers now BLEND on a smooth
+  // curve over rig 1.2→2.2 (zero = the full working mass at side-host
+  // stagings, one = the hero register at editorial close-ups), so limb
+  // mass holds ~constant as a share of head mass at EVERY camera
+  // distance — the Becker-grade standard the report prescribes — with no
+  // visible register step at any staging. Pure function of scale.
+  const regT = easeInOutSine(clamp01((scale - 1.2) / 1.0));
+  const blendTaper = (w: [number, number, number], h: [number, number, number]): [number, number, number] =>
+    [w[0] + (h[0] - w[0]) * regT, w[1] + (h[1] - w[1]) * regT, w[2] + (h[2] - w[2]) * regT];
+  const IKr = {
+    armNear: blendTaper(INK_WORKING.armNear, INK.armNear),
+    armFar: blendTaper(INK_WORKING.armFar, INK.armFar),
+    legNear: blendTaper(INK_WORKING.legNear, INK.legNear),
+    legFar: blendTaper(INK_WORKING.legFar, INK.legFar),
+  };
   if (drawFar) {
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -2041,7 +2118,13 @@ export function drawStickmanV2(
     // chest). The verlet chain gives it the follow-through the knot never
     // had: the cloth lags the talk/walk clocks, overshoots and settles.
     scarfTail(ctx, neckX - 3, neckY + 2, 0, PALETTE.gold, PALETTE.goldDeep,
-      t, seed, r.walkPhase !== undefined ? 1.6 : 1, 1 + talkEnv0 * 1.2);
+      // A5 FIX (100-JUDGE PANEL REPORT §2.1 — THE SCARF FLICK): the tail's
+      // anchor register now carries the accent strikes — on every gesture
+      // smear the cloth flicks visibly (the follow-through the report
+      // prescribes), so the brand's one cloth element answers the body's
+      // emphasis beats instead of riding only the ambient clocks.
+      t, seed, r.walkPhase !== undefined ? 1.6 : 1,
+      1 + talkEnv0 * 1.2 + (r.smear ?? 0) * 2.5);
   }
   {
     const tx0 = 0, ty0 = pelvisY + 4, tx1 = neckX, ty1 = neckY;
@@ -2063,8 +2146,12 @@ export function drawStickmanV2(
     // scale — every torso half-width rises 18% (chest 22 -> 26, waist
     // 19 -> 22.4, prof widens with it) so the widened wedge carries the
     // frame's dark-mass band at every rig.
-    const wH = prof ? 20.6 : 17.7, wW = prof ? 15.3 : 13;
-    const wC = (prof ? 28.3 : 26) * chestBreathe, wS = (prof ? 23.6 : 22.4) * chestBreathe;
+    // A4 FIX (100-JUDGE PANEL REPORT §2.1 — CAST BY MASS): the worker's
+    // torso widens one step past the host's (a stockier silhouette), so
+    // the ownerWorker pair reads as two PEOPLE by mass — the report's
+    // "body width, not accessory alone" — before any prop or color.
+    const wH = prof ? 20.6 : worker ? 19.4 : 17.7, wW = prof ? 15.3 : worker ? 14.5 : 13;
+    const wC = (prof ? 28.3 : worker ? 27.0 : 26) * chestBreathe, wS = (prof ? 23.6 : worker ? 23.0 : 22.4) * chestBreathe;
     const rX = (h: number, w: number) => tdx * h + tnx * w;
     const rY = (h: number, w: number) => ty0 + tdy * h + tny * w;
     const lX = (h: number, w: number) => tdx * h - tnx * w;
@@ -2127,8 +2214,29 @@ export function drawStickmanV2(
       ctx.closePath();
       ctx.fill();
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2.6;
       ctx.stroke();
+      // A5 FIX (100-JUDGE PANEL REPORT §2.1 — THE MONOGRAM): the film's own
+      // signature letter rides the vest chest at hero rigs (≥ 2.2) — the
+      // one-glyph brand mark the report's identity prescription names.
+      // Small, dark-on-gold, pure geometry; it reads as the channel's mark
+      // at editorial scale and retires below it (no feed mush).
+      if (scale >= 2.2) {
+        const kx = rX(0.74, 0), ky = rY(0.74, 0);
+        const u = 4.2;
+        ctx.strokeStyle = rgba(OUTFIT.tee, 0.85);
+        ctx.lineWidth = 1.7;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(kx - u * 0.5, ky - u);
+        ctx.lineTo(kx - u * 0.5, ky + u);
+        ctx.moveTo(kx - u * 0.5, ky - u);
+        ctx.lineTo(kx + u * 0.62, ky + u * 0.72);
+        ctx.moveTo(kx - u * 0.5, ky + u * 0.05);
+        ctx.lineTo(kx + u * 0.75, ky + u);
+        ctx.stroke();
+      }
       // the deep-V notch — the tee shows through the vest's opening
       ctx.fillStyle = OUTFIT.tee;
       ctx.beginPath();
@@ -3016,6 +3124,21 @@ export function drawStickmanV2(
   ctx.moveTo(-9 + hb.dx, 37 + hb.dy);
   ctx.quadraticCurveTo(hb.dx, 46 + hb.dy, 9 + hb.dx, 37 + hb.dy);
   ctx.fill();
+  // A4 FIX (100-JUDGE PANEL REPORT §2.1 — CAST BY MASS): the prof gains a
+  // rounded beard mass fused under the chin — head MASS now separates the
+  // cast, not accessories alone (the report: "differentiate by head shape,
+  // hair volume, body width"). Drawn in the same ink as the contour, under
+  // the glasses layer, inside the head's own transform. Pure geometry.
+  if (prof) {
+    ctx.fillStyle = becker ? (scale < 1.0 ? '#F7EFD8' : '#FFFFFF') : ink;
+    ctx.beginPath();
+    ctx.ellipse(hb.dx, 33, 15.5, 10.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-13 + hb.dx, 30 + hb.dy);
+    ctx.quadraticCurveTo(hb.dx, 50 + hb.dy, 13 + hb.dx, 30 + hb.dy);
+    ctx.fill();
+  }
   if (headStroke > 0) {
     ctx.lineWidth = 4.5 / (scale * faceS * HEAD_SHRINK) * headTex;
     ctx.beginPath();
@@ -3056,10 +3179,13 @@ export function drawStickmanV2(
     // U4 (market review Table 5 — THE SIGNATURE AT WORKING RIGS): below
     // rig 1.5 the crest kept its hero size in local units — at the
     // side-host stagings the comma shrank to a whisper and the silhouette
-    // lost its one nameable detail. One size step UP below rig 1.5 (+18%)
-    // keeps the crest the silhouette's constant; the hero register is
-    // unchanged.
-    const cr = scale < 1.5 ? 1.18 : 1;
+    // lost its one nameable detail. One size step UP below rig 1.5 keeps
+    // the crest the silhouette's constant; the hero register is unchanged.
+    // A5 FIX (100-JUDGE PANEL REPORT §2.1 — THE FEED IDENTITY FLOOR): the
+    // +18% step still left the comma 4-6px at the side stagings — under
+    // the feed's identity floor. The step rises to +32%: the crest is the
+    // one non-gold signature detail and must NAME the silhouette at 320px.
+    const cr = scale < 1.5 ? 1.32 : 1;
     ctx.fillStyle = ink;
     ctx.beginPath();
     ctx.moveTo(-13 * cr, -26 * cr);
@@ -3360,9 +3486,12 @@ export function drawStickmanV2(
     ctx.fill();
     // pupil glints — the alive eye. A8: the share drops to 0.18 so the
     // whites never re-dominate the eye at thumbnail scale.
+    // A4 FIX (100-JUDGE PANEL REPORT §2.1 — GLINT FLOOR): the glint is
+    // floored at 1.5px screen-equivalent — the alive-eye read survives
+    // every certified rig instead of dissolving below 1px at side hosts.
     ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath(); ctx.arc(-14 + eyeDX - pup * 0.38, -6 - pup * 0.42, Math.max(0.8, pup * 0.18), 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(14 + eyeDX + pup * 0.38, -6 - pup * 0.42, Math.max(0.8, pup * 0.18), 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-14 + eyeDX - pup * 0.38, -6 - pup * 0.42, Math.max(1.5, pup * 0.18), 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(14 + eyeDX + pup * 0.38, -6 - pup * 0.42, Math.max(1.5, pup * 0.18), 0, Math.PI * 2); ctx.fill();
   } else if (pose.browRaise > 0.55) {
     ctx.fillStyle = '#FFFFFF';
     ctx.beginPath();
@@ -3397,6 +3526,20 @@ export function drawStickmanV2(
     ctx.lineTo(19 + eyeDX, lidY);
     ctx.stroke();
   }
+  // A4 FIX (100-JUDGE PANEL REPORT §2.1 — THE MID-FACE ANCHOR): below rig
+  // 1.4 the egg carried no feature between the glasses wire and the mouth —
+  // the ~30px band read as "wire glasses on an egg". A one-stroke nose hint
+  // (a short ink tick at 45% alpha) lands from rig 1.4 up: the face gains a
+  // mid-line anchor at exactly the stagings where the band overcrowds.
+  if (!becker && scale >= 1.4) {
+    ctx.strokeStyle = rgba(ink, 0.45);
+    ctx.lineWidth = Math.max(1.8, featureFloor(2.6));
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(eyeDX * 0.35, 2);
+    ctx.quadraticCurveTo(eyeDX * 0.35 + 2.2, 8, eyeDX * 0.35 - 0.8, 11.5);
+    ctx.stroke();
+  }
   // PHASE-1 VISUAL AUDIT (Fix 4 — ONE DOMINANT BROW CHANNEL, report
   // Phase 1 "Face"): the face carried THREE competing brow systems — the
   // becker white double-arc, the 3-shape switch (neutral / surprise-arch /
@@ -3417,7 +3560,11 @@ export function drawStickmanV2(
     // ivory lift above it — the brow arch reads as attached to the face at
     // every rig, and the travel (AMP.browTravelPx 40 → 14) keeps even the
     // full-surprise arch inside the forehead's own band.
-    const lift = ivory ? 3.2 : 0;
+    // A4 FIX (100-JUDGE PANEL REPORT §2.1 — BROWS ABOVE THE WIRE): the rest
+    // line lifts 2 head-units ABOVE the glasses rim at every rig — the brow
+    // band and the lens wire read as two separate features at side-host
+    // scale instead of one fused goggle-mask.
+    const lift = (ivory ? 3.2 : 0) + 2.0;
     const y0 = -15.5 - lift - bRaise - dir * Math.tan(bAng) * 4.5;
     const y1 = -13.5 - lift - bRaise + dir * Math.tan(bAng) * 4.5;
     ctx.strokeStyle = becker ? faceInk : ink;

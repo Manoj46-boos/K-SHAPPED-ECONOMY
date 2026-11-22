@@ -332,7 +332,7 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
     // M3 FIX (market review §2 — WALKS, NOT GLIDES): the default walk
     // crossing tightens 1600 → 1150ms — the same distance in less time
     // reads as a walk with intent, not a slow glide across the stage.
-    const walkDur = (g.s.walkMs as number | undefined) ?? 1150;
+    const walkDur = (g.s.walkMs as number | undefined) ?? 1500;
     // AUDIT-3 / §1.5: directional gesture bias — present TOWARD the content
     const bias = side === 'left' ? 'right' : side === 'right' ? 'left' : undefined;
     const arrive = Stickman.poseAt(t, {
@@ -679,9 +679,15 @@ export function hostSceneV2(g: SceneCtx): void {
   let hx = hxTarget;
   let pose: import('./stickman').Pose;
   let walkPhase: number | undefined;
-  // M3 FIX: the entrance walk rides the tightened 1150ms crossing (see the
-  // walkDur note above) — a walk with intent, not a 1.6s glide.
-  if (entrance === 'walk' && t < 1150) {
+  // M3 FIX: the entrance walk rides the crossing clock (see the walkDur
+  // note above) — a walk with intent, not a glide.
+  // A6 FIX (100-JUDGE PANEL REPORT §2.1 — SCISSOR-SLIDE AT CROSSINGS): the
+  // 1150ms crossing sampled ~2-3 frames per swing window — the legs read as
+  // rotating around a fixed hip, and the contact dust was invisible. The
+  // crossing lengthens to 1500ms (toward the 1600ms entrance the report
+  // measured as "reading far better"): the same planted-foot stride gets
+  // 4-5 samples per swing window — the walk READS as steps, not rotation.
+  if (entrance === 'walk' && t < 1500) {
     // AUDIT-3 / §1.2: entrance walk 900 → 1600ms (see drawHost) with the
     // arrival settle into the presenting gesture.
     const arrive = Stickman.poseAt(t, {
@@ -707,7 +713,7 @@ export function hostSceneV2(g: SceneCtx): void {
     // beat gets a real 221-384px cross with planted feet.
     const walkFrom = Math.max(240, hxTarget - 500);
     const r = hxTarget - walkFrom >= 120
-      ? walkIn(t, walkFrom, hxTarget, 1150, arrive, HOST_SCALE, 5.2)
+      ? walkIn(t, walkFrom, hxTarget, 1500, arrive, HOST_SCALE, 5.2)
       : null;
     if (r) {
       hx = r.x;
@@ -750,7 +756,10 @@ export function hostSceneV2(g: SceneCtx): void {
       // PHASE 1.1: the entry-edge clamp drops to 70 (see the entrance above) —
       // every block pair on the certified set is now walkable (all blocks sit
       // ≥ 461px, so this clamp is a floor, not a shaper).
-      const r = walkIn(moveT, Math.max(fromX, 70), toX, 900, arrive, HOST_SCALE, 5.2);
+      // A6 FIX (100-JUDGE PANEL REPORT §2.1): the sentence-boundary crossing
+      // lengthens 900 → 1250ms — same planted-foot stride, more samples per
+      // swing window (the scissor-slide read died with the entrance walk's).
+      const r = walkIn(moveT, Math.max(fromX, 70), toX, 1250, arrive, HOST_SCALE, 5.2);
       hx = r.x;
       pose = r.walking
         ? r.pose
