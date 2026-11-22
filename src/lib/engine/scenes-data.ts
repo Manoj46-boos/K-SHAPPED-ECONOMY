@@ -696,7 +696,13 @@ export function chartJourneyScene(g: SceneCtx): void {
   // search yields to the walker's real position instead of a guess.
   let walkerXNow = 815;
   {
-    const STN_E = [430, 815, 1240];
+    // C8 FIX (market review §2.1 — NEVER TANGLE THE DATA): the station set
+    // drops the mid-plot stop (815 — dead center, where the low data line
+    // passed between his legs and the figure occluded the plot). The walker
+    // now works from the plot's own shoulders (430 / 1240), where the
+    // planted fist lands ON the stroke and the body never straddles the
+    // one thing the frame is about.
+    const STN_E = [430, 1240];
     const hIdxE = (id?: string): number => (id ? Math.floor(hashStr(id) * STN_E.length) % STN_E.length : 1);
     const curE = hIdxE(g.sentenceId);
     const prevE = g.prevSentenceId ? hIdxE(g.prevSentenceId) : 0;
@@ -961,7 +967,9 @@ export function chartJourneyScene(g: SceneCtx): void {
     // figure's feet land on its plate edge; the ids are deterministic from
     // the chip text (theme.chip's own registration).
     for (const c of chips) declareHostContact(`chip:${String(c).slice(0, 14)}`);
-    const STN = [430, 815, 1240];
+    // C8 FIX: stations at the plot's shoulders (430 / 1240) — see the
+    // walkerXNow block above. The mid-plot stop is gone.
+    const STN = [430, 1240];
     const hIdx = (id?: string): number => (id ? Math.floor(hashStr(id) * STN.length) % STN.length : 1);
     const cur = hIdx(g.sentenceId);
     const prev = g.prevSentenceId ? hIdx(g.prevSentenceId) : 0;
@@ -1017,11 +1025,18 @@ export function chartJourneyScene(g: SceneCtx): void {
         const plotYJ = chartY + (series.length > 1 ? 66 : 0);
         const gyJ = plotYJ + chartH - ((gvJ - yMinJ) / (yMaxJ - yMinJ)) * chartH;
         const crownJ = floorY - 241 * walkerRig;
-        // the grip never reaches into the scene title's registered band
-        // (170-246 design) even under the mapped exit-camera drift — the
-        // fist parks below the title's worst-case mapped bottom (~327) and
-        // reads as a present when the line sits higher.
-        gripJ = { x: hxJ, y: clamp(gyJ, Math.max(crownJ - 24, 336), floorY - 54), hand: 'fist' };
+        // C8 GUARD FIX: the fist plants ONLY when the line is genuinely in
+        // the arm's reach cone — below y 420 (clear of the annotation pill
+        // band, which clamps above the walker's crown ~281-334, and of the
+        // scene title band at 170-246) and above floorY - 54 (the arm's
+        // natural downward limit). The old unclamped-336 park made the hand
+        // REGISTER into the pill band on high-line stations (contact⇄
+        // annotationTxt crossings); a planted fist that is not ON the stroke
+        // is not contact anyway. When the line sits high, the walker
+        // presents instead — contact exists where the line actually is.
+        gripJ = gyJ >= 420 && gyJ <= floorY - 54
+          ? { x: hxJ, y: gyJ, hand: 'fist' as const }
+          : undefined;
       }
     }
     // B5/B7 RE-SPEC: the walker runs the readable cast tier (1.2) — same

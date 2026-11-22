@@ -709,17 +709,21 @@ export class Stickman {
       // PUSH / toe-off — the trailing leg extends, body drives forward
       // B11: the push toe 22 -> 12 — the pointed-toe kick read as a
       // goose-step; 12 keeps the roll-through without the ballet foot.
-      { at: 0.00, lu: -24, ll: -30, lift: 2,  toe: 12,  root: 0,  lean: 5,  chin: 1 },
+      // C5 FIX (market review §2.1): the mid-stride toe extremes soften
+      // (12 → 8, -16 → -10, -14 → -9, 16 → 10) — a still frame taken
+      // mid-stride (the sweep frames) must not show a ballet turnout; the
+      // roll-through survives at a quieter register.
+      { at: 0.00, lu: -24, ll: -30, lift: 2,  toe: 8,   root: 0,  lean: 5,  chin: 1 },
       // knee-high swing — the caricatured pass of the SWING leg
       // (AUDIT-ROUND-3 iter-2: -46 → -50, the knee drives harder)
       // B11: the knee drives -44 (was -50) and the ankle flexes toe-UP
       // (-16) — the swing leg leads with the HEEL like a walked step, not
       // the pointed-toe kick the audit named the goose-step.
-      { at: 0.10, lu: -6,  ll: -44, lift: 15, toe: -16, root: -2, lean: 4,  chin: 0 },
+      { at: 0.10, lu: -6,  ll: -44, lift: 15, toe: -10, root: -2, lean: 4,  chin: 0 },
       // mid-swing — the thigh sweeps forward, the foot clears the ground
       { at: 0.25, lu: 12,  ll: -30, lift: 17, toe: -10, root: -3, lean: 3,  chin: 0 },
       // REACH — the leg extends, the heel presents ahead
-      { at: 0.40, lu: 25,  ll: -6,  lift: 4,  toe: -14, root: 2,  lean: 4,  chin: -2 },
+      { at: 0.40, lu: 25,  ll: -6,  lift: 4,  toe: -9,  root: 2,  lean: 4,  chin: -2 },
       // CONTACT — the lunge: leg extended ahead, heel strikes, body LOW,
       // the chin tucks INTO the plant
       // P1 (Verdict report — MOTION RE-REGISTRATION): the vertical extremes
@@ -727,7 +731,7 @@ export class Stickman {
       // beats differ in head height by >= 4% of the figure at the 320 twin —
       // the verdict's acceptance test. The ground anchor keeps the planted
       // foot ON the line (rootY stays the stance leg's reach).
-      { at: 0.50, lu: 27,  ll: 2,   lift: 0,  toe: -14, root: 12, lean: 5,  chin: -4 },
+      { at: 0.50, lu: 27,  ll: 2,   lift: 0,  toe: -9,  root: 12, lean: 5,  chin: -4 },
       // DOWN — the absorb: weight lands, the knee flexes, pelvis LOWEST
       { at: 0.60, lu: 18,  ll: -18, lift: 0,  toe: -4,  root: 18, lean: 4,  chin: -2 },
       // P1 — THE 2-FRAME HOLD ON THE DOWN KEY: a duplicate DOWN at 0.645
@@ -739,7 +743,7 @@ export class Stickman {
       { at: 0.75, lu: 4,   ll: -10, lift: 0,  toe: 2,   root: -12, lean: 3,  chin: 2 },
       // ROLL-THROUGH — the heel lifts, the toe loads toward the next push
       // (iter-2: stays tall into the push, root -1 → -3)
-      { at: 0.90, lu: -12, ll: -8,  lift: 0,  toe: 16,  root: -3, lean: 4,  chin: 1 },
+      { at: 0.90, lu: -12, ll: -8,  lift: 0,  toe: 10,  root: -3, lean: 4,  chin: 1 },
     ];
     // sample the table: smoothstep between adjacent keys — the pose
     // HOLDS near each extreme (a drawn in-between, not a linear slide)

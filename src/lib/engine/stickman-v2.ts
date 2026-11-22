@@ -80,7 +80,11 @@ const BODY_MASS = '#7A5D10';
  * can name in three seconds, riding the existing one-light ink language.
  * trouser stays the ink register (#2A3432 family) the limbs already draw.
  */
-const OUTFIT = { tee: '#5A4A17', vest: '#D9B224', trouser: '#2A3432' } as const;
+// C3 FIX (market review §2.1 — TWO TONES, ONE SILHOUETTE): the tee drops
+// from muddy gold-olive #5A4A17 to a true VALUE step under the vest
+// (#3A3A28). The host now carries exactly: ink limbs + gold vest #D9B224
+// over a dark tee + cream head — nameable in three seconds at feed scale.
+const OUTFIT = { tee: '#3A3A28', vest: '#D9B224', trouser: '#2A3432' } as const;
 /** AUDIT-ROUND-3 iter-2 (ONE INK, ALL FOUR LIMBS): the gold near-arm
  *  sleeve (ARM_MASS) read to the re-review panel as "the near limb
  *  darker/warmer in tone than the far — the mismatched limb shading
@@ -223,9 +227,10 @@ function drawMouthV2(
   // 100-JUDGE REPORT (fix R1 — THE PERMANENT-ALARM GASP): the reaction
   // multiplier ran to 2.0 — at the shock close-up's faceScale the mouth
   // height hit ~79 screen px, the largest single feature on the face.
-  // The gasp keeps a committed 1.5x ceiling: still a gasp at distance,
-  // no longer a yelling void.
-  jawX = Math.min(jawX, 1.5);
+  // C1 FIX (market review §2.1): the gasp ceiling drops to 1.25x — speech
+  // must never out-mass the eyes; the shock read comes from brows + jaw,
+  // not from a mouth void.
+  jawX = Math.min(jawX, 1.25);
   // AUDIT-ROUND-2 (fix 9): the width floor — 12px minimum in the
   // face-floor regime, scaled smoothly below it.
   // PHASE-1 FACE FILL (audit §7 — FILLED VISEME INTERIOR): the mouth is a
@@ -234,17 +239,20 @@ function drawMouthV2(
   // the interior gains a darker cavity wedge + warm tongue hint so the open
   // mouth reads as depth (a cavity), not as a flat ink blob.
   // B4 RE-SPEC (Visual Quality Audit §3.1 — THUMBNAIL-FACE PARITY): the
-  // mouth is the face's third mass — the floors lift one step (15 → 17
-  // hero / 9 → 10 compact) so the film's talking face carries the
-  // thumbnail's mouth presence at every rig.
-  const wFloor = bigFace ? 17 : 10;
+  // mouth is the face's third mass. C1 FIX re-caps the floors (17 → 13
+  // hero / 10 → 9 compact): the mouth stays third behind the eyes and
+  // brows — speech presence without the yelling void.
+  const wFloor = bigFace ? 13 : 9;
   const mouthCavity = (cx: number, cy: number, rw: number, rh: number): void => {
-    ctx.fillStyle = 'rgba(28,22,16,0.5)';
+    // C1 FIX: cavity alpha 0.50 → 0.32 and the tongue hint 0.38 → 0.26 —
+    // the open mouth reads as a soft articulated shape, never as the black
+    // void that out-massed the eyes in every talking frame.
+    ctx.fillStyle = 'rgba(28,22,16,0.32)';
     ctx.beginPath();
     ctx.ellipse(cx, cy + rh * 0.18, rw * 0.62, rh * 0.5, 0, 0, Math.PI * 2);
     ctx.fill();
     // the tongue hint — one warm arc at the cavity's floor
-    ctx.fillStyle = rgba(PALETTE.down, 0.38);
+    ctx.fillStyle = rgba(PALETTE.down, 0.26);
     ctx.beginPath();
     ctx.ellipse(cx, cy + rh * 0.42, rw * 0.44, rh * 0.26, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -261,8 +269,10 @@ function drawMouthV2(
   // closed line, the small-open slot, the wide-open jaw, the round-O —
   // mapped by viseme class, then the proven 4-shape talk envelope below.
   if (viseme !== 'X' && talk > 0.15) {
+    // C1 FIX: every open register caps at ~60% of its former height so the
+    // talking mouth stays the face's SECOND mass behind the eyes.
     const w = Math.max(wFloor, 6 + talk * 4);
-    const h = (2.5 + talk * 6.5) * jawX;
+    const h = (2.5 + talk * 4.5) * jawX;
     switch (viseme) {
       case 'A': // closed (MBP) — flat line, slightly compressed
         ctx.lineWidth = 5;
@@ -275,7 +285,7 @@ function drawMouthV2(
       case 'H': // wide-open register (AH) — full jaw drop
         {
           const rw = w * (viseme === 'H' ? 0.9 : 1.0);
-          const rh = h * (viseme === 'H' ? 1.375 : 0.875) * jawX;
+          const rh = h * (viseme === 'H' ? 1.05 : 0.8) * jawX;
           ctx.fillStyle = col;
           ctx.beginPath();
           ctx.ellipse(mx, 15, rw, rh, 0, 0, Math.PI * 2);
@@ -333,21 +343,23 @@ function drawMouthV2(
   // closed / small-open / wide-open / round-O shapes — articulation
   // from data the engine already receives.
   if (talk > 0.85) {
-    // the round "O" — peak openness: taller than wide, reads at distance
-    const w = Math.max(wFloor + 2, 6.5 + (talk - 0.85) * 12);
+    // the round "O" — peak openness: C1 caps it (width floor 13, aspect
+    // 0.85) so even the peak open mouth stays the face's SECOND mass.
+    const w = Math.min(wFloor + 1, 7 + (talk - 0.85) * 6);
     ctx.fillStyle = col;
     ctx.beginPath();
-    ctx.ellipse(mx, 15, w, w * 1.3 * jawX, 0, 0, Math.PI * 2);
+    ctx.ellipse(mx, 15, w, w * 0.85 * jawX, 0, 0, Math.PI * 2);
     ctx.fill();
-    mouthCavity(mx, 15, w, w * 1.3 * jawX);
+    mouthCavity(mx, 15, w, w * 0.85 * jawX);
     ctx.fillStyle = '#FDFCF8';
     ctx.beginPath();
-    ctx.ellipse(mx, 15 - w * 0.55 * jawX, w * 0.5, w * 0.24 * jawX, 0, 0, Math.PI * 2);
+    ctx.ellipse(mx, 15 - w * 0.38 * jawX, w * 0.5, w * 0.18 * jawX, 0, 0, Math.PI * 2);
     ctx.fill();
   } else if (talk > 0.55) {
-    // wide-open articulate jaw (the v3 shape, retuned + FACE FILL heights)
+    // wide-open articulate jaw — C1: height formula 5+20Δ → 4.5+9Δ (the
+    // peak open mouth drops from ~14 to ~8 rig units).
     const w = Math.max(wFloor, 7.5 + talk * 3);
-    const h = (5 + (talk - 0.55) * 20) * jawX;
+    const h = (4.5 + (talk - 0.55) * 9) * jawX;
     ctx.fillStyle = col;
     ctx.beginPath();
     ctx.ellipse(mx, 15, w, h, 0, 0, Math.PI * 2);
@@ -355,12 +367,12 @@ function drawMouthV2(
     mouthCavity(mx, 15, w, h);
     ctx.fillStyle = '#FDFCF8';
     ctx.beginPath();
-    ctx.ellipse(mx, 15 - h * 0.45, w * 0.55, h * 0.28, 0, 0, Math.PI * 2);
+    ctx.ellipse(mx, 15 - h * 0.42, w * 0.55, h * 0.26, 0, 0, Math.PI * 2);
     ctx.fill();
   } else if (talk > 0.18) {
-    // small-open — mid-energy speech: a modest rounded opening
+    // small-open — mid-energy speech: a modest rounded opening (C1: 3+8Δ → 3+5.5Δ)
     const w = Math.max(wFloor - 1, 6 + talk * 4);
-    const h = (3 + talk * 8) * jawX;
+    const h = (3 + talk * 5.5) * jawX;
     ctx.fillStyle = col;
     ctx.beginPath();
     ctx.ellipse(mx, 15, w, h, 0, 0, Math.PI * 2);
@@ -382,10 +394,16 @@ function drawMouthV2(
     ctx.closePath();
     ctx.fill();
   } else {
-    // the neutral mouth — a filled soft slot (same fill logic at rest)
+    // C1 FIX — the neutral mouth: the old flat slot read as a downturned
+    // line (the "grumpy" rest face, t17m50s). It is now a soft closed
+    // smile — one filled crescent with a gentle upturn, the warm default
+    // between sentences.
     ctx.fillStyle = col;
     ctx.beginPath();
-    ctx.ellipse(mx, 14.5, 7, 2.2, 0, 0, Math.PI * 2);
+    ctx.moveTo(-8.5 + mx, 13.6);
+    ctx.quadraticCurveTo(mx, 16.2, 8.5 + mx, 13.6);
+    ctx.quadraticCurveTo(mx, 17.6, -8.5 + mx, 13.6);
+    ctx.closePath();
     ctx.fill();
   }
 }
@@ -625,7 +643,10 @@ export function limb2(
   // not carry a knuckle disc.
   const rawBend = Math.min(1, Math.abs((v1x * v2y - v1y * v2x) / (L1 * L2)));
   const bend = Math.min(1, Math.max(0.25, rawBend));
-  const BOW = 2.8 * bend;
+  // C4 FIX (market review §2.1 — THE PIPE-CLEANER READ): the drawn bow
+  // gains a floor (1.5) so even near-straight rest limbs carry the drawn
+  // curve's life instead of reading as two straight columns.
+  const BOW = Math.max(2.8 * bend, 1.5);
   const n1x = -v1y / L1, n1y = v1x / L1;
   const side1 = (n1x * v2x + n1y * v2y) < 0 ? 1 : -1;
   const n2x = -v2y / L2, n2y = v2x / L2;
@@ -660,10 +681,15 @@ export function limb2(
   // at the elbows. The gate TIGHTENS to sin 45° (0.707 — the bend where a
   // knee/elbow VISUALLY articulates) and the radius SHRINKS 40%
   // (0.55 → 0.33×wJ): a knuckle is a hinge hint, not a pad.
-  if (rawBend > 0.707) {
+  // C4 FIX (market review §2.1 — INVISIBLE ARTICULATION): the knuckle gate
+  // lowers 0.707 → 0.45 so ordinary poses (the gentle bends every rest and
+  // presenting pose actually carries) show the elbow/knee hinge, and the
+  // disc radius rises 0.33 → 0.42×wJ so the joint reads as anatomy, not as
+  // a bump the eye must find.
+  if (rawBend > 0.45) {
     ctx.fillStyle = col;
     ctx.beginPath();
-    ctx.arc(jx, jy, wJ * 0.33 * jointK, 0, Math.PI * 2);
+    ctx.arc(jx, jy, wJ * 0.42 * jointK, 0, Math.PI * 2);
     ctx.fill();
   }
   // PHASE-1 VISUAL AUDIT (Fix 1 — the WRIST TAPER): the end disc was
@@ -778,7 +804,7 @@ export function handGlyph(
   // now renders the OPEN four-finger hand (the fingers wrap the held
   // edge); below, the fist mass holds (the feed twin).
   if (mode === 'grip') {
-    mode = rigScale >= 1.4 ? 'open' : 'fist';
+    mode = rigScale >= 1.25 ? 'open' : 'fist';
   }
   // 100-JUDGE VISUAL AUDIT (Phase 1 — HANDS TO FIVE GLYPHS): the hero-tier
   // swap. At rig ≥ 2 (the editorial and reaction stagings — the frames the
@@ -791,10 +817,14 @@ export function handGlyph(
   // the DEFAULT resting hand from rig 1.4 up — one hand language on every
   // staging a viewer can see a face at, not just the hero frames; below
   // 1.4 the mitten holds (fingers dissolve to noise at feed scale).
-  if (!mode && rigScale >= 1.4) {
+  // C4 FIX (market review §2.1 — HANDS THAT ACT AT WORKING RIGS): the open
+  // hand tier lowers 1.4 → 1.2 and the pinch tier 2.0 → 1.4, so the
+  // point/open/pinch glyphs fire on every staging where the hand is more
+  // than a few pixels — not only on the hero close-ups.
+  if (!mode && rigScale >= 1.2) {
     mode = 'open';
   }
-  if (mode === 'count1' && rigScale >= 2) {
+  if (mode === 'count1' && rigScale >= 1.4) {
     mode = 'pinch';
   }
   if (mode === 'fist' || mode === 'count1' || mode === 'count2' || mode === 'count3') {
@@ -1278,12 +1308,12 @@ export function groundShadowV2(
   // GOLD stage tick is retired at EVERY scale, including the background
   // rigs (≤1.2) where the previous round re-located it at whisper alpha —
   // the brief named this element and the re-render still read it as the
-  // deck under background figures. The ground language is now exactly the
-  // three-value system above; the brand's floor mark lives in the chapter
-  // cards, not under feet.
-  ctx.strokeStyle = rgba(PALETTE.shadow, 0.22);
-  ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(-70, 8); ctx.lineTo(70, 8); ctx.stroke();
+  // deck under background figures.
+  // C6 FIX (market review §2.1 — THREE OVERLAPPING MARKS): the ±70 grey
+  // stage tick (0.22 alpha) is retired with the others. The ground is now
+  // exactly TWO marks — the ambient radial patch and the crisp contact
+  // line — one shadow plus one line, the premium grammar; three marks
+  // stacked read as a smudge, not a stage.
   ctx.restore();
 }
 
@@ -1815,6 +1845,10 @@ export function drawStickmanV2(
     ctx.save();
     ctx.translate(f.ex, f.ey - 4);
     ctx.rotate(rotDeg * D2R);
+    // C5 FIX (market review §2.1 — THE CLOWN WEDGE): the shoe shrinks 15%
+    // so the foot stops outsizing the shin (a 33-unit foot on 21-unit shin
+    // widths read as clown shoes at hero scale).
+    ctx.scale(0.85, 0.85);
     ctx.fillStyle = col;
     ctx.beginPath();
     // 100-JUDGE VISUAL AUDIT (Fix 1 — THE CLEAN WEDGE): the old four-curve
@@ -1885,19 +1919,12 @@ export function drawStickmanV2(
     // the silhouette reads "gold workshirt with pushed-up sleeves" over an
     // ink arm, not a bare mustard capsule. Drawn UNDER the torso (before
     // it), so the sleeve root tucks into the shoulder like real clothing.
-    if (!prof) {
-      // 100-JUDGE VISUAL AUDIT (Fix 1 — THE STAIN CUFF): the rolled sleeve
-      // band was the vest's own gold a half-step darker (#A8851B) — it read
-      // as a stain ON the vest, not a fold of cloth. The cuff is now DEEP
-      // BRONZE (#6E5210), a full register darker than the shirt: the read is
-      // "gold workshirt, sleeves pushed up", with a clear cuff edge at feed.
-      taper(ctx,
-        neckX - 4 + Math.sin(shT) * -4, neckY + 3 + Math.sin(shT) * 9 - (pose.shoulderDrop ?? 0) * 0.6,
-        neckX - 4 + Math.sin(shT) * -4 + Math.sin(farAU * D2R) * U_ARM * 0.58,
-        neckY + 3 + Math.sin(shT) * 9 - (pose.shoulderDrop ?? 0) * 0.6 + Math.cos(farAU * D2R) * U_ARM * 0.58,
-        INK.armFar[0] + 5, INK.armFar[0] - 1, '#6E5210');
-    }
-      handGlyph(ctx, farHand.ex, farHand.ey, farAL, 15, farInk, scale, pose.lHand, grip); // PHASE-1: the far hand runs the same mitten glyph — one hand language at every scale
+    // C3 FIX (market review §2.1 — FOUR MUDDY GOLDS): the bronze cuff band
+    // is RETIRED. The torso is two tones (ink limbs + the gold vest over a
+    // dark tee); every extra warm band on the arms was a fourth gold that
+    // blurred the silhouette into "hoodie with a bag" at 1080p and a tan
+    // blob at 320px. Ink arms, clean shoulders.
+    handGlyph(ctx, farHand.ex, farHand.ey, farAL, 15, farInk, scale, pose.lHand, grip); // PHASE-1: the far hand runs the same mitten glyph — one hand language at every scale
     // AUDIT-2 / 0.1: the far shoe steps with its limb (farInk) — depth,
     // not a second colour system.
     shoeWedge(farFoot, farInk, pose.lToe ?? 0);
@@ -2002,16 +2029,14 @@ export function drawStickmanV2(
     const wave0 =
       Math.sin(t / 700 + seed) * 10 * (r.walkPhase !== undefined ? 3.2 : 1) * (1 + talkEnv0 * 1.4) +
       Math.sin(t / 240 + seed * 2) * 3.2 * talkEnv0;
-    // P1 U3 (RETIRE THE STRAP READ): at side rigs the tail is noise —
-    // the audit draws ONLY THE KNOT below the hero band. The gate rises
-    // 1.2 → 1.7: the flick exists at the hero/presenting registers where
-    // its 3.2px tip survives; below, the knot + collar break carry the
-    // brand (the knot draws at all scales — see the gold knot block).
-    if (scale >= 1.7) {
-      scarfTail(ctx, neckX - 3, neckY + 12, wave0 * 0.5, PALETTE.gold, '#A8851B',
-        t, seed, r.walkPhase !== undefined ? 3.2 : 1, 1 + talkEnv0 * 1.4);
-    }
-    // (no sub-gate stroke: knot-only below 1.7, per the audit)
+    // C2 FIX (market review §2.1 — THE MESSENGER-BAG STRAP): the scarf TAIL
+    // is retired at every rig. Any ribbon rooted at the neck crosses the
+    // gold chest at these proportions and reads as a cross-body bag strap
+    // (the defect survived three redesign generations for exactly that
+    // geometric reason). The scarf identity now lives ONLY in the knot +
+    // collar break at the neck (drawn below at all scales) — cloth at the
+    // neck, never a band across the torso.
+    // (scarfTail() is kept for reference above but has no call site.)
   }
   {
     const tx0 = 0, ty0 = pelvisY + 4, tx1 = neckX, ty1 = neckY;
@@ -2107,14 +2132,10 @@ export function drawStickmanV2(
       ctx.lineTo(lX(0.97, wS * 0.34), lY(0.97, wS * 0.34));
       ctx.closePath();
       ctx.fill();
-      // B-TRACK (§4.2 — THE BRAND ON THE CHARACTER): a small K monogram on
-      // the vest's chest, deep-gold ink (gold-on-gold would vanish), 2px
-      // stroke, from rig 1.4 up — the silhouette itself carries the channel
-      // at feed scale. Deterministic; no prop cost.
-      if (scale >= 1.4) {
-        const kSize = scale * 8.2;
-        drawK(ctx, (rX(0.75, 0) + lX(0.75, 0)) / 2, (rY(0.72, 0) + lY(0.72, 0)) / 2, kSize, 2, '#8F6E12');
-      }
+      // C3 FIX (market review §2.1 — THE VEST MONOGRAM): the small K
+      // monogram is retired. Below rig 2 it is unreadable noise; at hero
+      // rigs gold-on-gold. The K brand lives on the big set pieces where it
+      // reads — not as texture on the chest.
     }
     // shoulder caps — small rounded delts at the shoulder line (vest gold:
     // the deltoid sits on the vest's shoulder strap; the worker's stay on
@@ -2498,15 +2519,8 @@ export function drawStickmanV2(
   }
   const hand = limb2(ctx, neckX + 4 + Math.sin(shT) * 4, neckY + 3 - Math.sin(shT) * 9 + shDrop, pose.rAU, pose.rAL, U_ARM, L_ARM, INK.armNear[0], INK.armNear[1], INK.armNear[2], nearArmCol, 0, 0.92); // iter-3: elbow mass
   bbTouch(hand.ex, hand.ey, 18); // PHASE 3 bbox: near hand glyph
-  // 100-JUDGE PANEL REPORT (fix A3 — THE ROLLED SLEEVE, near arm): same
-  // band as the far arm — the near limb is the one the camera reads.
-  if (!prof) {
-    taper(ctx,
-      neckX + 4 + Math.sin(shT) * 4, neckY + 3 - Math.sin(shT) * 9 + shDrop,
-      neckX + 4 + Math.sin(shT) * 4 + Math.sin(pose.rAU * D2R) * U_ARM * 0.58,
-      neckY + 3 - Math.sin(shT) * 9 + shDrop + Math.cos(pose.rAU * D2R) * U_ARM * 0.58,
-      INK.armNear[0] + 5, INK.armNear[0] - 1, '#6E5210');
-  }
+  // C3 FIX (near arm): the bronze cuff band is retired with the far one —
+  // two tones, one silhouette (see the far-arm note above).
   // AUDIT-ROUND-3 (Fix 1): the torso rim light block that drew here is
   // RETIRED — see the note above the near arm. One light edge (the
   // head's rim) per figure; the torso is mass, not chrome.
@@ -2916,7 +2930,14 @@ export function drawStickmanV2(
       x: -1 + Math.sin(ti / 460 + seed) * (r.talk ?? 0) * 1.2,
       y: -26 + Math.sin(ti / 300 + seed * 1.7) * ((r.talk ?? 0) * 1.4 + (r.walkPhase !== undefined ? 0.9 : 0)),
     });
-    const [tn1, tn2] = followChain(t, seed, tuftAnchor, { x: -0.1, y: -0.995 }, 15, 15, 0, 0.0012, 0.9);
+    // C1 POLISH (market review §2.1 — THE CREST MUST STAY ON THE CROWN):
+    // the chain shortens (15+15 → 10+8) and its gravity halves (0.0012 →
+    // 0.0006), and the drawn tip clamps above the brow band — the tuft
+    // flicks with the head's rhythm but never drapes into the face
+    // between the eyes (the mid-fix render's last offender).
+    const [tn1r, tn2r] = followChain(t, seed, tuftAnchor, { x: -0.1, y: -0.995 }, 10, 8, 0, 0.0006, 0.9);
+    const tn1 = { x: tn1r.x, y: Math.min(tn1r.y, -22) };
+    const tn2 = { x: Math.max(Math.min(tn2r.x, 6), -14), y: Math.min(tn2r.y, -17) };
     // FP0 (Verdict P0 — THE COMMA CREST): the spiked triangle tuft read as
     // a paint drip / bad wig — the accidental detail that un-designed the
     // silhouette. One CURVED COMMA instead: a round crown pad fused with a
@@ -3152,12 +3173,16 @@ export function drawStickmanV2(
   // smaller egg; the pupil derives from the SCLERA (0.76 of its radius =
   // 58% of the eye's area — past the verdict's 55% floor), never from the
   // lens, so the eye reads ink-first at every scale.
-  const scleraR = Math.max(5.5, featureFloor(6.2), scale >= 1.5 ? 6.2 : 0); // B11 parity at 1.5
-  // FP0 (Verdict P0 — GLASSES AS SECONDARY ACCENT): the lens radius is now
-  // PROPORTIONAL TO THE EYE (sclera × 1.28) instead of a fixed 13.5 units —
-  // the wire stops dominating the face and frames it.
-  const lensR = Math.max(9.0, featureFloor(6.5), scleraR * 1.28);
-  const ivoryPupR = Math.max(3.9, featureFloor(4.9), scleraR * 0.76);
+  // C1 FIX (market review §2.1 — THE FACE HIERARCHY): the eyes become the
+  // face's FIRST read, not its third. Hero sclera 6.2 → 9.5 rig units (the
+  // thumbnail's big bright eyes), the pupil derives at 0.58 of the sclera
+  // (a guaranteed ivory crescent ~42% of the eye's area), and the glasses
+  // wire stays a FRAME (sclera × 1.18, capped +2.5) instead of a rival mass.
+  const scleraR = Math.max(5.5, featureFloor(6.2), scale >= 1.5 ? 9.5 : 0); // C1: eyes-first at every parity rig
+  // C1: the lens is a secondary accent — proportional to the eye, capped so
+  // two big rims never fuse into the goggle mask the earlier audits convicted.
+  const lensR = Math.max(9.0, featureFloor(6.5), Math.min(scleraR * 1.18, scleraR + 2.5));
+  const ivoryPupR = Math.max(3.9, featureFloor(4.9), scleraR * 0.58);
   if (becker) {
     ctx.fillStyle = faceInk;
     ctx.beginPath();
@@ -3262,11 +3287,15 @@ export function drawStickmanV2(
     // ivory lift above it — the brow arch reads as attached to the face at
     // every rig, and the travel (AMP.browTravelPx 40 → 14) keeps even the
     // full-surprise arch inside the forehead's own band.
-    const lift = ivory ? 2.5 : 0;
-    const y0 = -15.5 - lift - bRaise - dir * Math.tan(bAng) * 7;
-    const y1 = -13.5 - lift - bRaise + dir * Math.tan(bAng) * 7;
+    const lift = ivory ? 3.2 : 0;
+    const y0 = -15.5 - lift - bRaise - dir * Math.tan(bAng) * 4.5;
+    const y1 = -13.5 - lift - bRaise + dir * Math.tan(bAng) * 4.5;
     ctx.strokeStyle = becker ? faceInk : ink;
-    ctx.lineWidth = Math.max(smallHead ? 5.5 : 6.5, featureFloor(7), scale >= 1.5 ? 9.5 : 0); // B11 parity at 1.5
+    // C1 FIX: the brow slabs thin 9.5/6.5px → 5.0/4.6px and the tilt lever
+    // drops 7 → 4.5 — the default read is calm line-work above the glasses,
+    // not a permanent frown; the emotion channel (browEmo curvature + travel)
+    // still carries the full expressive range.
+    ctx.lineWidth = Math.max(smallHead ? 4.2 : 4.6, featureFloor(4.6), scale >= 1.5 ? 5.0 : 0);
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(x0, y0);
