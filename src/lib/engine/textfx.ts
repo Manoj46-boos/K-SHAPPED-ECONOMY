@@ -652,7 +652,11 @@ export function drawWatermark(
   ctx.lineTo(12, 12);
   ctx.stroke();
   setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): TYPE_FLOOR 24→28, now enforced
-  ctx.fillStyle = rgba(PALETTE.inkSoft, 0.9); // v9 (D-08): was hand-hexed #55555F — the v8 "no hand-hexed neutrals" rule applies here too
+  // B7 (market review — THE WATERMARK MUST CARRY THE BRAND): the inkSoft
+  // 0.9 face dropped the lockup under the transcode's chroma floor — sub-
+  // legible at 1080p, invisible at 320. The channel name is the film's
+  // signature: it renders at full ink weight.
+  ctx.fillStyle = rgba(PALETTE.ink, 0.92);
   ctx.textAlign = 'left';
   const wn = channelName.toUpperCase();
   ctx.fillText(wn, 24, 8);

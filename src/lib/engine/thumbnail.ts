@@ -120,6 +120,11 @@ export const THUMB_VARIANTS: ThumbVariant[] = [
  *    completes IN THE VIDEO, which is the click.
  *  - the K shrinks to a small branded tag (top-right corner mark).
  */
+// C3 (market review — THE CERTIFICATE OF QUALITY): the thumbnail's face
+// staging is a PUBLISHED CONTRACT — tools/parity-check.mjs asserts the
+// film's face and this face share one path, one register, one read.
+export const THUMB_PARITY = { faceScale: 1.75, talk: 0.68, jaw2x: 1.5 };
+
 export function drawThumbnail(
   ctx: CanvasRenderingContext2D,
   W: number,

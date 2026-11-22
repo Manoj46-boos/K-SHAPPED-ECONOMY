@@ -5,7 +5,7 @@
  */
 
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, easeOutQuad, hashStr, lerp, springTo, landPulse } from './easing';
-import { PALETTE, TONE, card, chip, rgba, roundRect, setFont, fitText, TYPE_FLOOR, LABEL_FLOOR, toneRoom, deskRule, ValuePlane, mixHex, roomInk, roomLookNow, LINE_WEIGHTS, FONT_UI } from './theme';
+import { PALETTE, TONE, card, chip, rgba, roundRect, setFont, fitText, TYPE_FLOOR, LABEL_FLOOR, toneRoom, deskRule, ValuePlane, mixHex, roomInk, roomLookNow, LINE_WEIGHTS, FONT_UI, FONT_DISPLAY } from './theme';
 import { registerRect, registerFixed, registerText } from './collision';
 // P4 (100-judge audit §13 — CHART IMPACT GRAMMAR): bars and lines land as
 // EVENTS — the engine's own shake + ring + sparkle vocabulary, fired at the
@@ -553,6 +553,16 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     //      to clear their own point (§7-D5) and the presenter lane
     //      (crownTopY); the stroke itself is now the third protected ink.
     let prevLy = -Infinity;
+    // B1 (market review — THE ANNOTATION PILE-UP): the 56px row rule only
+    // guards the SEARCH candidates — the crown clamp and the least-harm
+    // fallback can still ship a pill onto an occupied row, which is how the
+    // journey's low/new/now chips stacked three deep and the Gallup
+    // peak/low/now pile read as noise. Every shipped pill now resolves
+    // against the OCCUPIED-RECT set of every pill already drawn: on
+    // intersection it steps a full row down (then up), re-clamped, until it
+    // owns clear space. Deterministic, scrub-safe — the same law the odds
+    // packer already runs.
+    const annOccupied: Array<{ x: number; y: number; w: number; h: number }> = [];
     const anns = opts.annotations; // narrowed once — TS loses the guard in closures
     opts.annotations.forEach((a, i) => {
       const s = opts.series[a.series ?? 0];
@@ -835,7 +845,24 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       const lyC = clampRow(lyT - rise);
       // the search is crown-aware (clampRow carries the walker-lane bound),
       // so the shipped row IS the measured row — no post-clamp surprises
-      const lyCrown = lyC;
+      // B1 (cont.): the occupied-rect resolution — the shipped row must own
+      // clear space against EVERY pill already on the chart.
+      let lyCrown = lyC;
+      {
+        const pillW = tw + 32;
+        const pillX = lx2 - tw / 2 - 16;
+        const boundsLo = yMin2;
+        const boundsHi = lyMaxC;
+        for (let step = 0; step < 5; step++) {
+          const r = { x: pillX - 10, y: lyCrown - pillTop - 10, w: pillW + 20, h: pillH + 20 };
+          const hit = annOccupied.some((o) => r.x < o.x + o.w && o.x < r.x + r.w && r.y < o.y + o.h && o.y < r.y + r.h);
+          if (!hit) break;
+          const down = lyCrown + pillH + 16;
+          const up = lyCrown - pillH - 16;
+          lyCrown = down <= boundsHi ? down : Math.max(up, boundsLo);
+        }
+        annOccupied.push({ x: pillX, y: lyCrown - pillTop, w: pillW, h: pillH });
+      }
       ctx.save();
       ctx.globalAlpha = alpha;
       // the connector — retargeted to the FINAL pill edge (§7-D5); it fades
@@ -1664,7 +1691,12 @@ export function sceneTitle(
   // v10 (PANEL-11): the title is reading text — the dotGrid badge plating it
   // was a shipped defect the rect-only guard could not see.
   registerText(`sceneTitle:${text.slice(0, 16)}`, x, y - 50, Math.min(ctx.measureText(text).width, maxW), 76);
-  fitText(ctx, text, x, y, maxW, 54, 600, FONT_UI, roomInk().ink); // B-TRACK: fitText overrides fillStyle — pass the room ink
+  // B7 (market review — THE SERIF TITLE NEVER RENDERED): the 54px Fraunces
+  // setFace above was immediately overridden by this fitText pass with
+  // FONT_UI — every scene title shipped Inter, the design system's serif
+  // promise died in the fit pass. The fit now carries the DISPLAY face:
+  // the title the design system promises is the title that renders.
+  fitText(ctx, text, x, y, maxW, 54, 700, FONT_DISPLAY, roomInk().ink);
   const tw = Math.min(ctx.measureText(text).width, maxW);
   // P2-3 (100-judge audit, Table 4 — "the underline = the film's tic"):
   // the same full-width gold underline under EVERY scene title was flagged

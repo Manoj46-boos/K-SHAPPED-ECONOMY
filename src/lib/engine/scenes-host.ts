@@ -1086,19 +1086,71 @@ export function hostSceneV2(g: SceneCtx): void {
     const fh = 152;
     registerRect('hostV2:easel', fx0, fy0, fw, fh);
     card(ctx, fx0, fy0, fw, fh, { r: 24 });
-    // the rising chart doodle — the exhibit the host presents
-    ctx.strokeStyle = PALETTE.up;
-    ctx.lineWidth = 7;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    const ePts: Array<[number, number]> = [
-      [fx0 + 80, fy0 + fh - 40], [fx0 + 180, fy0 + fh - 86], [fx0 + 270, fy0 + fh - 56],
-      [fx0 + 360, fy0 + 44], [fx0 + fw - 96, fy0 + 38],
-    ];
-    ctx.beginPath();
-    ctx.moveTo(ePts[0][0], ePts[0][1]);
-    for (const [qx, qy] of ePts.slice(1)) ctx.lineTo(qx, qy);
-    ctx.stroke();
+    // the exhibit — B3 (market review — THE WIREFRAME EXHIBIT): the raw
+    // 5-point doodle on a blank card read as an unfinished wireframe in a
+    // shipped film (the audit's ghost-panel verdict, host-lead variant).
+    // The easel now carries a REAL mini chart of the film's own Nasdaq
+    // series — hairline baseline, draw-on line, endpoint dot, value badge,
+    // and a small title band — the same grammar the end card's teaser
+    // chart already shipped. A labeled chart survives the gate; a
+    // squiggle never did.
+    {
+      const series: [number, number][] = [
+        [0, 100], [3, 102], [5, 103], [7, 101], [9, 97.5], [11, 100.5],
+        [13, 104], [16, 107], [19, 110.5], [22, 114], [25, 117],
+        [28, 119.5], [31, 121.5], [34, 123], [37, 124.5], [40, 122],
+      ];
+      const px0 = fx0 + 70, px1 = fx0 + fw - 150;
+      const py0 = fy0 + 52, py1 = fy0 + fh - 34;
+      const vmin = 95, vmax = 127;
+      const mx = 40;
+      const fxp = (u: number): number => px0 + (u / mx) * (px1 - px0);
+      const fyp = (v: number): number => py1 - ((v - vmin) / (vmax - vmin)) * (py1 - py0);
+      // title band — what the exhibit IS
+      setFont(ctx, 30, 700);
+      ctx.textAlign = 'left';
+      ctx.fillStyle = PALETTE.inkSoft;
+      ctx.fillText('NASDAQ-100 · 12 MONTHS', fx0 + 40, fy0 + 36);
+      // hairline baseline — the chart plane
+      ctx.strokeStyle = rgba(PALETTE.inkSoft, 0.35);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(px0, py1 + 10);
+      ctx.lineTo(px1, py1 + 10);
+      ctx.stroke();
+      let ep: [number, number] | null = null;
+      ctx.strokeStyle = PALETTE.upVivid;
+      ctx.lineWidth = 5.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      for (const [u, v] of series) {
+        const p: [number, number] = [fxp(u), fyp(v)];
+        if (!ep) ctx.moveTo(p[0], p[1]);
+        else ctx.lineTo(p[0], p[1]);
+        ep = p;
+      }
+      ctx.stroke();
+      if (ep) {
+        ctx.fillStyle = PALETTE.upVivid;
+        ctx.beginPath();
+        ctx.arc(ep[0], ep[1], 6.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.arc(ep[0], ep[1], 2.8, 0, Math.PI * 2);
+        ctx.fill();
+        // the value badge — the exhibit's one number, data-true
+        setFont(ctx, 30, 700);
+        const bt2 = '+22% · 12 mo';
+        const bw2 = ctx.measureText(bt2).width;
+        ctx.fillStyle = PALETTE.up;
+        roundRect(ctx, ep[0] - bw2 - 34, ep[1] - 46, bw2 + 26, 38, 19);
+        ctx.fill();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillText(bt2, ep[0] - bw2 - 34 + 13, ep[1] - 19);
+      }
+    }
     // short easel legs below the card — the easel read, inside the band
     ctx.strokeStyle = rgba(PALETTE.grid, 0.7);
     ctx.lineWidth = 6;
@@ -2222,7 +2274,10 @@ export function divergeKScene(g: SceneCtx): void {
     const inP = clamp01((t - 11200) / 1000);
     const outP = clamp01((t - 17600) / 600);
     const breathe = 0.85 + 0.15 * Math.sin(((t - 12200) / 2200) * Math.PI * 2);
-    const alpha = 0.30 * easeOutCubic(inP) * breathe * (1 - easeInOutSine(outP));
+    // B7 (market review — GREY-ON-GREY): the 0.30 register was the ghost
+    // read the audit convicted — a teaser that whispers reads as a defect,
+    // not a promise. The line COMMITS: full-ink serif at the same clock.
+    const alpha = 0.92 * easeOutCubic(inP) * breathe * (1 - easeInOutSine(outP));
     if (alpha > 0.01) {
       ctx.save();
       ctx.globalAlpha = alpha;
@@ -2368,7 +2423,7 @@ export function recapSplitScene(g: SceneCtx): void {
       [0, 104], [2, 101], [4, 97], [6, 93], [8, 90.5], [10, 89],
       [11, 88.2], [12, 88.9], [13, 90.4], [14, 91.6], [15, 92.3],
     ],
-    badge: '104 → 88 low → 92',
+    badge: '104 → 92',
     endLabel: 'still weak',
     lowLabel: 'spring low',
     src: 'The Conference Board',
@@ -2497,11 +2552,21 @@ function miniPanel(
   ctx.textAlign = 'left';
   ctx.fillText(title, x + 38, y + 62);
   // the value badge — the chart's headline number, the film's own data
+  // B2 (market review — THE CUT BADGE): the badge carried from→low→latest
+  // while the plot already ticks the low ('spring low') — the triple text
+  // ran wide into the host's presenting arm and plated mid-glyph. The
+  // badge carries the pairing only (from → latest); the low keeps its
+  // on-plot tick. Font joins the label floor.
   {
     const bp2 = clamp01((t - delay - 200) / 450);
     if (bp2 > 0) {
       ctx.globalAlpha = ap * bp2;
-      setFont(ctx, 26, 700);
+      setFont(ctx, 34, 700);
+      let bSize = 34;
+      while (bSize > 26 && ctx.measureText(chart.badge).width > w - 190) {
+        bSize -= 2;
+        setFont(ctx, bSize, 700);
+      }
       const bw = ctx.measureText(chart.badge).width;
       const bx = x + w - 38 - bw - 36;
       ctx.fillStyle = tone;
@@ -2693,6 +2758,38 @@ export function paradoxResolveScene(g: SceneCtx): void {
     // P0 defect sweep: the K holds the LEFT column (the headline owns the
     // centre band, the figure the right) — three columns, no shared ink.
     drawK3D(ctx, W * 0.30, H * 0.47, 150, 1, t, true, turnP); // 100-JUDGE REPORT (fix D24): 115 → 150
+    // B4 (market review — THE EMPTY PARADOX WASH): the beat's lower half
+    // was bare tone — at the feed the frame gave the eye nothing to hold.
+    // The resolve now grounds the paradox in the film's own terrain
+    // grammar: the K's two arms continue AS ROADS on the desk plane — the
+    // market road rising off the up-arm, the main-street road falling off
+    // the down-arm — the same two-tone language the K-fig panel and the
+    // cold open carry. Background register, behind every content rect.
+    const roadA = clamp01((t - 2600) / 900);
+    if (roadA > 0) {
+      ctx.save();
+      ctx.globalAlpha = roadA * 0.85;
+      const kx = W * 0.30, ky = H * 0.47;
+      // the market road — rising band off the up-arm
+      ctx.fillStyle = rgba(PALETTE.up, 0.13);
+      ctx.beginPath();
+      ctx.moveTo(kx + 60, ky - 30);
+      ctx.quadraticCurveTo(W * 0.52, ky - 120, W * 0.72, ky - 190);
+      ctx.lineTo(W * 0.72, ky - 132);
+      ctx.quadraticCurveTo(W * 0.52, ky - 66, kx + 60, ky + 26);
+      ctx.closePath();
+      ctx.fill();
+      // the main-street road — falling band off the down-arm
+      ctx.fillStyle = rgba(PALETTE.down, 0.12);
+      ctx.beginPath();
+      ctx.moveTo(kx + 60, ky + 30);
+      ctx.quadraticCurveTo(W * 0.52, ky + 150, W * 0.74, ky + 250);
+      ctx.lineTo(W * 0.74, ky + 306);
+      ctx.quadraticCurveTo(W * 0.52, ky + 208, kx + 60, ky + 86);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
     ctx.restore();
   }
   // AUDIT-ROUND-2 (fix 3 — KILL BODY PARAGRAPHS ON FRAMES): three stacked
@@ -2735,7 +2832,7 @@ export function paradoxResolveScene(g: SceneCtx): void {
         else cur = trial;
       }
       if (cur) lines.push(cur);
-      ctx.fillStyle = PALETTE.inkSoft;
+      ctx.fillStyle = PALETTE.ink; // B4: the frame's ONE focal line carries full ink, not a wash
       registerRect('paradox:focalLine', 1000, 440, maxW, 64 + (lines.length - 1) * 54);
       lines.forEach((ln, j) => ctx.fillText(ln, 1000, 470 + j * 54));
       ctx.restore();

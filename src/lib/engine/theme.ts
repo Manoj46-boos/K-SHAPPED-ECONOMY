@@ -1502,128 +1502,15 @@ export function drawChapterRoom(
     ctx.lineTo(W * 0.97, fy);
     ctx.stroke();
   }
-  // ── 1. the wall object — the family's framed plaque, right flank ──
-  {
-    const wx = W * 0.815, wy = H * 0.315, ww = W * 0.125, wh = H * 0.27;
-    ctx.fillStyle = deep;
-    ctx.beginPath();
-    ctx.roundRect(wx, wy, ww, wh, 10);
-    ctx.fill();
-    ctx.strokeStyle = rgba(PALETTE.ink, 0.26);
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    const cx = wx + ww / 2, cy = wy + wh / 2;
-    ctx.strokeStyle = ivory;
-    ctx.fillStyle = ivory;
-    ctx.lineWidth = 3;
-    if (family === 'market') {
-      // the ticker plaque — 4 price rows with live dots
-      for (let i = 0; i < 4; i++) {
-        const ry = wy + wh * (0.22 + i * 0.19);
-        ctx.beginPath();
-        ctx.moveTo(wx + ww * 0.12, ry);
-        ctx.lineTo(wx + ww * 0.78, ry);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(wx + ww * 0.86, ry, 5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    } else if (family === 'charts') {
-      // the plotted curve plaque — axes + one drawn line
-      ctx.beginPath();
-      ctx.moveTo(wx + ww * 0.14, wy + wh * 0.18);
-      ctx.lineTo(wx + ww * 0.14, cy + wh * 0.32);
-      ctx.lineTo(wx + ww * 0.86, cy + wh * 0.32);
-      ctx.stroke();
-      ctx.beginPath();
-      const pts = [[0.2, 0.72], [0.38, 0.55], [0.55, 0.62], [0.72, 0.34], [0.86, 0.24]];
-      pts.forEach(([u, v], i) => {
-        const px = wx + ww * u, py = wy + wh * v;
-        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-      });
-      ctx.lineWidth = 4;
-      ctx.stroke();
-    } else if (family === 'survey') {
-      // the pinboard — three tilted cards on rails
-      for (let i = 0; i < 3; i++) {
-        const cxx = wx + ww * (0.26 + i * 0.24);
-        const tilt = (i - 1) * 0.12;
-        ctx.save();
-        ctx.translate(cxx, cy);
-        ctx.rotate(tilt);
-        ctx.fillStyle = ivory;
-        ctx.beginPath();
-        ctx.roundRect(-ww * 0.10, -wh * 0.22, ww * 0.20, wh * 0.44, 4);
-        ctx.fill();
-        ctx.fillStyle = rgba(PALETTE.ink, 0.30);
-        ctx.beginPath();
-        ctx.arc(0, -wh * 0.22, 4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-        ctx.fillStyle = ivory;
-      }
-    } else if (family === 'machines') {
-      // the gauge dial — ring, ticks, needle
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.arc(cx, cy + wh * 0.06, wh * 0.26, Math.PI * 0.85, Math.PI * 2.15);
-      ctx.stroke();
-      for (let i = 0; i < 5; i++) {
-        const a = Math.PI * (0.95 + i * 0.275);
-        ctx.beginPath();
-        ctx.moveTo(cx + Math.cos(a) * wh * 0.22, cy + wh * 0.06 + Math.sin(a) * wh * 0.22);
-        ctx.lineTo(cx + Math.cos(a) * wh * 0.26, cy + wh * 0.06 + Math.sin(a) * wh * 0.26);
-        ctx.stroke();
-      }
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy + wh * 0.06);
-      ctx.lineTo(cx + Math.cos(Math.PI * 1.7) * wh * 0.2, cy + wh * 0.06 + Math.sin(Math.PI * 1.7) * wh * 0.2);
-      ctx.stroke();
-    } else if (family === 'data') {
-      // the rack column — 3 units + LED dots
-      for (let i = 0; i < 3; i++) {
-        const uy = wy + wh * (0.14 + i * 0.28);
-        ctx.strokeStyle = rgba(PALETTE.ink, 0.30);
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.roundRect(wx + ww * 0.12, uy, ww * 0.76, wh * 0.20, 4);
-        ctx.stroke();
-        ctx.fillStyle = ivory;
-        for (let k = 0; k < 3; k++) {
-          ctx.beginPath();
-          ctx.arc(wx + ww * (0.2 + k * 0.09), uy + wh * 0.10, 3.2, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.fillStyle = ivory;
-      }
-    } else if (family === 'debt') {
-      // the ledger plaque — descending columns
-      const cols = [0.72, 0.56, 0.42, 0.30];
-      cols.forEach((v, i) => {
-        const bx = wx + ww * (0.16 + i * 0.19);
-        const bh = wh * 0.5 * v;
-        ctx.beginPath();
-        ctx.roundRect(bx, wy + wh * 0.78 - bh, ww * 0.12, bh, 3);
-        ctx.fill();
-      });
-    } else if (family === 'odds') {
-      // the odds board — two columns + chips
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(wx + ww * 0.3, wy + wh * 0.16);
-      ctx.lineTo(wx + ww * 0.3, wy + wh * 0.82);
-      ctx.moveTo(wx + ww * 0.7, wy + wh * 0.16);
-      ctx.lineTo(wx + ww * 0.7, wy + wh * 0.82);
-      ctx.stroke();
-      for (let i = 0; i < 3; i++) {
-        const ry = wy + wh * (0.26 + i * 0.2);
-        ctx.beginPath();
-        ctx.roundRect(wx + ww * 0.34, ry - 7, ww * 0.3, 14, 7);
-        ctx.fill();
-      }
-    }
-  }
+  // ── 1. the wall object — RETIRED (B3, market review — GHOST PLACEHOLDER
+  // PANELS): the family's framed plaque drew a washed wireframe (ink 0.16
+  // fill, ivory 0.34 strokes) of a ticker / chart / dial / list at the
+  // right flank of EVERY data frame — the audit convicted them all as
+  // "unfinished wireframes in a shipped film". The film's own rule:
+  // declare or disappear. The plaque disappears; the room keeps the real
+  // architecture (the desk surface below, the scenePlate window/shelf, the
+  // stage world's floor planes) — furniture that is actually finished.
+  void deep2; void ivory; void family;
   // ── 2. the horizon prop — the console + one silhouette, left floor ──
   {
     const py = H * 0.655, px0 = W * 0.055, pw = W * 0.075;

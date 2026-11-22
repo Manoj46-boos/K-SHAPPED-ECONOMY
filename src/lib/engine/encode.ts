@@ -44,6 +44,10 @@ export interface RenderJob {
   onProgress?: (stats: EncoderStats) => void;
   /** destination — if provided, streams to disk */
   writable?: FileSystemWritableFileStream | null;
+  /** the file handle behind `writable` — enables the C1 fast-start remux
+   *  (the moov relocation streams through the handle; without it the
+   *  streaming render keeps moov-at-end). */
+  handle?: FileSystemFileHandle | null;
   onLog?: (msg: string) => void;
   /** limit audio encoding duration (test renders) — ms */
   audioDurationMs?: number;
@@ -337,7 +341,24 @@ export async function renderVideo(job: RenderJob): Promise<{ bytes: number }> {
 
   if (!job.writable) {
     // in-memory fallback: hand back the blob via download
-    const blob = new Blob([(target as ArrayBufferTarget).buffer], { type: 'video/mp4' });
+    // C1 (market review — SLOW-START PLAYBACK RISK): the MP4 is muxed with
+    // moov at the END (fastStart:false — in-memory fastStart would double
+    // the render's peak memory). Before the file leaves the process, the
+    // box-level remux below relocates moov ahead of mdat — the first frame
+    // starts while the file streams, the classic "video takes seconds to
+    // start" tax dies. Pure box surgery, no re-encode.
+    const raw = (target as ArrayBufferTarget).buffer;
+    let out: ArrayBuffer = raw as ArrayBuffer;
+    try {
+      const moved = relocateMoov(raw as ArrayBuffer);
+      if (moved) {
+        out = moved;
+        onLog?.('fast-start remux: moov relocated ahead of mdat');
+      }
+    } catch (e) {
+      onLog?.(`fast-start remux skipped (${String(e)}) — shipping muxer output`);
+    }
+    const blob = new Blob([out], { type: 'video/mp4' });
     (globalThis as any).__lastRenderBlob = blob; // debug/testing hook
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -348,15 +369,28 @@ export async function renderVideo(job: RenderJob): Promise<{ bytes: number }> {
     bytesWritten = blob.size;
   } else {
     await closer?.();
+    // C1 (cont.): the streaming (save-to-disk) path remuxes THROUGH the
+    // file handle — a two-pass box move: pass 1 locates moov by reading
+    // only box headers, pass 2 rewrites ftyp+moov first and streams the
+    // remainder (mdat is never held in memory — safe for multi-GB renders).
+    if (job.handle) {
+      try {
+        const moved = await relocateMoovInFile(job.handle, onLog);
+        if (moved) onLog?.('fast-start remux: moov relocated ahead of mdat (streamed)');
+      } catch (e) {
+        onLog?.(`fast-start remux skipped (${String(e)}) — shipping muxer output`);
+      }
+    }
   }
   onLog?.(`done — ${(bytesWritten / 1e6).toFixed(1)} MB`);
   return { bytes: bytesWritten };
 }
 
-/** Ask the user where to save; returns the writable stream. */
+/** Ask the user where to save; returns the writable stream + its handle
+ *  (the handle drives the C1 fast-start remux). */
 export async function pickSaveTarget(
   suggestedName: string
-): Promise<FileSystemWritableFileStream | null> {
+): Promise<{ writable: FileSystemWritableFileStream; handle: FileSystemFileHandle } | null> {
   const w = globalThis as any;
   if (typeof w.showSaveFilePicker !== 'function') return null;
   try {
@@ -369,9 +403,116 @@ export async function pickSaveTarget(
         },
       ],
     });
-    return await handle.createWritable();
+    return { writable: await handle.createWritable(), handle };
   } catch (e: any) {
     if (e?.name === 'AbortError') return null; // user cancelled
     throw e;
   }
+}
+
+// ── C1 (market review) — THE FAST-START REMUX ───────────────────────────────
+// mp4-muxer's fastStart:true buffers the whole film in memory to relocate
+// moov (~2GB on this cut — unsafe on the 8GB render laptop), so the muxer
+// ships moov-at-end. The remux below is the post-render fix: pure MP4 box
+// surgery that moves the moov box ahead of mdat. No re-encode, no resize —
+// the player can start playback from the first bytes.
+
+/** Top-level box scan for one buffer: returns [type, offset, size] list. */
+function scanMp4Boxes(buf: ArrayBuffer): Array<{ type: string; off: number; size: number }> {
+  const v = new DataView(buf);
+  const boxes: Array<{ type: string; off: number; size: number }> = [];
+  let off = 0;
+  while (off + 8 <= buf.byteLength) {
+    let size = v.getUint32(off);
+    const type = String.fromCharCode(v.getUint8(off + 4), v.getUint8(off + 5), v.getUint8(off + 6), v.getUint8(off + 7));
+    let head = 8;
+    if (size === 1) {
+      if (off + 16 > buf.byteLength) break;
+      size = Number(v.getBigUint64(off + 8));
+      head = 16;
+    } else if (size === 0) {
+      size = buf.byteLength - off; // extends to EOF
+    }
+    if (size < head || off + size > buf.byteLength) throw new Error(`bad box '${type}' @${off}`);
+    boxes.push({ type, off, size });
+    off += size;
+  }
+  return boxes;
+}
+
+/** Buffer remux: rebuilds the MP4 with moov first. Returns null when the
+ *  file already carries moov up front (nothing to do). */
+export function relocateMoov(buf: ArrayBuffer): ArrayBuffer | null {
+  const boxes = scanMp4Boxes(buf);
+  const moov = boxes.find((b) => b.type === 'moov');
+  if (!moov) throw new Error('no moov box found');
+  if (boxes.findIndex((b) => b.type === 'moov') <= 1) return null; // ftyp[,moov] — already fast-start
+  const parts: ArrayBuffer[] = [];
+  const front = boxes.filter((b) => b !== moov && (b.type === 'ftyp' || b.type === 'free' || b.type === 'sidx'));
+  for (const b of front) parts.push(buf.slice(b.off, b.off + b.size));
+  parts.push(buf.slice(moov.off, moov.off + moov.size));
+  for (const b of boxes) {
+    if (b === moov) continue;
+    if (front.includes(b)) continue;
+    parts.push(buf.slice(b.off, b.off + b.size));
+  }
+  return concatBuffers(parts);
+}
+
+/** Streaming remux through a file handle (multi-GB safe: mdat is copied as
+ *  chunks, never held whole). Writes the relocated MP4 back to the same
+ *  file. Returns false when no relocation was needed. */
+async function relocateMoovInFile(handle: FileSystemFileHandle, onLog?: (m: string) => void): Promise<boolean> {
+  const file = await handle.getFile();
+  const size = file.size;
+  // pass 1 — box headers only (16 bytes at a time)
+  const boxes: Array<{ type: string; off: number; size: number }> = [];
+  let off = 0;
+  while (off + 8 <= size) {
+    const head = new DataView(await file.slice(off, off + 16).arrayBuffer());
+    let bsize = head.getUint32(0);
+    const type = String.fromCharCode(head.getUint8(4), head.getUint8(5), head.getUint8(6), head.getUint8(7));
+    let hlen = 8;
+    if (bsize === 1) {
+      bsize = Number(head.getBigUint64(8));
+      hlen = 16;
+    } else if (bsize === 0) {
+      bsize = size - off;
+    }
+    if (bsize < hlen || off + bsize > size) throw new Error(`bad box '${type}' @${off}`);
+    boxes.push({ type, off, size: bsize });
+    off += bsize;
+  }
+  const moovIdx = boxes.findIndex((b) => b.type === 'moov');
+  if (moovIdx < 0) throw new Error('no moov box found');
+  if (moovIdx <= 1) return false; // already fast-start
+  const moov = boxes[moovIdx];
+  // pass 2 — rewrite: ftyp+moov, then everything else (moov skipped)
+  const out = await handle.createWritable({ keepExistingData: false });
+  const front = boxes.filter((b) => b !== moov && (b.type === 'ftyp' || b.type === 'free' || b.type === 'sidx'));
+  for (const b of front) await out.write(await file.slice(b.off, b.off + b.size));
+  onLog?.('fast-start remux: moov written, streaming media boxes…');
+  await out.write(await file.slice(moov.off, moov.off + moov.size));
+  for (const b of boxes) {
+    if (b === moov) continue;
+    if (front.includes(b)) continue;
+    // stream the big boxes (mdat) in 64MB slices — flat memory
+    const CHUNK = 1 << 26;
+    for (let p = b.off; p < b.off + b.size; p += CHUNK) {
+      await out.write(await file.slice(p, Math.min(p + CHUNK, b.off + b.size)));
+    }
+  }
+  await out.close();
+  return true;
+}
+
+function concatBuffers(parts: ArrayBuffer[]): ArrayBuffer {
+  const total = parts.reduce((a, p) => a + p.byteLength, 0);
+  const out = new Uint8Array(total);
+  let o = 0;
+  for (const p of parts) {
+    out.set(new Uint8Array(p), o);
+    o += p.byteLength;
+  }
+  return out.buffer;
 }

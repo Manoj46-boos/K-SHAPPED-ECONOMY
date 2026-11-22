@@ -1111,19 +1111,26 @@ export function commentPromptScene(g: SceneCtx): void {
     'the market side, honestly', 'a bit of both, honestly', 'sentiment side 100%',
     'gas prices got me', 'my portfolio disagrees with my mood',
   ];
+  // B2 (market review — BUBBLES PACK, NOT COLLIDE): the per-index slot put
+  // two clamped bubbles into the same region of one row, printing one
+  // comment through another. Each row now packs LEFT-ALIGNED from measured
+  // widths — real comment-field grammar — and the row yields to the
+  // presenter's envelope like every other resident.
+  const rowX = [40, 40];
   comments.forEach((c, i) => {
     const bp = clamp01((t - 600 - i * 500) / 800);
     if (bp <= 0) return;
     setFont(ctx, 34, 600); // v9 (D-07): floor
     const tw = ctx.measureText(c).width;
     const AV = 30; // avatar column
-    // 100-JUDGE REPORT (fix D29 — THE EDGE-CLIPPED BUBBLE): bubble 0's
-    // center at 0.14W put its left edge at x≈3 — the plate ran off the
-    // frame ("the market side, honestly" clipped mid-word). Every bubble
-    // now clamps INSIDE the safe margins after its own measured width.
     const halfBW = tw / 2 + 26 + AV;
-    const x = Math.max(halfBW + 34, Math.min(W * (0.14 + (i % 3) * 0.3) + Math.sin(t / 1300 + i * 2.1) * 14, W - halfBW - 34));
-    const y = H * (0.52 + (i % 2) * 0.14) + Math.cos(t / 1100 + i) * 10;
+    const plateW = tw + 52 + AV;
+    const row = i % 2;
+    const hostLeftEdge = W * 0.805 - 150;
+    let x = rowX[row] + halfBW;
+    if (x + halfBW > hostLeftEdge - 20) return; // the row is full — the comment stays in the VO, never prints under the host
+    rowX[row] = x + halfBW + 28;
+    const y = H * (0.52 + row * 0.14) + Math.cos(t / 1100 + i) * 10;
     const toneCol = i % 2 ? PALETTE.up : PALETTE.gold;
     ctx.save();
     ctx.globalAlpha = bp * 0.95;

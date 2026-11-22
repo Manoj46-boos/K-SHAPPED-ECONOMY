@@ -380,10 +380,10 @@ export default function StudioPage() {
         timeline = { ...prepared.timeline, durationMs: 6000, totalFrames: Math.ceil(6 * timeline.fps) };
       }
 
-      const writable = await pickSaveTarget(
+      const save = await pickSaveTarget(
         testMode ? 'k-economy-test-render.mp4' : `k-shaped-economy-${resolution}-${fps}fps.mp4`
       );
-      if (writable === null) {
+      if (save === null) {
         addLog('save dialog unavailable or cancelled — rendering in memory; the file will download automatically');
       }
 
@@ -406,7 +406,8 @@ export default function StudioPage() {
           mixBuffer: prepared.mixBuffer,
           canvas,
           options: renderOptions,
-          writable,
+          writable: save?.writable ?? null,
+          handle: save?.handle ?? null,
           audioDurationMs: testMode ? 6500 : undefined,
           onProgress: (s) => setRenderStats(s),
           onLog: addLog,
@@ -515,10 +516,10 @@ export default function StudioPage() {
     canvas.width = 1080;
     canvas.height = 1920;
 
-    const writable = await pickSaveTarget(
+    const save = await pickSaveTarget(
       `k-economy-short-${spec.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}.mp4`
     );
-    if (writable === null) {
+    if (save === null) {
       addLog('save dialog unavailable or cancelled — rendering the Short in memory; it will download automatically');
     }
 
@@ -538,7 +539,8 @@ export default function StudioPage() {
         spec,
         options: renderOptions,
         canvas,
-        writable,
+        writable: save?.writable ?? null,
+        handle: save?.handle ?? null,
         onProgress: (s) => setRenderStats(s as unknown as EncoderStats),
         onLog: addLog,
       });

@@ -773,7 +773,13 @@ export function chartJourneyScene(g: SceneCtx): void {
     ctx.restore();
   }
   lineChart(ctx, {
-    x: chartX, y: chartY + (series.length > 1 ? 66 : 0), w: chartW, h: chartH,
+    // B2 (market review — THE CLIPPED AXIS): the plot started AT the card's
+    // left edge, so the y-axis labels ('−2/−3/−4', '35/30') rendered half
+    // outside the plate — cut by the card on every negative/2-digit beat.
+    // The plot yields a measured 150px left gutter (the widest shipped
+    // label '−35.8' measures ~120px at the 40px axis face) and the walker's
+    // grip mapping below rides the SAME rect.
+    x: chartX + 150, y: chartY + (series.length > 1 ? 66 : 0), w: chartW - 150, h: chartH,
     series,
     annotations: (s.annotations as any[]) || [],
     band: s.band as any,
@@ -1112,7 +1118,10 @@ export function chartJourneyScene(g: SceneCtx): void {
           }
         }
         const plotYJ = chartY + (series.length > 1 ? 66 : 0);
+        // B2 (cont.): the grip solves against the plot's GUTTERED rect —
+        // x0 = chartX + 150, w = chartW - 150 (the same rect lineChart draws).
         const gyJ = plotYJ + chartH - ((gvJ - yMinJ) / (yMaxJ - yMinJ)) * chartH;
+        const gripXJ = chartX + 150 + xfJ * (chartW - 150);
         const crownJ = floorY - 241 * walkerRig;
         // C8 GUARD FIX: the fist plants ONLY when the line is genuinely in
         // the arm's reach cone — below y 420 (clear of the annotation pill
@@ -1124,7 +1133,7 @@ export function chartJourneyScene(g: SceneCtx): void {
         // is not contact anyway. When the line sits high, the walker
         // presents instead — contact exists where the line actually is.
         gripJ = gyJ >= 420 && gyJ <= 505
-          ? { x: chartX + xfJ * chartW, y: gyJ, hand: 'fist' as const } // U8: the fist lands on the line's endpoint
+          ? { x: gripXJ, y: gyJ, hand: 'fist' as const } // U8: the fist lands on the line's endpoint
           : undefined;
       }
     }
@@ -1445,12 +1454,14 @@ export function magChipsScene(g: SceneCtx): void {
     const y = H * 0.458 + i * 120;
     const c = TONE(st.tone || 'default');
     card(ctx, W * 0.165, y, W * 0.675, 100, { r: 26, settle: { t, landT: 3200 + i * 700 } }); // D2 settle
-    // B10 FIX (100-Judge report — MUTED DATA INK): the cream card on the
-    // mint plate read as a translucent gray pill at the feed, and the
-    // ink-soft label dissolved. The plate commits to solid white and the
-    // label to full ink — the tone numeral owns the row.
+    // B10 FIX + B3 (market review — THE DOUBLE-PAINT): the solid white
+    // roundRect here painted OVER the card() pass — the card's ink border
+    // and one-light shadow were buried under a flat white plate, and the
+    // row read as a ghost rectangle (the audit's "double-painted white
+    // row"). The white face now fills INSIDE the card's own border
+    // (inset 3px), keeping the object language: border, shadow, plate.
     ctx.fillStyle = PALETTE.white;
-    roundRect(ctx, W * 0.165, y, W * 0.675, 100, { r: 26 }.r);
+    roundRect(ctx, W * 0.165 + 3, y + 3, W * 0.675 - 6, 94, 23);
     ctx.fill();
     setFont(ctx, 56, 700);
     ctx.fillStyle = c.main;
@@ -1693,8 +1704,8 @@ export function trioConvergeScene(g: SceneCtx): void {
     ctx.fillStyle = PALETTE.ink;
     ctx.fillText(realValues[i], x + w / 2, y + h + 6);
     ctx.globalAlpha = ap;
-    setFont(ctx, 22 + 6, 600); // v9 (D-07): floor — "index, low→latest" caption
-    ctx.fillStyle = PALETTE.inkFaint;
+    setFont(ctx, LABEL_FLOOR, 600); // B5 (market review): the caption joins the label floor — 28 was sub-floor where trust lives
+    ctx.fillStyle = PALETTE.inkSoft;
     ctx.fillText('index · low → latest', x + w / 2, y + h + 34);
     registerRect(`trio:${names[i]}`, x, y, w, h + 40);
     ctx.restore();
@@ -1985,7 +1996,14 @@ export function credibilityChipsScene(g: SceneCtx): void {
     ctx.textAlign = 'center';
     setFont(ctx, 44, 700);
     ctx.fillStyle = PALETTE.goldDeep;
-    ctx.fillText(s.year as string, W / 2, H * 0.225 + chipsList.length * 96 + 60);
+    // B5 (market review — THE BURIED CAPTION): the year line's baseline at
+    // +60 put its lower half inside CAPTION_ZONE_TOP (800) — the 2-row
+    // caption pill plated "published in 2,0…" on every wide-caption frame.
+    // The caption now anchors in the 711-800 clear band, fully above the
+    // pill at every chip count, and registers as reading text.
+    const yearY = Math.min(H * 0.225 + chipsList.length * 96 + 48, CAPTION_ZONE_TOP - 30);
+    registerRect('credibilityChips:year', W / 2 - 320, yearY - 44, 640, 56);
+    ctx.fillText(s.year as string, W / 2, yearY);
     ctx.restore();
   }
   // ── 100-JUDGE PANEL / PHASE 1 item 1 — CONTACT IS MANDATORY: the chip
@@ -4426,10 +4444,14 @@ export function fundSplitScene(g: SceneCtx): void {
       // 34px exit lift with ≥2px to spare (guard v2 sweeps it — it is now
       // REGISTERED, which is how D-09 escaped the v9 sweep in the first
       // place: unregistered content is invisible to the guard).
-      // PHASE-0 note: stays at the 996 below-pill gap anchor (D-09) — the
-      // re-anchored stat chips (0.56H, 150px pitch) end at ~0.78H, clear
-      // of this chip's band by >150px; the guard sweep is the referee.
-      const chy = 996;
+      // B2 (market review — THE SLICED CALLBACK): the 996 anchor still rode
+      // under the ch8 exit camera's +34 lift — the mapped bottom crossed
+      // 1080 and the frame edge sliced the gold plate mid-glyph. The chip
+      // anchors ABOVE the caption zone (CAPTION_ZONE_TOP - 70): it is
+      // horizontally clear of the stat column (the centered plate starts
+      // x≈735, the stat chips end x≈592) and clear of the 7-vs-493
+      // graphic's band — one clean rectangle, every camera state.
+      const chy = CAPTION_ZONE_TOP - 70;
       registerRect('fundSplit:callbackChip', W / 2 - tw / 2 - 28, chy, tw + 56, 54);
       ctx.fillStyle = PALETTE.goldWash;
       roundRect(ctx, W / 2 - tw / 2 - 28, chy, tw + 56, 54, 27);
@@ -4606,11 +4628,20 @@ export function oddsSpreadScene(g: SceneCtx): void {
   const BAND_ORDER_ABOVE = ['above', 'below1', 'below2'] as const;
   const BAND_ORDER_BELOW = ['below1', 'below2', 'above'] as const;
   type BandName = 'above' | 'below1' | 'below2';
-  const placedSpans: Array<{ band: BandName; x0: number; x1: number }> = [];
+  const placedSpans: Array<{ band: BandName; x0: number; x1: number; top: number; bottom: number }> = [];
   const HOST_RESERVE: [number, number] = [1430, 1810]; // the stage host's envelope
   const CX_MIN = 340;
   const CX_MAX = 1600;
-  const placeCard = (pinX: number, w: number, preferBelow: boolean): { band: BandName; cx: number; top: number } | null => {
+  const placeCard = (pinX: number, w: number, h: number, preferBelow: boolean): { band: BandName; cx: number; top: number } | null => {
+    // B1 (market review — HEIGHT-AWARE BANDS): the packer parked every card
+    // at its band RAIL regardless of the card's own height — a two-line
+    // below-band card ran ~30px past the closer's top (the coral "all
+    // average … consensus" line printed through the Zandi card). Tops are
+    // now computed per-card-height; conflicts test FULL RECTANGLES across
+    // bands (a tall below-1 card no longer prints through a below-2
+    // neighbour), and any below-band placement that would cross the closer's
+    // band flips to the next band like every other conflict.
+    const CLOSER_TOP = 712;
     const order = preferBelow ? BAND_ORDER_BELOW : BAND_ORDER_ABOVE;
     for (const band of order) {
       for (let s2 = 0; s2 <= 400; s2 += 40) {
@@ -4618,11 +4649,13 @@ export function oddsSpreadScene(g: SceneCtx): void {
           const cx = Math.min(CX_MAX, Math.max(CX_MIN, pinX + dir * s2));
           const x0 = cx - w / 2;
           const x1 = cx + w / 2;
-          const hits = placedSpans.some((p) => p.band === band && x1 > p.x0 && x0 < p.x1);
+          const top = band === 'above' ? trackY - 100 - h : bandsY[band](0);
+          const bottom = top + h;
+          const hits = placedSpans.some((p) => x1 > p.x0 + 6 && p.x1 > x0 + 6 && bottom > p.top + 6 && p.bottom > top + 6);
           const hitsHost = band !== 'above' && x1 > HOST_RESERVE[0] && x0 < HOST_RESERVE[1];
-          if (!hits && !hitsHost) {
-            placedSpans.push({ band, x0, x1 });
-            const top = band === 'above' ? bandsY.above(0) - 0 : bandsY[band](0);
+          const hitsCloser = band !== 'above' && bottom > CLOSER_TOP;
+          if (!hits && !hitsHost && !hitsCloser) {
+            placedSpans.push({ band, x0, x1, top, bottom });
             return { band, cx, top };
           }
         }
@@ -4649,10 +4682,10 @@ export function oddsSpreadScene(g: SceneCtx): void {
   markers.forEach((m: any, i: number) => {
     const x = trackX + (clamp01(m.at / 100)) * trackW;
     const belowRow = i === 1 || i === 3 || i === 4; // pins clear the % ticks below
-    cardPos.push(placeCard(x, CARD_W, belowRow));
+    cardPos.push(placeCard(x, CARD_W, cardMetas[i].h, belowRow));
   });
   // the chip packs LAST — it yields the rows to the data cards
-  const chipPos = spread ? placeCard(spread.cx, spread.w, false) : null;
+  const chipPos = spread ? placeCard(spread.cx, spread.w, spread.h, false) : null;
 
   markers.forEach((m, i) => {
     const mp = clamp01((t - 300 - i * 160) / 400); // B18: all seven chips in by ~1.7s

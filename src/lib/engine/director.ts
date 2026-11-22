@@ -1237,19 +1237,30 @@ export function drawFrame(
     // mass carries it), while the data (0.25) and statement (0.15)
     // registers stay put — the report's "on figure frames only": the
     // reading surfaces stay clean.
+    // B6 (market review — THE REGISTER READS DIRTY AFTER TRANSCODE): the
+    // 0.55 figure-frame tier reads premium on the render rig and as MOTTLE
+    // after YouTube's re-encode on a phone OLED — the grain tiles composite
+    // OVERLAY on a light ivory palette, so the codec spends bits on noise
+    // the viewer reads as dirt. Premium film grain stays at the felt-not-
+    // seen register the V6 halving found: figure 0.55 → 0.32 (alive on the
+    // ink mass, gone to the codec), data 0.25 → 0.16, statement 0.15 → 0.10.
     const sceneType = beat.beat.scene.type;
     const grainAlpha =
-      sceneType === 'bigText' || sceneType === 'stampCard' ? 0.15
+      sceneType === 'bigText' || sceneType === 'stampCard' ? 0.10
       : ['host', 'divergeK', 'channelIntro', 'recapSplit', 'paradoxResolve',
-         'ownerWorker', 'endScreen', 'commentPrompt', 'takeaways'].includes(sceneType) ? 0.55
-      : 0.25;
+         'ownerWorker', 'endScreen', 'commentPrompt', 'takeaways'].includes(sceneType) ? 0.32
+      : 0.16;
     drawGrain(ctx, W, H, grainAlpha, t);
   }
   // B15 (MINT MONOTONY): the mint rooms carry the mud complaint — the
   // vignette's edge ring over the sage wash grey-greened the lower third.
   // Mint chapters run a lighter edge (0.30 -> 0.22); the gold/coral rooms
   // keep the full cinematic focus.
-  lightVignette(ctx, W, H, [0, 1, 4, 5, 6, 7].includes(beat.chapter) ? 0.22 : 0.30);
+  // B6 (market review): the 0.42 corner constant dries the light palette
+  // into the grey-sage fog after the transcode; strengths step down with it
+  // (mint 0.22 → 0.16, gold/coral 0.30 → 0.22) — the cinematic focus read
+  // survives, the mottling does not.
+  lightVignette(ctx, W, H, [0, 1, 4, 5, 6, 7].includes(beat.chapter) ? 0.16 : 0.22);
 
   // global fades: from ink at start, to ink at end
   // P1-8 (report §12.8): the cold-open white fade 600ms → 180ms. The 600ms

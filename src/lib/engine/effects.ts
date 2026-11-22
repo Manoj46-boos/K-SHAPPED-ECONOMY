@@ -469,7 +469,10 @@ export function lightVignette(ctx: CanvasRenderingContext2D, W: number, H: numbe
   // report's prescribed 0.40-0.45 band. The corners stop drying the frame
   // into the grey-sage fog; the drawn alpha is this constant × the
   // call-site strength (the director's post-pass).
-  g.addColorStop(1, rgba(PALETTE.shadow, 0.42 * strength));
+  // B6 (market review — TRANSCODE-SAFE VIGNETTE): 0.42 → 0.30 — on the
+  // light ivory palette the 0.42 ring reads as dirt after the platform
+  // re-encode; 0.30 keeps the pushed-in focus without the fog.
+  g.addColorStop(1, rgba(PALETTE.shadow, 0.30 * strength));
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
 }
@@ -542,15 +545,13 @@ export function kMotifs(
     - camState.dx * (1 - BG_PARALLAX) * 0.6);
   const y = H * 0.17 + Math.cos(t / 6000) * 6;
   const s = 118 * camState.scale;
-  // the one-light offset — the mark's shadow falls lower-left, exactly
-  // like every card, chip and figure shadow in the film (P3-3)
-  ctx.globalAlpha = alpha * 0.5;
-  ctx.strokeStyle = rgba(PALETTE.goldDeep, 0.5);
-  drawK(ctx, x - 5, y + 8, s, 5);
-  // the mark itself — one crisp K outline at the declared alpha
+  // C2 (market review — ONE K CONSTRUCTION): the room mark was the THIN
+  // outline K (drawK) while the film's brand letter is the extruded gold
+  // drawK3D — two constructions for one mark diluted the recall the letter
+  // exists to build. The room now wears the SAME construction at whisper
+  // alpha, face off (background furniture — the one-mascot rule).
   ctx.globalAlpha = alpha;
-  ctx.strokeStyle = PALETTE.gold;
-  drawK(ctx, x, y, s, 5);
+  drawK3D(ctx, x, y, s * 0.92, 1, t, false);
   ctx.restore();
 }
 
@@ -604,9 +605,10 @@ export function chapterAccent(
   } else {
     // the gold K (gold chapters) / soft grey K (neutral) — the brand
     // object as the room's own furniture, far corner, background plane
+    // C2 (market review — ONE K CONSTRUCTION): the 3D construction here
+    // too — the thin outline variant is retired everywhere.
     ctx.globalAlpha = 0.16;
-    ctx.strokeStyle = tone === 'gold' ? PALETTE.gold : PALETTE.grid;
-    drawK(ctx, x, y - 40, 56, 4);
+    drawK3D(ctx, x, y - 40, 56, 1, t, false);
   }
   ctx.restore();
 }
