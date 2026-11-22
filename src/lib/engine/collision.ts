@@ -237,6 +237,29 @@ export function guardRects(): Array<GuardRect & { id: string; cls?: 'content' | 
   return collisionGuard.content.slice();
 }
 
+/**
+ * C3 (100-JUDGE PANEL REPORT §2.3 — THE CHROME RULE): the current frame's
+ * registered content occupancy — every content/host/contact rect clamped
+ * to the frame, summed as an upper-bound fraction of frame area. The
+ * director fades the fixed chrome (watermark, ticker rail, chapter pill,
+ * progress bar) to HALF ALPHA when this sits below the composition
+ * system's own 18% hero floor: on sparse frames the chrome is the only
+ * structured content on screen and competes with nothing — it stops
+ * shouting. The fixed chrome itself lives in a separate registry, so it
+ * never pollutes the measurement.
+ */
+export function registeredAreaFraction(W: number, H: number): number {
+  let sum = 0;
+  for (const r of collisionGuard.content) {
+    const x0 = Math.max(0, r.x);
+    const y0 = Math.max(0, r.y);
+    const x1 = Math.min(W, r.x + r.w);
+    const y1 = Math.min(H, r.y + r.h);
+    if (x1 > x0 && y1 > y0) sum += (x1 - x0) * (y1 - y0);
+  }
+  return Math.min(1, sum / (W * H));
+}
+
 /** Compute (and stash) all violations for the current frame:
  *  pill + fixed-furniture overlaps, and frame-edge crossings. */
 export function collectViolations(): CollisionViolation[] {

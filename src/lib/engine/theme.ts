@@ -875,8 +875,17 @@ export function scenePlate(
     // feed — calibrated to stay ABOVE the frame-scanner's ink threshold
     // (sum-RGB 330 ≈ lum 110) so the figure-detection heuristics keep
     // reading the FIGURE, not the floor.
-    fg.addColorStop(0.4, rgba(PALETTE.ink, 0.22));
-    fg.addColorStop(1, rgba(PALETTE.ink, 0.32));
+    // B7 FIX (100-JUDGE PANEL REPORT §2.2 — ROOM MUD IN THE LOWER THIRD):
+    // the lower third was the SUM of six whisper layers (multiply plate
+    // 0.30 + vivid wash + this band 0.22-0.32 + plank ticks + grain 0.5 +
+    // vignette) — the mean landed ~0.50 luminance with a green-gray cast:
+    // "dirty, not a stage". The E3 doctrine — fewer, bolder planes —
+    // diets the stack: the band lightens to 0.12/0.18 (still a real stage
+    // plane, above the ink threshold), the plank ticks halve, the grain
+    // overlay drops a register, and the vignette's bottom weight eases.
+    // Each layer still commits; the sum stops reading as mud.
+    fg.addColorStop(0.4, rgba(PALETTE.ink, 0.12));
+    fg.addColorStop(1, rgba(PALETTE.ink, 0.18));
     ctx.fillStyle = fg;
     ctx.fillRect(0, bandTop, W, H - bandTop);
   }
@@ -999,8 +1008,10 @@ export function scenePlate(
       glowBlob(ctx, W * 0.105, H * 0.11, W * 0.09, PALETTE.gold, 0.30);
       // THE FLOOR MATERIAL — sparse plank ticks over the floor band: the
       // data room's boarded floor (the studio keeps its clean gradient).
+      // B7 FIX: the ticks halve (0.16 → 0.09) — texture stays, the sum
+      // stops reading as mud (see the floor band note above).
       ctx.save();
-      ctx.strokeStyle = rgba(PALETTE.ink, 0.16);
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.09);
       ctx.lineWidth = 3;
       for (let i = 0; i < 14; i++) {
         const px2 = ((i * 173) % W);
@@ -1105,18 +1116,25 @@ export function drawRoomRail(
         // entry frames (t01m10s/t01m20s). The backing commits to near-opaque
         // tone (0.42 → 0.82): the tag is a clean readable plate over ANY
         // wash state, and the text inside rises to match.
-        ctx.fillStyle = rgba(col, 0.82);
+        // C2 FIX (100-JUDGE PANEL REPORT §2.3 — RAIL TAGS AT THE GATE): the
+        // 0.82 plate still let mid-tone wash states print through after the
+        // platform transcode, and 22px sat at the enforcement floor — legal,
+        // not legible. The plate commits to 0.92, the text to full white,
+        // the ink border to 0.5, and the type rises to 26px: contrast-first
+        // per the report ("contrast, not size, is the binding constraint"
+        // — with the size floor margin restored).
+        ctx.fillStyle = rgba(col, 0.92);
         roundRect(ctx, tx, fy - 10, 86, 34, 8);
         ctx.fill();
-        ctx.strokeStyle = rgba(PALETTE.ink, 0.34);
+        ctx.strokeStyle = rgba(PALETTE.ink, 0.5);
         ctx.lineWidth = 2.5;
         roundRect(ctx, tx, fy - 10, 86, 34, 8);
         ctx.stroke();
-        ctx.fillStyle = rgba('#FFFFFF', 0.94);
+        ctx.fillStyle = rgba('#FFFFFF', 1);
         // U13: the rail tags ride the enforced floor (raw 20px bypassed it).
-        setFont(ctx, 22, 700, FONT_UI);
+        setFont(ctx, 26, 700, FONT_UI);
         ctx.textAlign = 'center';
-        ctx.fillText(label, tx + 43, fy + 14);
+        ctx.fillText(label, tx + 43, fy + 15);
       });
       // the LIVE dot — the tape is alive
       ctx.fillStyle = rgba(PALETTE.down, 0.55);

@@ -12,7 +12,7 @@ import { drawParticles, emitterKindFor } from './particles';
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
 import { Timeline, beatAt } from './timeline';
 import { SceneCtx, SceneDrawer, REACTIONS, reactionAt, resetHeadlineDedup } from './scene-context';
-import { collisionGuard, collisionGuard as guardRef, resetGuard, setGuardOverlay, setGuardCamera, collectViolations } from './collision';
+import { collisionGuard, collisionGuard as guardRef, resetGuard, setGuardOverlay, setGuardCamera, collectViolations, registeredAreaFraction } from './collision';
 import { AMP, HERO } from './perception';
 // PHASE 1 (100-Judge audit Table 6): per-frame registry resets for the
 // scale law + the prop ledger (the harness asserts them per evidence frame).
@@ -1003,15 +1003,28 @@ export function drawFrame(
   // watermark band at the lowered drift — the audit's recurring
   // "watermark collides with the stat-chip row" class.) x >= 0.17W keeps
   // it horizontally clear of the channel lockup; see theme.drawRoomRail.
+  // C3 FIX (100-JUDGE PANEL REPORT §2.3 — FIXED CHROME ON SPARSE FRAMES):
+  // on frames whose registered content sits below the composition system's
+  // own 18% hero floor (the cold open's first second, the chapter dividers),
+  // the fixed chrome is literally the only structured content on screen —
+  // it stops competing by fading to HALF ALPHA. The occupancy metric reads
+  // the frame's own registered rects (the chrome registers separately, so
+  // it never measures itself).
+  const chromeA = registeredAreaFraction(1920, 1080) < 0.18 ? 0.5 : 1;
   {
     const rf = getRoomFamily();
-    if (rf) drawRoomRail(ctx, 1920, 1080, rf, opts.channelName);
-    // P2 U12 (ONE DESIGNED ROOM PER CHAPTER FAMILY): the wall object, the
-    // horizon prop and the desk surface — the fundSplit grade — land right
-    // after the rail, same screen-space call site, same fixed relationship
-    // to the watermark. Families without a room key (the close, the end
-    // screen) keep the clean stage.
-    if (rf) drawChapterRoom(ctx, 1920, 1080, rf);
+    if (rf) {
+      ctx.save();
+      if (chromeA < 1) ctx.globalAlpha = chromeA;
+      drawRoomRail(ctx, 1920, 1080, rf, opts.channelName);
+      // P2 U12 (ONE DESIGNED ROOM PER CHAPTER FAMILY): the wall object, the
+      // horizon prop and the desk surface — the fundSplit grade — land right
+      // after the rail, same screen-space call site, same fixed relationship
+      // to the watermark. Families without a room key (the close, the end
+      // screen) keep the clean stage.
+      drawChapterRoom(ctx, 1920, 1080, rf);
+      ctx.restore();
+    }
   }
   // BLUEPRINT Phase 5 (report §11 — the reaction close-up's CONTENT
   // RECEDE): during every reaction window the data content recedes in
@@ -1168,7 +1181,15 @@ export function drawFrame(
     const chT = t - tl.chapters[chIdx].startMs;
     const inCard = tl.chapterCards.some((c) => t >= c.startMs && t < c.endMs);
     if (!inCard && chT < 5000 && chIdx > 0) {
-      drawChapterLabel(ctx, W, tl.chapters[chIdx].title, chT);
+      // C3 FIX: the chapter label rides the sparse-frame chrome fade.
+      if (chromeA < 1) {
+        ctx.save();
+        ctx.globalAlpha = chromeA;
+        drawChapterLabel(ctx, W, tl.chapters[chIdx].title, chT);
+        ctx.restore();
+      } else {
+        drawChapterLabel(ctx, W, tl.chapters[chIdx].title, chT);
+      }
     }
   }
 
@@ -1203,12 +1224,30 @@ export function drawFrame(
   // order collected first, so the watermark could never be checked). The
   // watermark sits top-left; nothing else paints over it, so the reorder
   // has no visual effect.
-  if (opts.watermark) drawWatermark(ctx, W, opts.channelName);
+  // C3 FIX: the watermark and progress bar ride the same sparse-frame fade
+  // (half alpha below the 18% content floor).
+  if (opts.watermark) {
+    if (chromeA < 1) {
+      ctx.save();
+      ctx.globalAlpha = chromeA;
+      drawWatermark(ctx, W, opts.channelName);
+      ctx.restore();
+    } else {
+      drawWatermark(ctx, W, opts.channelName);
+    }
+  }
 
   // progress bar + chapter ticks
   if (opts.progressBar) {
     const fracs = tl.chapters.slice(1).map((c) => c.startMs / tl.durationMs);
-    drawProgressBar(ctx, W, H, t / tl.durationMs, fracs);
+    if (chromeA < 1) {
+      ctx.save();
+      ctx.globalAlpha = chromeA;
+      drawProgressBar(ctx, W, H, t / tl.durationMs, fracs);
+      ctx.restore();
+    } else {
+      drawProgressBar(ctx, W, H, t / tl.durationMs, fracs);
+    }
   }
 
   // v9 (P0-1): stash this frame's violations for the harness to read
@@ -1248,11 +1287,15 @@ export function drawFrame(
     const sceneType = beat.beat.scene.type;
     // U11 register: figure 0.22 · data 0.25 · statement 0.15 (bigText and
     // stampCard are the statement family's serif plates — the 0.15 tier).
+    // B7 FIX (100-JUDGE PANEL REPORT §2.2 — ROOM MUD IN THE LOWER THIRD):
+    // the grain overlay was the stack's fourth whisper layer over the floor
+    // band — one register down across every scene class (the texture stays;
+    // the sum stops reading as a dirty lower third).
     const grainAlpha =
       ['host', 'divergeK', 'channelIntro', 'recapSplit', 'paradoxResolve',
-       'ownerWorker', 'endScreen', 'commentPrompt', 'takeaways'].includes(sceneType) ? 0.22
-      : sceneType === 'bigText' || sceneType === 'stampCard' ? 0.15
-      : 0.25;
+       'ownerWorker', 'endScreen', 'commentPrompt', 'takeaways'].includes(sceneType) ? 0.14
+      : sceneType === 'bigText' || sceneType === 'stampCard' ? 0.10
+      : 0.16;
     drawGrain(ctx, W, H, grainAlpha, t);
   }
   // B15 (MINT MONOTONY): the mint rooms carry the mud complaint — the

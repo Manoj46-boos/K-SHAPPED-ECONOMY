@@ -13,7 +13,7 @@ import { pivotTakeStart } from './pivots';
 import { HERO } from './perception';
 import { drawStickmanV2 } from './stickman-v2';
 import { wrapText } from './charts';
-import { registerRect } from './collision';
+import { registerRect, registerText } from './collision';
 
 function bg(g: SceneCtx, seed: number, gold = 0.4, strength = 0.72, bokeh = 0.85, furniture = true): void {
   paintBg(g.ctx, g.W, g.H, g.t, g.chapterTone);
@@ -126,7 +126,10 @@ export function bigTextScene(g: SceneCtx): void {
     ctx.stroke();
     // the label under the bracket
     if (payoff.label) {
-      setFont(ctx, 30, 700);
+      // C2 FIX (100-JUDGE PANEL REPORT §2.3 — WHISPER CAPTIONS): the payoff
+      // line ('7 of 500 decide the year' — the statement's whole argument)
+      // rode a 30px whisper. Ink at 0.9 on the 34px floor per the report.
+      setFont(ctx, 34, 700);
       ctx.textAlign = 'left';
       ctx.fillStyle = PALETTE.goldDeep;
       ctx.fillText(String(goldN), fx - 14, fy + fh + 46);
@@ -223,7 +226,15 @@ export function bigTextScene(g: SceneCtx): void {
     // AUDIT-ROUND-3 (Fix 4): the underline WIPES left→right (a drawn
     // gesture under the words) instead of expanding from the center
     // (a loading bar). Reading direction = wipe direction.
-    const w = 560 * easeOutCubic(up2);
+    // B4 FIX (100-JUDGE PANEL REPORT §2.2 — STATIC RULES CUT THROUGH THE
+    // FIGURE): the rule wiped to 1240 — INTO the host's standing zone —
+    // and passed behind/through his pointing arm while he arrived (the
+    // engine solved hand-vs-text clearance but never rule-vs-figure). The
+    // rule now ends 96px clear of the body core (1256): w 560 → 480, and
+    // the contact verb retargets to the NEW end-cap so the palm still
+    // brackets the statement's underline (contact-by-design preserved,
+    // no shaft crossing at any frame of the wipe).
+    const w = 480 * easeOutCubic(up2);
     ctx.beginPath();
     ctx.moveTo(W / 2 - 280, H * 0.585);
     ctx.lineTo(W / 2 - 280 + w, H * 0.585);
@@ -262,12 +273,13 @@ export function bigTextScene(g: SceneCtx): void {
     // arrives (the film's loudest words get a body that receives them).
     // 100-JUDGE PANEL / PHASE 1 item 1 — CONTACT IS MANDATORY (report §6
     // Phase 1). The count host's data is the STATEMENT — the near hand
-    // SOLVES onto the gold underline's right end-cap (1246, 632): the palm
+    // SOLVES onto the gold underline's right end-cap (1160, 632 — the B4
+    // shortened rule): the palm
     // BRACKETS the statement's underline while the far hand keeps the
     // count2 tally raised. The host steps in from W*0.83 to 1330 so the
     // underline tip is inside the 131px arm envelope (shoulder (1334, 543)
-    // → tip 125px, lands); the body core 1256-1404 stays 16px right of the
-    // underline's full extent (wipe ends 1240). Ground 735 keeps the feet
+    // → tip lands); the body core 1256-1404 stays 96px right of the
+    // underline's full extent (wipe ends 1160). Ground 735 keeps the feet
     // band clear of the 2-row pill (top 796).
     const sinceLand = t - 2200;
     const squash = sinceLand >= 0 && sinceLand < 300
@@ -278,7 +290,7 @@ export function bigTextScene(g: SceneCtx): void {
     // gesture is work; the sleeves roll. Driven inside drawStickmanV2
     // from the pose's own rHand count glyph (cuff at the forearm, on
     // the body's ivory) so every count host inherits it.
-    drawStickmanV2(ctx, 1310, H * 0.681, 1.17, t, { pose, alpha: hp, look: -0.6, parallax: true, squash, contact: { x: 1240, y: 632, hand: 'palm' } }, 31);
+      drawStickmanV2(ctx, 1310, H * 0.681, 1.17, t, { pose, alpha: hp, look: -0.6, parallax: true, squash, contact: { x: 1160, y: 632, hand: 'palm' } }, 31);
   }
 }
 
@@ -900,6 +912,7 @@ export function takeawaysScene(g: SceneCtx): void {
     // (36→22 gaps, 40→36 leading) is the safety net if future copy grows.
     const y = H * 0.16;
     const pts = (s.points as string[]) || [];
+    const dn = s.dataNumber as { big: string; sub: string } | undefined;
     const titleLines = wrapText(ctx, s.title as string, cw - 260, 44, 700);
     const pointLines = pts.map((pt) => wrapText(ctx, pt, cw - 260, 30, 600));
     let ptGap = 36;
@@ -907,7 +920,11 @@ export function takeawaysScene(g: SceneCtx): void {
     const stackH = (gap: number, step: number): number =>
       182 + titleLines.length * 56 +
       pointLines.reduce((a, ls) => a + ls.length * step, 0) +
-      Math.max(0, pointLines.length - 1) * gap;
+      Math.max(0, pointLines.length - 1) * gap +
+      // C1 CARD DIET (100-JUDGE PANEL REPORT §2.3): the card carries ONE
+      // data number — a full-width strip under the points (the card grows
+      // to fit it, so the strip can never plate a point's tail).
+      (dn ? 104 : 0);
     let ch = stackH(ptGap, lineStep);
     if (y + ch > 780 && ch > 220) {
       ptGap = 22;
@@ -967,6 +984,25 @@ export function takeawaysScene(g: SceneCtx): void {
       });
       ptY += ptGap;
     });
+    // C1 CARD DIET — the ONE number: the strip the stack height reserved.
+    if (dn) {
+      const sy = y + ch - 92;
+      registerText('takeaway:dataNumber', x + 40, sy, cw - 80, 68);
+      ctx.fillStyle = PALETTE.goldWash;
+      roundRect(ctx, x + 40, sy, cw - 80, 68, 16);
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = rgba(PALETTE.gold, 0.7);
+      roundRect(ctx, x + 40, sy, cw - 80, 68, 16);
+      ctx.stroke();
+      ctx.textAlign = 'left';
+      setFont(ctx, 48, 700, FONT_DISPLAY);
+      ctx.fillStyle = PALETTE.goldDeep;
+      ctx.fillText(dn.big, x + 72, sy + 50);
+      setFont(ctx, 26, 600);
+      ctx.fillStyle = PALETTE.ink;
+      ctx.fillText(dn.sub, x + 268, sy + 44);
+    }
     ctx.restore();
     // host reacting on the left
     const hp = clamp01((t - 700) / 600);

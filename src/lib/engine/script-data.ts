@@ -882,11 +882,18 @@ export const SCRIPT: ChapterSpec[] = [
         scene: P('takeaways', 'c9-one', {
           focus: 1,
           title: 'Know what you actually own',
+          // C1 CARD DIET (100-JUDGE PANEL REPORT §2.3): the takeaway cards
+          // carried 6-8 wrapped text lines — at 320px the card collapsed
+          // into gray striping. The report's structural fix: ≤3 content
+          // lines + one number, the voice carries the rest. Each point now
+          // fits ONE measured line, and the card carries its own dataNumber
+          // (content-true, cited by this beat's VO).
           points: [
-            'concentrated in a handful of mega-caps — or genuinely spread?',
+            'concentrated — or genuinely spread?',
             'company sizes · sectors · geographies',
-            '2026\u2019s small-cap rotation: the distinction pays off',
+            '2026\u2019s small-cap rotation proves it pays',
           ],
+          dataNumber: { big: '38%', sub: 'of the index — the 10 largest' },
         }),
       },
       {
@@ -896,11 +903,13 @@ export const SCRIPT: ChapterSpec[] = [
         scene: P('takeaways', 'c9-two', {
           focus: 2,
           title: 'Don\u2019t confuse “the market” with “the economy”',
+          // C1 CARD DIET: same ≤3 one-line points + one number (see c9-one).
           points: [
             'correlated — but not the same measurement',
             'the honest headline needs both halves:',
-            '“crashed to a 2022 low, then clawed back part of the way”',
+            'crashed to a 2022 low — then clawed back',
           ],
+          dataNumber: { big: '16%', sub: 'called it good · market +20%' },
         }),
       },
       {
@@ -910,11 +919,13 @@ export const SCRIPT: ChapterSpec[] = [
         scene: P('takeaways', 'c9-three', {
           focus: 3,
           title: 'Be skeptical of single-number narratives',
+          // C1 CARD DIET: same ≤3 one-line points + one number (see c9-one).
           points: [
             'one poll · one index · one forecast — never enough',
             'the honest picture needs more than one chart',
-            '12–15% · 25% · 48% — same economy, three conclusions',
+            '12\u201315% · 25% · 48% — three conclusions',
           ],
+          dataNumber: { big: '12\u201348%', sub: 'the honest forecast range' },
         }),
       },
       {

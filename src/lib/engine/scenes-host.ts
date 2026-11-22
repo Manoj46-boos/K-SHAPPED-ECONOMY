@@ -1189,12 +1189,14 @@ export function splitNumbersScene(g: SceneCtx): void {
   bokehField(ctx, W, H, t, { intensity: 0.9, seed: 12 });
   const mode = (s.mode as string) || 'left';
 
-  const panelW = W * 0.38;
-  // v2 (PATCH 4 follow-up): panels slightly shorter + higher, freeing a
-  // clean anchored statement slot below them and clear of the caption pill
-  // (2-row pill top sits at y≈808; the statement slot centers at y≈752).
-  // FIX 3 (density payload): the panels yield a further 4% height — the
-  // population band below needs the 700-830 zone unobstructed.
+  const panelW = W * (mode === 'vs' || mode === 'vs-punch' ? 0.38 : 0.42);
+  // B1 FIX (100-JUDGE PANEL REPORT §2.2 — THE FIRST STAT BEAT): the single-
+  // panel modes' number panel measured 0.38W × 0.44H = 16.7% — UNDER the
+  // composition system's own 18% hero floor, and (unlike the vs mode) it
+  // registered no hero object at all: the report's "the two numbers become
+  // one split-card object ≥ 18% area". The panel widens to 0.42W × 0.44H
+  // = 18.5% in the left/right modes and registers as the beat's hero
+  // object below — the opening stat beat now carries a registered hero.
   const panelH = H * 0.44;
   const lx = W * 0.07;
   const rx = W * 0.55;
@@ -1296,6 +1298,11 @@ export function splitNumbersScene(g: SceneCtx): void {
       mode === 'left' ? marketStats : moodStats,
       g.sceneT, 0
     );
+    // B1 FIX (100-JUDGE PANEL REPORT §2.2): the widened split-card registers
+    // as the beat's hero object — 0.42W × 0.44H = 18.5% of the frame, over
+    // the composition system's own 18% hero floor (the harness asserts it).
+    registerHeroObject(g.beat.scene.sceneKey ?? g.beat.scene.type, 'split-card',
+      panelW, panelH, W, H);
     // 100-JUDGE REPORT (fix D05 — THE 85% FRAME): the single-panel mode
     // shipped one card, one host and nothing else — the audit measured the
     // right half at ~85% plate. Two payloads: (1) the population band —
@@ -1322,8 +1329,12 @@ export function splitNumbersScene(g: SceneCtx): void {
           ctx.arc(startX + col * pit + 6, byY + row * 26 + 6, 6.5, 0, Math.PI * 2);
           ctx.fill();
         }
-        setFont(ctx, 28, 700);
-        ctx.fillStyle = PALETTE.inkSoft;
+        // C2 FIX (100-JUDGE PANEL REPORT §2.3 — WHISPER CAPTIONS): the band
+        // label drew inkSoft at 28px — legal, not legible after the platform
+        // transcode on a mid-tone field. Contrast is the binding constraint:
+        // ink at 0.9 alpha on the 34px label floor (the report's own numbers).
+        setFont(ctx, 34, 700);
+        ctx.fillStyle = rgba(PALETTE.ink, 0.9);
         ctx.textAlign = 'left';
         ctx.fillText(bandLabel, startX, byY + 76);
         ctx.restore();
@@ -1698,7 +1709,17 @@ export function divergeKScene(g: SceneCtx): void {
     // rest CLEAR of his body zone (860/1060, stacked diagonally across the
     // collision centre) and RECOIL ~44px apart after the 1.7s impact — the
     // bounce is what sells the hit.
-    const shIn = clamp01((t - 2400) / 260);        // close-up arrival
+    // B1 FIX (100-JUDGE PANEL REPORT §2.2 — EMPTY-FIELD OPENINGS): the
+    // close-up keyed to 2400ms — the film's earliest full beat (f2, t=2s)
+    // rendered as two floating numerals on a ~70% empty mint field with no
+    // subject registered: a swipe risk in the most expensive real estate
+    // of the video. The report's own prescription — "bring the host in at
+    // f2" — moves the shocked close-up arrival to 900ms: by the first
+    // full beat the subject owns the left half (the 2.65 rig clears the
+    // 10% figure floor from frame one), and the numbers COLLIDE in front
+    // of the witness instead of into dead air. The impact clock (1700ms),
+    // the tear flinch (5950ms) and the VO clock are untouched.
+    const shIn = clamp01((t - 900) / 260);         // close-up arrival — host in at f2
     // 100-JUDGE PANEL REPORT (defect D10 — THE VANISHING HOOK DATA): the
     // old dim floor of 0.12 made the cited numbers invisible in the exact
     // seconds the narration speaks them — the hook frame's data became two
@@ -1743,7 +1764,9 @@ export function divergeKScene(g: SceneCtx): void {
     if (shIn > 0) {
       // the words slam in beside the face (the report's composition:
       // face fills the left half, the words carry the right)
-      const wP = clamp01((t - 2650) / 240);
+      // B1 FIX: the word slam rides the close-up's earlier clock (was
+      // 2650 — 250ms after the old 2400 arrival; now 1150).
+      const wP = clamp01((t - 1150) / 240);
       if (wP > 0) {
         ctx.save();
         ctx.globalAlpha = wP;
@@ -1772,7 +1795,9 @@ export function divergeKScene(g: SceneCtx): void {
       // into the gasp) and the tear flinch (t=5950, growP 0.5 — the K
       // rips; the body recoils and settles with the head chasing). The
       // camera push/roll at 4.4-7.1s becomes support for the body beat.
-      const heroT0 = t < 4600 ? 2400 : 5950;
+      // B1 FIX: the shock's arrival strike keys to the close-up's clock
+      // (2400 → 900, same move as shIn above).
+      const heroT0 = t < 4600 ? 900 : 5950;
       // P0 defect sweep (THE DECAPITATED CLOSE-UP): the shock close-up
       // staged its ground at 0.605 — at the 2.65 rig the figure's CROWN
       // sat at design y≈14, and the exit's raised camera (1.116) lifted

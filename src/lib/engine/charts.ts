@@ -1103,6 +1103,17 @@ export function pieChart(
       ctx.arc(cx, cy, rr, a0 + gap, drawA1 - gap);
       ctx.closePath();
       ctx.fill();
+      // B6 FIX (100-JUDGE PANEL REPORT §2.2 — THE PIE REMAINDER IS A
+      // STAIN): the sage remainder had NO EDGE — an amorphous blob against
+      // the solid gold wedge, the frame's whole argument lopsided. The
+      // report's prescription: "solid sage wedge with ink outline and
+      // wedge geometry". Every wedge now carries a committed ink outline
+      // (0.9 alpha, 2.5px) — both masses of the split read as drawn
+      // geometry at every rig.
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.9);
+      ctx.lineWidth = 2.5;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
       ctx.restore();
     }
     a0 = a1;

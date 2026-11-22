@@ -865,6 +865,13 @@ export function chartJourneyScene(g: SceneCtx): void {
           if (!hitPill && !hitChip) break;
           y0 = y0 + 68;
         }
+        // B2 FIX (100-JUDGE PANEL REPORT §2.2 — GHOST TEXT): the re-stack
+        // walked a colliding chip a full row DOWN up to six times with no
+        // floor — the Nasdaq journey's 'now +32,420' chip shipped into the
+        // caption pill band, clipped behind it. The report's zone-clamp law:
+        // a late-reveal chart label never occupies the caption zone — the
+        // walk now clamps to CAPTION_ZONE_TOP.
+        y0 = Math.min(y0, CAPTION_ZONE_TOP - 82);
         chipTaken.push({ x: colX - 10, y: y0 - 10, w: plateW + 20, h: 72 });
         const x0 = colX + (1 - easeOutCubic(cp)) * 26;
         y0 = y0 - (1 - easeOutCubic(cp)) * 14;
@@ -890,6 +897,50 @@ export function chartJourneyScene(g: SceneCtx): void {
   // frame, over the 18% data-beat floor (the harness asserts it).
   registerHeroObject(g.beat.scene.sceneKey ?? g.beat.scene.type, 'journey-chart',
     chartW, chartH + (series.length > 1 ? 40 : 0), W, H);
+
+  // quote card
+  // B3 FIX (100-JUDGE PANEL REPORT §2.2 — ANNOTATION-VS-CONTENT COLLISIONS):
+  // the card drew AFTER the extraStats plate stack and plated the coral
+  // '−12% still down vs. a year earlier' pill's right edge (f322: the
+  // overlap sampled the card's cream, not the pill's coral). The report's
+  // z-order law — "annotations always re-assert ABOVE cards that arrive
+  // after them" — is implemented as DRAW ORDER: the card now draws BEFORE
+  // the plate stack, so every annotation pill re-asserts above it. The
+  // card's rect also registers with the guard so later content avoids it.
+  const quote = s.quote as string | undefined;
+  if (quote) {
+    const ap = clamp01((t - 2400) / 800);
+    if (ap > 0) {
+      ctx.save();
+      ctx.globalAlpha = ap;
+      // PLAYBOOK D3 follow-up (round 2): qw 560→500 and the right margin
+      // 150→260 — the ch2/ch3 hero TRUCKS (±190px) pushed the card's
+      // right edge past the frame bound (16-31px on dense-mid frames).
+      // U8 (margin 260→500): the card yields to the PARKED walker — his
+      // hip band starts ~1478 at the 1.45 park, so the card's right edge
+      // moves to ~1460 and the card rides the chart's right column as his
+      // backdrop (the pills stay clear: they clamp above the crown, the
+      // card lives below it).
+      const qw = 500;
+      const qx = W - qw - 512;
+      // PLAYBOOK D3 follow-up: qy H*0.6 → H*0.5 — the 190px card's bottom
+      // (838) sat 42px inside the 2-row caption pill band on wide-caption
+      // frames (card@1210,648, the sweep's biggest remaining class). The
+      // card now rides the chart's right column, bottom at 730, clear.
+      const qy = H * 0.5;
+      registerRect('journey:quoteCard', qx, qy, qw, 190);
+      card(ctx, qx, qy, qw, 190, { r: 26 });
+      ctx.fillStyle = PALETTE.gold;
+      roundRect(ctx, qx + 30, qy + 26, 6, 138, 3);
+      ctx.fill();
+      setFont(ctx, 34, 600);
+      ctx.fillStyle = PALETTE.ink;
+      wrapText(ctx, quote, qw - 80, 27, 600).forEach((ln, i) => {
+        ctx.fillText(ln, qx + 56, qy + 64 + i * 38);
+      });
+      ctx.restore();
+    }
+  }
 
   // extra stat chips — v3: beat-relative stagger + anchored above the band
   // 100-JUDGE PANEL REPORT (defect D4 — THE OVERFLOWING CHIP): the label
@@ -1029,41 +1080,6 @@ export function chartJourneyScene(g: SceneCtx): void {
       }
       ctx.restore();
     });
-  }
-
-  // quote card
-  const quote = s.quote as string | undefined;
-  if (quote) {
-    const ap = clamp01((t - 2400) / 800);
-    if (ap > 0) {
-      ctx.save();
-      ctx.globalAlpha = ap;
-      // PLAYBOOK D3 follow-up (round 2): qw 560→500 and the right margin
-      // 150→260 — the ch2/ch3 hero TRUCKS (±190px) pushed the card's
-      // right edge past the frame bound (16-31px on dense-mid frames).
-      // U8 (margin 260→500): the card yields to the PARKED walker — his
-      // hip band starts ~1478 at the 1.45 park, so the card's right edge
-      // moves to ~1460 and the card rides the chart's right column as his
-      // backdrop (the pills stay clear: they clamp above the crown, the
-      // card lives below it).
-      const qw = 500;
-      const qx = W - qw - 512;
-      // PLAYBOOK D3 follow-up: qy H*0.6 → H*0.5 — the 190px card's bottom
-      // (838) sat 42px inside the 2-row caption pill band on wide-caption
-      // frames (card@1210,648, the sweep's biggest remaining class). The
-      // card now rides the chart's right column, bottom at 730, clear.
-      const qy = H * 0.5;
-      card(ctx, qx, qy, qw, 190, { r: 26 });
-      ctx.fillStyle = PALETTE.gold;
-      roundRect(ctx, qx + 30, qy + 26, 6, 138, 3);
-      ctx.fill();
-      setFont(ctx, 34, 600);
-      ctx.fillStyle = PALETTE.ink;
-      wrapText(ctx, quote, qw - 80, 27, 600).forEach((ln, i) => {
-        ctx.fillText(ln, qx + 56, qy + 64 + i * 38);
-      });
-      ctx.restore();
-    }
   }
 
   // ── 100-JUDGE PANEL / PHASE 2 item 4 — TERRAIN STAGING AS A PATTERN
@@ -1278,8 +1294,15 @@ export function pieChartScene(g: SceneCtx): void {
         roundRect(ctx, lx, ly + 6, 56, 56, 16);
         ctx.fill();
         // THE VALUE — the row's hero, first in reading order
+        // B6 FIX (100-JUDGE PANEL REPORT §2.2 — THE PIE REMAINDER): the
+        // muted remainder's value rode TONE('muted').main — a mid-field
+        // whisper ("'the other 490' at ~0.5 alpha ink"). The report's
+        // label law: contrast to ink at 0.9 alpha. Muted slices now state
+        // their value in ink like every other row.
         setFont(ctx, 56, 700);
-        ctx.fillStyle = sl.tone === 'gold' ? PALETTE.goldInk : TONE(sl.tone).main;
+        ctx.fillStyle = sl.tone === 'gold'
+          ? PALETTE.goldInk
+          : sl.tone === 'muted' ? rgba(PALETTE.ink, 0.9) : TONE(sl.tone).main;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'alphabetic';
         ctx.fillText(`${Math.round(sl.value)}%`, lx + 80, ly + 54);
@@ -1369,7 +1392,14 @@ export function dotGridScene(g: SceneCtx): void {
       const gap = 26;
       const total = cw + gap + tw;
       const x0 = W / 2 - total / 2;
-      const y = (1008 / 1080) * H;
+      // B2 FIX (100-JUDGE PANEL REPORT §2.2 — GHOST TEXT): the caption row
+      // drew at y 1008 and its sub-line at 1040 — both inside the caption
+      // pill band, half-swallowed by the pill and the progress row. The
+      // row lifts to the caption-safe bound (CAPTION_ZONE_TOP - 46) and
+      // keeps its registration; the faint 'each dot = one company' sub-line
+      // is DELETED (the report's law: dead text that reads as a rendering
+      // error is worse than no text).
+      const y = ((CAPTION_ZONE_TOP - 46) / 1080) * H;
       registerText('dotGrid:caption', x0, y - 40, total, 48);
       setFont(ctx, 38, 700);
       ctx.textAlign = 'left';
@@ -1378,10 +1408,6 @@ export function dotGridScene(g: SceneCtx): void {
       setFont(ctx, 34, 700);
       ctx.fillStyle = PALETTE.ink;
       ctx.fillText(caption, x0 + cw + gap, y);
-      setFont(ctx, 34, 600);
-      ctx.fillStyle = PALETTE.inkFaint;
-      ctx.textAlign = 'center';
-      ctx.fillText('each dot = one company', W / 2, (1040 / 1080) * H);
       ctx.restore();
     }
   }
@@ -1456,7 +1482,10 @@ export function magChipsScene(g: SceneCtx): void {
     ctx.fillStyle = PALETTE.ink;
     ctx.textAlign = 'center';
     ctx.fillText(name, x + tw / 2, y + 74);
-    setFont(ctx, 24 + 4, 600); // v9 (D-07): TYPE_FLOOR 24→28 ("MAG n" kicker)
+    // C2 FIX (100-JUDGE PANEL REPORT §2.3 — MAG-7 SUB-LABELS): the 'MAG n'
+    // kicker rode the 28px D-07 register — legal, not legible at the gate.
+    // The report's 34px label floor applies.
+    setFont(ctx, 34, 700);
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.fillText('MAG ' + (i + 1), x + tw / 2, y + 40);
     ctx.restore();
@@ -1747,6 +1776,8 @@ export function trioConvergeScene(g: SceneCtx): void {
   // motto hand-off progress (computed early — the checkmark caption fades
   // out into the motto which takes over its slot)
   const mottoIn = clamp01((t - 3600) / 700);
+  // B2 FIX: the caption-safe slot both halves of the hand-off share.
+  const safeY = ((CAPTION_ZONE_TOP - 46) / 1080) * H;
   if (cp > 0) {
     ctx.save();
     ctx.globalAlpha = cp;
@@ -1780,14 +1811,23 @@ export function trioConvergeScene(g: SceneCtx): void {
     // v3 (panel P0-2): was cy+96 (y≈938) — inside the caption pill band.
     // Shares the below-the-pill slot with the motto via a crossfade (the
     // line hands off to the motto as the beat lands).
+    // B2 FIX (100-JUDGE PANEL REPORT §2.2 — GHOST TEXT IN THE CAPTION ZONE):
+    // this line — and the motto/sub pair that takes over its slot — drew at
+    // y 1000-1035, INSIDE the caption pill band (CAPTION_ZONE_TOP 800):
+    // half-swallowed by the pill, it read as a rendering error. The report's
+    // zone-clamp law: route the string through the caption-safe bound and
+    // register the rect. The whole hand-off block now sits ABOVE the zone
+    // (754/788), one legal slot, still centered.
+    registerText('trio:motto', W / 2 - 330, safeY - 44, 660, 44);
     setFont(ctx, 34, 700);
     ctx.fillStyle = PALETTE.ink;
     ctx.textAlign = 'center';
     ctx.globalAlpha = cp * (1 - mottoIn);
-    ctx.fillText('same shape · same time', cx, (1000 / 1080) * H);
+    ctx.fillText('same shape · same time', cx, safeY);
     ctx.restore();
   }
-  // crossfade target — the motto uses the same slot the caption line vacated
+  // crossfade target — the motto uses the same (now caption-safe) slot the
+  // caption line vacated
   const motto = s.motto as string;
   const mp = mottoIn;
   if (mp > 0 && motto) {
@@ -1796,10 +1836,10 @@ export function trioConvergeScene(g: SceneCtx): void {
     ctx.textAlign = 'center';
     setFont(ctx, 40, 700);
     ctx.fillStyle = PALETTE.goldDeep;
-    ctx.fillText(motto, W / 2, (1000 / 1080) * H);
+    ctx.fillText(motto, W / 2, safeY);
     setFont(ctx, 34, 600);
     ctx.fillStyle = PALETTE.inkSoft;
-    ctx.fillText(s.sub as string, W / 2, (1035 / 1080) * H);
+    ctx.fillText(s.sub as string, W / 2, safeY + 34);
     ctx.restore();
   }
   // ── 100-JUDGE PANEL / PHASE 2 item 1 — CONTACT VERBS EVERYWHERE (report
@@ -2916,7 +2956,11 @@ export function aiDatacenterScene(g: SceneCtx): void {
     // far rows translucent ghosts — "soft gray gradient slabs with blurred
     // edges". Depth reads by SIZE and DETAIL DENSITY (true perspective),
     // never by transparency.
-    ctx.globalAlpha = a * ap * (0.88 + 0.12 * depth);
+    // B5 FIX (100-JUDGE PANEL REPORT §2.2 — THE DATACENTER RENDERS AS FOG):
+    // the residual 0.88-1.0 arrival ramp still let the floor grid print
+    // through the hero rack. The racks are now FULLY opaque at every
+    // depth — the fog read is dead at the source.
+    ctx.globalAlpha = a * ap;
     ctx.translate(0, rise);
     // contact AO — skewed toward the room's one vanishing point.
     // P0-4 panel re-review 2 ("central racks still read as hovering"):
@@ -3004,18 +3048,26 @@ export function aiDatacenterScene(g: SceneCtx): void {
     // prescribes: "re-lit to the shadow register with a gold rim"). LED
     // glints stay; the racks read as lit hardware, not black holes.
     {
-      // B17: the body is SOLID hardware — a gentle top-lit falloff plus a
-      // crisp 2px ink edge on every slab. The old translucent 0.60-0.82
-      // gradient plus the bgSoft haze wash WAS the fog-rectangle read.
-      // V6 FIX (market review §2.2 — FIVE GRAY FILING CABINETS): the rack
-      // bodies re-register from the non-brand gray (PALETTE.shadow) to the
-      // film's own deep slate-teal (the LAB_PLATE family — the audit's
-      // "teal racks" accent-object prescription). The build-out that
-      // justifies the AI chapter now reads as BRAND hardware lit from
-      // within, not office furniture; the gold rim + LED rows stay.
-      const rackBody = LAB_PLATE;
-      const gTop = rgba(rackBody, 0.96);
-      const gBot = rgba(rackBody, 0.99);
+    // B17: the body is SOLID hardware — a gentle top-lit falloff plus a
+    // crisp 2px ink edge on every slab. The old translucent 0.60-0.82
+    // gradient plus the bgSoft haze wash WAS the fog-rectangle read.
+    // V6 FIX (market review §2.2 — FIVE GRAY FILING CABINETS): the rack
+    // bodies re-register from the non-brand gray (PALETTE.shadow) to the
+    // film's own deep slate-teal (the LAB_PLATE family — the audit's
+    // "teal racks" accent-object prescription). The build-out that
+    // justifies the AI chapter now reads as BRAND hardware lit from
+    // within, not office furniture; the gold rim + LED rows stay.
+    // B5 FIX (100-JUDGE PANEL REPORT §2.2 — THE DATACENTER RENDERS AS
+    // FOG): the slab alpha ramp still multiplied the body fill down to
+    // ~0.85 effective — the floor grid and stage world PRINTED THROUGH
+    // the hero rack and the LED dots floated on glass. The report's
+    // prescription — "opaque slate fill" — makes every rack body FULLY
+    // opaque: depth reads by size and detail density (true perspective),
+    // never by transparency. The machine is solid; the host's feet sit
+    // on a plane the rack occludes.
+    const rackBody = LAB_PLATE;
+    const gTop = rgba(rackBody, 1);
+    const gBot = rgba(rackBody, 1);
       const g = ctx.createLinearGradient(0, baseY - rh, 0, baseY);
       g.addColorStop(0, gTop);
       g.addColorStop(1, gBot);
@@ -3180,15 +3232,19 @@ export function aiDatacenterScene(g: SceneCtx): void {
       ctx.closePath();
       ctx.fill();
     }
-    // front body — the shadow register (P3 Verdict: re-lit from the
-    // near-black ink slab) with a GOLD RIM on its lit edges — the brand
-    // edge the report prescribes; the interior detail now reads ON a lit
-    // machine instead of inside a black hole.
-    ctx.fillStyle = rgba(PALETTE.shadow, 0.86);
+    // front body — B5 FIX (100-JUDGE PANEL REPORT §2.2 — THE DATACENTER
+    // RENDERS AS FOG): the hero rack the host presents drew at 0.86-alpha
+    // GRAY — the floor grid and stage world printed through the machine and
+    // the LED dots floated on glass ("translucency where the viewer expects
+    // a solid machine"). The body now fills the film's deep slate-teal at
+    // FULL opacity (the corridor racks' own register) with the gold rim
+    // kept — the hero machine is solid, and the host's feet sit on a plane
+    // it occludes.
+    ctx.fillStyle = rgba(LAB_PLATE, 1);
     roundRect(ctx, hx - hw / 2, hBase - hh, hw, hh, 10);
     ctx.fill();
     ctx.lineWidth = 2;
-    ctx.strokeStyle = rgba(PALETTE.shadow, 0.45);
+    ctx.strokeStyle = rgba(PALETTE.ink, 0.55);
     roundRect(ctx, hx - hw / 2, hBase - hh, hw, hh, 10);
     ctx.stroke();
     // the gold rim — the hero rack's light-side edges
@@ -4278,11 +4334,14 @@ export function fundSplitScene(g: SceneCtx): void {
       roundRect(ctx, grayX + col * 27, gy + 132 + row * 46, 20, h + 4, 3);
       ctx.fill();
     }
+    // C2 FIX (100-JUDGE PANEL REPORT §2.2/§2.3 — WHISPER LABELS): '493
+    // others' rode inkSoft and its sub-line inkFaint — both under contrast
+    // after the transcode. Ink at 0.9 / 0.85, per the report's label law.
     setFont(ctx, 40, 700);
-    ctx.fillStyle = PALETTE.inkSoft;
+    ctx.fillStyle = rgba(PALETTE.ink, 0.9);
     ctx.fillText('493 others', grayX, gy + 356);
     setFont(ctx, 40, 600);
-    ctx.fillStyle = PALETTE.inkFaint;
+    ctx.fillStyle = rgba(PALETTE.ink, 0.85);
     const sw2 = ctx.globalAlpha;
     ctx.globalAlpha = sw2 * clamp01((t - 2400) / 600);
     ctx.fillText('sorted by return', grayX, gy + 404);
