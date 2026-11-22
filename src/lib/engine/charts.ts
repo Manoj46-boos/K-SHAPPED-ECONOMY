@@ -1652,7 +1652,10 @@ export function sceneTitle(
   const ap = clamp01(p / 0.35);
   ctx.save();
   ctx.globalAlpha = ap;
-  setFont(ctx, 54, 600);
+  // U12 (market review §3.3): the headline serif weight rises 600 → 700 —
+  // Fraunces carries the registered 700 face; the scene title is the
+  // frame's headline and must carry the deepened room.
+  setFont(ctx, 54, 700);
   // B-TRACK: the scene title is plate-level reading text — ivory on the
   // DATA LAB, the film's dark ink on the STUDIO.
     ctx.fillStyle = roomInk().ink;

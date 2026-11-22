@@ -1551,7 +1551,17 @@ export function divergeKScene(g: SceneCtx): void {
   const S = 210;
   // BLUEPRINT Phase 5: the cold-open re-cut switches on the `opening` flag
   // (declared up top — the whole scene's staging branches on it).
+  // U16 (market review §3.4 — COLD OPEN CADENCE / THE 1M00 DEAD FRAME): the
+  // NAMING beat (the beat where the narrator names the move) lands the
+  // K-tear IN THE SAME SECOND — the named variant re-plays the tear
+  // staging keyed to its own clock (sceneT, not the opening's absolute
+  // choreography — no reset hazard), so the brand letter visibly tears
+  // into its market/mood arms exactly when the VO names the split.
   const opening = s.opening === true;
+  // U16: the naming beat is c1-k — the VO's "Economists have a name for
+  // this now" lands the K-tear in the same second (the transient
+  // tear-and-recover below, keyed to this flag).
+  const namedTear = g.s.sceneKey === 'c1-k';
 
   // P1-6 (report): the K formation's halo — the signature shape gets the
   // signature light: a wide soft radial behind the letterform.
@@ -1755,12 +1765,28 @@ export function divergeKScene(g: SceneCtx): void {
     else if (t > tHold) tTear = tHold;
   }
   const growTear = clamp01((tTear - 4800) / 2300);
-  const tearMix = opening ? clamp01((growTear - 0.5) / 0.25) : 1;
+  // U16: the NAMED variant fires a transient tear-and-recover in the beat's
+  // own first second — the landed K's arms visibly pull apart (tearMix
+  // rises to ~0.5 by 650ms) and settle back by 1.4s, exactly while the VO
+  // names the market/mood split. The opening keeps its full choreography.
+  const namedTearMix = namedTear
+    ? 0.5 * clamp01((t - 200) / 450) * (1 - clamp01((t - 1400) / 800))
+    : 0;
+  const tearMix = opening
+    ? clamp01((growTear - 0.5) / 0.25)
+    : namedTear
+      ? namedTearMix
+      : 1;
   const tearOver = Math.sin(Math.min(1, tearMix) * Math.PI) * 0.14;
   const tearDir = -1 + 2 * Math.min(1.14, tearMix + tearOver);
   // P3 hero register: the tear is the film's biggest event — it flinches
   // at HERO.shakePx (2.3x the ambient reveal tick).
-  const tearShake = opening ? microShake(t, 5950, HERO.shakePx) : { dx: 0, dy: 0 };
+  // U16: the named beat flinches at its own tear instant (t=300).
+  const tearShake = opening
+    ? microShake(t, 5950, HERO.shakePx)
+    : namedTear
+      ? microShake(t, 300, HERO.shakePx)
+      : { dx: 0, dy: 0 };
   ctx.save();
   if (tearShake.dx !== 0 || tearShake.dy !== 0) ctx.translate(tearShake.dx, tearShake.dy);
   ctx.lineCap = 'round';
@@ -2308,7 +2334,14 @@ export function recapSplitScene(g: SceneCtx): void {
   // P1-2 (report §12.2): every scene sits in a room — full-bleed tone plate.
   scenePlate(ctx, W, H, g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx));
   bokehField(ctx, W, H, t, { intensity: 1.05, seed: 44 });
-  const pw = W * 0.36;
+  // U11 (market review §3.2 — ONE K EVERYWHERE, AT DISPLAY SCALE): the
+  // panels narrow 0.36W → 0.30W (the right panel keeps its right edge —
+  // the host's contact solve rides it) so the morph lands on a
+  // display-scale brand K (118 → 240) between them; the recap beat now
+  // owns the same K the cold open and the chapters own. The thin
+  // line-drawn K stays retired (drawK is drawK3D's internal stroke
+  // primitive only — no scene draws the thin variant).
+  const pw = W * 0.3;
   const ph = H * 0.34;
   const py = H * 0.24;
   // PHASE-5 RE-STAGE (feed board: "two unlabeled squiggle lines pretending
@@ -2328,7 +2361,9 @@ export function recapSplitScene(g: SceneCtx): void {
     src: 'Investing.com · Nasdaq Composite',
   });
   // right mini panel: sentiment
-  miniPanel(g, W * 0.55, py, pw, ph, 'SENTIMENT', PALETTE.down, 260, {
+  // right mini panel: sentiment (right edge held at 0.61W + 0.30W — the
+  // host contact below rides this panel's lower-right face)
+  miniPanel(g, W * 0.61, py, pw, ph, 'SENTIMENT', PALETTE.down, 260, {
     series: [
       [0, 104], [2, 101], [4, 97], [6, 93], [8, 90.5], [10, 89],
       [11, 88.2], [12, 88.9], [13, 90.4], [14, 91.6], [15, 92.3],
@@ -2344,7 +2379,7 @@ export function recapSplitScene(g: SceneCtx): void {
     ctx.save();
     ctx.globalAlpha = easeInOutSine(kp);
     ctx.textAlign = 'center';
-    setFont(ctx, 120, 400);
+    setFont(ctx, 160, 400);
     ctx.fillStyle = rgba(PALETTE.goldDeep, 0.9);
     ctx.fillText('=', W / 2, py + ph * 0.66);
     ctx.restore();
@@ -2360,7 +2395,9 @@ export function recapSplitScene(g: SceneCtx): void {
     // beside the film's fat gold 3D brand letter. The morph now lands on
     // the BRAND K itself (drawK3D, one-mascot-safe face=false) — one K
     // alphabet in one film.
-    drawK3D(ctx, 0, 0, 118, 1, t, false);
+    // U11: the morph lands at DISPLAY SCALE (240 — the cold open's
+    // register), not the token 118 the gap used to force.
+    drawK3D(ctx, 0, 0, 240, 1, t, false);
     ctx.restore();
   }
   const motto = g.s.motto as string | undefined;

@@ -94,10 +94,18 @@ export const PALETTE: Palette = {
   // step, everywhere, by constants only: bgTop #F4EFE1 -> #EDE6D2 (warm
   // cream, -8 lum) and bgBottom #D7E5DF -> #C9DAD4 (-9 lum). Target mean
   // luminance 200-210 with RMS 40+ per frame — the report's own gate.
-  bgTop: '#EDE6D2',
+  // U12 (market review §3.3 — DEEPEN ROOMS AND RAISE INK MASS TOGETHER):
+  // the register pass deepened the background but not the subject — the
+  // subject is what must carry the frame at feed scale. The rooms deepen
+  // one more step: bgTop #EDE6D2 -> #E3D9BE, bgBottom #C9DAD4 -> #B9CFC5
+  // (the report's own values); the subject side rides the perception INK
+  // raises below, and the pixel audit retargets (dark-ink >= 4%, mean
+  // saturation >= 0.16, no content frame under RMS 35).
+  bgTop: '#E3D9BE',
   // PHASE-0: bgBottom deepens #D7E5DF -> #C9DAD4 — the ground gradient
   // strengthens further; the figure's floor gains mass.
-  bgBottom: '#C9DAD4',
+  // U12: one more step #C9DAD4 -> #B9CFC5.
+  bgBottom: '#B9CFC5',
   // PHASE-0: bgSoft deepens #EAF1ED -> #DFE9E4 — the haze bands and neutral
   // plates ride this value; they follow the new register down.
   bgSoft: '#DFE9E4',
@@ -376,7 +384,17 @@ export function setFont(
   weight: 300 | 400 | 600 | 700 = 400,
   family = FONT_UI
 ): void {
-  ctx.font = `${weight} ${size}px ${family}`;
+  // U13 (market review §3.3 — TEXT FLOOR ENFORCEMENT): "anything below
+  // 22px at 1080p (7px at 320) must either grow or stop pretending to be
+  // readable — the annotation chips (V4), the ticker rail tags, the small
+  // source lines. The engine already has TYPE_FLOOR; extend it to chips
+  // and rails." This is that extension: a HARD 22px floor inside the one
+  // function every chip and rail draws through. (The READ/LABEL floors
+  // above stay as the styling guidance they already are — this clamp is
+  // the legibility law, not a restyle.)
+  const s = Math.max(size, 22);
+  if (s !== size) typeFloorWarn('setFont', size);
+  ctx.font = `${weight} ${s}px ${family}`;
 }
 
 /** Text that auto-shrinks to fit maxW. Returns the final size used.
@@ -1095,7 +1113,8 @@ export function drawRoomRail(
         roundRect(ctx, tx, fy - 10, 86, 34, 8);
         ctx.stroke();
         ctx.fillStyle = rgba('#FFFFFF', 0.94);
-        ctx.font = '700 20px Inter, sans-serif';
+        // U13: the rail tags ride the enforced floor (raw 20px bypassed it).
+        setFont(ctx, 22, 700, FONT_UI);
         ctx.textAlign = 'center';
         ctx.fillText(label, tx + 43, fy + 14);
       });
@@ -1253,7 +1272,8 @@ export function drawRoomRail(
         roundRect(ctx, tx, fy - 10, 118, 36, 9);
         ctx.stroke();
         ctx.fillStyle = rgba(PALETTE.ink, 0.62);
-        ctx.font = '700 19px Inter, sans-serif';
+        // U13: the second rail family rides the enforced floor too.
+        setFont(ctx, 22, 700, FONT_UI);
         ctx.textAlign = 'center';
         ctx.fillText(label, tx + 59, fy + 15);
       });

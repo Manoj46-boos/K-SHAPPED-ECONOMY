@@ -283,9 +283,20 @@ const HERO_MOVES: Record<number, { scene: string; move: 'pullback' | 'push' | 't
   // came from content, not camera). takeaways' push holds (the reading
   // column owns the width).
   0: { scene: 'divergeK', move: 'pullback', amt: 0.16 },      // ch1 — the K reveals itself as the camera retreats (2x)
-  1: { scene: 'chartJourney', move: 'truck', amt: 240 },      // ch2 — travel with the S&P timeline · PLAYBOOK D3: 380→240 (guard-certified)
-  2: { scene: 'chartJourney', move: 'truck', amt: -220 },    // ch3 — sentiment falls, the camera pans the other way · PLAYBOOK D3: -300→-220 (guard-certified)
-  3: { scene: 'gasPump', move: 'truck', amt: 360 },           // ch4 — pan between the two households (1.7x)
+  // U15 (market review §3.4 — SPEND THE MOTION BUDGET): the chapter hero
+  // trucks re-arbitrated against the U8 park. The guard's verdict on the
+  // first cut: with the journey host parked at the card's edge (design
+  // right edge ~1700), a ±220 truck peak + drift + the beat push maps him
+  // 74-191px past the right frame bound — the edge park spends the right
+  // camera budget the old ±120 peaks were certified against (the old
+  // staging's right-marginal content was pills at ≤1580). The journey's
+  // trucks settle at the park-compatible 170 (still a visible ±85 sweep
+  // on a 1s transient), and the report's 400-500 truck band lands where
+  // the geometry allows it — the pump chapter, whose two-household
+  // content is frame-centered: 360 → 440 (peak ±220), guard-certified.
+  1: { scene: 'chartJourney', move: 'truck', amt: 150 },      // ch2 — travel with the S&P timeline (park-compatible)
+  2: { scene: 'chartJourney', move: 'truck', amt: -150 },     // ch3 — sentiment falls, the camera pans the other way
+  3: { scene: 'gasPump', move: 'truck', amt: 400 },           // ch4 — pan between the two households (the U15 band lands here)
   4: { scene: 'aiDatacenter', move: 'push', amt: 0.12 },      // ch5 — into the scale of the build-out (2x)
   5: { scene: 'paradoxResolve', move: 'pullback', amt: 0.15 }, // ch6 — the reveal breathes out (1.8x)
   // QA-SWEEP: fundSplit's truck 110 → 60 — the ±55px swing (plus drift ±22
@@ -534,6 +545,13 @@ function cameraV2(
       camX += dir * 18 * e;
       camScale *= 1 + 0.008 * e;
     }
+  }
+  // U14 (market review §3.4 — NO PARKED PAGES): the disclaimer rooms and
+  // the takeaways stage get a SLOW PUSH — a one-way 3.5% scale push across
+  // the group's body (skipping reaction windows, whose own push owns the
+  // frame). The static-plate scenes stop reading as parked pages.
+  if ((sceneType === 'quoteCard' || sceneType === 'takeaways') && reactionAt(sceneKey, gt, groupDur) === 0) {
+    camScale += 0.035 * easeInOutSine(clamp01(gt / Math.max(6000, groupDur * 0.8)));
   }
   // PANEL-12 / P2-6 (report §14.6): THE REACTION SHOT — a held-expression
   // beat on the twist (c8-fund), the paradox resolve (c7-paradox) and the

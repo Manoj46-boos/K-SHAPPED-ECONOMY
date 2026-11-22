@@ -609,7 +609,11 @@ const EMPTY_BAND_FAIL = 20;
 // under it (the chapter card shipped at 24.1). Both gates would have
 // failed the BEFORE frames on nearly every pick — which is the point.
 const MEAN_LUM_CEILING = 224;
-const RMS_FLOOR = 28;
+// U12 (market review §3.3 — THE AUDIT RETARGET): 28 → 35 — "no content
+// frame under RMS 35"; the deepened rooms + raised subject ink must
+// clear it (the gate stays a triage warning; the blocking gates keep
+// their own floors).
+const RMS_FLOOR = 35;
 // FIX 3 — THE DENSITY FLOOR, PROMOTED (the deferral's one-line change, now
 // honest): the dossier's floor is BLOCKING. The two prerequisites shipped
 // first: (1) density payloads for the quiet scenes (the splitNumbers
@@ -619,7 +623,10 @@ const RMS_FLOOR = 28;
 // nominal — it is the measured bar every scene clears AFTER payloads, with
 // no threshold-gaming: every frame that failed the old ink-only metric at
 // 2.0-2.3% now carries designed, feed-visible content.
-const DENSITY_FLOOR = 3.5;
+// U12 (market review §3.3): 3.5 → 4.0 — "dark-ink fraction >= 4%", the
+// dossier's own nominal, now the shipped bar (the payload prerequisites
+// above are what make it honest).
+const DENSITY_FLOOR = 4;
 for (const p of targets) {
   const img = new (require('canvas').Image)();
   img.src = fs.readFileSync(p);
@@ -657,21 +664,38 @@ for (const p of targets) {
   // Phase-0 constant.
   {
     const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-    let lsum = 0, l2 = 0;
+    let lsum = 0, l2 = 0, ssum = 0;
     const n = c.width * c.height;
     for (let i = 0; i < d.length; i += 4) {
       const lum = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
       lsum += lum;
       l2 += lum * lum;
+      // U12: mean saturation — the deepened register must not read washed;
+      // HSV-style (max-min)/max, averaged over opaque pixels.
+      const mx = Math.max(d[i], d[i + 1], d[i + 2]);
+      const mn = Math.min(d[i], d[i + 1], d[i + 2]);
+      if (mx > 0) ssum += (mx - mn) / mx;
     }
     const mean = lsum / n;
     const rms = Math.sqrt(Math.max(0, l2 / n - mean * mean));
-    console.log(`  [register] ${name}: mean lum ${mean.toFixed(1)} (triage ceiling ${MEAN_LUM_CEILING}) · rms contrast ${rms.toFixed(1)} (triage floor ${RMS_FLOOR})`);
+    const sat = ssum / n;
+    console.log(`  [register] ${name}: mean lum ${mean.toFixed(1)} (triage ceiling ${MEAN_LUM_CEILING}) · rms contrast ${rms.toFixed(1)} (triage floor ${RMS_FLOOR}) · mean sat ${sat.toFixed(3)} (U12 floor 0.16)`);
     if (mean > MEAN_LUM_CEILING) {
       console.error(`  ~ REGISTER TRIAGE ${name}: mean luminance ${mean.toFixed(1)} > ${MEAN_LUM_CEILING} — card-mass frame, panel-review (white foreground is by design; canvas/plates already darkened)`);
     }
     if (rms < RMS_FLOOR) {
-      console.error(`  ~ REGISTER TRIAGE ${name}: rms contrast ${rms.toFixed(1)} < ${RMS_FLOOR} — flat-frame signature, panel-review`);
+      // U12 design-class exemptions: the chapter divider and the statement
+      // frames are flat BY DESIGN (a certified room-change plate; a tripod
+      // stat room whose number is the event — the same designation the
+      // density gate's empty-band bar already ships for the divider).
+      if (name.includes('chaptercard') || name.includes('bigText')) {
+        console.log(`  [register] ${name}: rms ${rms.toFixed(1)} — design-class flat frame (divider/statement), triage exempt`);
+      } else {
+        console.error(`  ~ REGISTER TRIAGE ${name}: rms contrast ${rms.toFixed(1)} < ${RMS_FLOOR} — flat-frame signature, panel-review`);
+      }
+    }
+    if (sat < 0.16) {
+      console.error(`  ~ REGISTER TRIAGE ${name}: mean saturation ${sat.toFixed(3)} < 0.16 (U12) — washed frame, panel-review`);
     }
   }
 }

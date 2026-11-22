@@ -694,6 +694,12 @@ export function chartJourneyScene(g: SceneCtx): void {
   // B18: the walker's CURRENT x — the same walkIn the presenter draw runs
   // below, computed early (walkIn is a pure function) so the annotation
   // search yields to the walker's real position instead of a guess.
+  // U8: the PARK position is the annotation lane's anchor — the pills must
+  // yield to where the walker RESTS (the card's edge), not to where he
+  // transiently crosses during the entrance walk (the search ran under the
+  // entrance camera and the parked walker's grip hand then plated the
+  // '−45 · May' pill by 39-59px — the arbitration sweep's kind:hand hits).
+  const X_PARK_J = 1555;
   let walkerXNow = 815;
   {
     // C8 FIX (market review §2.1 — NEVER TANGLE THE DATA): the station set
@@ -702,30 +708,27 @@ export function chartJourneyScene(g: SceneCtx): void {
     // now works from the plot's own shoulders (430 / 1240), where the
     // planted fist lands ON the stroke and the body never straddles the
     // one thing the frame is about.
-    const STN_E = [430, 1000];
-    const hIdxE = (id?: string): number => (id ? Math.floor(hashStr(id) * STN_E.length) % STN_E.length : 1);
-    // M3 FIX (market review §2 — THE GLIDE IS NOT BLOCKING): the hash could
-    // pick the SAME station for consecutive sentences — half the boundaries
-    // shipped no walk at all, and the entry walk spread 990px over 1.7s.
-    // The walker now GUARANTEES the crossing: the station alternates every
-    // sentence boundary (a 570px stage crossing = 30% of frame width —
-    // real blocking, every boundary), and the entry walk tightens
-    // 1700 → 1150ms (a walk, not a glide). The alternation STARTS LEFT so
-    // the group's first staging is the certified left lane; the right
-    // station pulls 1240 → 1100 — the endpoint annotation pills (searched
-    // against the walker's crown lane) and the stouter U6 hip band both
-    // certify at 1100, where 1240 plated the '+30%' pill by 54-62px.
-    const prevE = g.prevSentenceId ? hIdxE(g.prevSentenceId) : 1;
-    const curE = prevE === 1 ? 0 : 1;
-    const stTE = g.sentenceT ?? 1e9;
+    // U8 (market review §3.2 — STAGE THE HOST ON THE DATA, NEVER INSIDE IT):
+    // the walker no longer works the plot's interior. He enters with ONE
+    // hero crossing (the draw-on walk — the line passing behind the legs
+    // is the joke, the one in-plot walk the chapter reserves) and PARKS at
+    // the card's right edge (X_PARK_J — the certified chartTwin lane),
+    // where a contact verb grips the line's ENDPOINT. Figure and chart
+    // never occlude each other again; the per-sentence staging rotation
+    // this scene used to get from station walks now comes from the U9
+    // annotation column popping one chip per sentence.
     if (g.sceneT < 1150) {
-      walkerXNow = walkIn(Math.min(g.sceneT, 1150), 250, STN_E[curE], 1150, undefined, walkerRig, 11).x;
-    } else if (stTE < 900 && Math.abs(STN_E[curE] - STN_E[prevE]) >= 120) {
-      walkerXNow = walkIn(stTE, STN_E[prevE], STN_E[curE], 900, undefined, walkerRig, 11).x;
+      walkerXNow = walkIn(Math.min(g.sceneT, 1150), 250, X_PARK_J, 1150, undefined, walkerRig, 11).x;
     } else {
-      walkerXNow = STN_E[curE];
+      walkerXNow = X_PARK_J;
     }
   }
+  // U8: the PARKED rig — the walker draws one step smaller once parked
+  // (the presence band's 1.3 tier): the edge park + the ch2/ch3 truck
+  // peaks certify at this envelope, and the crown band below keys to it
+  // so the annotation pills clear the PARKED head, not the transient one.
+  const walkerRigParked = Math.min(walkerRig, 1.45);
+  const walkerCrownParked = floorY - 241 * walkerRigParked;
   // B8 FIX (100-Judge report — WALL ARCHITECTURE BLEEDS THROUGH THE PLOT):
   // the journey chart drew its translucent area/band fills directly on the
   // room plate, so the stage-world mullion bands showed through the data
@@ -795,9 +798,59 @@ export function chartJourneyScene(g: SceneCtx): void {
     slideRightMax: 1620,
     // PHASE 2 terrain staging: the annotation layer clamps ABOVE the walker's
     // crown — pills never overprint the presenter pacing the chart's base.
-    crownTopY: walkerCrown,
-    crownX: walkerXNow,
+    crownTopY: walkerCrownParked,
+    crownX: X_PARK_J, // U8: the lane keys to the park, not the entrance transient
   });
+  // U9 (market review §3.2 — FILL THE CHART CARD'S RIGHT 40%): an
+  // annotation column — three stacked chips built from the series' own
+  // data (the run's peak, its low, and where it stands now), popping one
+  // per sentence-boundary cadence inside the group body. Layout (a) of
+  // the report's two layouts; the white is never an empty field again.
+  // 26px text (the U13 floor is 22), measured plates, registered.
+  {
+    const pts0 = series[0].points;
+    if (pts0 && pts0.length >= 3) {
+      const peak = pts0.reduce((a, b) => (b[1] > a[1] ? b : a), pts0[0]);
+      const low = pts0.reduce((a, b) => (b[1] < a[1] ? b : a), pts0[0]);
+      const last = pts0[pts0.length - 1];
+      // unit-aware: percentage-like series print '+X.X%', index-level
+      // series (the Nasdaq's 33,430) print the level with a thousands
+      // separator — never a wrong unit on the film's data.
+      const fmt = (v: number): string => {
+        if (Math.abs(v) <= 100) return `${v > 0 ? '+' : ''}${v.toFixed(1)}%`;
+        return `${v > 0 ? '+' : ''}${Math.round(v).toLocaleString('en-US')}`;
+      };
+      const colX = 1190;
+      const colW = 236;
+      const chipsJ: Array<{ y: number; txt: string; tone: string; when: number }> = [
+        { y: 336, txt: `peak ${fmt(peak[1])}`, tone: 'up', when: 1500 },
+        { y: 404, txt: `low ${fmt(low[1])}`, tone: 'down', when: 3100 },
+        { y: 472, txt: `now ${fmt(last[1])}`, tone: 'gold', when: 4700 },
+      ];
+      chipsJ.forEach((c, k) => {
+        const cp = clamp01((t - c.when) / 380);
+        if (cp <= 0) return;
+        setFont(ctx, 26, 700);
+        const tw = ctx.measureText(c.txt).width;
+        const x0 = colX + (1 - easeOutCubic(cp)) * 26;
+        const y0 = c.y - (1 - easeOutCubic(cp)) * 14;
+        registerRect(`journey:col${k}`, x0, y0, Math.max(colW, tw + 44), 52);
+        ctx.globalAlpha = cp;
+        const fill = c.tone === 'gold' ? PALETTE.goldWash : c.tone === 'up' ? rgba(PALETTE.up, 0.14) : rgba(PALETTE.down, 0.14);
+        ctx.fillStyle = fill;
+        roundRect(ctx, x0, y0, Math.max(colW, tw + 44), 52, 26);
+        ctx.fill();
+        ctx.strokeStyle = rgba(c.tone === 'gold' ? PALETTE.gold : c.tone === 'up' ? PALETTE.up : PALETTE.down, 0.6);
+        ctx.lineWidth = 2.5;
+        roundRect(ctx, x0, y0, Math.max(colW, tw + 44), 52, 26);
+        ctx.stroke();
+        ctx.fillStyle = c.tone === 'gold' ? PALETTE.goldDeep : c.tone === 'up' ? PALETTE.up : PALETTE.down;
+        ctx.textAlign = 'left';
+        ctx.fillText(c.txt, x0 + 22, y0 + 35);
+        ctx.globalAlpha = 1;
+      });
+    }
+  }
   // PHASE 3 COMPOSITION (Fix 1 — DATA-BEAT HERO FLOOR): the journey chart
   // registers its occupancy — 1250 × (0.355-0.42)H = 21.5-27.4% of the
   // frame, over the 18% data-beat floor (the harness asserts it).
@@ -853,7 +906,7 @@ export function chartJourneyScene(g: SceneCtx): void {
     // a design bottom of 760 mapped to ~792 under the certified worst push
     // (scale 1.15, drift +17) and convicted 32px deep. The camera-exact
     // floor: screen(rb) = 540+17+1.15*(rb-540) <= 760 → rb <= 715.
-    const STACK_RIGHT = 1590;
+    const STACK_RIGHT = 1445; // U8: the row yields to the parked walker's lane
     const STACK_BOTTOM = 715;
     const STACK_TOP_CAP = 610; // below the walker's stage zone
     // B12 compress-to-fit: the bottom band carries ~1260px. If the measured
@@ -950,8 +1003,13 @@ export function chartJourneyScene(g: SceneCtx): void {
       // PLAYBOOK D3 follow-up (round 2): qw 560→500 and the right margin
       // 150→260 — the ch2/ch3 hero TRUCKS (±190px) pushed the card's
       // right edge past the frame bound (16-31px on dense-mid frames).
+      // U8 (margin 260→500): the card yields to the PARKED walker — his
+      // hip band starts ~1478 at the 1.45 park, so the card's right edge
+      // moves to ~1460 and the card rides the chart's right column as his
+      // backdrop (the pills stay clear: they clamp above the crown, the
+      // card lives below it).
       const qw = 500;
-      const qx = W - qw - 260;
+      const qx = W - qw - 512;
       // PLAYBOOK D3 follow-up: qy H*0.6 → H*0.5 — the 190px card's bottom
       // (838) sat 42px inside the 2-row caption pill band on wide-caption
       // frames (card@1210,648, the sweep's biggest remaining class). The
@@ -1000,24 +1058,17 @@ export function chartJourneyScene(g: SceneCtx): void {
       wordTimes: g.gWordTimes, pointBias: 'right',
     });
     let hxJ: number; let poseJ: import('./stickman').Pose; let phaseJ: number | undefined;
-    // M3 UNIFICATION (scope): the walkerXNow block's STN_E/prevE/curE live
-    // in their own brace scope — the draw side re-derives the SAME values
-    // with the SAME logic (one system, two scopes, zero disagreement).
-    const STN_J = [430, 1000];
-    const hIdxJ = (id?: string): number => (id ? Math.floor(hashStr(id) * STN_J.length) % STN_J.length : 1);
-    const prevJ = g.prevSentenceId ? hIdxJ(g.prevSentenceId) : 1;
-    const curJ = prevJ === 1 ? 0 : 1;
+    // U8 (scope twin of the walkerXNow block above): ONE park at the card's
+    // right edge; the entrance is the chapter's one hero in-plot crossing.
     if (g.sceneT < 1150) {
       // THE DRAW-ON ENTRANCE — the walkway read itself: he paces the axis
       // from the left edge as the chart draws in above him (1150ms — a
-      // walk, not a glide).
-      const r = walkIn(Math.min(g.sceneT, 1150), 250, STN_J[curJ], 1150, arriveJ, walkerRig, 11);
-      hxJ = r.x; poseJ = r.walking ? r.pose : arriveJ; phaseJ = r.walking ? r.phase : undefined;
-    } else if (stT < 900 && Math.abs(STN_J[curJ] - STN_J[prevJ]) >= 120) {
-      const r = walkIn(stT, STN_J[prevJ], STN_J[curJ], 900, arriveJ, walkerRig, 11);
+      // walk, not a glide), then parks at the card's edge for the body of
+      // the stage.
+      const r = walkIn(Math.min(g.sceneT, 1150), 250, X_PARK_J, 1150, arriveJ, walkerRig, 11);
       hxJ = r.x; poseJ = r.walking ? r.pose : arriveJ; phaseJ = r.walking ? r.phase : undefined;
     } else {
-      hxJ = STN_J[curJ]; poseJ = arriveJ;
+      hxJ = X_PARK_J; poseJ = arriveJ;
     }
     const talkJ = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
     // B7 RE-SPEC (Visual Quality Audit §3.2 — THE WALKER IS AN ACTOR):
@@ -1031,7 +1082,11 @@ export function chartJourneyScene(g: SceneCtx): void {
     // not there yet, and clamped to the arm's natural cone.
     let gripJ: { x: number; y: number; hand: 'fist' } | undefined;
     if (phaseJ === undefined) {
-      const xfJ = (hxJ - chartX) / chartW;
+      // U8: the walker parked at the card's edge grips the line's ENDPOINT
+      // — the last data point (x-fraction 0.94 of the plot) — not his own
+      // x (he no longer stands ON the line). The reach solve steps the
+      // root toward the data if the endpoint sits past the arm envelope.
+      const xfJ = 0.94;
       if (drawP >= xfJ + 0.02) {
         let yMinJ = Infinity, yMaxJ = -Infinity;
         for (const sr of series) for (const [, v] of sr.points) { if (v < yMinJ) yMinJ = v; if (v > yMaxJ) yMaxJ = v; }
@@ -1062,8 +1117,8 @@ export function chartJourneyScene(g: SceneCtx): void {
         // annotationTxt crossings); a planted fist that is not ON the stroke
         // is not contact anyway. When the line sits high, the walker
         // presents instead — contact exists where the line actually is.
-        gripJ = gyJ >= 420 && gyJ <= floorY - 54
-          ? { x: hxJ, y: gyJ, hand: 'fist' as const }
+        gripJ = gyJ >= 420 && gyJ <= 505
+          ? { x: chartX + xfJ * chartW, y: gyJ, hand: 'fist' as const } // U8: the fist lands on the line's endpoint
           : undefined;
       }
     }
@@ -1073,7 +1128,7 @@ export function chartJourneyScene(g: SceneCtx): void {
     // the audit's floor for a character that acts (contact verbs, the
     // pointing solve). 1.2 sat under the spec; the crown still clears the
     // title band (floorY - 301 at this floor, ~37px of air).
-    drawStickmanV2(ctx, hxJ, floorY, walkerRig, t, { // A1: the walker joins the presence band
+    drawStickmanV2(ctx, hxJ, floorY, g.sceneT < 1150 ? walkerRig : walkerRigParked, t, { // A1: the walker joins the presence band (U8: parked at the 1.3 tier)
       pose: poseJ,
       alpha: 0.85 + 0.15 * clamp01(g.sceneT / 180),
       look: -0.3, scarf: true, satchel: resolveProp(g.beat.scene.type, 'satchel', true), hostBody: true,
@@ -2574,6 +2629,38 @@ export function recessionGaugeScene(g: SceneCtx): void {
   // 22s on one staging; the second half now carries its own event). Short
   // groups keep the certified 3.2s.
   const cp = clamp01((t - seamArrival(String(s.title ?? 'recessionGauge'), g.d, 3200)) / 700);
+  // U14 (market review §3.4 — THE SEAM ARRIVAL PROMISE): on long sentences
+  // the dial's re-measure gets its own CHIP POP every 8-10 seconds — a
+  // small 'live' tag beside the dial that pops when the needle re-poses
+  // (sentenceT ≈ 8.5s). The 80s-class holds now carry a visible instrument
+  // event on the report's own cadence, not just the per-sentence needle.
+  {
+    const stG = g.sentenceT ?? 1e9;
+    if (g.speaking && stG >= 8300 && stG < 9600) {
+      const gp = clamp01((stG - 8300) / 260) * (1 - clamp01((stG - 9100) / 500));
+      if (gp > 0) {
+        ctx.save();
+        ctx.globalAlpha = gp;
+        setFont(ctx, 26, 700);
+        const lbl = 'live re-measure';
+        const lw = ctx.measureText(lbl).width;
+        const gx0 = W * 0.545 - lw / 2 - 30;
+        const gy0 = 268;
+        registerRect('gauge:livePop', gx0, gy0, lw + 44, 42);
+        ctx.fillStyle = rgba(PALETTE.upSoft, 0.92);
+        roundRect(ctx, gx0, gy0, lw + 44, 42, 21);
+        ctx.fill();
+        ctx.strokeStyle = rgba(PALETTE.up, 0.7);
+        ctx.lineWidth = 2.5;
+        roundRect(ctx, gx0, gy0, lw + 44, 42, 21);
+        ctx.stroke();
+        ctx.fillStyle = PALETTE.up;
+        ctx.textAlign = 'left';
+        ctx.fillText(lbl, gx0 + 22, gy0 + 29);
+        ctx.restore();
+      }
+    }
+  }
   // PHASE 3 COMPOSITION (Fix 1 — DATA-BEAT HERO FLOOR): the dial system —
   // the recession-odds dial face + its probability band + the tick labels
   // — is this beat's hero object: x 870-1850 × y 230-760 = 980×530 =
@@ -2832,6 +2919,27 @@ export function aiDatacenterScene(g: SceneCtx): void {
       ctx.closePath();
       ctx.fill();
     }
+    // U10 (market review §3.2 — THE BRAND'S SET PIECE): near slabs carry
+    // ONE lit seam line — a teal pulse, plus a gold top-edge trim on the
+    // nearest pair. The corridor is the brand's hardware, not filing
+    // cabinets; the lit seams ride the same slow phase as the hero rack's.
+    if (depth > 0.55) {
+      const seamY = baseY - rh * 0.42;
+      ctx.strokeStyle = rgba(PALETTE.upVivid, 0.4 + 0.24 * Math.sin(t / 900 + rw));
+      ctx.lineWidth = Math.max(1.6, 2.4 * depth);
+      ctx.beginPath();
+      ctx.moveTo(x - rw / 2 + 3, seamY);
+      ctx.lineTo(x + rw / 2, seamY);
+      ctx.stroke();
+      if (depth > 0.8) {
+        ctx.strokeStyle = rgba(PALETTE.gold, 0.6);
+        ctx.lineWidth = Math.max(1.6, 2.2 * depth);
+        ctx.beginPath();
+        ctx.moveTo(x - rw / 2 + 3, baseY - rh + 2);
+        ctx.lineTo(x + rw / 2, baseY - rh + 2);
+        ctx.stroke();
+      }
+    }
     // the monolith — one dark slab, top-lit (0.96: stacked far slabs no
     // longer smear through the near ones)
     // AUDIT-ROUND-2 (fix 20 — PER-ROW GRADIENT FALLOFF): the flat 0.96 ink
@@ -3061,6 +3169,27 @@ export function aiDatacenterScene(g: SceneCtx): void {
     const unitH = hh / 9;
     for (let u = 0; u < 9; u++) {
       const uy = hBase - hh + u * unitH;
+      // U10 (market review §3.2 — THE BRAND'S SET PIECE): between the units
+      // the chassis seams are LIT — a teal seam line pulsing on a slow
+      // phase, with a gold tick on the left end of every third unit. The
+      // datacenter stops reading as filing cabinets and starts reading as
+      // the brand's hardware.
+      if (u >= 1) {
+        ctx.strokeStyle = rgba(PALETTE.upVivid, 0.42 + 0.26 * Math.sin(t / 900 + u * 1.7));
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(hx - hw / 2 + 14, uy);
+        ctx.lineTo(hx + hw / 2 - 28, uy);
+        ctx.stroke();
+        if (u % 3 === 0) {
+          ctx.strokeStyle = rgba(PALETTE.gold, 0.85);
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.moveTo(hx - hw / 2 + 14, uy);
+          ctx.lineTo(hx - hw / 2 + 34, uy);
+          ctx.stroke();
+        }
+      }
       // faceplate inset — the unit's front bezel
       ctx.strokeStyle = rgba('#FFFFFF', 0.10);
       ctx.lineWidth = 1;

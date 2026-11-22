@@ -708,7 +708,11 @@ export function quoteCardScene(g: SceneCtx): void {
   // host reacting
   const hp = clamp01((t - 800) / 600);
   if (hp > 0) {
-    const gesture = (s.hostGesture as string) || 'think';
+    // U14 (market review §3.4 — THE COUNTER-ARM GESTURE CYCLE): the
+    // disclaimer host no longer holds one statue pose — the gesture
+    // counter-arms between think/present on a slow per-sentence cycle
+    // (5s half-period, keyed to the group clock like commentPrompt's).
+    const gesture = (s.hostGesture as string) || (t % 5000 < 2500 ? 'think' : 'present');
     const pose = Stickman.poseAt(t, { gesture, speaking: false });
     // v3 (panel P0-3): v2 renderer
     // P1-1 (report): +30% (0.94 → 1.22); ground → H*0.672 (envelope 770).
@@ -945,10 +949,15 @@ export function takeawaysScene(g: SceneCtx): void {
     ctx.lineTo(x + 210 + 300, y + 130 + titleLines.length * 56);
     ctx.stroke();
     // points — each point advances by its own wrapped line count
+    // U14 (market review §3.4 — BUILD, DON'T SWAP): the card's bullets now
+    // build ONE PER SENTENCE — the reveal pitch keys to the beat's own
+    // duration (≈ sentence cadence) instead of the fixed 550ms sprint, so
+    // the takeaway constructs itself across the sentences that speak it.
     setFont(ctx, 34, 600);
+    const bulletPitch = Math.max(650, ((g.d ?? 7000) * 0.72) / Math.max(1, pts.length));
     let ptY = y + 190 + titleLines.length * 56;
     pts.forEach((pt, i) => {
-      const pp = clamp01((t - 500 - i * 550) / 700);
+      const pp = clamp01((t - 500 - i * bulletPitch) / 700);
       if (pp <= 0) return;
       ctx.globalAlpha = ap * pp;
       ctx.fillStyle = i === pts.length - 1 ? PALETTE.goldDeep : PALETTE.inkSoft;
