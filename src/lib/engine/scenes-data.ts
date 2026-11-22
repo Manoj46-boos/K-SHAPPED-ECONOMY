@@ -164,7 +164,10 @@ function hostSmall(
   // hand-prop slot ('holdCard' | 'coinStack'); the call site resolves it
   // through the prop ledger before passing. LAST position — existing call
   // sites are untouched.
-  prop?: 'holdCard' | 'coinStack'
+  prop?: 'holdCard' | 'coinStack',
+  // A3 (market review, defect A3): real content for the held card —
+  // forwarded to the rig's holdCardData (value + label render IN the card).
+  propData?: { value: string; label: string }
 ): void {
   // v10 (panel CHAR-1/CHAR-3): the side host CYCLES through a gesture set
   // instead of holding one pose for the whole scene — "two poses: shrug,
@@ -388,6 +391,9 @@ function hostSmall(
       // ledger-resolved by the call site (holdCard on statCards, coinStack
       // on dotGrid). Drawn at the near hand — held, never floating.
       prop,
+      // A3 (market review): real content for the held card — the beat's own
+      // value + label render IN the card (the grey placeholder retired).
+      holdCardData: propData,
     },
     seed
   );
@@ -3664,7 +3670,11 @@ export function statCardsScene(g: SceneCtx): void {
     undefined, undefined, { x: 1338, y: 470, hand: 'palm' }, 'left', true,
     // P2 (Verdict report — HOLD THE NUMBERS): the host grips the hero
     // card's edge — the ledger-resolved holdCard prop rides the near hand.
-    resolveProp('statCards', 'holdCard', true) ? 'holdCard' : undefined);
+    resolveProp('statCards', 'holdCard', true) ? 'holdCard' : undefined,
+    // A3 (market review, defect A3): the held card carries the beat's OWN
+    // hero stat — value + label rendered in the card, the grey placeholder
+    // retired. A card the host holds is a card the viewer can read.
+    { value: String(hero.big ?? ''), label: String(hero.tag || hero.label || '') });
 }
 
 // ── ownerWorker scene ────────────────────────────────────────────────────────

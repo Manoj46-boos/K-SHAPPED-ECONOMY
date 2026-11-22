@@ -194,7 +194,11 @@ export function drawThumbnail(
       // close-up register (the gasp: jaw2x 2, faceScale 1.8) is the face
       // the viewer actually meets in the first frames — the thumbnail now
       // renders THAT face, so the click lands on the same character read.
-      talk: 0.8, jaw2x: 2, faceScale: 1.8,
+      // A8 (market review, defect A8 — THE PREMIUM GASP): talk 0.8 + jaw 2×
+      // drew a screaming black oval under balloon whites — the meme face the
+      // panel convicted. The worry reads through brow + lid + jaw at the
+      // film's own calibrated gasp: an intake, not a scream.
+      talk: 0.68, jaw2x: 1.5, faceScale: 1.75,
       look: 0.15, parallax: false, scarf: true,
     }, 7);
     ctx.restore();
