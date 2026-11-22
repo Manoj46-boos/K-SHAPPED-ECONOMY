@@ -225,7 +225,9 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
         lo = lx - halfW; hi = lx + halfW;
       }
       // tick mark at the TRUE position
-      ctx.strokeStyle = rgba(PALETTE.grid, 0.6);
+      // V1 FIX: the tick mark darkens one step (0.6 → 0.72) — the axis
+      // skeleton carries real ink weight instead of a whisper.
+      ctx.strokeStyle = rgba(PALETTE.grid, 0.72);
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(trueLx, y + h);
@@ -265,7 +267,9 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
   for (const v of ticks) {
     const gy = y + h - ((v - yMin) / span) * h;
     const isBase = v === ticks[ticks.length - 1];
-    ctx.strokeStyle = rgba(PALETTE.grid, 0.35);
+    // V1 FIX: gridlines 0.35 → 0.5 — the plot's structural ink rises with
+    // the register pass; grids read as drawn structure, not a smudge.
+    ctx.strokeStyle = rgba(PALETTE.grid, 0.5);
     ctx.lineWidth = 1.5;
     ctx.setLineDash(isBase ? [] : [6, 8]);
     ctx.beginPath();
@@ -293,7 +297,9 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     ctx.fillStyle = rgba(PALETTE.gold, 0.14);
     roundRect(ctx, x, Math.min(by1, by2), w, Math.abs(by2 - by1), 14);
     ctx.fill();
-    setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor
+    // V4 FIX: the band caption is CONTENT ("typical range") — 28px read as
+    // 4.7px mush at the feed. It rides the read-text band (42px = 7px at 320).
+    setFont(ctx, 42, 600); // v9 (D-07): 24→28 floor; V4: 28→42 read-text band
     ctx.textAlign = 'left';
     ctx.fillStyle = roomLookNow() === 'lab' ? mixHex(PALETTE.gold, '#FFFFFF', 0.42) : PALETTE.goldDeep;
     // B3 FIX (100-Judge report — ANNOTATION PLATE COLLIDES WITH THE BAND
@@ -372,8 +378,13 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     // FIX 3 (metric honesty): the area fill IS the chart's data mass —
     // 0.26/0.07 -> 0.34/0.09 so it survives the transcode as a tone field
     // (and the tuned two-tier phone-gate metric credits it as texture).
-    g.addColorStop(0, rgba(tone0, 0.34));
-    g.addColorStop(1, rgba(tone0, 0.09));
+    // V3 FIX (market review §2.2 — THE PALE RIGHT HALF): the fill's floor
+    // 0.09 read as blank white across the plot's right side (the V-review
+    // counted it as empty card). The gradient commits — 0.34/0.09 →
+    // 0.42/0.20 — the curve's whole footprint reads as a data field edge
+    // to edge, and the frame's mid-dark mass rises with it.
+    g.addColorStop(0, rgba(tone0, 0.42));
+    g.addColorStop(1, rgba(tone0, 0.2));
     ctx.fillStyle = g;
     ctx.fill();
     ctx.restore();
@@ -589,7 +600,16 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       const tone = TONE(a.tone).main;
       const rise = (1 - easeOutCubic(app)) * 18;
       const dyA = a.dy ?? 40;
-      setFont(ctx, 46, 600);
+      // V4 FIX (market review §2.2 — ANNOTATION CHIPS ARE CONTENT): the
+      // pill system scales up one register — font 46 → 62 (7.7px → 10.3px
+      // at the 320 feed) with every derived offset (top/bot/half/radius)
+      // scaled proportionally, so the stroke-avoidance search, the crown
+      // clamp and the collision registers all measure the REAL plate.
+      const pillFS = 62;
+      const pillH = 62;
+      const pillTop = 46; // plate top above the row (0.74 × pillFS)
+      const pillBot = 16; // plate bottom below the row (0.26 × pillFS)
+      setFont(ctx, pillFS, 600);
       ctx.textAlign = 'center';
       const tw = ctx.measureText(a.label).width;
       // ── PHASE-0 (panel report §7-D5 — LABEL-VS-DATA-POINT ANCHORING) ──
@@ -608,10 +628,11 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       //      when the point sits under the plate, elbowed when the x-clamp
       //      moved the plate sideways;
       //   4. the data point draws LAST — no clamp can ever plate it.
-      const pillH = 46;
+      // V4 FIX: the pill geometry constants live above the label measure —
+      // the search and the plate draw share them (see the note there).
       const dotR = 6;
       const LEAD_MIN = 14; // the shortest leader that still reads as "tied"
-      const half = tw / 2 + 34;
+      const half = tw / 2 + pillTop;
       const lx = Math.min(Math.max(px, x + half), Math.max(x + half, x + w - half));
       const lyMax = opts.xLabels && opts.xLabels.length ? y + h - 56 : y + h - 12;
       const yMin2 = opts.peakBand ? y + 88 : y + 52;
@@ -638,7 +659,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       const clampRow = (v: number): number => Math.min(Math.max(v, yMin2), lyMaxC);
       const walkerHit = (row: number, lxA: number): boolean => {
         if (crownBand === undefined) return false;
-        if (row + 12 <= (crownBand as number) - 14) return false; // plate clears the crown
+        if (row + pillBot <= (crownBand as number) - 14) return false; // plate clears the crown
         if (crownX === undefined) return true; // a crown-band plate with no lane x: treat as hit
         const pL = lxA - tw / 2 - 16;
         const pR = lxA + tw / 2 + 16;
@@ -654,24 +675,24 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
         const by1 = y + h - ((opts.band.to - yMin) / (yMax - yMin)) * h;
         const by2 = y + h - ((opts.band.from - yMin) / (yMax - yMin)) * h;
         const bTop = Math.min(by1, by2);
-        setFont(ctx, 46, 600);
+        setFont(ctx, pillFS, 600);
         return [x + w - 16 - blw, bTop - 22, blw + 32, 46];
       })();
       const bandHit = (row: number, lxA: number): boolean => {
         if (!bandRect) return false;
         const pL = lxA - tw / 2 - 16;
         const pR = lxA + tw / 2 + 16;
-        const pT = row - 34;
-        const pB = row + 12;
+        const pT = row - pillTop;
+        const pB = row + pillBot;
         return pR > bandRect[0] && pL < bandRect[0] + bandRect[2]
           && pB > bandRect[1] && pT < bandRect[1] + bandRect[3];
       };
       const lyRaw = py + dyA;
-      const belowLy = py + dotR + 2 + LEAD_MIN + 34; // pill-top clears the dot by LEAD_MIN
+      const belowLy = py + dotR + 2 + LEAD_MIN + pillTop; // pill-top clears the dot by LEAD_MIN
       const aboveLy = py - dotR - 2 - LEAD_MIN - pillH - Math.min(60, Math.abs(dyA));
       const coversPoint = (row: number): boolean => {
-        const top = row - 34;
-        const bot = row + 12;
+        const top = row - pillTop;
+        const bot = row + pillBot;
         if (top <= py && bot >= py) return true; // plate straddles the point
         if (bot < py) return py - dotR - 2 - bot < LEAD_MIN; // above: leader too short
         return top - (py + dotR + 2) < LEAD_MIN; // below: leader too short
@@ -690,7 +711,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       // stroke spans every crown-legal band inside the plate's reach), the
       // candidate with the SMALLEST true overlap ships.
       const strokeW = 8; // the 6.5px stroke + antialias, rounded up
-      const plateBand = (row: number): [number, number] => [row - 34, row + 12];
+      const plateBand = (row: number): [number, number] => [row - pillTop, row + pillBot];
       const strokeOverlap = (row: number, lxA: number): number => {
         const [top, bot] = plateBand(row);
         const pL = lxA - tw / 2 - 16;
@@ -813,8 +834,8 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       {
         const pillL = lx2 - tw / 2 - 16;
         const pillR = lx2 + tw / 2 + 16;
-        const pillT = lyCrown - 34;
-        const pillB = lyCrown + 12;
+        const pillT = lyCrown - pillTop;
+        const pillB = lyCrown + pillBot;
         const below = pillT > py;
         ctx.beginPath();
         if (px >= pillL && px <= pillR) {
@@ -848,31 +869,32 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       // D-5 (100-judge dossier): it now also bottom-clamps ABOVE the x-label
       // band when the chart carries axis labels — the "low-23,000s · March"
       // pill used to plate the "last Oct" tick label on frame 06-chartJourney.
-      registerRect(`annotation:${a.label.slice(0, 14)}`, lx2 - tw / 2 - 16, lyCrown - 34, tw + 32, 46);
-      registerText(`annotationTxt:${a.label.slice(0, 14)}`, lx2 - tw / 2 - 16, lyCrown - 34, tw + 32, 46);
+      registerRect(`annotation:${a.label.slice(0, 14)}`, lx2 - tw / 2 - 16, lyCrown - pillTop, tw + 32, pillH);
+      registerText(`annotationTxt:${a.label.slice(0, 14)}`, lx2 - tw / 2 - 16, lyCrown - pillTop, tw + 32, pillH);
       prevLy = lyCrown; // the next pill keeps 56px off this row
       // the verification hook — the DRAWN rect and its residual stroke
       // overlap (the search tested lyT; the crown clamp may have moved the
       // row, so the probe measures the shipped position)
       chartDebug.pills.push({
         label: a.label,
-        rect: [lx2 - tw / 2 - 16, lyCrown - 34, tw + 32, 46],
+        rect: [lx2 - tw / 2 - 16, lyCrown - pillTop, tw + 32, pillH],
         alpha,
         strokeOverlapPx: strokeOverlap(lyCrown, lx2),
       });
       ctx.fillStyle = rgba(PALETTE.shadow, 0.10);
       // PANEL-12 / P3-3: one-light rule (−5, +7), matching theme.chip
-      roundRect(ctx, lx2 - tw / 2 - 16 - 5, lyCrown - 34 + 7, tw + 32, 46, 23);
+      roundRect(ctx, lx2 - tw / 2 - 16 - 5, lyCrown - pillTop + 7, tw + 32, pillH, pillH / 2);
       ctx.fill();
       ctx.fillStyle = '#fff';
-      roundRect(ctx, lx2 - tw / 2 - 16, lyCrown - 34, tw + 32, 46, 23);
+      roundRect(ctx, lx2 - tw / 2 - 16, lyCrown - pillTop, tw + 32, pillH, pillH / 2);
       ctx.fill();
       ctx.lineWidth = 2;
       ctx.strokeStyle = rgba(tone, 0.55);
-      roundRect(ctx, lx2 - tw / 2 - 16, lyCrown - 34, tw + 32, 46, 23);
+      roundRect(ctx, lx2 - tw / 2 - 16, lyCrown - pillTop, tw + 32, pillH, pillH / 2);
       ctx.stroke();
       ctx.fillStyle = tone;
-      ctx.fillText(a.label, lx2, lyCrown - 4);
+      // V4: the label centers in the scaled plate (baseline = center + 22)
+      ctx.fillText(a.label, lx2, lyCrown - pillTop + pillH / 2 + 22);
       ctx.restore();
       // the data point — drawn LAST so no clamp can ever plate it (§7-D5);
       // it rides `app` only (rule b: the dot stays after the plate fades)

@@ -6,7 +6,7 @@
  */
 
 import { clamp, clamp01, easeInOutCubic, easeOutBack, easeOutCubic, hash01, hashStr, lerp, seamArrival, springTo, settleSquash } from './easing';
-import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, chapterFamily, CAPTION_ZONE_TOP, TYPE_FLOOR, LABEL_FLOOR, FONT_DISPLAY, toneRoom, deskRule, valuePlaneFor, roomFill, setRoomLook, roomInk } from './theme';
+import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, chapterFamily, CAPTION_ZONE_TOP, TYPE_FLOOR, LABEL_FLOOR, FONT_DISPLAY, toneRoom, deskRule, valuePlaneFor, roomFill, setRoomLook, roomInk, LAB_PLATE } from './theme';
 import { bokehField, kMotifs, lightRays, drawK, drawK3D, sparkles, hazeBands, impactRing, microShake, depthShift } from './effects';
 import { SceneCtx } from './scene-context';
 import { REACTIONS, reactionAt, reactionStart } from './scene-context';
@@ -610,7 +610,7 @@ export function chartJourneyScene(g: SceneCtx): void {
   // group); per-beat content keys off beatT.
   const bt = g.beatT;
   const title = s.title as string;
-  const drawP = clamp01(t / 1600); // B18: the draw-on lands inside the 1.8s entrance rule
+  const drawP = clamp01(t / 1100); // B18: the draw-on lands inside the 1.8s entrance rule; V3: 1600 → 1100 — the card's blank-curve window shrinks by a third (the V-review sampled mid-draw frames as "wasted cards")
   // PLAYBOOK D3 follow-up: title 180→330 and chartX 190→330 — the ch2/ch3
   // hero TRUCKS (±150-190px) + drift ran the title's left edge past the
   // frame bound (sceneTitle:Nasdaq-100, 46px). The journey charts ride the
@@ -735,6 +735,15 @@ export function chartJourneyScene(g: SceneCtx): void {
     // convict every host band that legally crosses it.
     const cardTop = Math.max(plotY0 - 46, 252);
     ctx.save();
+    // V1 FIX: the journey plate casts the film's card-shadow grammar (two
+    // soft passes, lower-left light) — the biggest card in the film stops
+    // reading as a paper cutout pasted on the room.
+    ctx.fillStyle = rgba(PALETTE.shadow, 0.2);
+    roundRect(ctx, chartX - 46, cardTop + 12, chartW + 80, plotY0 + chartH + 64 - cardTop, 26);
+    ctx.fill();
+    ctx.fillStyle = rgba(PALETTE.shadow, 0.14);
+    roundRect(ctx, chartX - 45, cardTop + 7, chartW + 80, plotY0 + chartH + 64 - cardTop, 26);
+    ctx.fill();
     ctx.fillStyle = PALETTE.card;
     ctx.strokeStyle = rgba(PALETTE.grid, 0.55);
     ctx.lineWidth = 1.5;
@@ -1867,7 +1876,8 @@ export function credibilityChipsScene(g: SceneCtx): void {
     ctx.fillStyle = PALETTE.goldWash;
     roundRect(ctx, W / 2 - cw / 2, y, 14, 84, 7);
     ctx.fill();
-    setFont(ctx, 34, 600);
+    // V4 FIX: the credibility chip text rides the read-text band (34 → 44).
+    setFont(ctx, 44, 600);
     ctx.fillStyle = PALETTE.ink;
     ctx.textAlign = 'center';
     ctx.fillText(c, W / 2, y + 54);
@@ -1878,7 +1888,7 @@ export function credibilityChipsScene(g: SceneCtx): void {
     ctx.save();
     ctx.globalAlpha = yp;
     ctx.textAlign = 'center';
-    setFont(ctx, 34, 700);
+    setFont(ctx, 44, 700);
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.fillText(s.year as string, W / 2, H * 0.225 + chipsList.length * 96 + 60);
     ctx.restore();
@@ -2733,6 +2743,12 @@ export function aiDatacenterScene(g: SceneCtx): void {
     ctx.beginPath();
     ctx.ellipse(x + (VPX - x) * 0.06, baseY + 4, rw * 0.78, 8 + 6 * depth, 0, 0, Math.PI * 2);
     ctx.fill();
+    // V6 FIX (the light-room language): each near rack casts a warm aisle
+    // pool on the floor — the corridor is LIT from the hardware, the film's
+    // one-light grammar (upper-right key, warm pools) reaches the set piece.
+    if (depth > 0.45) {
+      glowBlob(ctx, x + (VPX - x) * 0.1, baseY + 10, rw * 1.5, PALETTE.gold, 0.10 + 0.12 * depth);
+    }
     // AUDIT-ROUND-2 (fix 20 — RACKS IN PERSPECTIVE, the top face): every
     // slab gains a TOP FACE whose far edge tilts TOWARD the existing
     // vanishing point — the top edges of the whole corridor now visibly
@@ -2783,12 +2799,18 @@ export function aiDatacenterScene(g: SceneCtx): void {
     // prescribes: "re-lit to the shadow register with a gold rim"). LED
     // glints stay; the racks read as lit hardware, not black holes.
     {
-      // B17: the body is SOLID hardware in the film's shadow register — a
-      // gentle top-lit falloff (0.94 -> 0.98, shading not fog) plus a crisp
-      // 2px ink edge on every slab. The old translucent 0.60-0.82 gradient
-      // plus the bgSoft haze wash WAS the fog-rectangle read.
-      const gTop = rgba(PALETTE.shadow, 0.94);
-      const gBot = rgba(PALETTE.shadow, 0.98);
+      // B17: the body is SOLID hardware — a gentle top-lit falloff plus a
+      // crisp 2px ink edge on every slab. The old translucent 0.60-0.82
+      // gradient plus the bgSoft haze wash WAS the fog-rectangle read.
+      // V6 FIX (market review §2.2 — FIVE GRAY FILING CABINETS): the rack
+      // bodies re-register from the non-brand gray (PALETTE.shadow) to the
+      // film's own deep slate-teal (the LAB_PLATE family — the audit's
+      // "teal racks" accent-object prescription). The build-out that
+      // justifies the AI chapter now reads as BRAND hardware lit from
+      // within, not office furniture; the gold rim + LED rows stay.
+      const rackBody = LAB_PLATE;
+      const gTop = rgba(rackBody, 0.96);
+      const gBot = rgba(rackBody, 0.99);
       const g = ctx.createLinearGradient(0, baseY - rh, 0, baseY);
       g.addColorStop(0, gTop);
       g.addColorStop(1, gBot);

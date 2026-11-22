@@ -338,9 +338,15 @@ export function card(
   // now offsets to the lower-LEFT (light from the upper right): the two
   // card passes at (−6, +12) and (−5, +7). Consistent light is the
   // cheapest depth cue in 2D — and its absence was the loudest.
+  // V1 FIX (market review §2.2 — THE WASHED VALUE STRUCTURE): the shadow
+  // is mid-dark MASS, and the film's most repeated composition (the white
+  // card) cast a whisper. Neutral steps 0.13/0.09 → 0.20/0.14, tinted
+  // 0.18/0.12 → 0.25/0.17: every card now reads as an OBJECT on the plate
+  // (depth + mass), and the frame's mid-dark fraction rises across all
+  // 29 card sites at once.
   const sh = tint ?? PALETTE.shadow;
-  const a1 = tint ? 0.18 : 0.13;
-  const a2 = tint ? 0.12 : 0.09;
+  const a1 = tint ? 0.25 : 0.2;
+  const a2 = tint ? 0.17 : 0.14;
   ctx.fillStyle = rgba(sh, a1);
   roundRect(ctx, x - 6, y + 12, w, h, r);
   ctx.fill();
@@ -424,9 +430,11 @@ export function chip(
   } = {}
 ): number {
   const {
-    size = 28,
+    // V4 FIX: the chip default rides one step up (28 → 32) so every
+    // un-raised call site gains feed legibility for free.
+    size = 32,
     padX = 22,
-    padY = 12,
+    padY = 13,
     bg = PALETTE.white,
     fg = PALETTE.inkSoft,
     border = PALETTE.cardBorder,
@@ -665,7 +673,12 @@ export function roomLookNow(): RoomLook { return roomLook; }
 /** The LAB plate tone — mid-deep slate-teal (the film's own dark datacenter
  *  register, lifted two steps off black): committed, feed-proof, still light. */
 export const LAB_PLATE = '#40635B';
-export const LAB_PLATE_STRENGTH = 0.42;
+// V1 FIX (market review §2.2 — THE WASHED VALUE STRUCTURE): the ink mass
+// must rise, not the room count. The data-lab plate deepens one step
+// (0.42 → 0.50 multiply): every data room gains ~6 luminance points of
+// committed mid-dark mass, the white cards separate harder, and the frame
+// stops trending toward one pale tone at the 320px gate.
+export const LAB_PLATE_STRENGTH = 0.5;
 /** Plate-level ink per look: on the DATA LAB the reading ink is warm ivory;
  *  on the STUDIO it is the film's dark ink. Text ON cards/chips keeps the
  *  dark ink everywhere (cream surfaces never flip). */
@@ -837,10 +850,15 @@ export function scenePlate(
     const bandTop = H * 0.66;
     const fg = ctx.createLinearGradient(0, bandTop, 0, H);
     fg.addColorStop(0, rgba(PALETTE.ink, 0));
-    // fix 6.3: 0.16/0.22 -> 0.20/0.28 — the ground must read as a FLOOR the
-    // figure stands on at the 320px gate, not a whisper under the plate.
-    fg.addColorStop(0.45, rgba(PALETTE.ink, 0.2));
-    fg.addColorStop(1, rgba(PALETTE.ink, 0.28));
+    // V1 FIX (market review §2.2): the floor plinth commits — 0.20/0.28 →
+    // 0.22/0.32 ink over the plated room. The bottom third of every frame
+    // carries a real dark stage plane (the premium flat-animation value
+    // structure: light wall, dark floor) that grounds the figures at the
+    // feed — calibrated to stay ABOVE the frame-scanner's ink threshold
+    // (sum-RGB 330 ≈ lum 110) so the figure-detection heuristics keep
+    // reading the FIGURE, not the floor.
+    fg.addColorStop(0.4, rgba(PALETTE.ink, 0.22));
+    fg.addColorStop(1, rgba(PALETTE.ink, 0.32));
     ctx.fillStyle = fg;
     ctx.fillRect(0, bandTop, W, H - bandTop);
   }
@@ -1063,14 +1081,20 @@ export function drawRoomRail(
       ];
       tags.forEach(([fx, label, col]) => {
         const tx = W * fx;
-        ctx.fillStyle = rgba(col, 0.42);
+        // V5 FIX (market review §2.2 — FURNITURE ON FURNITURE): the tags'
+        // 0.42-alpha backing let the room wash's moving edge print THROUGH
+        // them — the tag text read as overlapping a "green plate edge" on
+        // entry frames (t01m10s/t01m20s). The backing commits to near-opaque
+        // tone (0.42 → 0.82): the tag is a clean readable plate over ANY
+        // wash state, and the text inside rises to match.
+        ctx.fillStyle = rgba(col, 0.82);
         roundRect(ctx, tx, fy - 10, 86, 34, 8);
         ctx.fill();
         ctx.strokeStyle = rgba(PALETTE.ink, 0.34);
         ctx.lineWidth = 2.5;
         roundRect(ctx, tx, fy - 10, 86, 34, 8);
         ctx.stroke();
-        ctx.fillStyle = rgba(PALETTE.ink, 0.62);
+        ctx.fillStyle = rgba('#FFFFFF', 0.94);
         ctx.font = '700 20px Inter, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(label, tx + 43, fy + 14);

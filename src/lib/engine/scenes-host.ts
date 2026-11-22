@@ -907,7 +907,14 @@ export function hostSceneV2(g: SceneCtx): void {
   setFont(ctx, 34, 600); // v9 (D-07): floor
   const kw = ctx.measureText(kick).width;
   registerRect('hostV2:kicker', hx2, 168, kw + 48, 52);
-  const ap = clamp01((t - 150) / 500);
+  // V5 FIX (market review §2.2 — NO STACKED BRAND BANDS): the kicker chip
+  // and the chapter label pill are the same message in two fonts — drawn
+  // together on chapter-entry frames they stacked in the top band
+  // (t03m50s). The kicker now yields for the label's whole 4.2s entry
+  // window and fades in as the label fades out: one brand voice at a
+  // time, no vertical pile-up.
+  const kickAp = clamp01((t - 150) / 500) * clamp01((t - 4400) / 600);
+  const ap = kickAp;
   if (ap > 0) {
     ctx.save();
     ctx.globalAlpha = ap;
@@ -1559,7 +1566,13 @@ export function divergeKScene(g: SceneCtx): void {
   // the real K as the arms grow.
   const ghostA = opening
     ? (t < 5150 ? 0.13 + 0.10 * clamp01((t - 3200) / 1600) : 0)
-    : (t < 900 ? 0.16 * (1 - clamp01((t - 500) / 400)) : 0);
+    // V2 FIX (market review §2.2 — THE DEAD SECOND MINUTE): the naming
+    // beat's ghost K was a 0.16 whisper gone by 900ms — the beat's first
+    // second sampled as "one small figure beside one small marker on an
+    // empty mint field". The intact letter now commits (0.38, present to
+    // 1600ms): frame one of the beat carries the FULL brand letterform as
+    // the growth's tenant, and the handoff to the growing arms reads.
+    : (t < 1600 ? 0.38 * (1 - clamp01((t - 1000) / 600)) : 0);
   if (ghostA > 0.01) {
     ctx.save();
     ctx.globalAlpha = ghostA;
@@ -1980,7 +1993,11 @@ export function divergeKScene(g: SceneCtx): void {
   // (3) labels push further out (S*1.45) clear of the arm tips.
   // (BLUEPRINT: `opening` now declared at the top of the scene — see the
   // cold-open re-cut block above.)
-  const lblA = clamp01((t - 3000) / 700);
+  // V2 FIX: the naming title rides the SENTENCE (the VO says "Economists
+  // have a name for this now" inside the first 1.5s) — the label lands at
+  // 0.9s so the naming beat's early window carries its own headline, not
+  // an empty field beside a growing stem.
+  const lblA = clamp01((t - 900) / 600);
   if (lblA > 0 && !opening) {
     ctx.save();
     ctx.globalAlpha = lblA;
@@ -2321,7 +2338,12 @@ export function recapSplitScene(g: SceneCtx): void {
     ctx.globalAlpha = morph;
     ctx.translate(W / 2, py + ph * 0.6);
     ctx.rotate(-Math.PI / 2 * (1 - morph));
-    drawK(ctx, 0, 0, 84, 14, PALETTE.ink, 1);
+    // V7 FIX (market review §2.2 — TWO K ALPHABETS): the recap's thin
+    // ink line-drawn K (drawK, 14px strokes) was a SECOND K language
+    // beside the film's fat gold 3D brand letter. The morph now lands on
+    // the BRAND K itself (drawK3D, one-mascot-safe face=false) — one K
+    // alphabet in one film.
+    drawK3D(ctx, 0, 0, 118, 1, t, false);
     ctx.restore();
   }
   const motto = g.s.motto as string | undefined;
@@ -2386,7 +2408,10 @@ export function recapSplitScene(g: SceneCtx): void {
   // 100-JUDGE VISUAL AUDIT (Fix 3 — HOST-SCALE HIERARCHY): 1.35 → 1.5 — the
   // premium area band; x holds at W*0.79 (the wider core keeps the palm
   // solve and stays off the frame edge; the guard sweep re-arbitrates).
-  drawStickmanV2(ctx, W * 0.79, H * 0.645, 1.5, t, { pose, alpha: clamp01((t - 140) / 420), look: -0.4, talk, parallax: true, contact: { x: 1610, y: 570, hand: 'palm' } }, 17);
+  // V7 FIX (market review §2.2 — THE SMALLEST FULL-FIGURE STAGING): the
+  // recap host was the runtime's smallest full figure; 1.5 → 1.7 puts the
+  // recap presenter inside the side-host presence band instead of below it.
+  drawStickmanV2(ctx, W * 0.79, H * 0.645, 1.7, t, { pose, alpha: clamp01((t - 140) / 420), look: -0.4, talk, parallax: true, contact: { x: 1610, y: 570, hand: 'palm' } }, 17);
 }
 
 function miniPanel(

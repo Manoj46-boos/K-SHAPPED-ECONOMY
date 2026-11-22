@@ -525,9 +525,14 @@ export function quoteCardScene(g: SceneCtx): void {
     const bp = clamp01((t - 40) / 600);
     if (bp > 0) {
       ctx.save();
-      ctx.globalAlpha = ap * 0.42 * easeOutCubic(bp);
+      ctx.globalAlpha = ap * 0.5 * easeOutCubic(bp);
       ctx.fillStyle = PALETTE.card;
       ctx.fillRect(0, 168, W, 480 * easeOutCubic(bp));
+      // V8/V1: the sheet's warm top-edge light line — the lit plane reads
+      // as an object in the room, not a flat band.
+      ctx.globalAlpha = ap * 0.55 * easeOutCubic(bp);
+      ctx.fillStyle = rgba(PALETTE.gold, 0.5);
+      ctx.fillRect(0, 168, W, 3.5);
       ctx.restore();
     }
   }
@@ -549,15 +554,23 @@ export function quoteCardScene(g: SceneCtx): void {
   // the giant ghost mark — the beat IS a quotation; the glyph is the
   // composition's anchor, pulled INTO the block (left of the bar, behind
   // the first rows) instead of floating in the old top quarter
+  // V8 FIX (market review §2.2 — STATIC PAGES): the statement beats drew
+  // nothing that moved — the sweep read them as pages. The ghost mark now
+  // BREATHES on the film's 4.8s clock (±2.5% scale about its own bowl) —
+  // the frame is alive at a whisper, and the sheet gains a warm top-edge
+  // light line (the one-light grammar) so the column reads as a lit plane.
   {
     const gp = clamp01((t - 200) / 700);
     if (gp > 0) {
       ctx.save();
       ctx.globalAlpha = gp * (soft ? 0.22 : 0.3);
+      const breath = 1 + Math.sin(t / 2400) * 0.025;
+      ctx.translate(ruleX - 74 + 70, 560 - 130);
+      ctx.scale(breath, breath);
       setFont(ctx, 360, 700, FONT_DISPLAY);
       ctx.textAlign = 'left';
       ctx.fillStyle = accent;
-      ctx.fillText('\u201C', ruleX - 74, 560);
+      ctx.fillText('\u201C', -70, 130);
       ctx.restore();
     }
   }
@@ -714,6 +727,20 @@ export function takeawaysScene(g: SceneCtx): void {
   // off the left edge and grazes the fixed watermark band at the top;
   // the guard sweep is the referee.
   sceneTitleLocal(ctx, focus === 0 ? 'Three things worth sitting with' : `Takeaway ${focus}`, 180, 220, clamp01(t / 600), W);
+  // V8 FIX: the intro's three-dot progress rail — deterministic from t, one
+  // dot fills gold per card landed; the page breathes without leaving the
+  // statement register.
+  if (focus === 0) {
+    ctx.save();
+    for (let i = 0; i < 3; i++) {
+      const dp = clamp01((t - 300 - i * 260) / 700);
+      ctx.fillStyle = dp > 0 ? rgba(PALETTE.gold, 0.55 + 0.45 * dp) : rgba(PALETTE.grid, 0.7);
+      ctx.beginPath();
+      ctx.arc(W - 300 + i * 44, 214, 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
   if (focus === 0) {
     // intro: three cards float + host counting
     // 100-JUDGE VISUAL AUDIT (Fix 2 — THE PLACEHOLDER CARDS): each card now
@@ -723,8 +750,12 @@ export function takeawaysScene(g: SceneCtx): void {
     // previewing the three payoffs (the retention grammar: show the list, then
     // pay each item).
     const introTitles = (s.titles as string[] | undefined) || [];
+    // V8 FIX: the intro stagger tightens (380 → 260ms) — all three preview
+    // cards carry their titles by ~1.2s instead of ~1.8s, and a three-dot
+    // progress rail beside the title fills as the beat runs: the "static
+    // page" gains a pulse that says where the film is going.
     for (let i = 0; i < 3; i++) {
-      const ap = clamp01((t - 300 - i * 380) / 700);
+      const ap = clamp01((t - 300 - i * 260) / 700);
       if (ap <= 0) continue;
       const x = W * 0.2 + i * (W * 0.22);
       const y = H * 0.3 + Math.sin(t / 900 + i * 2) * 10;

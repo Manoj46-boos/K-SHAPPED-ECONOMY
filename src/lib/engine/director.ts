@@ -7,7 +7,7 @@
 
 import { clamp01, easeInQuad, easeInOutSine, easeOutCubic } from './easing';
 import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI, drawRoomRail, drawChapterRoom, getRoomFamily, setRoomFamily, setWashChapter, setRoomLook } from './theme';
-import { drawGrain, lightVignette, bokehField, scalePunch, camState, guardCamState, kWipe, fgBokeh, dofPass, chapterAccent } from './effects';
+import { drawGrain, lightVignette, bokehField, scalePunch, camState, guardCamState, kWipe, fgBokeh, dofPass, chapterAccent, drawK3D } from './effects';
 import { drawParticles, emitterKindFor } from './particles';
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
 import { Timeline, beatAt } from './timeline';
@@ -1201,18 +1201,31 @@ export function drawFrame(
   // keep the full cinematic focus.
   lightVignette(ctx, W, H, [0, 1, 4, 5, 6, 7].includes(beat.chapter) ? 0.22 : 0.30);
 
-  // global fades: from white at start, to white at end
+  // global fades: from ink at start, to ink at end
   // P1-8 (report §12.8): the cold-open white fade 600ms → 180ms. The 600ms
   // fade held the frame at half-white while the K was already trying to
   // grow — a 0.4s of dead air before the film says anything. 180ms is still
   // a cut-softening breath, but the first stroke is now fighting a veil,
   // not a wall.
-  const fadeIn = 1 - clamp01(t / 180);
+  // V2 FIX (market review §2.2 — FRAME ZERO IS THE THUMBNAIL OF FRAME ONE):
+  // the opening veil was dead WHITE — the feed's first frame a blank page.
+  // The veil now rises from the brand INK and carries the gold K mark
+  // (320ms — still a breath, never dead air): frame 0 is a designed dark
+  // plate with the brand letterform, the strongest possible first
+  // impression at the feed, and the fade-out joins the same one-light
+  // language.
+  const fadeIn = 1 - clamp01(t / 320);
   const fadeOut = clamp01((t - (tl.durationMs - 1100)) / 1100);
-  const white = Math.max(fadeIn, fadeOut);
-  if (white > 0.001) {
-    ctx.fillStyle = rgba('#FFFFFF', white);
+  const veil = Math.max(fadeIn, fadeOut);
+  if (veil > 0.001) {
+    ctx.fillStyle = rgba(PALETTE.ink, veil);
     ctx.fillRect(0, 0, W, H);
+    if (fadeIn > 0.02) {
+      ctx.save();
+      ctx.globalAlpha = fadeIn * 0.92;
+      drawK3D(ctx, W / 2, H / 2 - 30, 190, 1, 0, false);
+      ctx.restore();
+    }
   }
   ctx.restore();
 }
