@@ -659,6 +659,18 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       const clampRow = (v: number): number => Math.min(Math.max(v, yMin2), lyMaxC);
       const walkerHit = (row: number, lxA: number): boolean => {
         if (crownBand === undefined) return false;
+        // M3 UNIFICATION (market review §3): the walker's FULL BODY COLUMN
+        // is the avoid-lane at every row — the walker stands ON the plot,
+        // so a pill whose span enters his torso/hip lane plates him at any
+        // row (the arbitration sweep's kind:host hits were all hip-band,
+        // below the crown rows the old rule guarded). The crown-band row
+        // rule below still governs head clearance; the lane rule protects
+        // the body.
+        if (crownX !== undefined) {
+          const laneL = lxA - tw / 2 - 16;
+          const laneR = lxA + tw / 2 + 16;
+          if (laneR > (crownX as number) - 210 && laneL < (crownX as number) + 210) return true;
+        }
         if (row + pillBot <= (crownBand as number) - 14) return false; // plate clears the crown
         if (crownX === undefined) return true; // a crown-band plate with no lane x: treat as hit
         const pL = lxA - tw / 2 - 16;
@@ -1216,7 +1228,7 @@ export function dotGrid(
 // ── Gauge (recession odds) ───────────────────────────────────────────────────
 export function gauge(
   ctx: CanvasRenderingContext2D,
-  opts: { cx: number; cy: number; r: number; value: number; p: number; t: number; label?: string }
+  opts: { cx: number; cy: number; r: number; value: number; p: number; t: number; label?: string; needleBias?: number }
 ): void {
   const { cx, cy, r, value, p, t } = opts;
   // v4 (vision panel re-review): a1 was 0, not 2π. Canvas normalises the
@@ -1325,7 +1337,12 @@ export function gauge(
   // P0-1: the arc term now rides the SAME displayed fraction (above), so
   // the overshoot the eye tracks on the dial IS the overshoot the number
   // prints — the two can never disagree again.
-  const na = needleA + (wob - 1) * 0.055;
+  // M1 (market review §2): `needleBias` — a LIVE-INSTRUMENT fine angle
+  // (radians) the scene keys to the sentence hash. It moves ONLY the
+  // needle's rendered angle; the printed number keeps the lockstep value,
+  // so the instrument visibly re-measures between sentences while the
+  // readout stays exactly what the narration states.
+  const na = needleA + (wob - 1) * 0.055 + (opts.needleBias ?? 0) * easeOutCubic(clamp01(p / 0.8));
   // PHASE 2 (dial face): the counterweight tail opposite the pointer —
   // the mass a real dial needle carries through its pivot.
   ctx.strokeStyle = PALETTE.ink;

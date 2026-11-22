@@ -99,7 +99,11 @@ export function walkPush(phase: number): number {
 // stage ground rises 0.66 -> 0.64 — the band's worst-case bottom clears
 // the pill top by ~11px; the stage furniture (ramps, desk rules,
 // contacts) is computed FROM this constant, so it moves with him.
-const HOST_GROUND = (H: number): number => H * 0.64;
+// M/U6 arbitration: 0.64 → 0.652 — the U6-stouter figure's apex band
+// grazed the TOP frame-edge bound at one dense sample when the camera
+// phase rode high (the head tops out at ~42 design px at the 2.65 rig);
+// the ground drops 13px and the stage furniture follows the constant.
+const HOST_GROUND = (H: number): number => H * 0.652;
 // PREMIUM UPGRADE FIX 1 (100-judge critique §5.1): host scale 2.05 → 2.6.
 // At 2.05 the figure occupied 1.58% of frame area; at 2.6 it occupies ~2.8%,
 // and every downstream amplitude (head, eyes, scarf, gesture travel, smear,
@@ -325,7 +329,10 @@ function drawHost(g: SceneCtx, side: 'center' | 'left' | 'right'): void {
     // 100-JUDGE REPORT (fix D25): per-beat override — the twist beat's own
     // walkMs (900) plants the presenter inside the promise's first second
     // instead of mid-stride at 1.6s.
-    const walkDur = (g.s.walkMs as number | undefined) ?? 1600;
+    // M3 FIX (market review §2 — WALKS, NOT GLIDES): the default walk
+    // crossing tightens 1600 → 1150ms — the same distance in less time
+    // reads as a walk with intent, not a slow glide across the stage.
+    const walkDur = (g.s.walkMs as number | undefined) ?? 1150;
     // AUDIT-3 / §1.5: directional gesture bias — present TOWARD the content
     const bias = side === 'left' ? 'right' : side === 'right' ? 'left' : undefined;
     const arrive = Stickman.poseAt(t, {
@@ -672,7 +679,9 @@ export function hostSceneV2(g: SceneCtx): void {
   let hx = hxTarget;
   let pose: import('./stickman').Pose;
   let walkPhase: number | undefined;
-  if (entrance === 'walk' && t < 1600) {
+  // M3 FIX: the entrance walk rides the tightened 1150ms crossing (see the
+  // walkDur note above) — a walk with intent, not a 1.6s glide.
+  if (entrance === 'walk' && t < 1150) {
     // AUDIT-3 / §1.2: entrance walk 900 → 1600ms (see drawHost) with the
     // arrival settle into the presenting gesture.
     const arrive = Stickman.poseAt(t, {
@@ -698,7 +707,7 @@ export function hostSceneV2(g: SceneCtx): void {
     // beat gets a real 221-384px cross with planted feet.
     const walkFrom = Math.max(240, hxTarget - 500);
     const r = hxTarget - walkFrom >= 120
-      ? walkIn(t, walkFrom, hxTarget, 1600, arrive, HOST_SCALE, 5.2)
+      ? walkIn(t, walkFrom, hxTarget, 1150, arrive, HOST_SCALE, 5.2)
       : null;
     if (r) {
       hx = r.x;
@@ -1201,13 +1210,21 @@ export function splitNumbersScene(g: SceneCtx): void {
     // 32%) — the host is its presenter at the certified 1.5 side band
     // (the 1.9 subject raise broke the frame-edge envelope the guard
     // certified at 1.5).
-    drawStickmanV2(ctx, W * 0.87, H * 0.645, 1.5, t, {
+    // M/U6 GUARD ARBITRATION: 0.87W → 0.845W — the stouter U6 envelope
+    // (torso 84, head 0.78) widened the right-side figure ~30px and the
+    // old x crossed the frame edge by 29px under the guard camera. The
+    // palm contact target is unchanged (the reach covers the extra 48px).
+    drawStickmanV2(ctx, W * 0.845, H * 0.645, 1.5, t, {
       pose: Stickman.poseAt(t, { gesture: 'present', speaking: g.speaking, sentenceId: g.sentenceId, sentenceT: g.sentenceT, wordTimes: g.gWordTimes }),
       alpha: clamp01((t - 500) / 500),
       look: -0.8,
       talk: g.speaking ? talkAt(g.beatT, g.wordTimes) : 0,
       parallax: true,
-      contact: { x: W * 0.545 + vsW + 22, y: py + 100, hand: 'palm' },
+      // M/U6 arbitration: the contact pulls 22 → 8px off the panel edge and
+      // rides the panel's UPPER band (py + 100 → + 48) — at the old offset
+      // the solved hand rect plated THE MOOD's chip by 13-21px under the
+      // guard camera; the upper band is clear of the chip row.
+      contact: { x: W * 0.545 + vsW + 8, y: py + 48, hand: 'palm' },
     }, 27);
   } else if (mode === 'left' || mode === 'right') {
     // single-panel modes: the host owns the empty half — presenting at the

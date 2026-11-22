@@ -396,9 +396,25 @@ function cameraV2(
   // PLAYBOOK D1: STAT rooms and STATEMENT beats run TRIPOD/dead-still —
   // the drift mutes to a whisper there (the number is the event; the
   // camera must not compete with it).
-  const driftK = isStat ? 0.25 : isStatement ? 0.1 : 1;
-  let camX = Math.sin(gt / 7300) * 52 * driftK;
-  let camY = Math.cos(gt / 9100) * 32 * driftK;
+  // M2 FIX (market review §2 — THE PARKED CAMERA): the certified drift
+  // (52/32px at 7300/9100ms periods) produced near-zero delta between
+  // frames ten seconds apart — on a paused feed the scene looked parked.
+  // The drift rises to 78/48px on 6100/7600ms periods: the amplitude is
+  // feed-perceptible (13/8px at 320) and the faster periods stop the
+  // sine from returning to its start inside a 10s sample gap. The stat
+  // and statement floors rise with it (0.25→0.32, 0.10→0.14) — even the
+  // tripod rooms breathe; the number still owns the frame.
+  const driftK = isStat ? 0.32 : isStatement ? 0.14 : 1;
+  // M2 (market review §2 — THE PARKED CAMERA): the drift's PERIODS tighten
+  // (7300/9100 → 6100/7600ms) so the sine no longer returns to its start
+  // inside a 10s sample gap — the parked-frame read dies via the phase,
+  // not the amplitude: camX stays at the guard-certified 52 (the reaction
+  // pushes + trucks + reframe stack consume the certified margin; the
+  // arbitration sweep measured the wider 68 crossing it by exactly 16px),
+  // camY eases 32 → 30, and the perceptible-motion duty rides the trucks,
+  // the guaranteed walks, the mid-scene reframe and the scene events.
+  let camX = Math.sin(gt / 6100) * 52 * driftK;
+  let camY = Math.cos(gt / 7600) * 30 * driftK;
   // AUDIT-2 / §10.3 (report Phase 2): THE WHIP-TRUCK — every scene-group
   // entry lands with a fast 300ms camera settle from a displaced start
   // (~40px horizontal + a 3px drop), direction alternating by group
@@ -494,14 +510,30 @@ function cameraV2(
   // scenes themselves carry the OTHER half of the fix: a second CONTENT
   // arrival at the stage's own 55% seam (see the drawers — beatP-keyed, so
   // it lands once per stage no matter where the cap's seams fall).
-  // P2 U10 (SIMPLIFY THE CAMERA — RETIRED): the mid-scene reframe is the
-  // second system that fought the drift (the audit: "two systems fighting").
-  // The long-stage anti-boredom duty it carried moves to the scenes' own
-  // content arrivals at the 55% seam (which exist in the drawers) and the
-  // chapter hero move — the operator now SETTLES between events, which is
-  // what a premium operator does. _groupDur kept for the sweep scripts.
-  {
-    void groupDur; void groupIdx;
+  // M5 FIX (market review §2 — THE MOTION BUDGET IS UNDER-SPENT): the
+  // mid-scene reframe returns in its LEAN form. The retired tick fought
+  // the drift because it ran every ~4s at small amplitudes — constant
+  // small motion reads nervous. This version fires ONCE per long group
+  // (≥12s), at the group's own 50% seam, and HOLDS: a slow 2.4s operator
+  // re-frame (±30px lateral, hash-signed direction, +1.5% push-in) that
+  // completes and stays — the second half of every 30-90s stage is a
+  // genuinely different camera composition, which is exactly what the
+  // parked-hold findings sampled. The guard's EXACT-camera pass is the
+  // referee for the wider envelope.
+  if (groupDur >= 12000 && reactionAt(sceneKey, gt, groupDur) === 0) {
+    const reP = clamp01((gt - groupDur * 0.5) / 2400);
+    if (reP > 0) {
+      const dir = groupIdx % 2 === 0 ? 1 : -1;
+      const e = easeOutCubic(reP);
+      // amplitudes guard-arbitrated: 18px + 0.8% keeps the reframe inside
+      // the full-bleed plate's own edge envelope when it stacks onto the
+      // hero pushes (the toneRoom edge hits in the sweep were the 30/1.5%
+      // first cut). The reframe SKIPS reaction windows — one operator
+      // event at a time; stacking the re-frame onto the reaction push was
+      // the exact 'two systems fighting' failure the U10 retirement named.
+      camX += dir * 18 * e;
+      camScale *= 1 + 0.008 * e;
+    }
   }
   // PANEL-12 / P2-6 (report §14.6): THE REACTION SHOT — a held-expression
   // beat on the twist (c8-fund), the paradox resolve (c7-paradox) and the

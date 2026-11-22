@@ -702,13 +702,24 @@ export function chartJourneyScene(g: SceneCtx): void {
     // now works from the plot's own shoulders (430 / 1240), where the
     // planted fist lands ON the stroke and the body never straddles the
     // one thing the frame is about.
-    const STN_E = [430, 1240];
+    const STN_E = [430, 1000];
     const hIdxE = (id?: string): number => (id ? Math.floor(hashStr(id) * STN_E.length) % STN_E.length : 1);
-    const curE = hIdxE(g.sentenceId);
-    const prevE = g.prevSentenceId ? hIdxE(g.prevSentenceId) : 0;
+    // M3 FIX (market review §2 — THE GLIDE IS NOT BLOCKING): the hash could
+    // pick the SAME station for consecutive sentences — half the boundaries
+    // shipped no walk at all, and the entry walk spread 990px over 1.7s.
+    // The walker now GUARANTEES the crossing: the station alternates every
+    // sentence boundary (a 570px stage crossing = 30% of frame width —
+    // real blocking, every boundary), and the entry walk tightens
+    // 1700 → 1150ms (a walk, not a glide). The alternation STARTS LEFT so
+    // the group's first staging is the certified left lane; the right
+    // station pulls 1240 → 1100 — the endpoint annotation pills (searched
+    // against the walker's crown lane) and the stouter U6 hip band both
+    // certify at 1100, where 1240 plated the '+30%' pill by 54-62px.
+    const prevE = g.prevSentenceId ? hIdxE(g.prevSentenceId) : 1;
+    const curE = prevE === 1 ? 0 : 1;
     const stTE = g.sentenceT ?? 1e9;
-    if (g.sceneT < 1700) {
-      walkerXNow = walkIn(Math.min(g.sceneT, 1700), 250, STN_E[curE], 1700, undefined, walkerRig, 11).x;
+    if (g.sceneT < 1150) {
+      walkerXNow = walkIn(Math.min(g.sceneT, 1150), 250, STN_E[curE], 1150, undefined, walkerRig, 11).x;
     } else if (stTE < 900 && Math.abs(STN_E[curE] - STN_E[prevE]) >= 120) {
       walkerXNow = walkIn(stTE, STN_E[prevE], STN_E[curE], 900, undefined, walkerRig, 11).x;
     } else {
@@ -976,12 +987,12 @@ export function chartJourneyScene(g: SceneCtx): void {
     // figure's feet land on its plate edge; the ids are deterministic from
     // the chip text (theme.chip's own registration).
     for (const c of chips) declareHostContact(`chip:${String(c).slice(0, 14)}`);
-    // C8 FIX: stations at the plot's shoulders (430 / 1240) — see the
-    // walkerXNow block above. The mid-plot stop is gone.
-    const STN = [430, 1240];
-    const hIdx = (id?: string): number => (id ? Math.floor(hashStr(id) * STN.length) % STN.length : 1);
-    const cur = hIdx(g.sentenceId);
-    const prev = g.prevSentenceId ? hIdx(g.prevSentenceId) : 0;
+    // C8 FIX: stations at the plot's shoulders — see the walkerXNow block
+    // above. The mid-plot stop is gone.
+    // M3 UNIFICATION: the drawn walker now uses the SAME station system as
+    // the annotation-avoidance lane (STN_E / prevE / curE above) — two
+    // station sets that disagree meant the pills avoided around one lane
+    // while the figure stood in another. One system, guaranteed crossings.
     const stT = g.sentenceT ?? 1e9;
     const arriveJ = Stickman.poseAt(t, {
       gesture: 'present', speaking: g.speaking,
@@ -989,16 +1000,24 @@ export function chartJourneyScene(g: SceneCtx): void {
       wordTimes: g.gWordTimes, pointBias: 'right',
     });
     let hxJ: number; let poseJ: import('./stickman').Pose; let phaseJ: number | undefined;
-    if (g.sceneT < 1700) {
+    // M3 UNIFICATION (scope): the walkerXNow block's STN_E/prevE/curE live
+    // in their own brace scope — the draw side re-derives the SAME values
+    // with the SAME logic (one system, two scopes, zero disagreement).
+    const STN_J = [430, 1000];
+    const hIdxJ = (id?: string): number => (id ? Math.floor(hashStr(id) * STN_J.length) % STN_J.length : 1);
+    const prevJ = g.prevSentenceId ? hIdxJ(g.prevSentenceId) : 1;
+    const curJ = prevJ === 1 ? 0 : 1;
+    if (g.sceneT < 1150) {
       // THE DRAW-ON ENTRANCE — the walkway read itself: he paces the axis
-      // from the left edge as the chart draws in above him.
-      const r = walkIn(Math.min(g.sceneT, 1700), 250, STN[cur], 1700, arriveJ, walkerRig, 11);
+      // from the left edge as the chart draws in above him (1150ms — a
+      // walk, not a glide).
+      const r = walkIn(Math.min(g.sceneT, 1150), 250, STN_J[curJ], 1150, arriveJ, walkerRig, 11);
       hxJ = r.x; poseJ = r.walking ? r.pose : arriveJ; phaseJ = r.walking ? r.phase : undefined;
-    } else if (stT < 900 && Math.abs(STN[cur] - STN[prev]) >= 120) {
-      const r = walkIn(stT, STN[prev], STN[cur], 900, arriveJ, walkerRig, 11);
+    } else if (stT < 900 && Math.abs(STN_J[curJ] - STN_J[prevJ]) >= 120) {
+      const r = walkIn(stT, STN_J[prevJ], STN_J[curJ], 900, arriveJ, walkerRig, 11);
       hxJ = r.x; poseJ = r.walking ? r.pose : arriveJ; phaseJ = r.walking ? r.phase : undefined;
     } else {
-      hxJ = STN[cur]; poseJ = arriveJ;
+      hxJ = STN_J[curJ]; poseJ = arriveJ;
     }
     const talkJ = g.speaking ? talkAt(g.beatT, g.wordTimes) : 0;
     // B7 RE-SPEC (Visual Quality Audit §3.2 — THE WALKER IS AN ACTOR):
@@ -1450,6 +1469,21 @@ export function barsCompareScene(g: SceneCtx): void {
       t, landT: 400 + i * 450 + 495,
     });
   });
+  // M1 FIX (market review §2 — THE YTD-BARS HOLD): after the landing rings
+  // die, the group held one static composition for 20s+. Each sentence
+  // boundary now RE-MEASURES: the sentence's own bar fires a fresh cap
+  // ring (700ms, keyed to the sentence hash) — the hold re-stages at
+  // every sentence and the eye walks the rows instead of parking.
+  {
+    const fi = bars.length ? Math.floor(hashStr(String(g.sentenceId ?? 'bars')) * bars.length) % bars.length : -1;
+    const stT = g.sentenceT ?? 1e9;
+    if (fi >= 0 && stT < 700 && t > 1900) {
+      const b = bars[fi];
+      const capX = 340 + (clamp01(b.value / yMax)) * barW;
+      const capY = H * 0.24 + fi * 130 + 73;
+      impactRing(ctx, capX, capY, t, t - stT, 60, 0.8, TONE(b.tone).main);
+    }
+  }
   // flip counter (ownership rate)
   const fc = s.flipCounter as any | undefined;
   if (fc) {
@@ -2473,6 +2507,15 @@ export function recessionGaugeScene(g: SceneCtx): void {
     ctx.restore();
   });
   // gauge on right
+  // gauge on right
+  // M1 FIX (market review §2 — THE 80-SECOND DIAL HOLD): the dial is a
+  // LIVE instrument, not a parked poster. Each sentence boundary re-measures:
+  // a fine needle bias keyed to the sentence hash (spring-settled over
+  // 900ms) swings the needle — the printed value keeps the lockstep
+  // number, so the instrument visibly re-measures without ever printing
+  // a number the narration doesn't state.
+  const nHash = hashStr(String(g.sentenceId ?? 'gauge'));
+  const needleBias = ((nHash - 0.5) * 0.16) * easeOutCubic(clamp01((g.sentenceT ?? 1e9) / 900));
   gauge(ctx, {
     // PHASE-0 VISUAL AUDIT (frame evidence BEFORE_fix4): the dial sat at
     // W*0.74 and the presenter at x 1770 — the "100%" end label (centered
@@ -2483,6 +2526,7 @@ export function recessionGaugeScene(g: SceneCtx): void {
     // coin chip below tracks the same constant.
     cx: W * 0.70, cy: H * 0.52, r: 240,
     value: (s.gaugeTo as number) || 48,
+    needleBias,
     p: clamp01((t - 1200) / 600), // B18: the hero needle lands at 1.8s
     t,
     label: 'Zandi\u2019s model', // PHASE 2: short dial name — the qualifier lives in the VO
@@ -2596,7 +2640,10 @@ export function recessionGaugeScene(g: SceneCtx): void {
     // steps 25px left (1745) — the palm's reach to the rim drops from
     // ~257px (beyond the solved arm's natural length, the source of the
     // Z-bend elbow) to ~215px, inside the arm's envelope at this rig.
-    drawStickmanV2(ctx, Math.min(1745, W - 184), H * 0.63, subjectRig, t,
+    // M/U6 GUARD ARBITRATION: 1745 → 1712 — the stouter U6 envelope
+    // crossed the frame edge by 13-25px under the guard camera at this
+    // staging; the palm target is unchanged (the reach covers it).
+    drawStickmanV2(ctx, Math.min(1712, W - 217), H * 0.63, subjectRig, t,
       {
         pose,
         // PHASE 3: participant grammar — the beat's hero is the dial system
@@ -4188,7 +4235,9 @@ export function fundSplitScene(g: SceneCtx): void {
     // B12 FIX (the 40px caption-clearance law): chip 2's bottom sat at 764 —
     // 4px into the new 760 clearance floor (the guard's captionClearance
     // assert convicted it at 12-14px under camera). The cascade raises 16px.
-    const y = H * 0.5 - 16 + i * 120;
+    // M-camera arbitration: another 8px up — the raised M2 drift consumed
+    // the old 12px margin (0-1px grazes at the worst sampled camera).
+    const y = H * 0.5 - 24 + i * 120;
     const c = TONE(st.tone || 'default');
     registerRect(`fundSplit:stat${i}`, W * 0.09, y, 420, 104);
     card(ctx, W * 0.09, y, 420, 104, { r: 24, settle: { t, landT: (i + 1) * 950 } }); // D2 settle
@@ -4471,6 +4520,22 @@ export function oddsSpreadScene(g: SceneCtx): void {
     if (mp <= 0) return;
     const x = trackX + (clamp01(m.at / 100)) * trackW;
     const c = TONE(m.tone);
+    // M1 FIX (market review §2 — THE 90-SECOND RANGE HOLD): the sentence's
+    // own marker is the LIVE one — its pin ring re-fires each sentence
+    // (a 700ms pulse keyed to the sentence hash) and its pin doubles in
+    // radius. The 50s+ hold re-stages at every sentence boundary: the
+    // viewer's eye is WALKED along the range instead of parked on it.
+    const focusM = markers.length ? Math.floor(hashStr(String(g.sentenceId ?? 'o')) * markers.length) % markers.length : -1;
+    const isFocus = i === focusM && (g.sentenceT ?? 1e9) < 900;
+    const focusRing = isFocus ? 1 - clamp01((g.sentenceT ?? 0) / 900) : 0;
+    if (focusRing > 0) {
+      ctx.strokeStyle = rgba(c.main, 0.85 * focusRing);
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(x, trackY, 13 + 22 * (1 - focusRing), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    const pinBoost = i === focusM ? 1.35 : 1;
     ctx.save();
     ctx.globalAlpha = mp;
     // band
@@ -4491,11 +4556,11 @@ export function oddsSpreadScene(g: SceneCtx): void {
     ctx.stroke();
     ctx.fillStyle = c.main;
     ctx.beginPath();
-    ctx.arc(x, trackY, 13, 0, Math.PI * 2);
+    ctx.arc(x, trackY, 13 * pinBoost, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#fff';
     ctx.beginPath();
-    ctx.arc(x, trackY, 6, 0, Math.PI * 2);
+    ctx.arc(x, trackY, 6 * pinBoost, 0, Math.PI * 2);
     ctx.fill();
     // label card — placed by the measured packer (B4)
     const pos = cardPos[i];

@@ -480,7 +480,10 @@ export function stampCardScene(g: SceneCtx): void {
     // solved ground is 0.597 (feet 645, rect bottom 761, screen 782 at
     // the 1.116 lift — 14px of air over the pill). The crown stays ~86px
     // below the title band; the card row is untouched.
-    drawStickmanV2(ctx, W * 0.19, H * 0.597, 1.3, t, { pose, alpha: hp, look: 0.6, parallax: true }, 32); // PLAYBOOK D3: ground 0.667 -> 0.597 (full-figure rect clears the 2-row pill at max camera)
+    // M/U6 arbitration: 0.19W → 0.21W — the stouter U6 body's apex band
+    // grazed the frame-edge bound by 22px at the guard camera on this
+    // staging; the figure steps right, the statement column is untouched.
+    drawStickmanV2(ctx, W * 0.21, H * 0.597, 1.3, t, { pose, alpha: hp, look: 0.6, parallax: true }, 32); // PLAYBOOK D3: ground 0.667 -> 0.597 (full-figure rect clears the 2-row pill at max camera)
   }
 }
 
@@ -805,7 +808,9 @@ export function takeawaysScene(g: SceneCtx): void {
     // host's head ON card 3's text. He steps right to 1620 (clear of card 3's
     // right edge 1574 by the guard's plating threshold) and the palm solves
     // onto that edge — the contact verb holds, the title reads.
-    drawStickmanV2(ctx, 1620, H * 0.667, 1.3, t, { pose, alpha: clamp01(t / 600), look: -0.5, contact: { x: 1566, y: 480, hand: 'palm' } }, 34);
+    // M/U6 GUARD ARBITRATION: 1620 → 1596 — the stouter U6 envelope
+    // crossed the frame edge by 23px under the guard camera at this rig.
+    drawStickmanV2(ctx, 1596, H * 0.667, 1.3, t, { pose, alpha: clamp01(t / 600), look: -0.5, contact: { x: 1566, y: 480, hand: 'palm' } }, 34);
   } else {
     // focused card zooms; other two minimized to the left rail
     for (let i = 1; i <= 3; i++) {
@@ -816,19 +821,42 @@ export function takeawaysScene(g: SceneCtx): void {
         // dim rail numbers (B10: shifted left of the 2.0-rig host's
         // envelope — the old 110/230/350 rail put the third numeral
         // inside the bigger figure's head band)
+        // M1 FIX (market review §2 — THE MINUTE THAT ONLY CHANGES A NUMBER):
+        // the rail is now a PROGRESSION — completed takeaways' numerals
+        // turn gold with an underline tick, and the numeral the film just
+        // handed off fires a one-second gold ring at every transition. The
+        // 60s run reads as a series advancing, not one card re-numbered.
+        const done = i < focus;
+        const handoff = i === focus - 1 && (g.sentenceT ?? 1e9) < 900;
         const x = 84 + (i - 1) * 92;
         ctx.save();
-        ctx.globalAlpha = ap * 0.35;
+        ctx.globalAlpha = ap * (done ? 0.8 : 0.35);
         setFont(ctx, 66, 700, FONT_DISPLAY);
-        ctx.fillStyle = PALETTE.inkFaint;
+        ctx.fillStyle = done ? PALETTE.gold : PALETTE.inkFaint;
         ctx.textAlign = 'left';
         ctx.fillText(String(i), x, H * 0.3);
+        if (done) {
+          ctx.fillStyle = rgba(PALETTE.gold, 0.8);
+          roundRect(ctx, x - 4, H * 0.3 + 14, 44, 5, 2.5);
+          ctx.fill();
+        }
+        if (handoff) {
+          const hr = 1 - (g.sentenceT ?? 0) / 900;
+          ctx.strokeStyle = rgba(PALETTE.gold, 0.85 * hr);
+          ctx.lineWidth = 5;
+          ctx.beginPath();
+          ctx.arc(x + 22, H * 0.3 - 24, 40 + 26 * (1 - hr), 0, Math.PI * 2);
+          ctx.stroke();
+        }
         ctx.restore();
       }
     }
     // big focused card
+    // M/U6 GUARD ARBITRATION: 0.62 → 0.60 width — the raised M2 drift
+    // (camX ±78) mapped the old right edge 11px past the frame bound at
+    // the guard camera; the card narrows instead of the camera reining in.
     const ap = clamp01(t / 700);
-    const cw = W * 0.62;
+    const cw = W * 0.6;
     const x = W * 0.28;
     // FIX 3 (density payload): the "n of 3" kicker chip above the card —
     // the takeaway series' own navigation, content-true furniture at
@@ -1129,7 +1157,9 @@ export function commentPromptScene(g: SceneCtx): void {
   // sweep is the referee.
   // PLAYBOOK D3: anchor 0.845 → 0.83 and ground 0.667 → 0.635 — the feet
   // band clears both the frame edge and the 2-row pill at max camera.
-  drawStickmanV2(ctx, W * 0.83, H * 0.635, 1.25, t, { pose, alpha: clamp01(t / 700), look: -0.5, parallax: true }, 36);
+  // M/U6 GUARD ARBITRATION: 0.83 → 0.805 — the stouter U6 envelope crossed
+  // the frame edge by 39px under the guard camera at this staging.
+  drawStickmanV2(ctx, W * 0.805, H * 0.635, 1.25, t, { pose, alpha: clamp01(t / 700), look: -0.5, parallax: true }, 36);
 }
 
 // ── endScreen v2: next-video teaser + host, YouTube-safe (PATCH 6) ──────────

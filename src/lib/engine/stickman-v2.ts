@@ -1587,10 +1587,11 @@ export function drawStickmanV2(
   // the shifted root, so the guard stays exact.
   if (r.contact) {
     // rig skeleton literals (the rig constants below are declared after the
-    // body plan): legs 54+50, torso 78 → span proxy 182; arms 58+54 = 112.
-    const REACH = 1.0 * scale * 182 * 0.62;
+    // body plan): legs 50+46, torso 84 → span proxy 180; arms 58+54 = 112.
+    // U6: the proxy follows the stouter plan (was 182 on legs 54/50+78).
+    const REACH = 1.0 * scale * 180 * 0.62;
     const shSceneX0 = cx + (r.flip ? -1 : 1) * 4 * scale;
-    const shSceneY0 = groundY - 182 * scale;
+    const shSceneY0 = groundY - 180 * scale;
     const pdx = r.contact.x - shSceneX0;
     const pdy = r.contact.y - shSceneY0;
     const pdist = Math.hypot(pdx, pdy) || 1;
@@ -1803,7 +1804,13 @@ export function drawStickmanV2(
   // run 4.5-5.5 heads with a chest nearly double the waist. Legs drop to
   // 54/50, torso to 78 — the stack is now ~5.1 heads and the figure
   // reads "a character" before "a stick". Chest rises below (17→22).
-  const U_LEG = 54, L_LEG = 50, TORSO = 78, U_ARM = 58, L_ARM = 54;
+  // U6 (market review §3.1 — ONE STEP STOUTER): legs 54/50 → 50/46,
+  // torso 78 → 84, HEAD_SHRINK 0.71 → 0.78 (the face grows visually while
+  // the skull stays in the premium band; screen-space face floors are
+  // unchanged). The stack lands ~4.7 heads — inside the playbook's own
+  // caricature band — and the bigger mass makes the walk plant squash
+  // read at the feed.
+  const U_LEG = 50, L_LEG = 46, TORSO = 84, U_ARM = 58, L_ARM = 54;
   const pelvisY = -U_LEG - L_LEG + pose.rootY;
   // BLUEPRINT Phase 2: the hip anchors ride the pelvis tilt — right hip
   // rises when pelvisTilt is positive (weight onto the left leg), left
@@ -2857,7 +2864,11 @@ export function drawStickmanV2(
   // wants the film's close-up to read as the head the viewer clicked. The
   // egg grows +6% (0.67 → 0.71); the thicker contour (headStroke 14) and
   // the larger glasses wire land with it.
-  const HEAD_SHRINK = 0.71;
+  // U6 (market review §3.1 — ONE STEP STOUTER): 0.71 → 0.78 — the face is
+  // one step bigger inside the same egg silhouette; the screen-space
+  // feature floors keep the feed safe and the head stays in the playbook's
+  // 4.5-5.2-head caricature band (the drawn stack is ~4.7 heads now).
+  const HEAD_SHRINK = 0.78;
   ctx.scale(faceS * HEAD_SHRINK * (1 - 0.12 * yawMag) * (1 + jawOpen * 0.04), faceS * HEAD_SHRINK * (1 - jawOpen * 0.04));
   // Panel round 2: the head outline yaws ±14° about the neck; the FACE
   // rotates an additional fraction of the same term about the head's own
