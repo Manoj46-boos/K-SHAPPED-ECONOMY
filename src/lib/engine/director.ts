@@ -1237,19 +1237,22 @@ export function drawFrame(
     // mass carries it), while the data (0.25) and statement (0.15)
     // registers stay put — the report's "on figure frames only": the
     // reading surfaces stay clean.
-    // B6 (market review — THE REGISTER READS DIRTY AFTER TRANSCODE): the
-    // 0.55 figure-frame tier reads premium on the render rig and as MOTTLE
-    // after YouTube's re-encode on a phone OLED — the grain tiles composite
-    // OVERLAY on a light ivory palette, so the codec spends bits on noise
-    // the viewer reads as dirt. Premium film grain stays at the felt-not-
-    // seen register the V6 halving found: figure 0.55 → 0.32 (alive on the
-    // ink mass, gone to the codec), data 0.25 → 0.16, statement 0.15 → 0.10.
+    // U11 (market review Table 5 — CALM THE REGISTER FOR THE TRANSCODE):
+    // the 0.55 figure-frame tier reads premium on the render rig and as
+    // MOTTLE after YouTube's re-encode on a phone OLED — the grain tiles
+    // composite OVERLAY on a light ivory palette, so the codec spends bits
+    // on noise the viewer reads as dirt. The review's numbers are law:
+    // figure frames 0.55 → 0.22 (felt, not seen), while the 0.25 data and
+    // 0.15 statement tiers STAY as the review keeps them. The texture
+    // survives delivery; the reading surfaces stay clean.
     const sceneType = beat.beat.scene.type;
+    // U11 register: figure 0.22 · data 0.25 · statement 0.15 (bigText and
+    // stampCard are the statement family's serif plates — the 0.15 tier).
     const grainAlpha =
-      sceneType === 'bigText' || sceneType === 'stampCard' ? 0.10
-      : ['host', 'divergeK', 'channelIntro', 'recapSplit', 'paradoxResolve',
-         'ownerWorker', 'endScreen', 'commentPrompt', 'takeaways'].includes(sceneType) ? 0.32
-      : 0.16;
+      ['host', 'divergeK', 'channelIntro', 'recapSplit', 'paradoxResolve',
+       'ownerWorker', 'endScreen', 'commentPrompt', 'takeaways'].includes(sceneType) ? 0.22
+      : sceneType === 'bigText' || sceneType === 'stampCard' ? 0.15
+      : 0.25;
     drawGrain(ctx, W, H, grainAlpha, t);
   }
   // B15 (MINT MONOTONY): the mint rooms carry the mud complaint — the

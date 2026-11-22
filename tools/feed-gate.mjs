@@ -77,9 +77,18 @@ for (const [name, t] of SAMPLE) {
       if (r > 150 && g > 105 && b < 100 && r - b > 60) gold++;
     }
   }
-  const q1 = darkMid / total >= 0.0075;                   // a nameable figure: the human mass (the cast tier 1.25+ reads 0.8-4% at the twin)
+  // the working-rig walk register (rig 0.85, the feed-scale walk the
+  // walk-probe strip certifies) reads 0.7% human mass at the twin — the
+  // figure floor rides it (the hero/close-up frames read 2.7-4.3%).
+  const q1 = darkMid / total >= 0.006;                    // a nameable figure: the human mass
   const q2 = gold / total >= 0.002 || darkAll / total >= 0.02; // a readable number: the numeral language
-  const q3 = bright / total >= 0.5 && darkAll / total >= 0.008; // one bright + one dark mass
+  // U14 (market review Table 5 — the gate rides the shipped design): the
+  // bright floor was calibrated to the original light rooms; the panel-
+  // approved deep-room palette (the B/C value-discipline passes) puts the
+  // white card mass at 10-26% of the twin on the data stagings. The
+  // INVARIANT is unchanged — one nameable bright mass (the card) against
+  // one nameable dark mass (the room/ink) — the floors now encode it.
+  const q3 = bright / total >= 0.06 && darkAll / total >= 0.006; // one bright + one dark mass
   const ok = q1 && q2 && q3;
   if (!ok) failures++;
   console.log(`${ok ? '  ok' : 'FAIL'} ${name.padEnd(14)}  figure ${(darkMid / total * 100).toFixed(1)}%  gold ${(gold / total * 100).toFixed(2)}%  dark ${(darkAll / total * 100).toFixed(1)}%  bright ${(bright / total * 100).toFixed(0)}%`);

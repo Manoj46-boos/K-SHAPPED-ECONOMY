@@ -58,15 +58,16 @@ const RESOLUTIONS = [
   { id: '720p', label: '720p — Lite (slower laptops)', w: 1280, h: 720 },
 ];
 
-// AUDIT-2 / §10.3 (report Phase 2): 60 fps is the DEFAULT — the current
-// premium standard, materially kinder to YouTube's transcode for motion
-// (3px strokes at 30fps get punished; at 60 they survive). The engine is
-// pure-function per frame, so this is a parameter, not a rewrite; the
-// render budget roughly doubles in frame count (overnight on the 8GB Dell,
-// or drop to 720p60 which the platform treats well for this class).
+// U14 (market review Table 5 — RENDER SETTINGS FOR THE 8GB LAPTOP): 30 fps
+// is the DEFAULT for long films. The timeline and every effect are
+// fps-agnostic (pure function per frame — this is a parameter, not a
+// rewrite), and 60 fps doubles the frame cost for a marginal retention gain
+// on talking-head explainer pacing. 30 halves the overnight render on the
+// 8GB machine; 12 Mbps holds; keep the browser's other tabs closed and let
+// the disk-streaming backpressure do its job. 60 stays for short pieces.
 const FPS_OPTIONS = [
-  { id: '60', label: '60 fps — premium (recommended)' },
-  { id: '30', label: '30 fps — standard (faster render)' },
+  { id: '30', label: '30 fps — recommended (long films)' },
+  { id: '60', label: '60 fps — premium motion (short films)' },
   { id: '24', label: '24 fps — cinematic' },
 ];
 
@@ -89,7 +90,7 @@ export default function StudioPage() {
   // ── settings ──
   const [voice, setVoice] = useState<VoiceSettings>({ voice: 'en-US-AndrewMultilingualNeural', rate: -4, pitch: 0 });
   const [resolution, setResolution] = useState('1080p');
-  const [fps, setFps] = useState('60'); // AUDIT-2 §10.3: 60fps default
+  const [fps, setFps] = useState('30'); // U14: 30fps default for long films (fps-agnostic timeline)
   const [captions, setCaptions] = useState<'karaoke' | 'simple' | 'off'>('karaoke');
   const [bgmVolume, setBgmVolume] = useState(0.55);
   const [channelName, setChannelName] = useState('The Data Desk');

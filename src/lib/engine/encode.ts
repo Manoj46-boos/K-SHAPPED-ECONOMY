@@ -342,6 +342,12 @@ export async function renderVideo(job: RenderJob): Promise<{ bytes: number }> {
   if (!job.writable) {
     // in-memory fallback: hand back the blob via download
     // C1 (market review — SLOW-START PLAYBACK RISK): the MP4 is muxed with
+    // U12 (market review Table 5): the mp4 lands with moov at the END by
+    // design — in-memory fastStart would buffer the whole film in RAM. The
+    // FAST-START step is the post-render SHELL remux instead:
+    //   ffmpeg -i in.mp4 -c copy -movflags +faststart out.mp4
+    // (stream-copy, seconds of wall time, no RAM cost) — see
+    // tools/remux-faststart.mjs / scripts/remux-faststart.sh.
     // moov at the END (fastStart:false — in-memory fastStart would double
     // the render's peak memory). Before the file leaves the process, the
     // box-level remux below relocates moov ahead of mdat — the first frame
