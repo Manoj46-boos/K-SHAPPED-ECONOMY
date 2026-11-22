@@ -40,6 +40,12 @@ import { hash01 } from './easing';
 import { frameContext, type FrameFamily } from './composition';
 
 /** per-family stage tuning: [horizonY, mullionCount, mullionAlpha, floorAlpha] */
+// U9 (market review Table 5 — FILL THE EMPTY FIELDS INSIDE THE VALUE
+// DISCIPLINE): the 3-12% ink alphas were tuned for texture and landed
+// sub-perceptual on a mid-tone field — the floor planes, mullions and desk
+// edge carried ~half the band's weight. Every alpha rises ~1.8x, CAPPED at
+// the band's 12% top so the architecture stays structure, never a
+// competing mass. Same geometry, same counts — the room finally reads.
 const STAGE_TABLE: Record<FrameFamily, {
   horizonY: number;      // fraction of H where the desk begins
   mullions: number;      // how many wall verticals
@@ -47,9 +53,9 @@ const STAGE_TABLE: Record<FrameFamily, {
   floorAlpha: number;    // the desk surface's darkening
   floorLines: number;    // perspective lines on the desk surface
 }> = {
-  host:      { horizonY: 0.70, mullions: 4, mullionAlpha: 0.085, floorAlpha: 0.055, floorLines: 4 },
-  data:      { horizonY: 0.72, mullions: 3, mullionAlpha: 0.060, floorAlpha: 0.045, floorLines: 3 },
-  statement: { horizonY: 0.74, mullions: 2, mullionAlpha: 0.055, floorAlpha: 0.050, floorLines: 3 },
+  host:      { horizonY: 0.70, mullions: 4, mullionAlpha: 0.12, floorAlpha: 0.099, floorLines: 4 },
+  data:      { horizonY: 0.72, mullions: 3, mullionAlpha: 0.108, floorAlpha: 0.081, floorLines: 3 },
+  statement: { horizonY: 0.74, mullions: 2, mullionAlpha: 0.099, floorAlpha: 0.09, floorLines: 3 },
 };
 
 /**

@@ -50,7 +50,7 @@ else bad('thumbnail draws its own face glyphs — identity split restored');
 
 // ── 2. PARAM PARITY ────────────────────────────────────────────────────────────
 const { THUMB_PARITY } = require(path.join(BUILD, 'thumbnail.js'));
-const CERT = { faceScale: 1.75, talk: 0.68, jaw2x: 1.5 };
+const CERT = { faceScale: 1.8, talk: 0.68, jaw2x: 1.5 };
 const same = CERT.faceScale === THUMB_PARITY?.faceScale
   && CERT.talk === THUMB_PARITY?.talk
   && CERT.jaw2x === THUMB_PARITY?.jaw2x;
@@ -104,7 +104,7 @@ drawThumbnail(tctx, 1280, 720, 0);
 // staging; thumb head ≈ (666,95) r 75 (SC 3.2 waist-up framing). The
 // eye-channel metrics are ratios inside the face, scale-invariant.
 const filmFace = film.getContext('2d').getImageData(400, 45, 230, 215);
-const thumbFace = thumb.getContext('2d').getImageData(565, 10, 205, 185);
+const thumbFace = thumb.getContext('2d').getImageData(565, 45, 205, 185);
 
 // the eye-channel metrics: sclera (near-white) share and ink (dark) share
 function metrics(img) {

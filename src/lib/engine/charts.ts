@@ -818,7 +818,7 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
           }
         }
       }
-      const lx2 = lxF;
+      let lx2 = lxF; // U7: the resolver may slide x; the connector/registers below ride the final placement
       // P0 defect sweep / B18 follow-up (NOTHING PLATES HIM): if the
       // resolved placement still intersects the walker's body envelope
       // (the least-harm path can ship a residual hit on crowded charts),
@@ -849,19 +849,80 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       // clear space against EVERY pill already on the chart.
       let lyCrown = lyC;
       {
+        // U7 (market review Table 5 — THE RESOLVER NEVER SHIPS AN OVERLAP
+        // WHILE CLEAR SPACE EXISTS): the vertical steps exhaust on dense
+        // charts (the c4-cb beat's wide 'multi-year low' pill had rows
+        // blocked above AND below) — the resolver now also SLIDES along x
+        // (60%/110% of its own width, clamped inside the plot) and retries
+        // the column at each offset before conceding. X reassigns lx2, so
+        // the connector and registers below ride the final placement.
         const pillW = tw + 32;
-        const pillX = lx2 - tw / 2 - 16;
         const boundsLo = yMin2;
         const boundsHi = lyMaxC;
-        for (let step = 0; step < 5; step++) {
-          const r = { x: pillX - 10, y: lyCrown - pillTop - 10, w: pillW + 20, h: pillH + 20 };
-          const hit = annOccupied.some((o) => r.x < o.x + o.w && o.x < r.x + r.w && r.y < o.y + o.h && o.y < r.y + r.h);
-          if (!hit) break;
-          const down = lyCrown + pillH + 16;
-          const up = lyCrown - pillH - 16;
-          lyCrown = down <= boundsHi ? down : Math.max(up, boundsLo);
+        const half = tw / 2;
+        const xLo = x + half + 40;
+        const xHi = x + w - half - 40;
+        let placed = false;
+        // least-harm ledger: when a fully clear cell does not exist (a dense
+        // 62px-pill chart), ship the candidate with the SMALLEST overlap
+        // area of everything explored — never the blind original row.
+        let best = { lx: lx2, ly: lyC, area: Infinity };
+        for (const xOff of [0, pillW * 0.62, -pillW * 0.62, pillW * 1.15, -pillW * 1.15]) {
+          const lxTry = Math.min(xHi, Math.max(xLo, lx2 + xOff));
+          const pillXt = lxTry - half - 16;
+          let lyTry = lyC;
+          for (let step = 0; step < 6; step++) {
+            const r = { x: pillXt - 10, y: lyTry - pillTop - 10, w: pillW + 20, h: pillH + 20 };
+            let area = 0;
+            for (const o of annOccupied) {
+              const ox = Math.max(0, Math.min(r.x + r.w, o.x + o.w) - Math.max(r.x, o.x));
+              const oy = Math.max(0, Math.min(r.y + r.h, o.y + o.h) - Math.max(r.y, o.y));
+              area += ox * oy;
+            }
+            if (area === 0) {
+              lx2 = lxTry;
+              lyCrown = lyTry;
+              placed = true;
+              break;
+            }
+            if (area < best.area) best = { lx: lxTry, ly: lyTry, area };
+            const down = lyTry + pillH + 16;
+            const up = lyTry - pillH - 16;
+            lyTry = down <= boundsHi ? down : Math.max(up, boundsLo);
+          }
+          if (placed) break;
         }
-        annOccupied.push({ x: pillX, y: lyCrown - pillTop, w: pillW, h: pillH });
+        if (!placed) {
+          // U7 (the yield law, from the walker-yield precedent): when NO
+          // clear cell exists anywhere the resolver explored — and the
+          // least-harm candidate still plates more than 10% of its own
+          // area — the plate YIELDS ENTIRELY. The anchor is series ink,
+          // not text: the data dot persists, the information stays in the
+          // VO. A chart that plates its own labels is worse than a chart
+          // that trusts its narration.
+          if (best.area > pillW * pillH * 0.10) {
+            const pyYield = y + h - ((av - yMin) / (yMax - yMin)) * h;
+            const pxYield = x + xf * w;
+            ctx.save();
+            ctx.globalAlpha = app;
+            ctx.fillStyle = TONE(a.tone).main;
+            ctx.beginPath();
+            ctx.arc(pxYield, pyYield, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(pxYield, pyYield, 6, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+            chartDebug.pills.push({ label: a.label, rect: [0, 0, 0, 0], alpha: 0, strokeOverlapPx: 0 });
+            prevLy = lyC;
+            return;
+          }
+          lx2 = best.lx;
+          lyCrown = best.ly;
+        }
+        annOccupied.push({ x: lx2 - half - 16, y: lyCrown - pillTop, w: pillW, h: pillH });
       }
       ctx.save();
       ctx.globalAlpha = alpha;

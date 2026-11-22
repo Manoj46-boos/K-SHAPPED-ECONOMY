@@ -11,7 +11,7 @@ import { bokehField, kMotifs, lightRays, drawK, drawK3D, sparkles, hazeBands, im
 import { SceneCtx } from './scene-context';
 import { REACTIONS, reactionAt, reactionStart } from './scene-context';
 import { pivotTakeStart } from './pivots';
-import { lineChart, lineChartYBounds, pieChart, barRow, dotGrid, gauge, statCard, sourceTag, sceneTitle, wrapText } from './charts';
+import { lineChart, lineChartYBounds, pieChart, barRow, dotGrid, gauge, statCard, sourceTag, sceneTitle, wrapText, chartDebug } from './charts';
 import { Stickman, POSES, blendPose, accentPulse, take, walkIn } from './stickman';
 import { drawStickmanV2, talkAt } from './stickman-v2';
 import { walkStrike, walkPush } from './scenes-host';
@@ -839,14 +839,36 @@ export function chartJourneyScene(g: SceneCtx): void {
         { y: 404, txt: `low ${fmt(low[1])}`, tone: 'down', when: 3100 },
         { y: 472, txt: `now ${fmt(last[1])}`, tone: 'gold', when: 4700 },
       ];
+      // U7 (market review Table 5 — ONE PLACEMENT SYSTEM): the peak/low/now
+      // column was hand-pinned and drew OVER the chart's own annotation
+      // pills (the c4-cb 'multi-year low' pill plated straight through the
+      // 'now' chip). The column now resolves against the chart's shipped
+      // pill registry (chartDebug.pills — the same rects the annotation
+      // resolver committed): a chip whose padded rect meets a live pill
+      // steps a full row down (then up) until it owns clear space, and the
+      // column re-stacks against ITSELF. Same measured plate, registered.
+      const pillRects = chartDebug.pills
+        .filter((p) => p.alpha > 0.3 && p.rect[2] > 0)
+        .map((p) => ({ x: p.rect[0] - 12, y: p.rect[1] - 12, w: p.rect[2] + 24, h: p.rect[3] + 24 }));
+      const chipTaken: Array<{ x: number; y: number; w: number; h: number }> = [];
       chipsJ.forEach((c, k) => {
         const cp = clamp01((t - c.when) / 380);
         if (cp <= 0) return;
         setFont(ctx, 26, 700);
         const tw = ctx.measureText(c.txt).width;
+        const plateW = Math.max(colW, tw + 44);
+        let y0 = c.y;
+        for (let step = 0; step < 6; step++) {
+          const r = { x: colX - 10, y: y0 - 10, w: plateW + 20, h: 72 };
+          const hitPill = pillRects.some((o) => r.x < o.x + o.w && o.x < r.x + r.w && r.y < o.y + o.h && o.y < r.y + r.h);
+          const hitChip = chipTaken.some((o) => r.x < o.x + o.w && o.x < r.x + r.w && r.y < o.y + o.h && o.y < r.y + r.h);
+          if (!hitPill && !hitChip) break;
+          y0 = y0 + 68;
+        }
+        chipTaken.push({ x: colX - 10, y: y0 - 10, w: plateW + 20, h: 72 });
         const x0 = colX + (1 - easeOutCubic(cp)) * 26;
-        const y0 = c.y - (1 - easeOutCubic(cp)) * 14;
-        registerRect(`journey:col${k}`, x0, y0, Math.max(colW, tw + 44), 52);
+        y0 = y0 - (1 - easeOutCubic(cp)) * 14;
+        registerRect(`journey:col${k}`, x0, y0, plateW, 52);
         ctx.globalAlpha = cp;
         const fill = c.tone === 'gold' ? PALETTE.goldWash : c.tone === 'up' ? rgba(PALETTE.up, 0.14) : rgba(PALETTE.down, 0.14);
         ctx.fillStyle = fill;
@@ -908,8 +930,12 @@ export function chartJourneyScene(g: SceneCtx): void {
     });
     const chipMetas = chips.map((c: string, i: number) => ({
       kind: 'chip' as const, i, c,
-      w: chipWidth(ctx, c, { size: 24, iconDot: true }),
-      h: 48,
+      // U10 (market review Table 5 — ONE LABEL FLOOR): the journey chips
+      // measured at 24px — ten steps under the film's own LABEL_FLOOR.
+      // They measure at 34 now (the plate grows with them), and the
+      // compress-to-fit fallback lands at 28, still a real label.
+      w: chipWidth(ctx, c, { size: LABEL_FLOOR, iconDot: true }),
+      h: 56,
       ap: clamp01((bt - 2200 - i * 450) / 600),
     }));
     let metas: any[] = [...statMetas, ...chipMetas];
@@ -937,7 +963,7 @@ export function chartJourneyScene(g: SceneCtx): void {
           const lines = labelW > innerW ? wrapText(ctx, label, innerW, 28, 600).slice(0, 2) : [label];
           return { ...m2, w: plateW, h: lines.length > 1 ? 92 : 60, lines };
         }
-        return { ...m2, w: chipWidth(ctx, m2.c, { size: 20, iconDot: true }) };
+        return { ...m2, w: chipWidth(ctx, m2.c, { size: 28, iconDot: true }), h: 50 }; // U10: compress floor 20 -> 28 — still a label, never mush
       });
     }
     const pos: Array<{ x: number; bottom: number }> = new Array(metas.length);
@@ -998,7 +1024,7 @@ export function chartJourneyScene(g: SceneCtx): void {
         }
       } else {
         chip(ctx, m.c, p.x, (p.bottom - m.h) / 1080 * H, {
-          size: 20, iconDot: PALETTE.gold, alpha: 0.95,
+          size: LABEL_FLOOR, iconDot: PALETTE.gold, alpha: 0.95, // U10: the drawn label joins the label floor (was 20 — the measurement grew the plate but the glyph stayed sub-floor)
         });
       }
       ctx.restore();

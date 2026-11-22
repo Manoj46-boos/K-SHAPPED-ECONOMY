@@ -233,6 +233,21 @@ export const INK = {
   headStroke: 14,
 };
 
+/** U2 (market review Table 5 — WEIGHT THE WORKING LIMBS): at rigs below
+ *  1.4 the drawn-ink taper reads thin against the capsule torso — the
+ *  working stagings (side hosts at 1.1-1.35) lose limb mass exactly where
+ *  the torso reads chunkiest. The WORKING register restores the mass the
+ *  limbs need to hold against the torso (legs 26/20/15, arms 21/16/12
+ *  local units; far limbs keep the film's 0.66 ratio), while the hero
+ *  register above keeps INK unchanged. One taper per camera distance —
+ *  the limbs never read as two different characters. */
+export const INK_WORKING = {
+  armNear: [21, 16, 12] as [number, number, number],
+  armFar: [14, 10.5, 8] as [number, number, number],
+  legNear: [26, 20, 15] as [number, number, number],
+  legFar: [17, 13, 10] as [number, number, number],
+};
+
 /** Phase 3: the K's 3D language (report §11 Phase 3).
  *  AUDIT-PHASE-4: depthFrac 0.26 -> 0.40 — the extrusion becomes visibly
  *  deep, not hinted. The audit verdict was "a flat decal with offset

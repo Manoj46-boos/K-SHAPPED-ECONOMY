@@ -28,7 +28,7 @@ import { PALETTE, rgba, roundRect, hexLerp } from './theme';
 import { clamp, clamp01, hash01, easeOutCubic } from './easing';
 import { registerRect } from './collision';
 import { camState, drawK } from './effects';
-import { AMP, INK } from './perception';
+import { AMP, INK, INK_WORKING } from './perception';
 // PHASE 3 COMPOSITION (Visual Audit — Composition & value): subject
 // figures self-measure their drawn bbox and register the frame-area
 // occupancy they own; the harness asserts the family floors.
@@ -798,7 +798,7 @@ export function handGlyph(
   // now renders the OPEN four-finger hand (the fingers wrap the held
   // edge); below, the fist mass holds (the feed twin).
   if (mode === 'grip') {
-    mode = rigScale >= 1.25 ? 'open' : 'fist';
+    mode = rigScale >= 1.0 ? 'open' : 'fist'; // U3 (market review Table 5): the grip's open hand fires from rig 1.0 — every staging where the hand reads at all
   }
   // 100-JUDGE VISUAL AUDIT (Phase 1 — HANDS TO FIVE GLYPHS): the hero-tier
   // swap. At rig ≥ 2 (the editorial and reaction stagings — the frames the
@@ -815,10 +815,10 @@ export function handGlyph(
   // hand tier lowers 1.4 → 1.2 and the pinch tier 2.0 → 1.4, so the
   // point/open/pinch glyphs fire on every staging where the hand is more
   // than a few pixels — not only on the hero close-ups.
-  if (!mode && rigScale >= 1.2) {
+  if (!mode && rigScale >= 1.0) { // U3 (market review Table 5): the open-hand tier lowers 1.2 -> 1.0 — hands that act at every scale
     mode = 'open';
   }
-  if (mode === 'count1' && rigScale >= 1.4) {
+  if (mode === 'count1' && rigScale >= 1.0) { // U3: the pinch tier lowers 1.4 -> 1.0
     mode = 'pinch';
   }
   if (mode === 'fist' || mode === 'count1' || mode === 'count2' || mode === 'count3') {
@@ -1898,6 +1898,11 @@ export function drawStickmanV2(
   // with an ivory brim-edge line so the cap reads as a DIFFERENT
   // silhouette at 320px — the ownerWorker pair becomes cast, not copies.
   const worker = r.variant === 'worker';
+  // U2 (market review Table 5 — WEIGHT THE WORKING LIMBS): one taper per
+  // camera distance. Below rig 1.4 (the working stagings — side hosts at
+  // 1.1-1.35) the limbs carry the WORKING register's mass so they hold
+  // against the capsule torso; the hero register keeps INK unchanged.
+  const IKr = scale < 1.4 ? INK_WORKING : INK;
   if (drawFar) {
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -1905,7 +1910,7 @@ export function drawStickmanV2(
     // DARK MASS on pale ground — limb weights rise so the figure carries
     // the frame's identity at 320px (far leg 12/10/9 -> 17/13/10, far arm
     // 9/8/7 -> 13/10/8).
-    farFoot = limb2(ctx, hipLX, hipLY, pose.lLU, pose.lLL, U_LEG, L_LEG, INK.legFar[0], INK.legFar[1], INK.legFar[2], farInk, pose.lLift ?? 0, 1.14); // iter-3: knee mass
+    farFoot = limb2(ctx, hipLX, hipLY, pose.lLU, pose.lLL, U_LEG, L_LEG, IKr.legFar[0], IKr.legFar[1], IKr.legFar[2], farInk, pose.lLift ?? 0, 1.14); // iter-3: knee mass
     if (farFoot) bbTouch(farFoot.ex, farFoot.ey, 24); // PHASE 3 bbox: far shoe
     // 100-JUDGE AUDIT (Part 9.3 — COUNTER-ARM SECONDARY MOTION). When the
     // near arm gestures (smear > 0), the far arm should counter-balance —
@@ -1916,7 +1921,7 @@ export function drawStickmanV2(
     const counterSmear = (r.smear ?? 0) * 0.40;
     const farAU = pose.lAU + counterSmear * 8;   // small upward counter
     const farAL = pose.lAL - counterSmear * 12;  // small outward counter
-    const farHand = limb2(ctx, neckX - 4 + Math.sin(shT) * -4, neckY + 3 + Math.sin(shT) * 9 - (pose.shoulderDrop ?? 0) * 0.6, farAU, farAL, U_ARM, L_ARM, INK.armFar[0], INK.armFar[1], INK.armFar[2], farInk, 0, 0.92); // iter-3: elbow mass
+    const farHand = limb2(ctx, neckX - 4 + Math.sin(shT) * -4, neckY + 3 + Math.sin(shT) * 9 - (pose.shoulderDrop ?? 0) * 0.6, farAU, farAL, U_ARM, L_ARM, IKr.armFar[0], IKr.armFar[1], IKr.armFar[2], farInk, 0, 0.92); // iter-3: elbow mass
     farHandRef = farHand;
     bbTouch(farHand.ex, farHand.ey, 18); // PHASE 3 bbox: far hand glyph
     // 100-JUDGE PANEL REPORT (fix A3 — THE ROLLED SLEEVE, far arm): the
@@ -1941,7 +1946,7 @@ export function drawStickmanV2(
   // oversized and forward-set.
   // BLUEPRINT Phase 2 (INK): near leg 15/12/10 -> 21/16/12 — the support
   // leg is the figure's anchor mass.
-  const nearFoot = limb2(ctx, hipRX, hipRY, pose.rLU, pose.rLL, U_LEG, L_LEG, INK.legNear[0], INK.legNear[1], INK.legNear[2], ink, pose.rLift ?? 0, 1.14); // iter-3: knee mass
+  const nearFoot = limb2(ctx, hipRX, hipRY, pose.rLU, pose.rLL, U_LEG, L_LEG, IKr.legNear[0], IKr.legNear[1], IKr.legNear[2], ink, pose.rLift ?? 0, 1.14); // iter-3: knee mass
   bbTouch(nearFoot.ex, nearFoot.ey, 24); // PHASE 3 bbox: near shoe
   shoeWedge(nearFoot, ink, pose.rToe ?? 0);
 
@@ -1982,7 +1987,7 @@ export function drawStickmanV2(
       taper(ctx,
         fpx + nxs / nl * off, fpy + nys / nl * off,
         fex + (fex - fpx) * 0.10 + nxs / nl * off, fey + (fey - fpy) * 0.10 + nys / nl * off,
-        INK.legNear[1] * 0.5, INK.legNear[2] * 0.25, ink);
+        IKr.legNear[1] * 0.5, IKr.legNear[2] * 0.25, ink);
     }
     ctx.restore();
   }
@@ -2591,11 +2596,11 @@ export function drawStickmanV2(
       taper(ctx,
         hpX + nx2 / nl2 * off, hpY + ny2 / nl2 * off,
         hex + (hex - hpX) * 0.12 + nx2 / nl2 * off, hey + (hey - hpY) * 0.12 + ny2 / nl2 * off,
-        INK.armNear[1] * 0.5, INK.armNear[2] * 0.25, nearArmCol);
+        IKr.armNear[1] * 0.5, IKr.armNear[2] * 0.25, nearArmCol);
     }
     ctx.restore();
   }
-  const hand = limb2(ctx, neckX + 4 + Math.sin(shT) * 4, neckY + 3 - Math.sin(shT) * 9 + shDrop, pose.rAU, pose.rAL, U_ARM, L_ARM, INK.armNear[0], INK.armNear[1], INK.armNear[2], nearArmCol, 0, 0.92); // iter-3: elbow mass
+  const hand = limb2(ctx, neckX + 4 + Math.sin(shT) * 4, neckY + 3 - Math.sin(shT) * 9 + shDrop, pose.rAU, pose.rAL, U_ARM, L_ARM, IKr.armNear[0], IKr.armNear[1], IKr.armNear[2], nearArmCol, 0, 0.92); // iter-3: elbow mass
   bbTouch(hand.ex, hand.ey, 18); // PHASE 3 bbox: near hand glyph
   // C3 FIX (near arm): the bronze cuff band is retired with the far one —
   // two tones, one silhouette (see the far-arm note above).
@@ -3048,12 +3053,19 @@ export function drawStickmanV2(
     // silhouette. One CURVED COMMA instead: a round crown pad fused with a
     // single tapered sweep along the chain's settled tip — one stroke, one
     // shape, a signature the feed can name.
+    // U4 (market review Table 5 — THE SIGNATURE AT WORKING RIGS): below
+    // rig 1.5 the crest kept its hero size in local units — at the
+    // side-host stagings the comma shrank to a whisper and the silhouette
+    // lost its one nameable detail. One size step UP below rig 1.5 (+18%)
+    // keeps the crest the silhouette's constant; the hero register is
+    // unchanged.
+    const cr = scale < 1.5 ? 1.18 : 1;
     ctx.fillStyle = ink;
     ctx.beginPath();
-    ctx.moveTo(-13, -26);
-    ctx.quadraticCurveTo(tn1.x, tn1.y, tn2.x, tn2.y);
-    ctx.quadraticCurveTo(tn2.x * 0.35, tn2.y * 0.55, -4, -30);
-    ctx.quadraticCurveTo(-10, -33, -13, -26);
+    ctx.moveTo(-13 * cr, -26 * cr);
+    ctx.quadraticCurveTo(tn1.x * cr, tn1.y * cr, tn2.x * cr, tn2.y * cr);
+    ctx.quadraticCurveTo(tn2.x * 0.35 * cr, tn2.y * 0.55 * cr, -4 * cr, -30 * cr);
+    ctx.quadraticCurveTo(-10 * cr, -33 * cr, -13 * cr, -26 * cr);
     ctx.closePath();
     ctx.fill();
   }

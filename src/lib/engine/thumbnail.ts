@@ -123,7 +123,7 @@ export const THUMB_VARIANTS: ThumbVariant[] = [
 // C3 (market review — THE CERTIFICATE OF QUALITY): the thumbnail's face
 // staging is a PUBLISHED CONTRACT — tools/parity-check.mjs asserts the
 // film's face and this face share one path, one register, one read.
-export const THUMB_PARITY = { faceScale: 1.75, talk: 0.68, jaw2x: 1.5 };
+export const THUMB_PARITY = { faceScale: 1.8, talk: 0.68, jaw2x: 1.5 };
 
 export function drawThumbnail(
   ctx: CanvasRenderingContext2D,
@@ -187,7 +187,12 @@ export function drawThumbnail(
   {
     const fx = W * 0.52;
     const fy = H * 1.08; // pelvis below the bottom edge: waist-up framing
-    const SC = 3.2;      // head ≈ 145px at 1280×720 — the worry reads at 320px
+    // U5 (market review Table 5 — ONE FACE FOR THE CAST AND THE THUMBNAIL):
+    // the thumbnail renders the FILM RIG at the certified reaction staging —
+    // rig 2.65, faceScale 1.8 (the film's own gasp close-up register), not
+    // a bespoke poster scale. The click lands on the exact face the first
+    // frames show.
+    const SC = 2.65;     // the certified reaction rig — the film's own staging
     ctx.save();
     ctx.translate(fx, fy);
     ctx.scale(SC, SC);
@@ -203,7 +208,7 @@ export function drawThumbnail(
       // drew a screaming black oval under balloon whites — the meme face the
       // panel convicted. The worry reads through brow + lid + jaw at the
       // film's own calibrated gasp: an intake, not a scream.
-      talk: 0.68, jaw2x: 1.5, faceScale: 1.75,
+      talk: 0.68, jaw2x: 1.5, faceScale: 1.8,
       look: 0.15, parallax: false, scarf: true,
     }, 7);
     ctx.restore();
