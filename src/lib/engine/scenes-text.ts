@@ -542,7 +542,12 @@ export function quoteCardScene(g: SceneCtx): void {
       ctx.save();
       ctx.globalAlpha = ap * 0.5 * easeOutCubic(bp);
       ctx.fillStyle = PALETTE.card;
-      ctx.fillRect(0, 168, W, 480 * easeOutCubic(bp));
+      // FRAME-LEDGER FIX (f362 — LOWER HALF EMPTY ON THE PEACH ROOM): the
+      // sheet ended at y 648, leaving 650-780 as bare room under the quote.
+      // The editorial column deepens to 728 — the paper plane closes the
+      // dead band (68px above the caption pill) and the quote sits on a
+      // full column, not a strip.
+      ctx.fillRect(0, 168, W, 560 * easeOutCubic(bp));
       // V8/V1: the sheet's warm top-edge light line — the lit plane reads
       // as an object in the room, not a flat band.
       ctx.globalAlpha = ap * 0.55 * easeOutCubic(bp);
@@ -696,17 +701,21 @@ export function quoteCardScene(g: SceneCtx): void {
   // mid-ground layer (20% alpha, gold, filling the vertical band). The
   // frame now carries designed content in every quadrant; the host reads
   // as presenting BESIDE the mark, not floating in a wash.
+  // FRAME-LEDGER FIX (f362): the mark drops into the LOWER-RIGHT quadrant
+  // and commits (kS 0.30H → 0.36H, ky 0.52H → 0.58H, alpha 0.20 → 0.26) —
+  // the deepened sheet plus the mark plus the re-staged host give every
+  // quadrant committed ink (the ledger's "lower half empty" is dead).
   {
     const kp2 = clamp01((t - 500) / 700);
     if (kp2 > 0) {
       ctx.save();
-      ctx.globalAlpha = kp2 * 0.20;
+      ctx.globalAlpha = kp2 * 0.26;
       ctx.strokeStyle = PALETTE.gold;
       ctx.lineWidth = 18;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      const kS = H * 0.30;
-      const kx = W * 0.795, ky = H * 0.52;
+      const kS = H * 0.36;
+      const kx = W * 0.795, ky = H * 0.58;
       ctx.beginPath();
       ctx.moveTo(kx - kS * 0.40, ky - kS);
       ctx.lineTo(kx - kS * 0.40, ky + kS);
@@ -732,7 +741,12 @@ export function quoteCardScene(g: SceneCtx): void {
     // ── PHASE-5 (the pull-quote's contact verb): the palm rests ON the
     // foot rule's right end — a hand on the desk the quote is set on,
     // 8px clear of the text zone (body core 1480-1640).
-    drawStickmanV2(ctx, 1560, H * 0.672, 1.22, t, { pose, alpha: hp, look: -0.7, parallax: true, contact: { x: 1428, y: footY - 6, hand: 'palm' } }, 33);
+    // FRAME-LEDGER FIX (f362 — HOST PARKED AT THE RIGHT EDGE): the 1.22
+    // rig read as a speck in the corner. The host joins the premium
+    // presence band (1.55, ground H*0.72) — a full column figure presenting
+    // beside the K mark, palm still ON the foot rule's end (contact verb
+    // preserved; the guard sweep re-arbitrates the wider envelope).
+    drawStickmanV2(ctx, 1585, H * 0.72, 1.55, t, { pose, alpha: hp, look: -0.7, parallax: true, contact: { x: 1428, y: footY - 6, hand: 'palm' } }, 33);
   }
 }
 

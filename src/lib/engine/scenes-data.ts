@@ -1581,7 +1581,12 @@ export function barsCompareScene(g: SceneCtx): void {
   // premium tier raise — the presenter stages at 1.9 (the report's
   // 1.9-2.2 band) instead of the certified-speck 1.35, one body-length
   // from his data, fist ON the track edge.
-  const barW = W - 770;
+  // FRAME-LEDGER FIX (f202/f222 — RIGHT HALF EMPTY AT THE LATE BEAT): the
+  // track ended at x 1490, leaving the right 430px of every frame empty
+  // once the tag chips moved. The column widens to the camera-safe bound
+  // (track 340 → 1700): the data owns the frame's full reading width and
+  // the under-cap tag law (charts.barRow) fills the row bands.
+  const barW = W - 560;
   const yMax = (s.yMax as number) || Math.max(...bars.map((b) => b.value), 1) * 1.15;
   bars.forEach((b, i) => {
     const bp = clamp01((t - 300 - i * 300) / 700); // B18: every bar full at <= 1.6s

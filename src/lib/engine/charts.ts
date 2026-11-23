@@ -1235,18 +1235,34 @@ export function barRow(
     if (ap > 0) {
       setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor
       const tw = ctx.measureText(opts.tag).width;
-      // Guard sweep (536s): at the 40px floor the tag chip on the longest
-      // bar rode past the chart's right bound toward the frame edge — it
-      // now clamps inside (the value numeral keeps its place; only the chip
-      // yields).
-      const tagX = Math.min(x + Math.max(30, bw) + 18, x + w - tw - 150);
+      // 100-JUDGE FRAME-LEDGER FIX (f202/f222 — 'best year since 2003' pill
+      // overlaps the bar end): the old clamp (min of cap+slot and
+      // track-right) then shifted the chip +108 right — on the LONGEST bar
+      // the clamped x plus the shift landed the chip ON the bar fill (the
+      // Russell row's chip printed across the gold cap). The chip now
+      // follows one placement law: right of the value numeral when the
+      // track has room; otherwise it right-aligns UNDER the bar cap, in
+      // the row band below the fill — never on the fill, never past the
+      // track end, registered either way.
+      const capX = x + Math.max(30, bw);
+      const chipW = tw + 30;
+      const fitsRight = capX + 126 + chipW <= x + w;
+      let chipX: number;
+      let chipY: number;
+      if (fitsRight) {
+        chipX = capX + 126;
+        chipY = by - 1;
+      } else {
+        chipX = capX - chipW;
+        chipY = by + 40;
+      }
       ctx.globalAlpha = ap;
-      registerRect(`barTag:${opts.tag.slice(0, 12)}`, tagX + 108, by - 1, tw + 30, 34);
+      registerRect(`barTag:${opts.tag.slice(0, 12)}`, chipX, chipY, chipW, 34);
       ctx.fillStyle = PALETTE.goldWash;
-      roundRect(ctx, tagX + 108, by - 1, tw + 30, 34, 17);
+      roundRect(ctx, chipX, chipY, chipW, 34, 17);
       ctx.fill();
       ctx.fillStyle = PALETTE.goldDeep;
-      ctx.fillText(opts.tag, tagX + 123, by + 23);
+      ctx.fillText(opts.tag, chipX + 15, chipY + 24);
       ctx.globalAlpha = 1;
     }
   }

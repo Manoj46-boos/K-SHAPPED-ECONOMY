@@ -229,9 +229,12 @@ function drawShortSource(ctx: CanvasRenderingContext2D, source: string | undefin
   if (!source) return;
   ctx.save();
   setFont(ctx, 28, 400, FONT_UI); // v9 (D-07): floor
+  // FRAME-LEDGER FIX (short2 — the source line ghosted BEHIND the host):
+  // the centered tag sat in the presenter's feet zone (x 540, y 1690).
+  // It left-aligns to the rail-safe margin — its own lane, never plated.
   ctx.fillStyle = PALETTE.inkFaint;
-  ctx.textAlign = 'center';
-  ctx.fillText(`Source: ${source}`, 540, 1690);
+  ctx.textAlign = 'left';
+  ctx.fillText(`Source: ${source}`, 90, 1690);
   ctx.restore();
 }
 
@@ -328,7 +331,16 @@ function drawNativeVerticalK(
   // P2-5 (audit Table 4 — "K at max scale"): the K grows from 210 to 300
   // as the reveal completes — the payoff moment fills the hero band
   // (span 415–1045 at full growth, clear of the caption zone 1116+).
-  const S = 210 + 90 * clamp01((t - 3000) / 1200);
+  // FRAME-LEDGER FIX (short0 — K GRAPHIC CLIPPED BY THE FRAME BOTTOM): the
+  // 3D letter's ink reaches ky + ~1.31·S once the extrude walls, stroke
+  // width and round caps stack (300 → y 1123) — the K's lower wall crossed
+  // the caption band's top edge. The report's own words: "the K clip is a
+  // bounds assertion away from fixed". Growth caps at 278: worst-case ink
+  // bottom 730 + 1.31·278 = 1094 — 22px above the caption zone, asserted
+  // here in the geometry.
+  const S_MAX = 278;
+  if (730 + 1.31 * S_MAX > 1116 - 20) throw new Error('shorts:K-bounds — the K3D bottom enters the caption band');
+  const S = 210 + (S_MAX - 210) * clamp01((t - 3000) / 1200);
 
   const growP = clamp01((t - 400) / 2300);
   const upP = clamp01((t - 400) / 1900);
