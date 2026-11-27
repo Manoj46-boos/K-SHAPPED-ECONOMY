@@ -507,7 +507,14 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
       const last = vis[vis.length - 1];
       const pop = opts.doneAt !== undefined ? clamp01((t - opts.doneAt) / 140) : 1;
       if (pop > 0) {
-        const pulse = pop >= 1 ? 0.5 + 0.5 * Math.sin(t / 350) : 0;
+        // B25 FIX (VISUAL MARKET REVIEW - THE FOREVER TICKER): the endpoint
+        // pulsed on sin(t/350) with no end state - every chart scene blinked
+        // forever. Three decaying pulses over 900ms, then the dot sits
+        // static: the arrival is an event, not a screensaver.
+        const pAge = t - (opts.doneAt ?? 0) - 140;
+        const pulse = pop >= 1 && pAge > 0 && pAge < 900
+          ? (0.5 + 0.5 * Math.sin((pAge / 900) * Math.PI * 6)) * (1 - pAge / 900)
+          : 0;
         const scale = easeOutBack(pop);
         ctx.fillStyle = '#fff';
         ctx.beginPath();
@@ -1734,10 +1741,19 @@ export function sourceTag(
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = alpha;
   setFont(ctx, TYPE_FLOOR, 400);
-  ctx.fillStyle = PALETTE.inkFaint;
+  // B20 FIX (VISUAL MARKET REVIEW - SOURCE TAG CONTRAST): inkFaint on cream
+  // measured ~4.3:1 - below the AA floor for the line that carries the
+  // film's credibility, and illegible on the darker floor bands. The tag
+  // now owns a cream plate (the caption pill's grammar) and draws in
+  // inkSoft (5.9:1) - readable in daylight at every room tone.
+  ctx.fillStyle = PALETTE.inkSoft;
   ctx.textAlign = 'right';
   const txt = `Source: ${source}`;
   const tw = ctx.measureText(txt).width;
+  ctx.fillStyle = rgba(PALETTE.card, 0.85);
+  roundRect(ctx, W - 130 - tw - 14, y - 27, tw + 42, 40, 10);
+  ctx.fill();
+  ctx.fillStyle = PALETTE.inkSoft;
   ctx.fillText(txt, W - 110, y);
   registerFixed(`sourceTag:${source.slice(0, 14)}`, W - 130 - tw, y - 26, tw + 40, 38);
   // v10 (PANEL-11): the tag is READING TEXT — a scene caption landing on it

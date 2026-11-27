@@ -43,7 +43,13 @@ function bg(g: SceneCtx, seed: number, gold = 0.4, plate?: 'up' | 'down' | 'gold
   paintBg(g.ctx, g.W, g.H, g.t, g.chapterTone);
   // PHASE 4: the chapter family's OWNED room furniture rides the plate
   // (room architecture per chapter family, not re-tints — audit §7).
-  scenePlate(g.ctx, g.W, g.H, plate ?? g.chapterTone ?? 'up', 0.95, chapterFamily(g.chapterIdx), { furniture });
+  // B22 FIX (VISUAL MARKET REVIEW - ONE OLIVE-GREY WORLD): four of five
+  // scene families shared the sage field, so the 320px sheet read as one
+  // long strip of the same room. Data rooms now rotate temperature: an odd
+  // chapter without a semantic plate rides the warm gold field - the film
+  // alternates cool/warm rooms instead of one grey world.
+  scenePlate(g.ctx, g.W, g.H, plate ?? (g.chapterIdx % 2 === 1 ? 'gold' : g.chapterTone ?? 'up'),
+    0.95, chapterFamily(g.chapterIdx), { furniture });
   // PLAYBOOK T2 (report §8.5 — A FLOOR FOR THE FLAT ROOMS): every data
   // room gains a 1-POINT FLOOR — 6 receding hairlines converging on a
   // horizon at 0.66H (the same grammar the datacenter's corridor uses,
@@ -547,10 +553,13 @@ export function chartTwinScene(g: SceneCtx): void {
   if (eb) {
     const ap = clamp01((t - 2000) / 700);
     if (ap > 0) {
+      // B27 FIX (VISUAL MARKET REVIEW - ALPHA-ONLY POP-INS): the badge
+      // rises 24px and scale-settles with its alpha - a pop, not a fade.
       ctx.save();
       ctx.globalAlpha = ap;
+      ctx.translate(0, (1 - easeOutCubic(ap)) * 24);
       const bx = W * 0.08;
-      const by = 128;
+      const by = 128 + (1 - easeOutCubic(ap)) * 0;
       setFont(ctx, 46, 700);
       const bigW = ctx.measureText(eb.big).width;
       setFont(ctx, 34, 600);
@@ -558,7 +567,10 @@ export function chartTwinScene(g: SceneCtx): void {
       const chipW = 36 + bigW + 24 + labW + 36;
       // v9 (report D-04): the punchline chip matches the Nasdaq gold tone
       // it quantifies (was teal on a teal-topped chart).
-      const ebTone = TONE('gold').main;
+      // B21 FIX (VISUAL MARKET REVIEW - GOLD ON WHITE): the punchline
+      // numeral rode the bright display gold (1.75:1 on the cream card) -
+      // goldInk exists precisely for text-sized gold (4.8:1).
+      const ebTone = PALETTE.goldInk;
       card(ctx, bx, by, chipW, 84, { r: 26 });
       setFont(ctx, 46, 700);
       ctx.fillStyle = ebTone;
@@ -659,7 +671,10 @@ export function chartJourneyScene(g: SceneCtx): void {
   // charts (0.42H, no stat rows) stage the walker at 1.7 (the presence
   // band AND the lab frame's dark mass); stat-beat charts (0.32H) keep
   // 1.45 so his crown never enters the scene title's registered band.
-  const walkerRig = chartH > H * 0.37 ? 1.7 : 1.45;
+  // B9 FIX (VISUAL MARKET REVIEW - THE WALKER TIER): the journey walker
+  // parks at 1.55 (was 1.45) - the presence band holds and the figure
+  // carries the beat at feed scale.
+  const walkerRig = chartH > H * 0.37 ? 1.7 : 1.55;
   const walkerCrown = floorY - 241 * walkerRig;
 
   const series = (s.series as any[] | undefined)?.map((sr) => ({
@@ -733,7 +748,7 @@ export function chartJourneyScene(g: SceneCtx): void {
   // (the presence band's 1.3 tier): the edge park + the ch2/ch3 truck
   // peaks certify at this envelope, and the crown band below keys to it
   // so the annotation pills clear the PARKED head, not the transient one.
-  const walkerRigParked = Math.min(walkerRig, 1.45);
+  const walkerRigParked = Math.min(walkerRig, 1.55);
   const walkerCrownParked = floorY - 241 * walkerRigParked;
   // B8 FIX (100-Judge report — WALL ARCHITECTURE BLEEDS THROUGH THE PLOT):
   // the journey chart drew its translucent area/band fills directly on the
@@ -851,9 +866,17 @@ export function chartJourneyScene(g: SceneCtx): void {
         .filter((p) => p.alpha > 0.3 && p.rect[2] > 0)
         .map((p) => ({ x: p.rect[0] - 12, y: p.rect[1] - 12, w: p.rect[2] + 24, h: p.rect[3] + 24 }));
       const chipTaken: Array<{ x: number; y: number; w: number; h: number }> = [];
+      // B14 FIX (VISUAL MARKET REVIEW - THE ROLLING WINDOW): the chips
+      // stacked forever - three plates piled at the card's foot by the
+      // beat's end. A chip EXITS 800ms after the chip two rows ahead
+      // arrives: the column stays a rolling two-chip window, the story
+      // reads peak -> low -> now without the pile.
       chipsJ.forEach((c, k) => {
         const cp = clamp01((t - c.when) / 380);
-        if (cp <= 0) return;
+        const laterC = chipsJ[k + 2];
+        const exitC = laterC ? clamp01((t - (laterC.when + 800)) / 700) : 0;
+        const vis = cp * (1 - exitC);
+        if (vis <= 0.01) return;
         setFont(ctx, 26, 700);
         const tw = ctx.measureText(c.txt).width;
         const plateW = Math.max(colW, tw + 44);
@@ -876,7 +899,7 @@ export function chartJourneyScene(g: SceneCtx): void {
         const x0 = colX + (1 - easeOutCubic(cp)) * 26;
         y0 = y0 - (1 - easeOutCubic(cp)) * 14;
         registerRect(`journey:col${k}`, x0, y0, plateW, 52);
-        ctx.globalAlpha = cp;
+        ctx.globalAlpha = vis;
         const fill = c.tone === 'gold' ? PALETTE.goldWash : c.tone === 'up' ? rgba(PALETTE.up, 0.14) : rgba(PALETTE.down, 0.14);
         ctx.fillStyle = fill;
         roundRect(ctx, x0, y0, Math.max(colW, tw + 44), 52, 26);
@@ -889,6 +912,7 @@ export function chartJourneyScene(g: SceneCtx): void {
         ctx.textAlign = 'left';
         ctx.fillText(c.txt, x0 + 22, y0 + 35);
         ctx.globalAlpha = 1;
+        void vis;
       });
     }
   }
@@ -1094,7 +1118,14 @@ export function chartJourneyScene(g: SceneCtx): void {
   // inside the chart by design), and the annotation pills clamp above his
   // crown via lineChart's crownTopY — nothing plates him, he plates nothing.
   {
+    // U7 FIX (VISUAL MARKET REVIEW - THE DECLARATION GAP): the declaration
+    // hard-coded the chartTwin plot id (@330) - the journey's own plot
+    // rect registers at chartX+150 = @480, so the DESIGNED walker-vs-plot
+    // contact (his grip rides the same rect) was never exempted and the
+    // sweep counted ~550 ghost hits per sample grid. The declaration now
+    // carries BOTH ids, computed from the same constants the draw uses.
     declareHostContact('lineChart:plot@330', 'lineChart:xLabels');
+    declareHostContact(`lineChart:plot@${Math.round(chartX + 150)}`, 'lineChart:xLabels');
     // the chip row (when the beat carries one) sits at the walkway — the
     // figure's feet land on its plate edge; the ids are deterministic from
     // the chip text (theme.chip's own registration).
@@ -1718,8 +1749,14 @@ export function barsCompareScene(g: SceneCtx): void {
   // natural reach (no P2 root pull needed).
   // B11 FIX: the premium side-host tier — 1.35 -> 1.9 at the re-framed
   // column (the fist target rides the track's new left edge at x 348).
-  hostSmall(g, 190, 'present', 13, H * 0.66, 1.9, 0, 'aha', 1.4, 1, true, 0.4,
-    undefined, undefined, { x: 348, y: 458, hand: 'fist' as const }, 'right');
+  // B32 FIX (VISUAL MARKET REVIEW - THE CLIPPED HOST): at the 1.9 tier the
+  // presenter's body core (56 units wide, in stickman-v2) ran the stage to
+  // x 84 - at the frame's left margin his hip band crossed the frame bound
+  // by 14px on the sweep (stickman@187 edge): the figure read as CUT OFF,
+  // and at feed scale as absent. The stage moves to x 232: the full
+  // silhouette owns the frame, the fist contact still lands inside reach.
+  hostSmall(g, 232, 'present', 13, H * 0.66, 1.9, 0, 'aha', 1.4, 1, true, 0.4,
+    undefined, undefined, { x: 366, y: 458, hand: 'fist' as const }, 'right');
 }
 
 // ── trioConverge scene ─────────────────────────────────────────────────────
@@ -2723,7 +2760,12 @@ export function recessionGaugeScene(g: SceneCtx): void {
   // element — it reveals at the group's seam on long holds (the gauge ran
   // 22s on one staging; the second half now carries its own event). Short
   // groups keep the certified 3.2s.
-  const cp = clamp01((t - seamArrival(String(s.title ?? 'recessionGauge'), g.d, 3200)) / 700);
+  // B16 FIX (VISUAL MARKET REVIEW - THE GHOST CAPTION STACK): the coin
+  // chip arrived at the 3.2s seam while the guess-prompt chip still lived
+  // (it holds to 6.3s) - two washed captions stacked at the gauge's foot
+  // and read as ghosts. The coin chip now waits for the prompt's exit:
+  // one owner of the foot band at a time, each at full alpha.
+  const cp = clamp01((t - Math.max(seamArrival(String(s.title ?? 'recessionGauge'), g.d, 3200), 6400)) / 700);
   // U14 (market review §3.4 — THE SEAM ARRIVAL PROMISE): on long sentences
   // the dial's re-measure gets its own CHIP POP every 8-10 seconds — a
   // small 'live' tag beside the dial that pops when the needle re-poses
@@ -2787,6 +2829,41 @@ export function recessionGaugeScene(g: SceneCtx): void {
     ctx.fillStyle = PALETTE.goldDeep;
     ctx.textAlign = 'left';
     ctx.fillText(txt, x + 28, y + 37);
+    ctx.restore();
+  }
+  // B23 FIX (VISUAL MARKET REVIEW - THE EMPTY MID-FIELD): the band
+  // between the attribution plates and the floor lines carried no ink -
+  // the frame's largest area read as dead grey wash. The dial's own
+  // RECENT-READINGS spine fills it: one tick per sentence boundary at the
+  // needle's resting angle (the same sentence-hash telemetry the needle
+  // itself rides - no invented numbers), the current reading ringed gold.
+  {
+    const stX0 = W * 0.10, stX1 = W * 0.40, stY = 618;
+    const ticks = 5;
+    ctx.save();
+    ctx.strokeStyle = rgba(roomInk().ink, 0.45);
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    for (let k = 0; k < ticks; k++) {
+      const tk = hashStr(`${String(g.beat.scene.sceneKey ?? 'gauge')}:${k}`) - 0.5;
+      const tx = stX0 + ((stX1 - stX0) * k) / (ticks - 1);
+      const tH = 18 + tk * 14;
+      const isCur = g.sentenceId !== undefined && k === Math.abs(Math.round(Number(g.sentenceId) || 0)) % ticks;
+      ctx.globalAlpha = isCur ? 1 : 0.5;
+      ctx.strokeStyle = isCur ? PALETTE.goldDeep : rgba(roomInk().ink, 0.45);
+      ctx.beginPath();
+      ctx.moveTo(tx, stY - tH);
+      ctx.lineTo(tx, stY);
+      ctx.stroke();
+      if (isCur) {
+        ctx.strokeStyle = rgba(PALETTE.goldDeep, 0.6);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(tx, stY - tH - 10, 7, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.lineWidth = 3;
+      }
+    }
     ctx.restore();
   }
   // ── 100-JUDGE PANEL / PHASE 1 item 1 — CONTACT IS MANDATORY: "the hand
@@ -2854,7 +2931,11 @@ export function recessionGaugeScene(g: SceneCtx): void {
         // band and the torso clears the label's right edge by ~28px. Reach
         // unchanged (~126 scene px from the shoulder); the 48% needle
         // (x ≈ 1345) stays far left of the palm.
-        contact: { x: 1598, y: 520, hand: 'palm' },
+        // B16 FIX (VISUAL MARKET REVIEW - THE HAND ON THE LABEL): the
+        // palm parked ON the '100%' axis label's box. The contact moves up
+        // the rim (-30°): still the high-odds arc, ~115px clear of the
+        // label's glyphs, inside the arm envelope at this rig.
+        contact: { x: 1560, y: 445, hand: 'palm' },
       }, 29);
     // PHASE 1 SCALE LAW: the gauge host registers as a subject — his palm
     // ON the dial's ring is the declared contact verb. PHASE 3: the rig
@@ -3905,13 +3986,21 @@ export function ownerWorkerScene(g: SceneCtx): void {
     // PHASE-0 round 4 (ownerWorker RMS 25.9): panel titles ride the vivid
     // ramp — the two titles are the frame's biggest type; vivid carries
     // the contrast the flat-frame flag asked for.
-    ctx.fillStyle = tone.vivid ?? tone.main;
+    // B19 FIX (VISUAL MARKET REVIEW - THE INVISIBLE FAMILY LABELS):
+    // 'THEIR PROFITS' / 'THEIR SPENDING' rode the mid-tone vivid ramp and
+    // washed to ~30% effective presence on the sage field. The titles now
+    // draw in full ink (AAA on every room); the family tone moves to the
+    // underline bar beneath - readable in one second, still tone-coded.
+    ctx.fillStyle = PALETTE.ink;
     // 100-JUDGE REPORT fix E2: titles ride to H*0.17 — the figures scale
     // to 1.4x (below) and need the headroom.
     // PHASE-6 (report Table 2 receipt 6): the title centered on the FIGURE
     // (x+240) — the owner's climb-pose raised hand plated the title's last
     // word (PROFITS). The titles shift one step left within each half.
     ctx.fillText(pnl.title.toUpperCase(), x + 240, H * 0.17);
+    ctx.fillStyle = tone.main;
+    roundRect(ctx, x + 240 - 60, H * 0.17 + 14, 120, 5, 2.5);
+    ctx.fill();
     // mini stickman: shareholder on the rise / worker on the flat run —
     // BOTH feet on the ONE shared terrain (terrainY above), 27px+ of
     // headroom under the title band at the 1.45 pair scale.

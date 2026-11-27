@@ -122,6 +122,21 @@ export function drawCaptions(
   let trails = winEnd < len;
   let trlW = trails ? MARK_W : 0;
   let winWords = words.slice(winStart, winEnd);
+  // B26 FIX (VISUAL MARKET REVIEW - THE SNAPPING WINDOW): the window
+  // advanced by re-slicing, so the pill width and word set SNAPPED between
+  // windows. One trailing word now stays alive and crossfades against the
+  // current word's own clock: the leaving word dissolves as the spoken
+  // word advances, and the pill width eases with it. Pure function of t.
+  let trailFade = 0;
+  if (continued && winStart > 0 && lastSpoken >= 0) {
+    const cur = words[lastSpoken];
+    const curEnd = words[lastSpoken + 1]?.t ?? cur.t + 2600;
+    const f = curEnd > cur.t ? clamp01((tMs - cur.t) / (curEnd - cur.t)) : 1;
+    trailFade = 1 - f;
+    if (trailFade > 0.02) {
+      winWords = [{ ...words[winStart - 1], __trail: true } as CaptionWord, ...winWords];
+    }
+  }
 
   const measure = (ws: CaptionWord[]): number =>
     ws.reduce((n, wd) => n + ctx.measureText(wd.w).width + spaceW, 0) - (ws.length ? spaceW : 0);
@@ -224,8 +239,11 @@ export function drawCaptions(
   // hard vanish read on hold-frames as a dropped element ("burned-in
   // captions that are truncated look like render errors"); a dissolve
   // reads as a held breath. Pure function of tMs — scrub-safe.
-  const fadeIn = clamp01((tMs - (active.start - 120)) / 120);
-  const fadeOut = 1 - clamp01((tMs - active.end) / 260);
+  // B26 FIX (VISUAL MARKET REVIEW - LINEAR CLAMPS): the pill's in/out
+  // fades were linear clamps - an machine-eased pop. Both phases now ride
+  // a sine ease: the dissolve reads as a breath, not a toggle.
+  const fadeIn = easeInOutSine(clamp01((tMs - (active.start - 120)) / 120));
+  const fadeOut = 1 - easeInOutSine(clamp01((tMs - active.end) / 260));
   const fade = Math.min(fadeIn, fadeOut);
   // P5 (100-judge audit §13 — THE CAPTION PILL MOVES): the only element on
   // screen for all 35,000 frames entered with alpha only. The pill now
@@ -282,6 +300,8 @@ export function drawCaptions(
     let x = W / 2 - rowW / 2;
     const y = py + 22 + ri * rowH + fontSize / 2;
     for (const w of row) {
+      // B26: the trail word rides its own crossfade alpha
+      ctx.globalAlpha = fade * ((w as any).__trail ? trailFade : 1);
       const spoken = tMs >= w.t;
       const activeW = spoken && tMs <= w.t + w.d + 90;
       // PANEL-9 R1: 0.85 blends to ≈4.8:1 on white (WCAG AA) for pre-read
@@ -308,6 +328,12 @@ export function drawCaptions(
         ctx.fillStyle = PALETTE.up;                       // v5: teal karaoke sweep
         roundRect(ctx, x - 2, y + fontSize * 0.6, (ww + 4) * easeOutQuad(sweep), 8, 4);
         ctx.fill();
+        // U11 FIX: the 1px ink underline under the sweep - the highlight
+        // survives the 320px transcode where gold-on-cream washes.
+        ctx.strokeStyle = rgba(PALETTE.ink, 0.5);
+        ctx.lineWidth = 1.2;
+        roundRect(ctx, x - 2, y + fontSize * 0.6, (ww + 4) * easeOutQuad(sweep), 8, 4);
+        ctx.stroke();
       }
       x += ctx.measureText(w.w).width + spaceW;
     }

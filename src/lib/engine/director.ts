@@ -5,7 +5,7 @@
  * grain, vignette, and the global light fades.
  */
 
-import { clamp01, easeInQuad, easeInOutSine, easeOutCubic } from './easing';
+import { clamp01, easeInQuad, easeInOutSine, easeOutCubic, hash01 } from './easing';
 import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI, drawRoomRail, drawChapterRoom, getRoomFamily, setRoomFamily, setWashChapter, setRoomLook } from './theme';
 import { drawGrain, lightVignette, bokehField, scalePunch, camState, guardCamState, kWipe, fgBokeh, dofPass, chapterAccent, drawK3D } from './effects';
 import { drawParticles, emitterKindFor } from './particles';
@@ -370,7 +370,10 @@ function cameraV2(
     // TRIPOD: locked scale, ONE slow push to the hero number — the push
     // releases after the number lands (~1.6s), 0.06 of travel, held.
     const pushT = easeInOutSine(clamp01((gt - 1600) / Math.max(1, groupDur - 1600)));
-    camScale = 1.0 + 0.06 * pushT;
+    // B29 FIX (VISUAL MARKET REVIEW - THE NEAR-STILL STAT ROOMS): the
+    // tripod push 0.06 left the heaviest number holds near-still. The
+    // push rises to the report's 0.10 - a real one-way move, still slow.
+    camScale = 1.0 + 0.10 * pushT;
   } else if (isStatement) {
     // STATEMENT: dead still for 500ms, then the dolly releases into it.
     const rel = easeInOutSine(clamp01((gt - 500) / Math.max(1, groupDur - 500)));
@@ -489,7 +492,13 @@ function cameraV2(
   }
   if (hero && hero.scene === sceneType) {
     const e = easeInOutSine(p);
-    if (hero.move === 'pullback') camScale -= hero.amt * e;
+    // B30 FIX (VISUAL MARKET REVIEW - ONE COMPOSITION OWNS 20%): the
+    // journey chapters repeated ONE truck across ten beats. The move
+    // rotates by group parity - odd journey groups run a real pullback
+    // instead, so consecutive beats frame differently.
+    if (sceneType === 'chartJourney' && groupIdx % 2 === 1) {
+      camScale -= 0.10 * e;
+    } else if (hero.move === 'pullback') camScale -= hero.amt * e;
     else if (hero.move === 'push') camScale += hero.amt * e;
     else if (hero.move === 'truck') {
       camX += hero.amt * (e - 0.5);
@@ -531,10 +540,17 @@ function cameraV2(
   // genuinely different camera composition, which is exactly what the
   // parked-hold findings sampled. The guard's EXACT-camera pass is the
   // referee for the wider envelope.
-  if (groupDur >= 12000 && reactionAt(sceneKey, gt, groupDur) === 0) {
+  // B31 FIX (VISUAL MARKET REVIEW - IDENTICAL RE-SPLITS): the cap reset
+  // the clock and re-rendered the same layout - the 49s gauge run shipped
+  // five near-identical framings, and the reframe's ±18px was below
+  // perception. The reframe now triggers at the 9s splits too, and in the
+  // tripod stat rooms (no hero moves, wide margins) it becomes a REAL
+  // re-stage: ±55px keyed to a per-group hash direction + a 2% push -
+  // consecutive splits land in genuinely different framings.
+  if (groupDur >= 9000 && reactionAt(sceneKey, gt, groupDur) === 0) {
     const reP = clamp01((gt - groupDur * 0.5) / 2400);
     if (reP > 0) {
-      const dir = groupIdx % 2 === 0 ? 1 : -1;
+      const dir = hash01(groupIdx * 13.7 + sceneKey.length * 3.1) > 0.5 ? 1 : -1;
       const e = easeOutCubic(reP);
       // amplitudes guard-arbitrated: 18px + 0.8% keeps the reframe inside
       // the full-bleed plate's own edge envelope when it stacks onto the
@@ -542,8 +558,8 @@ function cameraV2(
       // first cut). The reframe SKIPS reaction windows — one operator
       // event at a time; stacking the re-frame onto the reaction push was
       // the exact 'two systems fighting' failure the U10 retirement named.
-      camX += dir * 18 * e;
-      camScale *= 1 + 0.008 * e;
+      camX += dir * (isStat ? 55 : 18) * e;
+      camScale *= 1 + (isStat ? 0.02 : 0.008) * e;
     }
   }
   // U14 (market review §3.4 — NO PARKED PAGES): the disclaimer rooms and
@@ -644,7 +660,11 @@ function cameraV2(
   // whole-camera hard cap holds at 1.12 (the hero-move ceiling). This
   // is the structural fix — layouts no longer depend on per-scene
   // hand-tuning to stay inside the frame.
-  if (camScale > 1.12) camScale = 1.12;
+  // B29 FIX (VISUAL MARKET REVIEW - THE CINEMATIC CEILING): the 1.12 cap
+  // held the hero pushes and reaction close-ups at near-still. The ceiling
+  // rises to the report's 1.25; the exit-window trade below still governs
+  // the exit stack, and the guard sweep is the referee.
+  if (camScale > 1.25) camScale = 1.25;
   if (groupDur > 1400) {
     const exitP0 = clamp01((gt - (groupDur - 420)) / 420);
     if (exitP0 > 0 && camScale > 1.06) {

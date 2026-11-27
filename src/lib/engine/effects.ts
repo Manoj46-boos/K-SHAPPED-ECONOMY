@@ -216,7 +216,11 @@ export function bokehField(
     // fragment interiors (U11: the fragments are deleted; the disc is
     // atmosphere at <=0.09 alpha, present at the feed, never a bubble
     // over the data — it sits in the frame's far air, camera-coupled)
-    const discA = 0.085 * intensity;
+    // B28 FIX (VISUAL MARKET REVIEW - SUB-PERCEPTUAL ATMOSPHERE): 0.085
+    // measured as nothing at 1080p and less at the feed - dead render cost.
+    // The lens register rises to 0.15: present, still atmosphere, never a
+    // screen.
+    const discA = 0.15 * intensity;
     const g2 = ctx.createRadialGradient(bx, by, r * 0.15, bx, by, r);
     g2.addColorStop(0, rgba('#7FB8AC', discA));
     g2.addColorStop(0.75, rgba('#7FB8AC', discA * 0.6));
@@ -506,12 +510,15 @@ export function sparkles(
     const dist = radius * cam * (0.3 + hash01(i * 4.4) * 0.7) * easeOutCubic(p);
     const x = cx + Math.cos(ang) * dist;
     const y = cy + Math.sin(ang) * dist - p * 30 * cam;
-    const a = (1 - p) * 0.8;
+    // B28 FIX (VISUAL MARKET REVIEW - DEAD-WEIGHT SPARKLES): the burst
+    // popped in at full alpha with a frozen rotation. A fade-in over the
+    // first 15% of the window and a per-particle tumble give it life.
+    const a = Math.min(1, p / 0.15) * (1 - p) * 0.8;
     const s = (5 + hash01(i * 7.7) * 6) * (1 - p * 0.6) * cam; // 10–22px mini-K
     ctx.save();
     ctx.globalAlpha = a;
     ctx.translate(x, y);
-    ctx.rotate(hash01(i * 3.1) * Math.PI);
+    ctx.rotate(hash01(i * 3.1) * Math.PI + age * 0.0025 * (hash01(i * 7.7) > 0.5 ? 1 : -1));
     drawK(ctx, 0, 0, s, 2.2, gold ? PALETTE.goldDeep : PALETTE.up, 1);
     ctx.restore();
   }
@@ -1097,17 +1104,9 @@ export function popIn(t: number, dur = 560): { s: number; a: number } {
   return { s: 0.86 + 0.14 * springTo(0, 1, Math.min(Math.max(p, 0) * dur, dur), 170, 21), a: Math.min(1, p * 2) };
 }
 
-/** Soft radial flash used on hard cuts / reveals.
- *  @deprecated v1 strobe — use softBloom (PATCH 5) at new call sites. */
-export function flash(ctx: CanvasRenderingContext2D, W: number, H: number, age: number, dur = 340): void {
-  if (age < 0 || age > dur) return;
-  const p = age / dur;
-  ctx.save();
-  ctx.globalAlpha = (1 - p) * 0.5;
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(0, 0, W, H);
-  ctx.restore();
-}
+// B28 FIX (VISUAL MARKET REVIEW): the deprecated full-screen white flash()
+// is RETIRED from the export surface - a strobe-class effect one refactor
+// away from shipping. softBloom() is the only cut-reveal wash in the film.
 
 /**
  * v2 soft bloom (PATCH 5) — replaces flash() at cut call sites.
@@ -1305,8 +1304,12 @@ export function floatCoins(
  */
 export function microShake(t: number, t0: number, amp?: number): { dx: number; dy: number } {
   const age = t - t0;
-  if (age < 0 || age > 60) return { dx: 0, dy: 0 };
-  const decay = Math.sin((age / 80) * Math.PI);
+  // B24 FIX (VISUAL MARKET REVIEW - THE HARD-CUT SHAKE): the 60ms window
+  // ended while the sin envelope still stood at ~0.71 - every shake popped
+  // OFF instead of decaying. The envelope now runs its full arc to zero:
+  // window 60 -> 120ms, decay keyed to the same 120ms.
+  if (age < 0 || age > 120) return { dx: 0, dy: 0 };
+  const decay = Math.sin((age / 120) * Math.PI);
   const f = Math.floor(t / 33.33);
   const a = amp ?? AMP.microShakePx;
   return {

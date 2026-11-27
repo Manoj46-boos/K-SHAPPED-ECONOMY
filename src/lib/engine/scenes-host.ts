@@ -1397,14 +1397,26 @@ export function splitNumbersScene(g: SceneCtx): void {
           const row = Math.floor(i / cols);
           const dcx = fx + col * pitX + 6;
           const dcy = fy + row * pitY + 6;
+          // B18 FIX (VISUAL MARKET REVIEW - TEXTURE MUSH): 500 uniform
+          // dots at 0.6 alpha merged into one grey-gold field at 320px and
+          // the population read died. Each dot now carries a cream
+          // separation ring (adjacent dots never touch), commits to 0.88
+          // alpha, and grows one step: the band reads as HOUSEHOLDS at the
+          // feed, not as texture.
           const isMarket = dcx < W / 2;
-          ctx.fillStyle = isMarket ? rgba(PALETTE.up, 0.6) : rgba(PALETTE.down, 0.6);
+          ctx.strokeStyle = rgba(PALETTE.card, 0.9);
+          ctx.lineWidth = 1.6;
           ctx.beginPath();
-          ctx.arc(dcx, dcy, 6.5, 0, Math.PI * 2);
+          ctx.arc(dcx, dcy, 8.2, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fillStyle = isMarket ? rgba(PALETTE.up, 0.88) : rgba(PALETTE.down, 0.88);
+          ctx.beginPath();
+          ctx.arc(dcx, dcy, 7.2, 0, Math.PI * 2);
           ctx.fill();
         }
-        // the half labels — the band says what it shows
-        setFont(ctx, 26, 700);
+        // the half labels — the band says what it shows (LABEL_FLOOR: the
+        // 26px labels were below the film's own 34px label floor)
+        setFont(ctx, 34, 700);
         ctx.textAlign = 'left';
         ctx.fillStyle = PALETTE.up;
         ctx.fillText('the market half', fx + 4, fy - 14);

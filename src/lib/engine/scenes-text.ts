@@ -114,9 +114,13 @@ export function bigTextScene(g: SceneCtx): void {
       // own two-tier doctrine: texture that cannot survive the transcode is
       // decoration. The field now draws in inkSoft at 0.95 — ink-tier at the
       // gate, the "seven gold among 493 ink" mass the statement describes.
+      // B18 FIX (VISUAL MARKET REVIEW - THE 2.5x AREA FLOOR): the gold
+      // highlights carried 2.04x the field dot's area - under the review's
+      // own 2.5x+ band. The gold radius rises 10 -> 11.5 (2.7x area): the
+      // seven own the field at a glance, at the feed too.
       ctx.fillStyle = isGold ? PALETTE.gold : rgba(PALETTE.inkSoft, 0.95);
       ctx.beginPath();
-      ctx.arc(cx, cy, isGold ? 10 : 7, 0, Math.PI * 2);
+      ctx.arc(cx, cy, isGold ? 11.5 : 7, 0, Math.PI * 2);
       ctx.fill();
     }
     // the bracket cradles the gold members
@@ -892,15 +896,23 @@ export function takeawaysScene(g: SceneCtx): void {
     // the takeaway series' own navigation, content-true furniture at
     // readable register.
     {
+      // B27 FIX (VISUAL MARKET REVIEW - ALPHA-ONLY POP-INS): the kicker
+      // faded in on alpha alone. Rise + scale (the popIn pattern): the chip
+      // arrives from 24px below at 0.92 scale, spring-settled.
       const kp = clamp01((t - 120) / 500);
       if (kp > 0) {
+        const kr = 1 - easeOutCubic(kp);
         ctx.save();
         ctx.globalAlpha = kp;
+        ctx.translate(0, kr * 24);
         const kt = `TAKEAWAY ${focus} OF 3`;
         setFont(ctx, 34, 700);
         const kw = ctx.measureText(kt).width;
         const kx3 = x + 210;
         const ky3 = H * 0.16 - 66;
+        ctx.translate(kx3 + (kw + 56) / 2, ky3 + 27);
+        ctx.scale(0.92 + 0.08 * easeOutCubic(kp), 0.92 + 0.08 * easeOutCubic(kp));
+        ctx.translate(-(kx3 + (kw + 56) / 2), -(ky3 + 27));
         ctx.fillStyle = PALETTE.goldWash;
         roundRect(ctx, kx3, ky3, kw + 56, 54, 27);
         ctx.fill();
@@ -1064,7 +1076,8 @@ export function takeawaysScene(g: SceneCtx): void {
       // space around him; the palm contact on the card's left edge still
       // lands (shoulder (420, ~365) -> (546, 460) = 158px, inside the
       // 228px arm envelope at this rig).
-      drawStickmanV2(ctx, 420, H * 0.615, 2.0, t,
+      // B15 FIX (VISUAL MARKET REVIEW - TITLE PLATING): the 2.0-rig close-up's head top reached y~184 - inside the title band (the 'Know what you actually own' headline plated). The figure grounds at 0.645: the head clears the band, the dominance read holds.
+      drawStickmanV2(ctx, 420, H * 0.645, 2.0, t,
         {
           pose, alpha: hp, look: 0.6,
           prop: focus === 3 && rP <= 0.5 ? 'thumb' : undefined,
@@ -1073,7 +1086,7 @@ export function takeawaysScene(g: SceneCtx): void {
           // arches, talk envelope read at feed scale.
           faceScale: 1 + 0.8 * rP,
           parallax: true,
-          contact: { x: 546, y: 460, hand: 'palm' },
+          contact: { x: 546, y: 492, hand: 'palm' },
         }, 35);
     }
   }

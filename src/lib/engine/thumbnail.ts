@@ -174,25 +174,11 @@ export function drawThumbnail(
     ctx.lineTo(W * 0.50, H);
     ctx.closePath();
     ctx.fill();
-    // the K — the split IS the letterform: a giant gold K straddles the
-    // seam behind the figure (the brand story at thumbnail scale, 28%
-    // alpha so the fields and the figure keep their contrast)
-    ctx.save();
-    ctx.globalAlpha = 0.28;
-    ctx.strokeStyle = GOLD;
-    ctx.lineWidth = 46;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    const Kx = W * 0.31, Ky = H * 0.52, KS = H * 0.30;
-    ctx.beginPath();
-    ctx.moveTo(Kx - KS * 0.34, Ky - KS);
-    ctx.lineTo(Kx - KS * 0.34, Ky + KS);
-    ctx.moveTo(Kx - KS * 0.34, Ky - KS * 0.02);
-    ctx.lineTo(Kx + KS * 0.52, Ky - KS * 0.86);
-    ctx.moveTo(Kx - KS * 0.34, Ky - KS * 0.02);
-    ctx.lineTo(Kx + KS * 0.52, Ky + KS * 0.9);
-    ctx.stroke();
-    ctx.restore();
+    // B33 FIX (VISUAL MARKET REVIEW - THE DISSOLVING K): the giant 28%-alpha
+    // K straddling the seam measured as DISSOLVED MUSH at the 320px feed -
+    // a watermark-shaped smudge behind the figure. The straddle is retired:
+    // the crisp corner K tag (below) is the brand, the split field is the
+    // K-story, and the FACE now owns the frame's left half.
     // soft white seam on the diagonal
     ctx.save();
     ctx.strokeStyle = 'rgba(255,255,255,0.85)';
@@ -280,14 +266,20 @@ export function drawThumbnail(
     // canvas edge): the face carries the worry at feed size, and the
     // character matches the first frame of the video.
     {
-      const fx = W * 0.52;
-      const fy = H * 1.08; // pelvis below the bottom edge: waist-up framing
+      // B33 FIX (VISUAL MARKET REVIEW - THE FACE LEADS): none of the three
+      // compositions led with the host's face - the strongest CTR asset the
+      // engine owns. Layout A re-stages as a FACE-LED bust: the certified
+      // gasp face fills the left half of the frame (rig 3.3, pelvis well
+      // below the bottom edge), the worried read lands at ~90px height on
+      // the 320px feed.
+      const fx = W * 0.545;
+      const fy = H * 1.24; // head-and-shoulders bust: only the bust crops in
       // U5 (market review Table 5 — ONE FACE FOR THE CAST AND THE THUMBNAIL):
       // the thumbnail renders the FILM RIG at the certified reaction staging —
       // rig 2.65, faceScale 1.8 (the film's own gasp close-up register), not
       // a bespoke poster scale. The click lands on the exact face the first
       // frames show.
-      const SC = 2.65;     // the certified reaction rig — the film's own staging
+      const SC = 3.3;      // the face-led bust rig — the certified reaction register, larger
       ctx.save();
       ctx.translate(fx, fy);
       ctx.scale(SC, SC);
@@ -312,7 +304,7 @@ export function drawThumbnail(
       // ground contact shadow in the film.
       ctx.fillStyle = 'rgba(15, 40, 34, 0.35)';
       ctx.beginPath();
-      ctx.ellipse(W * 0.52 - 4, H - 6, 200, 20, 0, 0, Math.PI * 2);
+      ctx.ellipse(W * 0.545 - 4, H - 6, 230, 22, 0, 0, Math.PI * 2);
       ctx.fill();
     }
   } else {
@@ -351,7 +343,7 @@ export function drawThumbnail(
     // raised right hand (x≈0.57W) and of the badge (now bottom-right). It
     // auto-fits the quadrant at up to 150px and never leaves the crop-safe
     // margin.
-    const px0 = Math.round(W * (layout === 'B' ? 0.655 : 0.592)); // right of the hand / of the wall
+    const px0 = Math.round(W * (layout === 'B' ? 0.655 : 0.615)); // clear of the bust's shoulder / of the wall
     const maxLineW = W - 45 - px0;
     // 3.5 THE GUARD — measured width ≤ plate − 8% crop margin, floor yields
     // (the v4/v5 clip class died here: the old loop stopped at 80px and let
