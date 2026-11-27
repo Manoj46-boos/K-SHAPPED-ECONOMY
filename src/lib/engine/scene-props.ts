@@ -231,7 +231,10 @@ export const PROP_LEDGER: Record<string, string[]> = {
   // P2 (Verdict report — CARRIED-PROP VERBS): the host holds a stat card's
   // edge (the statCards perch) and balances a coin stack on his palm (the
   // dotGrid counting beat) — silhouette events, ledger-governed.
-  holdCard: ['statCards'],
+  // U12 (VISUAL MARKET REVIEW - THE STAT-CARD-IN-HAND LANGUAGE): the
+  // holdCard prop extends to every stat scene - the host carries the
+  // numbers he presents (dotGrid keeps the coin stack, its own verb).
+  holdCard: ['statCards', 'recessionGauge', 'pieChart', 'fundSplit'],
   coinStack: ['dotGrid'],
 };
 

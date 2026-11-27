@@ -1379,10 +1379,18 @@ export function paintBg(
     const tint: Record<number, [string, number]> = {
       0: [PALETTE.gold, 0.40],  // the open — warm mint
       1: [PALETTE.up, 0],       // the charts chapter — true mint (reference)
+      // U15 (VISUAL MARKET REVIEW - ROOM TEMPERATURE PER CHAPTER): the
+      // rotation completes - every chapter carries one of the five
+      // temperatures (ivory, blush, warm tan, sage, slate-teal), capped at
+      // the same whisper mix the shipped table certifies (ink contrast
+      // stays AA; the ink system is untouched).
+      2: [PALETTE.down, 0.26],  // survey — blush (the coral family whispers)
+      3: [PALETTE.gold, 0.30],  // machines — warm tan
       4: [PALETTE.down, 0.30],  // data — celadon
       5: [PALETTE.down, 0.44],  // debt — seafoam-gray
       6: [PALETTE.gold, 0.36],  // odds — sage-gold
       7: [PALETTE.gold, 0.40],  // the close — warm mint
+      8: [PALETTE.down, 0.20],  // the end — slate-teal farewell
     };
     const t2 = tint[washChapter];
     if (t2 && t2[1] > 0) wash = mixHex(wash, t2[0], t2[1]);

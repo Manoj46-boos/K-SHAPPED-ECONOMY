@@ -5,7 +5,7 @@
  * grain, vignette, and the global light fades.
  */
 
-import { clamp01, easeInQuad, easeInOutSine, easeOutCubic, hash01 } from './easing';
+import { clamp01, easeInQuad, easeInOutSine, easeOutCubic, hash01 , hashStr } from './easing';
 import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI, drawRoomRail, drawChapterRoom, getRoomFamily, setRoomFamily, setWashChapter, setRoomLook } from './theme';
 import { drawGrain, lightVignette, bokehField, scalePunch, camState, guardCamState, kWipe, fgBokeh, dofPass, chapterAccent, drawK3D } from './effects';
 import { drawParticles, emitterKindFor } from './particles';
@@ -507,6 +507,15 @@ function cameraV2(
       roll = 0.2 * (Math.PI / 180) * Math.sin(Math.PI * e);
     }
     else if (hero.move === 'rise') camY -= hero.amt * e;
+  }
+  // U16 (VISUAL MARKET REVIEW - OPEN THE CAMERA ON HERO BEATS): the
+  // whip-truck between PAIRED beats - a continuation group (groupIdx > 0)
+  // inside the same chapter whips 90px into frame over 300ms and settles
+  // (easeOutCubic). A cut reads as an operator re-framing, not a slide;
+  // the tripod holds everywhere else - restraint is part of the look.
+  if (groupIdx > 0 && gt < 300) {
+    const whipDir = hashStr(sceneKey) % 2 === 0 ? 1 : -1;
+    camX += whipDir * 90 * (1 - easeOutCubic(clamp01(gt / 300)));
   }
   // AUDIT-ROUND-2 (fix 27 — SCENE-GROUP CAPS, the mid-scene REFRAME): any
   // group longer than 12 seconds holding ONE staging is a swipe risk

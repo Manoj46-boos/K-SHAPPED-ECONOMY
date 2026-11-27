@@ -5,7 +5,7 @@
  * odds spread.
  */
 
-import { clamp, clamp01, easeInOutCubic, easeOutBack, easeOutCubic, hash01, hashStr, lerp, seamArrival, springTo, settleSquash } from './easing';
+import { clamp, clamp01, easeInOutCubic, easeInOutSine, easeOutBack, easeOutCubic, hash01, hashStr, lerp, seamArrival, springTo, settleSquash } from './easing';
 import { PALETTE, TONE, card, chip, chipWidth, rgba, roundRect, setFont, paintBg, glowBlob, scenePlate, chapterFamily, CAPTION_ZONE_TOP, TYPE_FLOOR, LABEL_FLOOR, FONT_DISPLAY, toneRoom, deskRule, valuePlaneFor, roomFill, setRoomLook, roomInk, LAB_PLATE } from './theme';
 import { bokehField, kMotifs, lightRays, drawK, drawK3D, sparkles, hazeBands, impactRing, microShake, depthShift } from './effects';
 import { SceneCtx } from './scene-context';
@@ -100,6 +100,16 @@ function bg(g: SceneCtx, seed: number, gold = 0.4, plate?: 'up' | 'down' | 'gold
   // kMotifs(g.ctx, g.W, g.H, g.t, 0.18);
 }
 
+// U13 (VISUAL MARKET REVIEW - HERO-SCALE SHARE 17% -> 35%): the host
+// steps UP to the 2.2-2.65 band for ONE 6-8s interaction beat mid-scene,
+// then steps back to the 1.2 reading tier. Pure choreography on the
+// engine's own scale tiers - no new rendering, scrub-safe.
+function heroRig(t: number, base: number, at: number, hero: number, dur = 7000): number {
+  const back = easeInOutSine(clamp01((t - at - dur) / 800));
+  if (back > 0) return hero + (1.2 - hero) * back;
+  return base + (hero - base) * easeInOutSine(clamp01((t - at) / 700));
+}
+
 function hostSmall(
   g: SceneCtx, x: number, gesture = 'present', seed = 3,
   // v9 (report D-02): default ground H*0.86 → H*0.68 — the side hosts'
@@ -155,7 +165,7 @@ function hostSmall(
   // CONTACT VERBS (P2 grammar, dossier follow-up): the scene-space point
   // the near hand must LAND ON every frame (solved by stickman-v2's armIk).
   // Scenes must place the host inside arm's reach of the point.
-  contact?: { x: number; y: number; hand?: 'palm' | 'fist'; bend?: 1 | -1; easeAt?: number },
+  contact?: { x: number; y: number; hand?: 'palm' | 'fist' | 'point'; bend?: 1 | -1; easeAt?: number },
   // faceDir: explicit gesture/eyeline direction when the host stands in a
   // spot the x<W/2 heuristic misreads (e.g. beside the pie, left of centre,
   // presenting content that sits further LEFT).
@@ -661,6 +671,13 @@ export function chartJourneyScene(g: SceneCtx): void {
   // the host's walkway — feet ON the axis while the pen draws. The
   // annotation pills yield ABOVE his crown (crownTopY below).
   const floorY = chartY + chartH;
+  // U14 (VISUAL MARKET REVIEW - BREAK THE CHARTJOURNEY MONOPOLY): the
+  // journey's ten beats rotate THREE compositions - walk-the-line (the
+  // shipped framing), a desk-projection (the chart presented on a table,
+  // the host smaller behind it), and a wall-chart with the host on a step
+  // stool. Same data, three framings: the per-beat repetition drops below
+  // the 8% band. Deterministic per beat (hash of the VO) - scrub-safe.
+  const compJ = hashStr(String(g.beat.vo ?? '').slice(0, 24)) % 3;
   // B5/B7 RE-SPEC (Visual Quality Audit §3.2 — THE WALKER IS AN ACTOR):
   // the axis walker draws at rig 1.45 (was 1.2; originally 0.8) with a
   // PLANTED FIST GRIP on the data line at his station. A1 FIX (Track A):
@@ -795,6 +812,9 @@ export function chartJourneyScene(g: SceneCtx): void {
     // label '−35.8' measures ~120px at the 40px axis face) and the walker's
     // grip mapping below rides the SAME rect.
     x: chartX + 150, y: chartY + (series.length > 1 ? 66 : 0), w: chartW - 150, h: chartH,
+    // U12: the walk-the-line verb plants a flag at the endpoint once the
+    // draw completes - the line is claimed, not just drawn.
+    flag: true,
     series,
     annotations: (s.annotations as any[]) || [],
     band: s.band as any,
@@ -877,7 +897,10 @@ export function chartJourneyScene(g: SceneCtx): void {
         const exitC = laterC ? clamp01((t - (laterC.when + 800)) / 700) : 0;
         const vis = cp * (1 - exitC);
         if (vis <= 0.01) return;
-        setFont(ctx, 26, 700);
+        // U18 (VISUAL MARKET REVIEW - THE 30PX FLOOR): the journey chips
+        // ran 26px - under the floor for a feed-critical scene. They grow
+        // to 30px (the plate follows the text).
+        setFont(ctx, 30, 700);
         const tw = ctx.measureText(c.txt).width;
         const plateW = Math.max(colW, tw + 44);
         let y0 = c.y;
@@ -1166,6 +1189,7 @@ export function chartJourneyScene(g: SceneCtx): void {
     // it is gated on the draw-on progress so he never grips ink that is
     // not there yet, and clamped to the arm's natural cone.
     let gripJ: { x: number; y: number; hand: 'fist' } | undefined;
+    let flagXJ = 0, flagYJ = 0; // U12: the grip-solved endpoint
     if (phaseJ === undefined) {
       // U8: the walker parked at the card's edge grips the line's ENDPOINT
       // — the last data point (x-fraction 0.94 of the plot) — not his own
@@ -1195,6 +1219,7 @@ export function chartJourneyScene(g: SceneCtx): void {
         // x0 = chartX + 150, w = chartW - 150 (the same rect lineChart draws).
         const gyJ = plotYJ + chartH - ((gvJ - yMinJ) / (yMaxJ - yMinJ)) * chartH;
         const gripXJ = chartX + 150 + xfJ * (chartW - 150);
+        flagXJ = gripXJ; flagYJ = gyJ; // U12: the flag plants where he grips
         const crownJ = floorY - 241 * walkerRig;
         // C8 GUARD FIX: the fist plants ONLY when the line is genuinely in
         // the arm's reach cone — below y 420 (clear of the annotation pill
@@ -1216,7 +1241,37 @@ export function chartJourneyScene(g: SceneCtx): void {
     // the audit's floor for a character that acts (contact verbs, the
     // pointing solve). 1.2 sat under the spec; the crown still clears the
     // title band (floorY - 301 at this floor, ~37px of air).
-    drawStickmanV2(ctx, hxJ, floorY, g.sceneT < 1150 ? walkerRig : walkerRigParked, t, { // A1: the walker joins the presence band (U8: parked at the 1.3 tier)
+    // U14: the composition's host staging - desk-projection shrinks the
+    // presenter (he stands BEHIND the table), wall-chart lifts him onto a
+    // step stool (52px - two drawn steps under his feet).
+    const stoolJ = compJ === 2 ? 52 : 0;
+    const walkerRigJ = compJ === 1 ? Math.min(walkerRig, 1.15) : (g.sceneT < 1150 ? walkerRig : walkerRigParked);
+    if (compJ === 2 && g.sceneT > 900) {
+      // the step stool - two drawn steps under the walker's park
+      const sp = easeOutCubic(clamp01((g.sceneT - 900) / 500));
+      ctx.save();
+      ctx.globalAlpha = sp;
+      ctx.fillStyle = rgba(PALETTE.ink, 0.14);
+      roundRect(ctx, X_PARK_J - 66, floorY - 26, 132, 26, 5);
+      ctx.fill();
+      ctx.fillStyle = rgba(PALETTE.ink, 0.20);
+      roundRect(ctx, X_PARK_J - 58, floorY - 52, 116, 26, 5);
+      ctx.fill();
+      ctx.restore();
+    }
+    if (compJ === 1) {
+      // the desk-projection - a tabletop band under the chart's baseline
+      // with a front edge (the chart reads as presented ON a table)
+      ctx.save();
+      ctx.fillStyle = rgba(PALETTE.card, 0.55);
+      roundRect(ctx, chartX - 56, floorY + 2, chartW + 112, 30, 8);
+      ctx.fill();
+      ctx.fillStyle = rgba(PALETTE.ink, 0.16);
+      roundRect(ctx, chartX - 56, floorY + 30, chartW + 112, 14, 6);
+      ctx.fill();
+      ctx.restore();
+    }
+    drawStickmanV2(ctx, hxJ, floorY - stoolJ, walkerRigJ, t, { // A1: the walker joins the presence band (U8: parked at the 1.3 tier)
       pose: poseJ,
       alpha: 0.85 + 0.15 * clamp01(g.sceneT / 180),
       look: -0.3, scarf: true, satchel: resolveProp(g.beat.scene.type, 'satchel', true), hostBody: true,
@@ -1231,6 +1286,38 @@ export function chartJourneyScene(g: SceneCtx): void {
       // B7 RE-SPEC: the planted grip — the near hand fists the line.
       contact: gripJ,
     }, 25);
+    // U12: the ENDPOINT FLAG - drawn AFTER the walker so his park never
+    // plates it. The pole rises from the primary series' endpoint, the
+    // gold pennant streams frame-interior, the mark settles with the
+    // engine's easeOutBack language 600ms after the line completes.
+    {
+      const jDone = s.phase === 'recovery' ? (t - bt) + 4800 : 2600;
+      if (t > jDone + 120 && flagYJ > 0) {
+        const flagP = easeOutBack(clamp01((t - jDone - 120) / 600));
+        const endYJ = flagYJ;
+        const endXJ = flagXJ;
+        const poleH = 44 * flagP;
+        ctx.save();
+        ctx.strokeStyle = rgba(PALETTE.ink, 0.9);
+        ctx.lineWidth = 3.5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(endXJ, endYJ);
+        ctx.lineTo(endXJ, endYJ - poleH);
+        ctx.stroke();
+        ctx.fillStyle = PALETTE.gold;
+        ctx.beginPath();
+        ctx.moveTo(endXJ, endYJ - poleH);
+        ctx.lineTo(endXJ - 26 * flagP, endYJ - poleH + 9);
+        ctx.lineTo(endXJ, endYJ - poleH + 18);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = rgba(PALETTE.ink, 0.65);
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
     // PHASE 1 SCALE LAW: the axis walker registers as a participant — he
     // paces the chart's own baseline and points at the milestones (the
     // gesture cycle's pointIn term is the declared contact verb).
@@ -1249,11 +1336,17 @@ export function pieChartScene(g: SceneCtx): void {
   const cx = W * 0.30;
   const cy = H * 0.52;
   const r = Math.min(W, H) * 0.21;
+  // U12 (VISUAL MARKET REVIEW - THE OWNED VERB): the pie's verb is the
+  // TWO-HAND PULL - once the legend has landed the highlighted wedge
+  // pulls out 30px along its bisector; the presenter's palm rides the
+  // pulled wedge's edge (the touch point advances with the same pull
+  // progress), so the graphic is operated, not narrated.
   pieChart(ctx, {
     cx, cy, r,
     slices: (s.slices as any[]) || [],
     p: clamp01(t / 1800),
     t,
+    pullAt: 2600,
     donut: !!s.donut,
     centerBig: s.centerBig as string,
   });
@@ -1297,13 +1390,15 @@ export function pieChartScene(g: SceneCtx): void {
   // wedge for both beats' slice layouts (gold spans the upper-right arc)
   // fix 6.1: the shoulder estimate rides the host's own scale (1.35), not a
   // hardcoded 1.09 — the palm must stay ON the rim at the new staging.
+  // U12: the wedge pull's progress (declared before the touch solve)
+  const pullP = easeOutBack(clamp01((t - 2600) / 620));
   const dxs = hxPie + 5 - cx;
   const dys = hyPie - 200 * 1.35 - cy;
   const dl = Math.hypot(dxs, dys) || 1;
   // P2 (Verdict report — TOUCH MUST BE LEGIBLE): the palm target moves 7px
   // INSIDE the rim so the hand mass overlaps the gold wedge's edge — the
   // FP0 fingertip + the 0.42 press shadow seal the touch ON the data.
-  const pieTouch = { x: cx + (dxs / dl) * (r - 7), y: cy + (dys / dl) * (r - 7) };
+  const pieTouch = { x: cx + (dxs / dl) * (r - 7) + (dxs / dl) * 30 * pullP, y: cy + (dys / dl) * (r - 7) + (dys / dl) * 30 * pullP };
   {
     const lx = W * 0.62;
     const lw = 590;
@@ -1350,8 +1445,9 @@ export function pieChartScene(g: SceneCtx): void {
   // into it — and hostSmall's own pointBias wiring turns his head with it.
   // CONTACT VERB edition: hand ON the pie rim, facing the pie (faceDir
   // 'left' — he stands left of centre but his content is further left).
-  hostSmall(g, hxPie, 'pointL', 6, hyPie, 1.9, 0, 'aha', 1.4, 1, true, 0.4,
-    undefined, undefined, { x: pieTouch.x, y: pieTouch.y, hand: 'palm' }, 'left');
+  hostSmall(g, hxPie, 'pointL', 6, hyPie, heroRig(t, 1.9, 4200, 2.3), 0, 'aha', 1.4, 1, true, 0.4,
+    undefined, undefined, { x: pieTouch.x, y: pieTouch.y, hand: 'palm' }, 'left', undefined,
+    resolveProp('pieChart', 'holdCard', true) ? 'holdCard' : undefined);
   sourceTag(ctx, W, s.source as string, H - 60);
 }
 
@@ -1382,6 +1478,10 @@ export function dotGridScene(g: SceneCtx): void {
     highlight: (s.highlight as number) || 10,
     p: clamp01(t / 1600), // B18
     t,
+    // U12 (VISUAL MARKET REVIEW - THE OWNED VERB): the host PLUCKS the
+    // highlighted dots - after the highlight band lands they rise 12px
+    // under his point, staggered left-to-right. The count is his doing.
+    pluckAt: 3400,
   });
   // the highlight band — a rounded gold wash cradling the ten gold dots
   // (row 0, cols 0-9). Drawn AFTER the grid so it tints the dots' backs.
@@ -1468,7 +1568,12 @@ export function dotGridScene(g: SceneCtx): void {
   // 4th term is the point-in pose aimed at the band (faceDir 'left'), the
   // engine's own declared contact verb for a presenter whose object sits
   // beyond his envelope.
-  hostSmall(g, W * 0.78, 'present', 8, H * 0.66, 1.9, 0, 'aha', 1.4, 1, true, 0.4,
+  // U12: the pluck fires as the scene's verb (the dots answer his beat).
+  // The band sits ~1000px past his arm envelope - a point solve there
+  // would step his ROOT into the field (the guard's hostBodyHip/field
+  // class), so the hand presents from the margin: the reach law wins over
+  // the gesture.
+  hostSmall(g, W * 0.78, 'present', 8, H * 0.66, heroRig(t, 1.9, 5000, 2.05), 0, 'aha', 1.4, 1, true, 0.4,
     undefined, undefined, undefined, 'left', undefined,
     // P2 (Verdict report — BALANCE THE NUMBERS): the counting beat's coin
     // stack rides the near palm, ledger-resolved.
@@ -1625,6 +1730,10 @@ export function barsCompareScene(g: SceneCtx): void {
     barRow(ctx, {
       x: 340, y: H * 0.24 + i * 130, w: barW, rowH: 120,
       label: b.label, value: b.value, maxV: yMax,
+      // U12 (VISUAL MARKET REVIEW - THE OWNED VERB): the host LEANS on the
+      // tallest bar - it bends 3% of its height toward him from the lean
+      // instant. The graphic carries his weight.
+      lean: b.value === yMax ? clamp01((t - 2800) / 500) : 0,
       p: bp, tone: b.tone, tag: b.tag,
       // P4 (CHART IMPACT GRAMMAR): each bar LANDS — shake + ring from the
       // cap at the exact grow-complete instant (row start + 55% of the
@@ -1755,7 +1864,7 @@ export function barsCompareScene(g: SceneCtx): void {
   // by 14px on the sweep (stickman@187 edge): the figure read as CUT OFF,
   // and at feed scale as absent. The stage moves to x 232: the full
   // silhouette owns the frame, the fist contact still lands inside reach.
-  hostSmall(g, 232, 'present', 13, H * 0.66, 1.9, 0, 'aha', 1.4, 1, true, 0.4,
+  hostSmall(g, 232, 'present', 13, H * 0.66, heroRig(t, 1.9, 4800, 2.35), 0, 'aha', 1.4, 1, true, 0.4,
     undefined, undefined, { x: 366, y: 458, hand: 'fist' as const }, 'right');
 }
 
@@ -2714,6 +2823,7 @@ export function recessionGaugeScene(g: SceneCtx): void {
     cx: W * 0.70, cy: H * 0.52, r: 240,
     value: (s.gaugeTo as number) || 48,
     needleBias,
+    grabAt: 3000, // U12: the host grabs the needle - it resists (spring wobble)
     p: clamp01((t - 1200) / 600), // B18: the hero needle lands at 1.8s
     t,
     label: 'Zandi\u2019s model', // PHASE 2: short dial name — the qualifier lives in the VO
@@ -2902,13 +3012,14 @@ export function recessionGaugeScene(g: SceneCtx): void {
     // M/U6 GUARD ARBITRATION: 1745 → 1712 — the stouter U6 envelope
     // crossed the frame edge by 13-25px under the guard camera at this
     // staging; the palm target is unchanged (the reach covers it).
-    drawStickmanV2(ctx, Math.min(1712, W - 217), H * 0.63, subjectRig, t,
+    drawStickmanV2(ctx, Math.min(1712, W - 217), H * 0.63, heroRig(t, subjectRig, 5200, 2.3), t,
       {
         pose,
         // PHASE 3: participant grammar — the beat's hero is the dial system
         // (registered below); the host presents it.
         alpha: 0.85 + 0.15 * clamp01((g.sceneT - 900) / 180),
         look: -0.8, scarf: true, talk, hostBody: true, satchel: resolveProp(g.beat.scene.type, 'satchel', true),
+        prop: resolveProp('recessionGauge', 'holdCard', true) ? 'holdCard' : undefined, // U12: the stat card rides with him
         // The host rides the GAUGE's own plane (parallax off): a hand
         // resting on an instrument must not drift off it under the camera —
         // the same plane rule the fundSplit host established for the 493
@@ -3852,7 +3963,7 @@ export function statCardsScene(g: SceneCtx): void {
   // 1452/1.5 — the premium band; body core (1452±117) keeps 5px more
   // clearance off the hero card's registered right edge 1330, feet still
   // clear of the chip row; palm target (1338, 470) holds. Guard re-arbitrates.
-  hostSmall(g, 1490, 'pointL', 19, g.H * 0.615, 2.0, 0, 'aha', 1.4, 1, true, 0.4,
+  hostSmall(g, 1490, 'pointL', 19, g.H * 0.615, heroRig(g.sceneT, 2.0, 4600, 2.45), 0, 'aha', 1.4, 1, true, 0.4,
     undefined, undefined, { x: 1338, y: 470, hand: 'palm' }, 'left', true,
     // P2 (Verdict report — HOLD THE NUMBERS): the host grips the hero
     // card's edge — the ledger-resolved holdCard prop rides the near hand.

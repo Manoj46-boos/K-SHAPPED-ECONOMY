@@ -148,7 +148,16 @@ export function drawThumbnail(
   // Shared invariants: the brand field colors, the film's own host rig,
   // the fitCheck guard on every text, plated numbers, the K tag, and the
   // 5% crop margin — head, fist and badge all land inside the safe area.
-  const layout: 'A' | 'B' | 'C' = variant < 2 ? 'A' : variant < 4 ? 'B' : 'C';
+  // U17 (VISUAL MARKET REVIEW - LEAD THE THUMBNAIL WITH THE FACE): the
+  // Test & Compare set remaps - variant A RETIRES (the dissolving-K
+  // mush), variant C (number-led) and the NEW variant D (the host's shock
+  // close-up at the 20px head read, the number in a coral circle) carry
+  // the race; the data-wall family keeps one slot.
+  const layout = (
+    variant === 1 || variant === 4 ? 'D'
+    : variant < 2 || variant === 2 || variant === 5 ? 'C'
+    : 'B'
+  ) as 'A' | 'B' | 'C' | 'D';
 
   if (layout === 'A') {
     // ── A: the two-economy split + the K + the host astride ────────────────
@@ -252,8 +261,10 @@ export function drawThumbnail(
     ctx.restore();
   }
 
-  if (layout === 'A') {
-    // ── CHARACTER FIRST (fix 5): the worried host, LARGE, standing ACROSS the
+  if (layout === 'A' || layout === 'D') {
+    // ── CHARACTER FIRST (fix 5; U17: layout D reuses the face-led bust -
+    // the certified shock close-up IS the click asset): the worried host,
+    // LARGE, standing ACROSS the
     // seam — one foot on the teal field, one on the coral — his contact
     // shadow crossing both color fields. The split IS the K-shape; the man
     // standing astride it is the film. Chibi head (r 62) so the worry reads
@@ -438,6 +449,29 @@ export function drawThumbnail(
     // PHASE-0 (§7-D4): the badge's drop shadow used to fall (+7, +11) —
     // lower-RIGHT, contradicting the film's upper-right key light. Same
     // magnitude, corrected direction: lower-left like every plate.
+    if (layout === 'D') {
+      // U17: variant D's badge - the number INSIDE A CORAL CIRCLE (the
+      // circle owns the corner; the white plate retires). The sub-line
+      // rides beneath the circle's rim, ivory on coral.
+      const cx2 = bx + plateW / 2, cy2 = by + plateH / 2 - 6;
+      const rr2 = Math.max(plateW, plateH) * 0.60;
+      ctx.save();
+      ctx.fillStyle = 'rgba(15, 40, 34, 0.40)';
+      ctx.beginPath(); ctx.arc(cx2 - 5, cy2 + 9, rr2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#D2603A';
+      ctx.beginPath(); ctx.arc(cx2, cy2, rr2, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = 7;
+      ctx.strokeStyle = rgba(INK, 0.85);
+      ctx.stroke();
+      setFont(ctx, bigSize, 700, FONT_UI);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'center';
+      ctx.fillText(v.badge.big, cx2, cy2 + 2);
+      setFont(ctx, subSize, 600, FONT_UI);
+      ctx.fillStyle = '#F7EFD8';
+      ctx.fillText(sub, cx2, cy2 + 62);
+      ctx.restore();
+    } else {
     ctx.fillStyle = 'rgba(15, 40, 34, 0.42)';
     roundRect(ctx, bx - 7, by + 11, plateW, plateH, 38);
     ctx.fill();
@@ -465,6 +499,7 @@ export function drawThumbnail(
       ctx.fillText(sub, bx + 52, by + 192);
     }
     ctx.restore();
+    }
   }
 
   // ── THE K — a small branded tag (fix 5): "K shrinks to a small branded

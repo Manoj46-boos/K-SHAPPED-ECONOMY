@@ -97,6 +97,8 @@ export interface LineChartOpts {
   crownX?: number;
   /** PHASE 3 item 3.2 — see the field doc above. */
   doneAt?: number;
+    /** U12: plant a gold flag at the endpoint once the draw completes. */
+    flag?: boolean;
   /** PHASE 3 item 3.1 — the ABSOLUTE scene-space x the plate's right edge
    *  may reach on a slide, under THIS scene's worst camera. The certified
    *  screen bound is 1910: screen_x = 960 + (R−960)·s + truck ≤ 1910 — a
@@ -498,6 +500,35 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
         ctx.lineTo(b2.x + (dx2 / L2) * 3 * over, b2.y + (dy2 / L2) * 3 * over);
         ctx.stroke();
       }
+    }
+    // U12 (VISUAL MARKET REVIEW - THE OWNED VERB): the walk-the-line verb
+    // PLANTS A FLAG at the endpoint - a gold pennant on an ink pole rises
+    // 600ms after the draw completes, with the same settle language as the
+    // endpoint dot. The line is not just drawn: it is CLAIMED.
+    if (opts.flag && opts.doneAt !== undefined && t > opts.doneAt + 120 && vis.length > 1) {
+      const b2 = vis[vis.length - 1];
+      const fp = easeOutBack(clamp01((t - opts.doneAt - 120) / 600));
+      const poleH = 34 * fp;
+      ctx.save();
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.9);
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(b2.x, b2.y);
+      ctx.lineTo(b2.x, b2.y - poleH);
+      ctx.stroke();
+      // the pennant - a gold triangle streaming toward the frame's interior
+      ctx.fillStyle = PALETTE.gold;
+      ctx.beginPath();
+      ctx.moveTo(b2.x, b2.y - poleH);
+      ctx.lineTo(b2.x + 26 * fp, b2.y - poleH + 8);
+      ctx.lineTo(b2.x, b2.y - poleH + 17);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = rgba(PALETTE.ink, 0.65);
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ctx.restore();
     }
     // PHASE 3 item 3.2 — THE ENDPOINT DOT: a 140ms easeOutBack scale-in
     // keyed to `doneAt` (the caller's draw-completion instant), replacing
@@ -1073,11 +1104,13 @@ export function pieChart(
     slices: { label: string; value: number; tone?: string }[];
     p: number;
     t: number;
+    /** U12: the scene time the host pulls the highlighted wedge out. */
+    pullAt?: number;
     donut?: boolean;
     centerBig?: string;
   }
 ): void {
-  const { cx, cy, r, slices, p, t } = opts;
+  const { cx, cy, r, slices, p, t, pullAt } = opts;
   const total = slices.reduce((n, s) => n + s.value, 0);
   const sweep = easeInOutCubic(clamp01(p / 0.6)) * Math.PI * 2;
   let a0 = -Math.PI / 2;
@@ -1087,12 +1120,24 @@ export function pieChart(
     const a1 = a0 + frac * Math.PI * 2;
     const drawA1 = Math.min(a1, a0 + frac * sweep);
     const appeared = clamp01((p - 0.08 * i) / 0.4);
+    // U12 (VISUAL MARKET REVIEW - THE OWNED VERB): the highlighted wedge
+    // PULLS OUT 30px along its bisector once the scene hands over the
+    // pull instant (pullAt) - the host grips it and draws it out of the
+    // pie. Two-handed staging lives at the call site; the geometry here.
+    const pullP = pullAt !== undefined && s.tone && s.tone !== 'muted'
+      ? easeOutBack(clamp01((t - pullAt) / 620))
+      : 0;
     if (appeared > 0 && drawA1 > a0 + 0.001) {
       const toneObj = TONE(s.tone);
       const tone = toneObj.main;
       const isHi = !!s.tone && s.tone !== 'muted';
       const pop = 1 + (isHi ? easeOutBack(appeared) * 0.028 : 0);
       const rr = r * pop * (0.94 + 0.06 * easeOutQuad(appeared));
+      // the pulled wedge's apex rides the bisector
+      const midA = (a0 + a1) / 2;
+      const ox = Math.cos(midA) * 30 * pullP;
+      const oy = Math.sin(midA) * 30 * pullP;
+      const scx = cx + ox, scy = cy + oy;
       ctx.save();
       // v8: the "other" segment — track color at 0.62 (was warm greige at
       // 0.5): the panel read it as "a stain next to the gold wedge"
@@ -1106,8 +1151,8 @@ export function pieChart(
       // sage"). The legend's muted swatch matches (scenes-data).
       ctx.fillStyle = isHi ? (toneObj.vivid ?? tone) : rgba(PALETTE.sage, 0.92);
       ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, rr, a0 + gap, drawA1 - gap);
+      ctx.moveTo(scx, scy);
+      ctx.arc(scx, scy, rr, a0 + gap, drawA1 - gap);
       ctx.closePath();
       ctx.fill();
       // B6 FIX (100-JUDGE PANEL REPORT §2.2 — THE PIE REMAINDER IS A
@@ -1175,9 +1220,13 @@ export function barRow(
      *  silent legacy render. */
     t?: number;
     landT?: number;
+    /** U12 (THE OWNED VERB): 0..1 - when the host leans on THIS bar it
+     *  bends 3% of its height toward him (the top edge skews; the base
+     *  stays planted: a bar carrying weight, not a decoration). */
+    lean?: number;
   }
 ): number {
-  const { x, y, w, rowH, label, value, maxV, p, tone = 'up', suffix = '%' } = opts;
+  const { x, y, w, rowH, label, value, maxV, p, tone = 'up', suffix = '%', lean = 0 } = opts;
   const growE = easeOutQuad(clamp01(p / 0.55));
   const overshoot = easeOutBack(clamp01(p / 0.7));
   const bw = Math.max(6, (value / maxV) * w * growE * (0.94 + 0.06 * overshoot));
@@ -1218,12 +1267,19 @@ export function barRow(
   // (the report's "flat vivid fills at full alpha, no gradient") with the
   // crisp ink edge on every row, not just the muted ones.
   ctx.fillStyle = cFill;
+  // U12: the LEAN - when the host rests his weight on this bar the filled
+  // mass bends toward him (a 0.012rad rotation about the planted base; the
+  // track stays straight so the bend READS as the bar carrying load).
+  const leanT = lean > 0
+    ? (ctx.save(), ctx.translate(x, by + 15), ctx.rotate(0.012 * lean), ctx.translate(-x, -(by + 15)))
+    : null;
   roundRect(ctx, x, by, Math.max(30, bw), 30, 15);
   ctx.fill();
   ctx.strokeStyle = rgba(PALETTE.ink, 0.5);
   ctx.lineWidth = 1.5;
   roundRect(ctx, x, by, Math.max(30, bw), 30, 15);
   ctx.stroke();
+  if (leanT !== null) ctx.restore();
   // P4 — the ring fires from the bar CAP the instant the growth completes:
   // the record bar arriving is an EVENT the camera acknowledges (furniture
   // register — 60px radius, tone color; the guard layout is untouched).
@@ -1289,9 +1345,14 @@ export function dotGrid(
     highlight: number;
     p: number;
     t: number;
+    /** U12 (VISUAL MARKET REVIEW - THE OWNED VERB): scene time the host's
+     *  hand PLUCKS the highlighted dots - they rise 12px under his hand,
+     *  staggered left-to-right, easing back is forbidden (they hold the
+     *  lifted state: the count is HIS doing, not a decoration). */
+    pluckAt?: number;
   }
 ): void {
-  const { x, y, w, h, total, highlight, p, t } = opts;
+  const { x, y, w, h, total, highlight, p, t, pluckAt } = opts;
   // v10.1: the dot field is CONTENT — the host-vs-content guard asserts the
   // side host's body envelope never plates the data field.
   registerRect(`dotGrid:field@${Math.round(x)}`, x, y, w, h);
@@ -1310,6 +1371,12 @@ export function dotGrid(
     const cx = x + col * cw + cw / 2;
     const cy = y + row * chh + chh / 2;
     const isHi = idx < highlight;
+    // U12: the pluck - the highlighted dots rise 12px under the host's
+    // hand, staggered 140ms per dot (a hand working along the row), a
+    // settle overshoot via easeOutBack. Pure function of t: scrub-safe.
+    const pluckP = pluckAt !== undefined && isHi && t > pluckAt + (idx % Math.max(1, highlight)) * 140
+      ? easeOutBack(clamp01((t - pluckAt - (idx % Math.max(1, highlight)) * 140) / 480))
+      : 0;
     const pop = 1 + Math.sin(appear * Math.PI) * 0.6;
     // v9 (report P0-6): highlighted dots render 1.7× — at 1.0× with a 0.18
     // pulse the ten gold dots were indistinguishable from the 490 grey ones
@@ -1335,13 +1402,14 @@ export function dotGrid(
     // the counted ten own the field at a glance. Feed twin verified.
     ctx.fillStyle = isHi ? PALETTE.gold : rgba(roomInk().inkSoft, 0.75);
     ctx.beginPath();
-    ctx.arc(cx, cy, dotR * (isHi ? hiScale : 1) * pop * pulse * appear, 0, Math.PI * 2);
+    const riseY = cy - 12 * pluckP;
+    ctx.arc(cx, riseY, dotR * (isHi ? hiScale : 1) * pop * pulse * appear, 0, Math.PI * 2);
     ctx.fill();
     if (isHi && appear > 0.9) {
       ctx.strokeStyle = rgba(PALETTE.ink, 0.5);
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(cx, cy, dotR * hiScale * pulse + 3.5, 0, Math.PI * 2);
+      ctx.arc(cx, riseY, dotR * hiScale * pulse + 3.5, 0, Math.PI * 2);
       ctx.stroke();
     }
   }
@@ -1350,9 +1418,9 @@ export function dotGrid(
 // ── Gauge (recession odds) ───────────────────────────────────────────────────
 export function gauge(
   ctx: CanvasRenderingContext2D,
-  opts: { cx: number; cy: number; r: number; value: number; p: number; t: number; label?: string; needleBias?: number }
+  opts: { cx: number; cy: number; r: number; value: number; p: number; t: number; label?: string; needleBias?: number; grabAt?: number }
 ): void {
-  const { cx, cy, r, value, p, t } = opts;
+  const { cx, cy, r, value, p, t, grabAt } = opts;
   // v4 (vision panel re-review): a1 was 0, not 2π. Canvas normalises the
   // grey TRACK arc (π→0 reads as the top half), but every lerp() angle below
   // then computed positions on the WRONG half — the needle rendered mirrored
@@ -1370,7 +1438,13 @@ export function gauge(
   const wob = springTo(0, 1, clamp01(p / 0.8) * 900, 60, 7.5);
   const displayed = Math.max(0, Math.min(118, value * wob));
   const frac = clamp01(displayed / 100) * easeOutCubic(clamp01(p / 0.8));
-  const needleA = lerp(a0, a1, frac);
+  // U12: the grab wobble - the needle RESISTS the host's hand: a damped
+  // oscillation (2.1Hz, 0.02rad decaying over ~700ms) keyed to the grab
+  // instant. The printed value keeps its lockstep (the wobble rides ON
+  // the angle, never into the number).
+  const grabP = grabAt !== undefined && t > grabAt ? Math.exp(-(t - grabAt) / 340) : 0;
+  const wobA = grabP > 0.01 ? Math.sin((t - grabAt!) / 90) * 0.02 * grabP : 0;
+  const needleA = lerp(a0, a1, frac) + wobA;
   // arc track
   ctx.save();
   ctx.lineCap = 'round';
