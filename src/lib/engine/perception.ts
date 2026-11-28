@@ -142,8 +142,13 @@ export const AMP = {
    *  put a full-surprise brow ~106 SCREEN px above the glasses wire at the
    *  hero rig — brows detached from the face and floated in the forehead.
    *  14 keeps a committed arch (~37px at hero) that stays attached to the
-   *  glasses line — the expression rides the face, not the forehead. */
-  browTravelPx: 14,
+   *  glasses line — the expression rides the face, not the forehead.
+   *  U-03 (VISUAL MARKET REVIEW — PERCEPTION-LEVEL EMOTION): 14 → 26 —
+   *  the sweep measured the face as effectively constant outside the
+   *  three reaction windows; 26 keeps the brow attached (the B4 guard
+   *  holds: the arch tops out just above the glasses wire) while the
+   *  expression finally registers as EXPRESSION at side rigs. */
+  browTravelPx: 26,
   /** Reaction window, ms. */
   reactionWindowMs: 1600,
   /** The whip-truck on scene entry.
@@ -215,15 +220,22 @@ export const INK = {
   /** Near arm taper: shoulder → elbow → wrist (B1: 23.6/17.7/13 → 10/8/6).
    *  U12 (market review §3.3): 10/8/6 → 12/9.5/7.5 — the subject's ink
    *  mass rises with the deepened rooms (legNear rises too) so the figure
-   *  carries the frame at feed scale. */
-  armNear: [12, 9.5, 7.5] as [number, number, number],
-  /** Far arm taper (B1: 17.7/14.2/10.6 → 8/6.5/5). */
-  armFar: [8, 6.5, 5] as [number, number, number],
+   *  carries the frame at feed scale.
+   *  U-01 (VISUAL MARKET REVIEW — THE SILHOUETTE LAW): 12/9.5/7.5 →
+   *  15/11.5/9 — the sweep frames read the limbs as wires; the roots rise
+   *  25-30% so limbs read as limbs at every rig while the taper keeps the
+   *  drawn-ink idiom. */
+  armNear: [15, 11.5, 9] as [number, number, number],
+  /** Far arm taper (B1: 17.7/14.2/10.6 → 8/6.5/5). U-01: → 10/8/6. */
+  armFar: [10, 8, 6] as [number, number, number],
   /** Near leg taper (B1: 29.5/22.4/16.5 → 13/10/7).
-   *  U12: 13/10/7 → 16/12.5/9 — the near leg is the silhouette's spine. */
-  legNear: [16, 12.5, 9] as [number, number, number],
-  /** Far leg taper (B1: 23.6/17.7/13 → 10.6/8.5/6.5). */
-  legFar: [10.6, 8.5, 6.5] as [number, number, number],
+   *  U12: 13/10/7 → 16/12.5/9 — the near leg is the silhouette's spine.
+   *  U-01: → 21/16/11 — with the legs shortened to 40/37 the width share
+   *  of the limb rises to the caricature band without re-entering the
+   *  B1 "gorilla" register (the root stays under 30% of the limb length). */
+  legNear: [21, 16, 11] as [number, number, number],
+  /** Far leg taper (B1: 23.6/17.7/13 → 10.6/8.5/6.5). U-01: → 13/10.5/8. */
+  legFar: [13, 10.5, 8] as [number, number, number],
   /** Torso taper: hips → shoulders (B1: 19/30 → 21/32 — the torso, not the
    *  limbs, carries the figure's dark mass once the limbs are drawn ink). */
   torso: [21, 32] as [number, number],
@@ -242,10 +254,12 @@ export const INK = {
  *  register above keeps INK unchanged. One taper per camera distance —
  *  the limbs never read as two different characters. */
 export const INK_WORKING = {
-  armNear: [21, 16, 12] as [number, number, number],
-  armFar: [14, 10.5, 8] as [number, number, number],
-  legNear: [26, 20, 15] as [number, number, number],
-  legFar: [17, 13, 10] as [number, number, number],
+  // U-01: the working register rises with INK so the blend taper keeps one
+  // proportion at every camera distance.
+  armNear: [26, 20, 15] as [number, number, number],
+  armFar: [17, 13.5, 10] as [number, number, number],
+  legNear: [32, 25, 19] as [number, number, number],
+  legFar: [21, 16.5, 12.5] as [number, number, number],
 };
 
 /** Phase 3: the K's 3D language (report §11 Phase 3).

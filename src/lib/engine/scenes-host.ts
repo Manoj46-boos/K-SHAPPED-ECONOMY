@@ -2103,7 +2103,7 @@ export function divergeKScene(g: SceneCtx): void {
     // plane (0.85 — front-side): a camera push scales the letter at its
     // own rate, the mid-plane content sliding behind it. Pure camState.
     const kd = depthShift(0.85);
-    drawK3D(ctx, kx + kd.dx, ky + kd.dy, S * kd.scale, 1, t, true, turnP);
+    drawK3D(ctx, kx + kd.dx, ky + kd.dy, S * kd.scale, 1, t, true, turnP, true); // U-16: the arms carry the divergence
     ctx.restore();
     // PHASE-0 (panel report §7-D3 — KILL the unexplained markers): the two
     // 10px teal/coral dots that used to ride the arms are GONE. They were
@@ -2803,7 +2803,7 @@ export function paradoxResolveScene(g: SceneCtx): void {
     const turnP = clamp01((t - 2800) / 900);
     // P0 defect sweep: the K holds the LEFT column (the headline owns the
     // centre band, the figure the right) — three columns, no shared ink.
-    drawK3D(ctx, W * 0.30, H * 0.47, 150, 1, t, true, turnP); // 100-JUDGE REPORT (fix D24): 115 → 150
+    drawK3D(ctx, W * 0.30, H * 0.47, 150, 1, t, true, turnP, true); // 100-JUDGE REPORT (fix D24): 115 → 150 · U-16: the arms carry the divergence
     // B4 (market review — THE EMPTY PARADOX WASH): the beat's lower half
     // was bare tone — at the feed the frame gave the eye nothing to hold.
     // The resolve now grounds the paradox in the film's own terrain

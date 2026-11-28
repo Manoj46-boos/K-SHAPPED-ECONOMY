@@ -948,6 +948,30 @@ export function scenePlate(
       ctx.fillStyle = rgba(PALETTE.ink, 0.26);
       roundRect(ctx, wx - 10, wy + wh, ww + 20, 9, 4);
       ctx.fill();
+      // B-12 (VISUAL MARKET REVIEW — THE WINDOW PROP): the flat pale square
+      // read as a UI artifact, not a window. The pane gains committed
+      // architecture: an inner frame line (the double-glazed read), a sill
+      // shadow under the ledge, and a LIGHT SPILL — a soft gold gradient
+      // falling from the sill onto the floor band, connecting the prop to
+      // the room's own light logic (the pane is now a source, not a decal).
+      ctx.strokeStyle = rgba(PALETTE.gold, 0.30);
+      ctx.lineWidth = 2;
+      roundRect(ctx, wx + 7, wy + 7, ww - 14, wh - 14, 6);
+      ctx.stroke();
+      ctx.fillStyle = rgba(PALETTE.ink, 0.16);
+      roundRect(ctx, wx - 10, wy + wh + 9, ww + 20, 5, 2);
+      ctx.fill();
+      const spill = ctx.createLinearGradient(wx + ww / 2, wy + wh + 14, wx + ww / 2, wy + wh + H * 0.17);
+      spill.addColorStop(0, rgba(PALETTE.gold, 0.13));
+      spill.addColorStop(1, rgba(PALETTE.gold, 0));
+      ctx.fillStyle = spill;
+      ctx.beginPath();
+      ctx.moveTo(wx + ww * 0.14, wy + wh + 14);
+      ctx.lineTo(wx + ww * 0.86, wy + wh + 14);
+      ctx.lineTo(wx + ww * 1.10, wy + wh + H * 0.17);
+      ctx.lineTo(wx - ww * 0.10, wy + wh + H * 0.17);
+      ctx.closePath();
+      ctx.fill();
       ctx.restore();
       // THE DESK EDGE — one ink hairline + leg tick, bottom-right: the desk
       // the presenter works at, at the frame's margin, under every card.

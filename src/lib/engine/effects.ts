@@ -784,7 +784,13 @@ export function drawK3D(
   // toward near-perpendicular, the letter flattening its depth toward
   // the lens until the face fills its own footprint. Default 0 at every
   // existing call site — the turn is an event, not a state.
-  turn = 0
+  turn = 0,
+  // U-16 (VISUAL MARKET REVIEW — THE K IS THE DATA): the arms carry the
+  // film's thesis. When true, the resting painted letter's upper arm tints
+  // toward the market teal and the lower arm toward the street coral (a 55%
+  // blend keeps the gold brand read) — the K stops being decoration and
+  // becomes the divergence it names. Chrome/watermark sites pass false.
+  diverge = false
 ): void {
   ctx.save();
   // AUDIT-2 / 0.7 + D4 (report §10.1/§10.4): the floor shadow obeys the
@@ -946,6 +952,28 @@ export function drawK3D(
     ctx.clip();
     drawK(ctx, x, y, s, W_K, '#E9C94A', grow);
     ctx.restore();
+    // U-16 (THE K IS THE DATA): the divergence tint rides ON the painted
+    // face — after the lit zone so the arms own their color at rest.
+    if (diverge) {
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      if (upArm > 0) {
+        ctx.strokeStyle = hexLerp(PALETTE.goldDisplay, PALETTE.upVivid, 0.55);
+        ctx.lineWidth = W_K;
+        ctx.beginPath();
+        ctx.moveTo(x, y + s * 0.1);
+        ctx.lineTo(x + s * 1.15 * upArm, y - s * 1.05 * upArm);
+        ctx.stroke();
+      }
+      if (dnArm > 0) {
+        ctx.strokeStyle = hexLerp(PALETTE.goldDisplay, PALETTE.downVivid, 0.55);
+        ctx.lineWidth = W_K;
+        ctx.beginPath();
+        ctx.moveTo(x, y + s * 0.1);
+        ctx.lineTo(x + s * 1.15 * dnArm, y + s * 1.05 * dnArm);
+        ctx.stroke();
+      }
+    }
     ctx.restore();
   }
   if (turnE > 0) {

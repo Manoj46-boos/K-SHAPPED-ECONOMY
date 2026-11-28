@@ -271,8 +271,11 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     const isBase = v === ticks[ticks.length - 1];
     // V1 FIX: gridlines 0.35 → 0.5 — the plot's structural ink rises with
     // the register pass; grids read as drawn structure, not a smudge.
-    ctx.strokeStyle = rgba(PALETTE.grid, 0.5);
-    ctx.lineWidth = 1.5;
+    // U-08 (VISUAL MARKET REVIEW — CHART INTERIORS): 0.5/1.5px → 0.7/2px —
+    // the grid is the plot's floor plane; at the old register the journey
+    // cards read as blank slabs with two thin lines.
+    ctx.strokeStyle = rgba(PALETTE.grid, 0.7);
+    ctx.lineWidth = 2;
     ctx.setLineDash(isBase ? [] : [6, 8]);
     ctx.beginPath();
     ctx.moveTo(x, gy);
@@ -303,7 +306,6 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     // 4.7px mush at the feed. It rides the read-text band (42px = 7px at 320).
     setFont(ctx, 42, 600); // v9 (D-07): 24→28 floor; V4: 28→42 read-text band
     ctx.textAlign = 'left';
-    ctx.fillStyle = roomLookNow() === 'lab' ? mixHex(PALETTE.gold, '#FFFFFF', 0.42) : PALETTE.goldDeep;
     // B3 FIX (100-Judge report — ANNOTATION PLATE COLLIDES WITH THE BAND
     // LABEL, 307s sample): the caption left-aligned at x+16 printed across
     // the y-axis ticks and the axis walker's crown zone, and the annotation
@@ -311,8 +313,25 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     // the gold caption — two gold texts in one band). The caption now
     // right-aligns at the band's own right edge (the empty rail), and the
     // annotation search below treats its rect as an obstacle.
+    // U-10 (VISUAL MARKET REVIEW — THE 4.5:1 LAW): the bare goldDeep-on-band
+    // label measured washed on the sweep (the 'typical range' frame). The
+    // label now rides a WHITE CHIP — the palette's own goldInk on white
+    // clears AA by construction, and the chip reads as a plotted annotation,
+    // not a floating wash.
     ctx.textAlign = 'right';
-    ctx.fillText(opts.band.label, x + w - 16, Math.min(by1, by2) + 24);
+    const blW = ctx.measureText(opts.band.label).width + 36;
+    const blX = x + w - 16 - blW;
+    const blY = Math.min(by1, by2) + 2;
+    ctx.fillStyle = rgba(PALETTE.white, 0.94);
+    roundRect(ctx, blX, blY, blW, 44, 10);
+    ctx.fill();
+    ctx.strokeStyle = rgba(PALETTE.gold, 0.45);
+    ctx.lineWidth = 2;
+    roundRect(ctx, blX, blY, blW, 44, 10);
+    ctx.stroke();
+    ctx.fillStyle = PALETTE.goldDeep;
+    ctx.fillText(opts.band.label, x + w - 16 - 18, blY + 30);
+    registerRect('chart:bandLabel', blX, blY, blW, 44);
     ctx.textAlign = 'left';
   }
 
@@ -335,11 +354,21 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     // at the bottom it shared the row with the chart's right-edge x-label
     // ("all-time-high zone" plated "today" on frame 06-chartJourney). The
     // band's top rail is empty ink in every caller.
+    // U-10 (THE 4.5:1 LAW): the label rides a white chip like the context
+    // band's — goldInk on white clears AA by construction.
     ctx.translate(bx + bw / 2, y + 26);
     setFont(ctx, TYPE_FLOOR, 600); // v9 (D-07): 24→28 floor
     ctx.textAlign = 'center';
+    const plW = ctx.measureText(opts.peakBand.label).width + 32;
+    ctx.fillStyle = rgba(PALETTE.white, 0.94);
+    roundRect(ctx, -plW / 2, -21, plW, 40, 10);
+    ctx.fill();
+    ctx.strokeStyle = rgba(PALETTE.gold, 0.45);
+    ctx.lineWidth = 2;
+    roundRect(ctx, -plW / 2, -21, plW, 40, 10);
+    ctx.stroke();
     ctx.fillStyle = PALETTE.goldDeep;
-    ctx.fillText(opts.peakBand.label, 0, 0);
+    ctx.fillText(opts.peakBand.label, 0, 7);
     ctx.restore();
   }
 
@@ -390,6 +419,33 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
     ctx.fillStyle = g;
     ctx.fill();
     ctx.restore();
+  } else {
+    // U-08 (VISUAL MARKET REVIEW — CHART INTERIORS): multi-series journeys
+    // drew NO area fill at all — the employment/debt frames shipped as a
+    // white void with two thin lines (the B-11 evidence class). Every
+    // series now carries its own soft tone field under the stroke: the
+    // card's interior reads as two data masses diverging — the film's own
+    // K metaphor — instead of a blank slab.
+    for (let siF = series.length - 1; siF >= 0; siF--) {
+      const srF = series[siF];
+      const toneF = TONE(srF.tone).vivid ?? TONE(srF.tone).main;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w * reveal, h);
+      ctx.clip();
+      const ptsF = toPx(srF, x, y, w, h, yMin, yMax);
+      ctx.beginPath();
+      ctx.moveTo(ptsF[0].x, y + h);
+      for (const pt of ptsF) ctx.lineTo(pt.x, pt.y);
+      ctx.lineTo(ptsF[ptsF.length - 1].x, y + h);
+      ctx.closePath();
+      const gF = ctx.createLinearGradient(0, y, 0, y + h);
+      gF.addColorStop(0, rgba(toneF, siF === 0 ? 0.30 : 0.22));
+      gF.addColorStop(1, rgba(toneF, siF === 0 ? 0.12 : 0.08));
+      ctx.fillStyle = gF;
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   // series pixel polylines — computed once, shared by the draw loop and the
@@ -556,12 +612,14 @@ export function lineChart(ctx: CanvasRenderingContext2D, opts: LineChartOpts): v
         ctx.arc(last.x, last.y, Math.max(0.4, 6.5 * scale), 0, Math.PI * 2);
         ctx.fill();
       }
-      // P4 (CHART IMPACT GRAMMAR): the pen finishing the line is an EVENT —
-      // ONE gold sparkle burst from the endpoint inside the 900ms window
-      // after doneAt. Stateless (pure function of t) — scrub-safe.
-      if (opts.doneAt !== undefined) {
-        sparkles(ctx, last.x, last.y, t, opts.doneAt, { count: 8, gold: true, radius: 90 });
-      }
+      // P4 (CHART IMPACT GRAMMAR): the pen finishing the line is an EVENT.
+      // U-11 (VISUAL MARKET REVIEW — CUT THE CONFETTI ON NUMBERS): the gold
+      // sparkle burst on every chart completion fired celebration VFX on
+      // dry data — the category tell of template explainers. The data-true
+      // event stays (the 140ms endpoint pop + the three decaying pulses
+      // above); the sprinkles are retired. Chapter cards and the end screen
+      // keep their own celebratory sparkles.
+      // (retired: sparkles(ctx, last.x, last.y, t, opts.doneAt, { count: 8, gold: true, radius: 90 }))
     }
     void si;
   });

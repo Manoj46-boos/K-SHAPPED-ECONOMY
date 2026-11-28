@@ -737,7 +737,7 @@ export function chartJourneyScene(g: SceneCtx): void {
   // transiently crosses during the entrance walk (the search ran under the
   // entrance camera and the parked walker's grip hand then plated the
   // '−45 · May' pill by 39-59px — the arbitration sweep's kind:hand hits).
-  const X_PARK_J = 1555;
+  const X_PARK_J = 1660; // U-04 (VISUAL MARKET REVIEW — THE CONTACT LAW): the park moves OUTSIDE the card's right edge (1580) — the figure stands on the room floor beside the plate and his fist REACHES IN to grip the line's endpoint; the body no longer overlaps the card's border line
   let walkerXNow = 815;
   {
     // C8 FIX (market review §2.1 — NEVER TANGLE THE DATA): the station set
@@ -2091,7 +2091,7 @@ export function kDefScene(g: SceneCtx): void {
     // the depth vector parallel to the stem and shipped wall spikes), the
     // walls swinging toward the lens exactly as the face takes the frame.
     const turnP = clamp01((t - 2800) / 900);
-    drawK3D(ctx, kx, ky, S, 1, t, true, turnP);
+    drawK3D(ctx, kx, ky, S, 1, t, true, turnP, true); // U-16: the arms carry the divergence
     ctx.restore();
   }
   // travelers
@@ -2618,7 +2618,12 @@ export function gasPumpScene(g: SceneCtx): void {
       // the scene's contact grammar.
       registerFigure(g.beat.scene.sceneKey, 'household-walker', 'participant', 0.8, g.H, true);
     };
-    walker(700, 610, 4200, 1500, upPts, { pose: arriveO, look: -0.4, scarf: true, hostBody: false }, 41, false);
+    // U-06 (VISUAL MARKET REVIEW — A CAST, NOT CLONES): the higher-income
+    // household figure ran the host's own design at 0.8 — a shrunken clone.
+    // The 'prof' variant (ink torso, rolled sleeves, no vest) makes him a
+    // DIFFERENT person from the gold-vest host; the lower-income walker
+    // keeps his worker cap. Three silhouettes on one stage, no clones.
+    walker(700, 610, 4200, 1500, upPts, { pose: arriveO, look: -0.4, scarf: false, variant: 'prof', hostBody: false }, 41, false);
     walker(1040, 1140, 4400, 1300, dnPts, { pose: arriveW, look: 0.4, scarf: false, variant: 'worker', hostBody: false }, 42, true);
   }
 

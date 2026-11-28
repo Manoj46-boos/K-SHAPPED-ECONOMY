@@ -6,7 +6,7 @@
  */
 
 import { clamp01, easeInQuad, easeInOutSine, easeOutCubic, hash01 , hashStr } from './easing';
-import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI, drawRoomRail, drawChapterRoom, getRoomFamily, setRoomFamily, setWashChapter, setRoomLook } from './theme';
+import { PALETTE, paintBg, rgba, FONT_DISPLAY, FONT_UI, drawRoomRail, drawChapterRoom, getRoomFamily, setRoomFamily, setWashChapter, setRoomLook, roundRect } from './theme';
 import { drawGrain, lightVignette, bokehField, scalePunch, camState, guardCamState, kWipe, fgBokeh, dofPass, chapterAccent, drawK3D } from './effects';
 import { drawParticles, emitterKindFor } from './particles';
 import { drawCaptions, drawChapterCard, drawChapterLabel, drawProgressBar, drawWatermark } from './textfx';
@@ -14,6 +14,7 @@ import { Timeline, beatAt } from './timeline';
 import { SceneCtx, SceneDrawer, REACTIONS, reactionAt, resetHeadlineDedup } from './scene-context';
 import { collisionGuard, collisionGuard as guardRef, resetGuard, setGuardOverlay, setGuardCamera, collectViolations, registeredAreaFraction } from './collision';
 import { AMP, HERO } from './perception';
+import { drawForegroundPlane } from './stage';
 // PHASE 1 (100-Judge audit Table 6): per-frame registry resets for the
 // scale law + the prop ledger (the harness asserts them per evidence frame).
 import { resetFigureRegistry } from './scale-law';
@@ -1055,6 +1056,12 @@ export function drawFrame(
       ctx.restore();
     }
   }
+  // U-07 (VISUAL MARKET REVIEW — THE FOREGROUND PLANE): the near desk-edge
+  // plank, screen space, IN FRONT of the scene content — the camera looks
+  // OVER a desk on every frame, the third depth plane the brief's premium
+  // grammar names. The band (y >= H-34) sits under every registered lane,
+  // so it grounds without plating (see stage.drawForegroundPlane).
+  drawForegroundPlane(ctx, 1920, 1080);
   // BLUEPRINT Phase 5 (report §11 — the reaction close-up's CONTENT
   // RECEDE): during every reaction window the data content recedes in
   // VALUE around the host's zone (a soft radial white veil, brightest at
@@ -1337,31 +1344,52 @@ export function drawFrame(
   // survives, the mottling does not.
   lightVignette(ctx, W, H, [0, 1, 4, 5, 6, 7].includes(beat.chapter) ? 0.16 : 0.22);
 
-  // global fades: from ink at start, to ink at end
-  // P1-8 (report §12.8): the cold-open white fade 600ms → 180ms. The 600ms
-  // fade held the frame at half-white while the K was already trying to
-  // grow — a 0.4s of dead air before the film says anything. 180ms is still
-  // a cut-softening breath, but the first stroke is now fighting a veil,
-  // not a wall.
-  // V2 FIX (market review §2.2 — FRAME ZERO IS THE THUMBNAIL OF FRAME ONE):
-  // the opening veil was dead WHITE — the feed's first frame a blank page.
-  // The veil now rises from the brand INK and carries the gold K mark
-  // (320ms — still a breath, never dead air): frame 0 is a designed dark
-  // plate with the brand letterform, the strongest possible first
-  // impression at the feed, and the fade-out joins the same one-light
-  // language.
+  // global fades: from the brand plate at start, to ink at end
+  // P1-8 (report §12.8): the cold-open white fade 600ms → 180ms.
+  // V2 FIX (market review §2.2): the opening veil carried the gold K mark.
+  // U-14 (VISUAL MARKET REVIEW — FRAME ZERO IS THE BRAND): the veil rose
+  // from dead INK — the feed's first frame was a dark letterform plate,
+  // off-brand for the ivory film and weaker than the film's own thumbnail
+  // (B-18). Frame zero is now the film's light plate: the ivory field, the
+  // gold K mark, and the two-number hook the script opens on — the
+  // thumbnail-grade image the feed tests reward. The CLOSE keeps the ink
+  // fade (the film ends to black, the standard sign-off).
   const fadeIn = 1 - clamp01(t / 320);
   const fadeOut = clamp01((t - (tl.durationMs - 1100)) / 1100);
-  const veil = Math.max(fadeIn, fadeOut);
-  if (veil > 0.001) {
-    ctx.fillStyle = rgba(PALETTE.ink, veil);
+  if (fadeOut > 0.001) {
+    ctx.fillStyle = rgba(PALETTE.ink, fadeOut);
     ctx.fillRect(0, 0, W, H);
-    if (fadeIn > 0.02) {
-      ctx.save();
-      ctx.globalAlpha = fadeIn * 0.92;
-      drawK3D(ctx, W / 2, H / 2 - 30, 190, 1, 0, false);
-      ctx.restore();
+  }
+  if (fadeIn > 0.02) {
+    ctx.save();
+    ctx.globalAlpha = fadeIn;
+    ctx.fillStyle = PALETTE.bgTop;
+    ctx.fillRect(0, 0, W, H);
+    drawK3D(ctx, W / 2, H / 2 - 130, 190, 1, 0, false);
+    // the two-number hook — the cold open's own paradox at pill scale
+    const pillY = H / 2 + 160, pillW = 300, pillH = 112, gap = 64;
+    const pills: Array<{ dx: number; tone: string; big: string; sub: string }> = [
+      { dx: -pillW - gap / 2, tone: PALETTE.up, big: '+18%', sub: 'THE MARKET' },
+      { dx: gap / 2, tone: PALETTE.down, big: '16%', sub: 'THE MOOD' },
+    ];
+    for (const pl of pills) {
+      const px0 = W / 2 + pl.dx;
+      ctx.fillStyle = rgba(PALETTE.white, 0.97);
+      roundRect(ctx, px0, pillY, pillW, pillH, 22);
+      ctx.fill();
+      ctx.strokeStyle = rgba(pl.tone, 0.75);
+      ctx.lineWidth = 4;
+      roundRect(ctx, px0, pillY, pillW, pillH, 22);
+      ctx.stroke();
+      ctx.fillStyle = pl.tone;
+      ctx.textAlign = 'left';
+      ctx.font = `700 58px ${FONT_DISPLAY}`;
+      ctx.fillText(pl.big, px0 + 34, pillY + 62);
+      ctx.font = `600 27px ${FONT_UI}`;
+      ctx.fillStyle = PALETTE.inkSoft;
+      ctx.fillText(pl.sub, px0 + 34, pillY + 94);
     }
+    ctx.restore();
   }
   ctx.restore();
 }

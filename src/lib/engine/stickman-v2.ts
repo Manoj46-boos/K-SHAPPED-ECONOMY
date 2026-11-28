@@ -84,7 +84,12 @@ const BODY_MASS = '#7A5D10';
 // from muddy gold-olive #5A4A17 to a true VALUE step under the vest
 // (#3A3A28). The host now carries exactly: ink limbs + gold vest #D9B224
 // over a dark tee + cream head — nameable in three seconds at feed scale.
-const OUTFIT = { tee: '#3A3A28', vest: '#D9B224', trouser: '#2A3432' } as const;
+// U-01 (VISUAL MARKET REVIEW - B-02 THE MUD TORSO): the dark-olive tee read
+// as a brown smear at feed scale and outnumbered the brand gold. The tee
+// drops to a warm ivory under-layer (the head's own material — one cloth
+// logic) and the GOLD VEST panel below widens to own the chest band, so the
+// silhouette's brand color finally outweighs the base cloth.
+const OUTFIT = { tee: '#E9DFC6', vest: '#D9B224', trouser: '#2A3432' } as const;
 /** AUDIT-ROUND-3 iter-2 (ONE INK, ALL FOUR LIMBS): the gold near-arm
  *  sleeve (ARM_MASS) read to the re-review panel as "the near limb
  *  darker/warmer in tone than the far — the mismatched limb shading
@@ -269,7 +274,11 @@ function drawMouthV2(
     // C1 FIX: cavity alpha 0.50 → 0.32 and the tongue hint 0.38 → 0.26 —
     // the open mouth reads as a soft articulated shape, never as the black
     // void that out-massed the eyes in every talking frame.
-    ctx.fillStyle = 'rgba(28,22,16,0.32)';
+    // U-03 (VISUAL MARKET REVIEW — PERCEPTION-LEVEL EMOTION): 0.32 died
+    // under the transcode at feed scale — the mouth never visibly opened.
+    // The cavity returns to 0.50 (tongue hint 0.34): still soft, now
+    // visible on the phone, never out-massing the eyes.
+    ctx.fillStyle = 'rgba(28,22,16,0.5)';
     ctx.beginPath();
     ctx.ellipse(cx, cy + rh * 0.18, rw * 0.62, rh * 0.5, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -911,8 +920,17 @@ export function handGlyph(
       ctx.lineTo(bx + px2 * w0 / 2, by + py2 * w0 / 2);
       ctx.closePath();
     }
-    ctx.fillStyle = col; // AFTER restore — the fix that un-lemons the hand
+    // U-02 (VISUAL MARKET REVIEW — HANDS THAT READ AS HANDS): the filled-ink
+    // mass read as a dark blob at working rigs. The palm fills in the head's
+    // own ivory with an ink contour — the knuckle breaks and thumb lobe now
+    // read as NOTCHES in a drawn hand, not lumps in a mass; the contact
+    // fingertips stay ink so the touch lands ON the data.
+    ctx.fillStyle = PALETTE.white;
     ctx.fill();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = Math.max(2.4, s * 0.16);
+    ctx.lineJoin = 'round';
+    ctx.stroke();
     // the thumb bar across the fist — the closed-hand read
     taper(ctx, x + Math.sin(a) * s * 0.06, y + Math.cos(a) * s * 0.06,
       x + Math.sin(a + 1.15) * s * 0.52, y + Math.cos(a + 1.15) * s * 0.52,
@@ -987,8 +1005,17 @@ export function handGlyph(
       );
       ctx.closePath();
     }
-    ctx.fillStyle = col; // AFTER restore — the fix that un-lemons the hand
+    // U-02 (VISUAL MARKET REVIEW — HANDS THAT READ AS HANDS): the filled-ink
+    // mass read as a dark blob at working rigs. The palm fills in the head's
+    // own ivory with an ink contour — the knuckle breaks and thumb lobe now
+    // read as NOTCHES in a drawn hand, not lumps in a mass; the contact
+    // fingertips stay ink so the touch lands ON the data.
+    ctx.fillStyle = PALETTE.white;
     ctx.fill();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = Math.max(2.4, s * 0.16);
+    ctx.lineJoin = 'round';
+    ctx.stroke();
     return;
   }
   // ── 100-JUDGE VISUAL AUDIT (Phase 1) — THE OPEN PALM ──
@@ -1023,10 +1050,16 @@ export function handGlyph(
     ctx.save();
     ctx.translate(x + Math.sin(fa) * hs * 0.30, y + Math.cos(fa) * hs * 0.30);
     ctx.rotate(fa);
-    ctx.fillStyle = col;
+    // U-02: the palm wedge fills ivory with an ink contour (see the mitten
+    // note below) — one hand language at every glyph.
+    ctx.fillStyle = PALETTE.white;
     ctx.beginPath();
     roundRect(ctx, -hs * 0.52, -hs * 0.40, hs * 1.04, hs * 0.82, hs * 0.32);
     ctx.fill();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = Math.max(2.4, hs * 0.14);
+    ctx.lineJoin = 'round';
+    ctx.stroke();
     ctx.restore();
     // four separated fingers — the count glyph's PROVEN finger path (roots
     // buried in the wedge, quadratic-capped tips, fan ±0.30 rad breathing
@@ -1053,8 +1086,14 @@ export function handGlyph(
       ctx.lineTo(bx + px2 * w0, by + py2 * w0);
       ctx.closePath();
     }
-    ctx.fillStyle = col;
+    // U-02: the open fingers fill ivory with the ink contour — separated
+    // fingers with outlines read as fingers at every rig, not a fork.
+    ctx.fillStyle = PALETTE.white;
     ctx.fill();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = Math.max(2.2, hs * 0.12);
+    ctx.lineJoin = 'round';
+    ctx.stroke();
     // the thumb lobe — the mitten's own grammar, one bump on the wrist side
     taper(ctx, x + Math.sin(fa) * hs * 0.14, y + Math.cos(fa) * hs * 0.14,
       x + Math.sin(fa + 1.1) * hs * 0.72, y + Math.cos(fa + 1.1) * hs * 0.72,
@@ -1078,7 +1117,8 @@ export function handGlyph(
     ctx.save();
     ctx.translate(x + Math.sin(fa) * s * 0.08, y + Math.cos(fa) * s * 0.08);
     ctx.rotate(fa);
-    ctx.fillStyle = col;
+    // U-02: ivory fill + ink contour (one hand language — see the mitten).
+    ctx.fillStyle = PALETTE.white;
     ctx.beginPath();
     roundRect(ctx, -s * 0.4, -s * 0.34, s * 0.62, s * 0.7, s * 0.26);
     if (rigScale >= 1.25) {
@@ -1087,6 +1127,10 @@ export function handGlyph(
       }
     }
     ctx.fill();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = Math.max(2.4, s * 0.16);
+    ctx.lineJoin = 'round';
+    ctx.stroke();
     ctx.restore();
     // the index — curls from the mass to the pinch point (1.0s out)
     taper(ctx, x + Math.sin(fa) * s * 0.18, y + Math.cos(fa) * s * 0.18,
@@ -1882,7 +1926,15 @@ export function drawStickmanV2(
   // unchanged). The stack lands ~4.7 heads — inside the playbook's own
   // caricature band — and the bigger mass makes the walk plant squash
   // read at the feed.
-  const U_LEG = 50, L_LEG = 46, TORSO = 84, U_ARM = 58, L_ARM = 54;
+  // U-01 (VISUAL MARKET REVIEW - THE SILHOUETTE LAW): the sweep frames still
+  // read leggy — two long thin ink columns under a huge head. The stack
+  // commits to the true caricature build: legs 50/46 -> 40/37 (the leg share
+  // of standing height drops from ~43% to ~36%, the Becker band), the torso
+  // LENGTHENS 84 -> 96 (the chest is a body, not a stub) with the capsule
+  // widths rising with it (below), and the arms shorten 58/54 -> 52/48 so
+  // reach stays honest. Total stack lands ~4.6 heads — inside the playbook
+  // band — and the legs finally carry visible mass at every rig.
+  const U_LEG = 40, L_LEG = 37, TORSO = 96, U_ARM = 52, L_ARM = 48;
   const pelvisY = -U_LEG - L_LEG + pose.rootY;
   // BLUEPRINT Phase 2: the hip anchors ride the pelvis tilt — right hip
   // rises when pelvisTilt is positive (weight onto the left leg), left
@@ -1931,7 +1983,10 @@ export function drawStickmanV2(
     // shrinks a FURTHER 13% at the working rigs (below 1.4) so the foot
     // never outsizes the shin at the side stagings either — the report's
     // "wedge length −15% at rigs < 1.4".
-    ctx.scale(scale < 1.4 ? 0.74 : 0.85, scale < 1.4 ? 0.74 : 0.85);
+    // U-01 (SILHOUETTE LAW): the shoes scale BACK UP (+22% over the C5/A2
+    // sizes) — with the legs shortened to 40/37 the shrunk wedges read as
+    // pin-feet; a visible sneaker grounds the silhouette at every rig.
+    ctx.scale(scale < 1.4 ? 0.90 : 1.04, scale < 1.4 ? 0.90 : 1.04);
     ctx.fillStyle = col;
     ctx.beginPath();
     // 100-JUDGE VISUAL AUDIT (Fix 1 — THE CLEAN WEDGE): the old four-curve
@@ -2186,8 +2241,11 @@ export function drawStickmanV2(
     // peplum/dress in thumbnail silhouette. The hem tapers 12% inward on
     // every variant; the silhouette read (shoulders > chest > waist > hem)
     // is now monotone - trousers, not a gown.
-    const wH = prof ? 18.1 : worker ? 17.1 : 15.6, wW = prof ? 15.3 : worker ? 14.5 : 13;
-    const wC = (prof ? 28.3 : worker ? 27.0 : 26) * chestBreathe, wS = (prof ? 23.6 : worker ? 23.0 : 22.4) * chestBreathe;
+    // U-01 (SILHOUETTE LAW): with the torso rail 84 -> 96 the capsule widths
+    // rise ~13% so the longer body reads STOCKIER, not lankier — the chest
+    // stays nearly double the waist and the mass survives the feed.
+    const wH = prof ? 20.3 : worker ? 19.2 : 17.6, wW = prof ? 17.1 : worker ? 16.2 : 14.6;
+    const wC = (prof ? 31.7 : worker ? 30.2 : 29.2) * chestBreathe, wS = (prof ? 26.4 : worker ? 25.8 : 25.2) * chestBreathe;
     const rX = (h: number, w: number) => tdx * h + tnx * w;
     const rY = (h: number, w: number) => ty0 + tdy * h + tny * w;
     const lX = (h: number, w: number) => tdx * h - tnx * w;
@@ -2232,21 +2290,23 @@ export function drawStickmanV2(
     ctx.strokeStyle = ink;
     ctx.lineWidth = 3.5;
     ctx.stroke();
-    // P1 — THE GOLD VEST PANEL: same torso rail, FP0 two-tone split at the
-    // 50% torso line (vest owns the chest band 0.50..0.98, the tee owns the
-    // belly), inset ~12% so the tee's ink outline still frames it. Filled +
-    // 2px ink outline; the deep-V tee notch below returns the tee at the
-    // center chest. FP0 CAST: the worker does NOT wear the brand vest — the
-    // gray-ink torso is his silhouette (the gold vest is the host's alone).
+    // P1 — THE GOLD VEST PANEL: same torso rail. U-01 (VISUAL MARKET REVIEW
+    // - B-02): the vest owned only the 0.50..0.98 band at ~0.8 width insets —
+    // under 10% of the silhouette was brand gold and the panel read as a
+    // mustard patch. The vest now owns the chest band 0.35..0.98 at near-full
+    // width insets (0.94/0.99 chest, 0.86 shoulder) — the gold mass is the
+    // body's dominant read at every rig, the tee returns at the hem and the
+    // deep-V notch. Filled + 2.6px ink outline; FP0 CAST: the worker does NOT
+    // wear the brand vest — the gray-ink torso is his silhouette.
     if (!prof && !worker) {
       ctx.fillStyle = OUTFIT.vest;
       ctx.beginPath();
-      ctx.moveTo(rX(0.50, wW * 0.88), rY(0.50, wW * 0.88));
-      ctx.quadraticCurveTo(rX(0.62, wW * 0.96), rY(0.62, wW * 0.96), rX(0.75, wC * 0.82), rY(0.75, wC * 0.82));
-      ctx.quadraticCurveTo(rX(0.90, wC * 0.80), rY(0.90, wC * 0.80), rX(0.98, wS * 0.78), rY(0.98, wS * 0.78));
-      ctx.lineTo(lX(0.98, wS * 0.78), lY(0.98, wS * 0.78));
-      ctx.quadraticCurveTo(lX(0.90, wC * 0.80), lY(0.90, wC * 0.80), lX(0.75, wC * 0.82), lY(0.75, wC * 0.82));
-      ctx.quadraticCurveTo(lX(0.62, wW * 0.96), lY(0.62, wW * 0.96), lX(0.50, wW * 0.88), lY(0.50, wW * 0.88));
+      ctx.moveTo(rX(0.35, wW * 0.94), rY(0.35, wW * 0.94));
+      ctx.quadraticCurveTo(rX(0.62, wW * 0.99), rY(0.62, wW * 0.99), rX(0.75, wC * 0.90), rY(0.75, wC * 0.90));
+      ctx.quadraticCurveTo(rX(0.90, wC * 0.88), rY(0.90, wC * 0.88), rX(0.98, wS * 0.86), rY(0.98, wS * 0.86));
+      ctx.lineTo(lX(0.98, wS * 0.86), lY(0.98, wS * 0.86));
+      ctx.quadraticCurveTo(lX(0.90, wC * 0.88), lY(0.90, wC * 0.88), lX(0.75, wC * 0.90), lY(0.75, wC * 0.90));
+      ctx.quadraticCurveTo(lX(0.62, wW * 0.99), lY(0.62, wW * 0.99), lX(0.35, wW * 0.94), lY(0.35, wW * 0.94));
       ctx.closePath();
       ctx.fill();
       ctx.strokeStyle = ink;
@@ -2338,8 +2398,10 @@ export function drawStickmanV2(
     ctx.arc(lX(0.92, wS * 0.6), lY(0.92, wS * 0.6), wS * 0.45, 0, Math.PI * 2);
     ctx.fill();
     // hip block — a short horizontal bar at the pelvis for grounding
-    // (tee tone: the vest ends above the waist; the pelvis is trouser/tee)
-    ctx.fillStyle = torsoMass;
+    // (U-01: the host's pelvis grounds in the TROUSER tone — with the tee now
+    // ivory, a pale pelvis would unmoor the figure's dark-mass base; the
+    // prof/worker keep their own torso masses)
+    ctx.fillStyle = prof || worker ? torsoMass : OUTFIT.trouser;
     ctx.beginPath();
     ctx.ellipse(tx0 + tdx * 0.08, ty0 + tdy * 0.08, wH * 0.95, wH * 0.40, Math.atan2(tdx, -tdy), 0, Math.PI * 2);
     ctx.fill();

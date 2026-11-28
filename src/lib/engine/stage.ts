@@ -35,7 +35,7 @@
  * no per-frame randomness.
  */
 
-import { rgba, PALETTE } from './theme';
+import { rgba, PALETTE, roundRect } from './theme';
 import { hash01 } from './easing';
 import { frameContext, type FrameFamily } from './composition';
 
@@ -53,9 +53,15 @@ const STAGE_TABLE: Record<FrameFamily, {
   floorAlpha: number;    // the desk surface's darkening
   floorLines: number;    // perspective lines on the desk surface
 }> = {
-  host:      { horizonY: 0.70, mullions: 4, mullionAlpha: 0.12, floorAlpha: 0.099, floorLines: 4 },
-  data:      { horizonY: 0.72, mullions: 3, mullionAlpha: 0.108, floorAlpha: 0.081, floorLines: 3 },
-  statement: { horizonY: 0.74, mullions: 2, mullionAlpha: 0.099, floorAlpha: 0.09, floorLines: 3 },
+  // U-07 (VISUAL MARKET REVIEW — THE TWO-MASS LAW): the 0.099-0.12 register
+  // was sub-perceptual on the sweep sheets — the room read as a flat wash
+  // and most frames reduced to figure + card + void. The architecture band
+  // rises to 0.17-0.20 and the floor plane to 0.14-0.17: the room READS at
+  // the feed while staying structure (no band approaches a competing mass;
+  // the figure's ink and the content plates still own the value extremes).
+  host:      { horizonY: 0.70, mullions: 4, mullionAlpha: 0.20,  floorAlpha: 0.17, floorLines: 4 },
+  data:      { horizonY: 0.72, mullions: 3, mullionAlpha: 0.17,  floorAlpha: 0.14, floorLines: 3 },
+  statement: { horizonY: 0.74, mullions: 2, mullionAlpha: 0.17,  floorAlpha: 0.15, floorLines: 3 },
 };
 
 /**
@@ -155,4 +161,39 @@ export function drawStageWorld(
   g.addColorStop(1, rgba(ink, st.floorAlpha * 1.6));
   ctx.fillStyle = g;
   ctx.fillRect(0, H - H * 0.075, W, H * 0.075);
+}
+
+/**
+ * U-07 (VISUAL MARKET REVIEW — THE FOREGROUND PLANE): the third depth plane
+ * IN FRONT of the content. A near desk-edge plank runs along the frame's
+ * foot (a rounded plank bleeding off the right edge, one edge highlight and
+ * a leg tick) — the camera visibly looks OVER a desk, the deepest and
+ * cheapest depth cue a flat stage has. Screen-space, drawn AFTER the scene
+ * drawer from director's post pass, so it sits in front of figure and data
+ * alike. Geometry is a pure function of (W, H) — scrub-safe; the band
+ * (y >= H-36) sits below every registered content lane (source tags bottom
+ * ~1032, caption zone above 800), so it plates nothing.
+ */
+export function drawForegroundPlane(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number
+): void {
+  const ink = PALETTE.inkDeep;
+  const plankY = H - 34;
+  // the plank — a soft ink mass with a lit top edge (left end rounded, the
+  // right end bleeds off the frame)
+  const g = ctx.createLinearGradient(0, plankY, 0, H);
+  g.addColorStop(0, rgba(ink, 0.20));
+  g.addColorStop(1, rgba(ink, 0.30));
+  ctx.fillStyle = g;
+  roundRect(ctx, W * 0.40, plankY, W * 0.60 + 40, H - plankY, 12);
+  ctx.fill();
+  // the lit top edge — the desk's near rail catches the key light
+  ctx.strokeStyle = rgba(PALETTE.white, 0.20);
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(W * 0.40 + 12, plankY + 1.5);
+  ctx.lineTo(W, plankY + 1.5);
+  ctx.stroke();
 }

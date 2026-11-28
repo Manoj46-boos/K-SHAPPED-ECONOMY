@@ -500,6 +500,36 @@ export function drawThumbnail(
     }
     ctx.restore();
     }
+    // U-15 (VISUAL MARKET REVIEW — THE TWO-NUMBER PAIR): layout C's plate
+    // carries the market number alone; the contradiction reads only in
+    // words. A second CORAL pill joins the lockup — the street side of the
+    // K (driving −7%, the film's own lower-income figure) — so the thumbnail
+    // IS the two-economy split before a single word is read. Sits right of
+    // the plate, clear of the reactor (the plate ends ~x 700; the reactor's
+    // envelope starts ~x 1230).
+    if (layout === 'C') {
+      const pw = 300, ph = 128;
+      const px2 = bx + plateW + 30, py2 = by + plateH - ph;
+      ctx.save();
+      ctx.fillStyle = 'rgba(15, 40, 34, 0.42)';
+      roundRect(ctx, px2 - 7, py2 + 11, pw, ph, 30);
+      ctx.fill();
+      ctx.fillStyle = '#FFFFFF';
+      roundRect(ctx, px2, py2, pw, ph, 30);
+      ctx.fill();
+      ctx.lineWidth = 7;
+      ctx.strokeStyle = DOWN;
+      roundRect(ctx, px2, py2, pw, ph, 30);
+      ctx.stroke();
+      setFont(ctx, 64, 700, FONT_UI);
+      ctx.fillStyle = DOWN;
+      ctx.textAlign = 'left';
+      ctx.fillText('-7%', px2 + 34, py2 + 62);
+      setFont(ctx, 30, 600, FONT_UI);
+      ctx.fillStyle = INK;
+      ctx.fillText('DRIVING', px2 + 34, py2 + 98);
+      ctx.restore();
+    }
   }
 
   // ── THE K — a small branded tag (fix 5): "K shrinks to a small branded
